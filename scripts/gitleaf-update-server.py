@@ -1,0 +1,1362 @@
+#!/usr/bin/env python3
+import argparse
+from calendar import monthrange
+from datetime import date, datetime, timedelta, timezone
+import gzip
+import hashlib
+import html
+import json
+import os
+import posixpath
+import re
+import secrets
+import shutil
+import sys
+import threading
+import time
+from http import HTTPStatus
+from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
+from pathlib import Path
+from urllib.parse import parse_qs, unquote, urlencode, urlparse
+
+# Event semantics and allowed analytical claims are defined by
+# docs/app-usage-analytics-spec.md. Update the spec before changing this contract.
+
+
+HANDOFF_ID_PATTERN = re.compile(r"[A-Za-z0-9_-]{20,64}")
+HANDOFF_TTL_SECONDS = 600
+SHARE_PREVIEW_TITLE_MAX_LENGTH = 100
+SHARE_PREVIEW_SNIPPET_MAX_LENGTH = 200
+TELEMETRY_MAX_BODY_BYTES = 64 * 1024
+TELEMETRY_MAX_BATCH_EVENTS = 100
+TELEMETRY_DIRECTORY_MODE = 0o750
+TELEMETRY_FILE_MODE = 0o640
+TELEMETRY_MAINTENANCE_INTERVAL_SECONDS = 6 * 60 * 60
+TELEMETRY_STRICT_UPDATE_CONTRACT_VERSION = "1.10.0"
+SEMVER_PATTERN = re.compile(
+    r"(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)"
+    r"(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?"
+    r"(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?"
+)
+ISO_TIMESTAMP_PATTERN = re.compile(
+    r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})"
+)
+TELEMETRY_EVENT_NAMES = {
+    "git_leaf.installation.observed",
+    "git_leaf.update.state_changed",
+    "git_leaf.daily.summary",
+}
+TELEMETRY_FEATURE_DIMENSIONS = {
+    "navigation.file_search": {},
+    "navigation.document_search": {},
+    "navigation.frontmatter_filter": {
+        "action": {"apply", "clear"},
+        "filter_count_bucket": {"1", "2_3", "4_plus"},
+    },
+    "navigation.worktree_switch": {"result": {"success", "cancel", "error"}},
+    "navigation.deep_link": {
+        "type": {"repository", "exact_worktree"},
+        "result": {"success", "cancel", "error"},
+        "failure_reason": {
+            "repository_not_known", "worktree_not_found",
+            "repository_selection_invalid", "repository_identity_mismatch",
+            "repository_open_failed", "main_worktree_check_failed",
+            "main_worktree_unavailable", "primary_not_main", "fetch_failed",
+            "revision_missing", "main_ahead", "main_diverged", "sync_failed",
+            "safe_update_failed", "document_open_failed", "unknown",
+        },
+    },
+    "editing.activity": {
+        "mode": {"source", "live"},
+    },
+    "editing.slash_command": {
+        "command_category": {"markdown", "mdx_component", "media"},
+    },
+    "editing.frontmatter": {
+        "action": {"add", "edit", "delete"},
+        "result": {"success", "cancel", "error"},
+    },
+    "editing.image_paste": {"result": {"success", "cancel", "error"}},
+    "editing.markdown_to_mdx": {"result": {"success", "cancel", "error"}},
+    "output.pdf_export": {"result": {"success", "cancel", "error"}},
+    "git.sync": {
+        "strategy": {"guarded_live_v1"},
+        "result": {"success", "cancel", "error"},
+        "file_count_bucket": {"1", "2_5", "6_20", "21_plus"},
+        "drift_kind": {"none", "content_changed", "head_changed", "post_commit_changed"},
+        "retry_bucket": {"0", "1", "2_plus"},
+        "duration_bucket": {"under_1s", "1_3s", "3_10s", "over_10s"},
+        "error_code": {
+            "identity_missing", "origin_missing", "conflict", "nothing_selected",
+            "commit_failed", "workspace_changed", "head_changed", "pull_failed",
+            "push_failed", "unknown",
+        },
+    },
+    "github.open": {"result": {"success", "cancel", "error"}},
+    "line_reference.copy": {"line_count_bucket": {"1", "2_5", "6_plus"}},
+}
+
+
+class HandoffRegistry:
+    def __init__(self, ttl_seconds=HANDOFF_TTL_SECONDS):
+        self.ttl_seconds = ttl_seconds
+        self.entries = {}
+        self.lock = threading.Lock()
+
+    def create(self):
+        with self.lock:
+            self._remove_expired()
+            handoff_id = secrets.token_urlsafe(24)
+            self.entries[handoff_id] = {
+                "created_at": time.monotonic(),
+                "state": "pending",
+            }
+            return handoff_id
+
+    def confirm(self, handoff_id):
+        with self.lock:
+            self._remove_expired()
+            entry = self.entries.get(handoff_id)
+            if not entry:
+                return False
+            entry["state"] = "opened"
+            return True
+
+    def opened(self, handoff_id):
+        with self.lock:
+            self._remove_expired()
+            entry = self.entries.get(handoff_id)
+            return bool(entry and entry["state"] == "opened")
+
+    def state(self, handoff_id):
+        with self.lock:
+            self._remove_expired()
+            entry = self.entries.get(handoff_id)
+            return entry["state"] if entry else "expired"
+
+    def update(self, handoff_id, state):
+        if state not in {"received", "cancelled", "failed"}:
+            return False
+        with self.lock:
+            self._remove_expired()
+            entry = self.entries.get(handoff_id)
+            if not entry:
+                return False
+            entry["state"] = state
+            return True
+
+    def _remove_expired(self):
+        cutoff = time.monotonic() - self.ttl_seconds
+        expired = [
+            handoff_id
+            for handoff_id, entry in self.entries.items()
+            if entry["created_at"] < cutoff
+        ]
+        for handoff_id in expired:
+            self.entries.pop(handoff_id, None)
+
+
+class TelemetryRateLimiter:
+    def __init__(self, limit=600, window_seconds=60):
+        self.limit = limit
+        self.window_seconds = window_seconds
+        self.entries = {}
+        self.lock = threading.Lock()
+
+    def allow(self, source, events):
+        now = time.monotonic()
+        with self.lock:
+            self.entries = {
+                key: entry
+                for key, entry in self.entries.items()
+                if now - entry[0] < self.window_seconds
+            }
+            requested = {}
+            for event in events:
+                key = (source, event["install_id"])
+                requested[key] = requested.get(key, 0) + 1
+            for key, count in requested.items():
+                _started_at, current = self.entries.get(key, (now, 0))
+                if current + count > self.limit:
+                    return False
+            for key, count in requested.items():
+                started_at, current = self.entries.get(key, (now, 0))
+                self.entries[key] = (started_at, current + count)
+            return True
+
+
+class TelemetryLogStore:
+    def __init__(self, root, collection="events", write_function=None):
+        self.root = Path(root)
+        self.collection = collection
+        self.lock = threading.Lock()
+        self.last_maintenance_date = None
+        self.write_function = write_function or os.write
+
+    def append(self, events, received_at):
+        payload = "".join(
+            json.dumps(event, ensure_ascii=False, separators=(",", ":")) + "\n"
+            for event in events
+        ).encode("utf-8")
+        if not payload:
+            raise ValueError("Telemetry batches must contain at least one event.")
+        target = (
+            self.root
+            / self.collection
+            / received_at.strftime("%Y")
+            / received_at.strftime("%m")
+            / f"{received_at.strftime('%d')}.jsonl"
+        )
+        with self.lock:
+            self._prepare_log_directory(target.parent)
+            created = not target.exists()
+            flags = os.O_WRONLY | os.O_CREAT | os.O_APPEND
+            flags |= getattr(os, "O_CLOEXEC", 0)
+            flags |= getattr(os, "O_NOFOLLOW", 0)
+            descriptor = os.open(target, flags, TELEMETRY_FILE_MODE)
+            original_size = os.fstat(descriptor).st_size
+            try:
+                set_telemetry_file_mode(target, descriptor)
+                self._write_all(descriptor, payload)
+                os.fsync(descriptor)
+            except BaseException:
+                try:
+                    os.ftruncate(descriptor, original_size)
+                    os.fsync(descriptor)
+                except OSError:
+                    pass
+                os.close(descriptor)
+                descriptor = None
+                if created:
+                    target.unlink(missing_ok=True)
+                raise
+            finally:
+                if descriptor is not None:
+                    os.close(descriptor)
+
+    def maintain(self, current_date=None, force=False):
+        current_date = current_date or datetime.now(timezone.utc).date()
+        if not isinstance(current_date, date):
+            raise TypeError("current_date must be a date")
+        with self.lock:
+            if not force and self.last_maintenance_date == current_date:
+                return {"skipped": True, "compressed": 0, "deleted": 0, "invalid_gzip": 0}
+            result = self._maintain(current_date)
+            self.last_maintenance_date = current_date
+            return {"skipped": False, **result}
+
+    def _write_all(self, descriptor, payload):
+        remaining = memoryview(payload)
+        while remaining:
+            written = self.write_function(descriptor, remaining)
+            if not isinstance(written, int) or written <= 0 or written > len(remaining):
+                raise OSError("Telemetry batch write did not make progress.")
+            remaining = remaining[written:]
+
+    def _prepare_log_directory(self, target):
+        directories = [self.root, self.root / self.collection]
+        relative = target.relative_to(self.root / self.collection)
+        current = self.root / self.collection
+        for part in relative.parts:
+            current /= part
+            directories.append(current)
+        for directory in directories:
+            directory.mkdir(mode=TELEMETRY_DIRECTORY_MODE, parents=True, exist_ok=True)
+            directory.chmod(TELEMETRY_DIRECTORY_MODE)
+
+    def _maintain(self, current_date):
+        collection_root = self.root / self.collection
+        result = {"compressed": 0, "deleted": 0, "invalid_gzip": 0}
+        if not collection_root.is_dir():
+            return result
+        self.root.chmod(TELEMETRY_DIRECTORY_MODE)
+        collection_root.chmod(TELEMETRY_DIRECTORY_MODE)
+        for target in sorted(collection_root.glob("*/*/*.jsonl*")):
+            log_date = telemetry_log_date(collection_root, target)
+            if not log_date:
+                continue
+            target.parent.parent.chmod(TELEMETRY_DIRECTORY_MODE)
+            target.parent.chmod(TELEMETRY_DIRECTORY_MODE)
+            target.chmod(TELEMETRY_FILE_MODE)
+            if add_calendar_months(log_date, 12) <= current_date:
+                target.unlink(missing_ok=True)
+                result["deleted"] += 1
+                continue
+            age_days = (current_date - log_date).days
+            if age_days < 7 or target.name.endswith(".gz"):
+                continue
+            compressed = target.with_name(f"{target.name}.gz")
+            if compressed.exists():
+                compressed.chmod(TELEMETRY_FILE_MODE)
+                if not valid_gzip_file(compressed):
+                    result["invalid_gzip"] += 1
+                    continue
+            else:
+                compress_log_file(target, compressed)
+            target.unlink(missing_ok=True)
+            result["compressed"] += 1
+        return result
+
+
+class TelemetryMaintenanceRunner:
+    def __init__(self, stores, interval_seconds=TELEMETRY_MAINTENANCE_INTERVAL_SECONDS):
+        self.stores = tuple(stores)
+        self.interval_seconds = interval_seconds
+        self.stop_event = threading.Event()
+        self.thread = None
+
+    def run_once(self, current_date=None, force=False):
+        results = {}
+        for store in self.stores:
+            try:
+                results[store.collection] = store.maintain(current_date, force=force)
+            except OSError as error:
+                results[store.collection] = {"error": type(error).__name__}
+                print(
+                    f"TELEMETRY_MAINTENANCE_ERROR collection={store.collection} error={type(error).__name__}",
+                    file=sys.stderr,
+                    flush=True,
+                )
+        return results
+
+    def start(self):
+        if self.thread is not None:
+            return
+        self.run_once()
+        self.thread = threading.Thread(target=self._run, name="telemetry-maintenance", daemon=True)
+        self.thread.start()
+
+    def stop(self):
+        self.stop_event.set()
+        if self.thread is not None:
+            self.thread.join(timeout=2)
+
+    def _run(self):
+        while not self.stop_event.wait(self.interval_seconds):
+            self.run_once()
+
+
+class DistributionDownloadLogStore(TelemetryLogStore):
+    def __init__(self, root):
+        super().__init__(root, collection="downloads")
+
+    def append_download(self, download, received_at):
+        self.append([{
+            "schema_version": 1,
+            "download_id": secrets.token_urlsafe(24),
+            "event_name": "git_leaf.distribution.downloaded",
+            "occurred_at": received_at.isoformat(timespec="milliseconds").replace("+00:00", "Z"),
+            **download,
+        }], received_at)
+
+
+def telemetry_log_date(events_root, target):
+    try:
+        relative = target.relative_to(events_root)
+        year, month, filename = relative.parts
+        match = re.fullmatch(r"(\d{2})\.jsonl(?:\.gz)?", filename)
+        if not match:
+            return None
+        return date(int(year), int(month), int(match.group(1)))
+    except (ValueError, TypeError):
+        return None
+
+
+def add_calendar_months(value, months):
+    month_index = value.month - 1 + months
+    year = value.year + month_index // 12
+    month = month_index % 12 + 1
+    day = min(value.day, monthrange(year, month)[1])
+    return date(year, month, day)
+
+
+def compress_log_file(source, target):
+    temporary = target.with_name(f".{target.name}.tmp-{secrets.token_hex(8)}")
+    try:
+        with temporary.open("xb") as raw_output:
+            set_telemetry_file_mode(temporary, raw_output.fileno())
+            with source.open("rb") as raw_input, gzip.GzipFile(
+                    filename="", mode="wb", fileobj=raw_output, mtime=0,
+            ) as compressed_output:
+                shutil.copyfileobj(raw_input, compressed_output)
+            raw_output.flush()
+            os.fsync(raw_output.fileno())
+        os.replace(temporary, target)
+        target.chmod(TELEMETRY_FILE_MODE)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def set_telemetry_file_mode(target, descriptor=None):
+    if descriptor is not None and hasattr(os, "fchmod"):
+        os.fchmod(descriptor, TELEMETRY_FILE_MODE)
+        return
+    Path(target).chmod(TELEMETRY_FILE_MODE)
+
+
+def valid_gzip_file(target):
+    try:
+        with gzip.open(target, "rb") as source:
+            while source.read(1024 * 1024):
+                pass
+        return True
+    except (OSError, EOFError):
+        return False
+
+
+class GitLeafUpdateHandler(SimpleHTTPRequestHandler):
+    server_version = "GitLeafUpdates/1.0"
+
+    def do_GET(self):
+        if self._handle_share_status():
+            return
+        if self._handle_open_status():
+            return
+        if self._handle_share_page(send_body=True):
+            return
+        if self._handle_open_page(send_body=True):
+            return
+        if self._handle_mac_release_feed(send_body=True):
+            return
+        download = distribution_download_record(self.directory, self.path)
+        super().do_GET()
+        if download:
+            try:
+                self.server.download_log_store.append_download(
+                    download,
+                    datetime.now(timezone.utc),
+                )
+            except OSError:
+                # Product analytics must never make an otherwise successful download fail.
+                pass
+
+    def do_POST(self):
+        if self._handle_telemetry_events():
+            return
+        if self._handle_open_confirm():
+            return
+        if self._handle_share_state():
+            return
+        self.send_error(HTTPStatus.NOT_FOUND)
+
+    def do_HEAD(self):
+        if self._handle_share_page(send_body=False):
+            return
+        if self._handle_open_page(send_body=False):
+            return
+        if self._handle_mac_release_feed(send_body=False):
+            return
+        super().do_HEAD()
+
+    def end_headers(self):
+        parsed_path = urlparse(self.path).path
+        if parsed_path.endswith(".json") or "/releases/" in parsed_path:
+            self.send_header("Cache-Control", "no-store")
+        elif re.search(r"\.(zip|dmg|blockmap)$", parsed_path):
+            self.send_header("Cache-Control", "public, max-age=31536000, immutable")
+        super().end_headers()
+
+    def _handle_open_page(self, send_body):
+        parsed = urlparse(self.path)
+        if parsed.path != "/open":
+            return False
+
+        query = parse_qs(parsed.query, keep_blank_values=True)
+        repository_values = query.get("repo", [])
+        path_values = query.get("path", [])
+        worktree_values = query.get("worktree", [])
+        if len(repository_values) > 1 or len(path_values) > 1 or len(worktree_values) > 1:
+            self._send_open_error(send_body)
+            return True
+
+        repository = normalize_repository_identity(repository_values[0] if repository_values else "")
+        document_path = normalize_document_path(path_values[0] if path_values else "")
+        worktree = normalize_worktree_id(worktree_values[0] if worktree_values else "")
+        requested_repository = bool(repository_values)
+        requested_path = bool(path_values)
+        requested_worktree = bool(worktree_values)
+
+        if requested_repository != requested_path:
+            self._send_open_error(send_body)
+            return True
+        if requested_repository and (not repository or not document_path):
+            self._send_open_error(send_body)
+            return True
+        if requested_worktree and (not requested_repository or not worktree):
+            self._send_open_error(send_body)
+            return True
+
+        handoff_id = self.server.handoffs.create()
+        deep_link_params = {}
+        if repository:
+            deep_link_params.update({"repo": repository, "path": document_path})
+        if worktree:
+            deep_link_params["worktree"] = worktree
+        deep_link_params["handoff"] = handoff_id
+        deep_link_host = "open-worktree" if worktree else "open"
+        deep_link = f"git-leaf://{deep_link_host}?" + urlencode(deep_link_params)
+
+        if repository:
+            title = "正在 Git Leaf 中打开文档"
+            detail = f"{repository} · {document_path}"
+        else:
+            title = "正在启动 Git Leaf"
+            detail = "这个链接只启动或聚焦应用，不会切换当前仓库或文档。"
+        body = open_page_html(
+            title,
+            detail,
+            deep_link,
+            handoff_id,
+            latest_download_links(self.directory),
+        ).encode("utf-8")
+        self.send_response(HTTPStatus.OK)
+        self._send_open_headers(len(body))
+        self.end_headers()
+        if send_body:
+            self.wfile.write(body)
+        return True
+
+    def _handle_share_page(self, send_body):
+        parsed = urlparse(self.path)
+        if parsed.path != "/share":
+            return False
+
+        query = parse_qs(parsed.query, keep_blank_values=True)
+        allowed_keys = {"v", "repo", "path", "rev", "title", "snippet", "lk_jump_to_browser"}
+        if any(key not in allowed_keys for key in query):
+            self._send_share_error(send_body)
+            return True
+        values = {key: query.get(key, []) for key in ("v", "repo", "path", "rev")}
+        if any(len(items) != 1 for items in values.values()):
+            self._send_share_error(send_body)
+            return True
+        if len(query.get("lk_jump_to_browser", [])) > 1:
+            self._send_share_error(send_body)
+            return True
+        preview_title_values = query.get("title", [])
+        preview_snippet_values = query.get("snippet", [])
+        if len(preview_title_values) > 1 or len(preview_snippet_values) > 1:
+            self._send_share_error(send_body)
+            return True
+
+        version = values["v"][0]
+        repository = normalize_repository_identity(values["repo"][0])
+        document_path = normalize_document_path(values["path"][0])
+        revision = normalize_git_revision(values["rev"][0])
+        if version != "1" or not repository or not document_path or not revision:
+            self._send_share_error(send_body)
+            return True
+        preview_title = normalize_share_preview_text(
+            preview_title_values[0] if preview_title_values else "",
+            SHARE_PREVIEW_TITLE_MAX_LENGTH,
+        )
+        preview_snippet = normalize_share_preview_text(
+            preview_snippet_values[0] if preview_snippet_values else "",
+            SHARE_PREVIEW_SNIPPET_MAX_LENGTH,
+        )
+        if ((preview_title_values and not preview_title)
+                or (preview_snippet_values and not preview_snippet)):
+            self._send_share_error(send_body)
+            return True
+
+        handoff_id = self.server.handoffs.create()
+        deep_link = "git-leaf://open-shared?" + urlencode({
+            "v": "1",
+            "repo": repository,
+            "path": document_path,
+            "rev": revision,
+            "handoff": handoff_id,
+        })
+        detail = f"{repository} · {document_path}"
+        body = open_page_html(
+            "正在 Git Leaf 中打开分享文档",
+            detail,
+            deep_link,
+            handoff_id,
+            latest_download_links(self.directory),
+            status_endpoint="/share/status",
+            preview_title=preview_title or "正在 Git Leaf 中打开分享文档",
+            preview_description=preview_snippet or detail,
+        ).encode("utf-8")
+        self.send_response(HTTPStatus.OK)
+        self._send_open_headers(len(body))
+        self.end_headers()
+        if send_body:
+            self.wfile.write(body)
+        return True
+
+    def _send_share_error(self, send_body):
+        body = open_page_html(
+            "无法打开分享链接",
+            "这个分享链接无效、不完整或来自不支持的版本。",
+            "",
+            "",
+        ).encode("utf-8")
+        self.send_response(HTTPStatus.BAD_REQUEST)
+        self._send_open_headers(len(body))
+        self.end_headers()
+        if send_body:
+            self.wfile.write(body)
+
+    def _send_open_error(self, send_body):
+        body = open_page_html(
+            "无法打开 Git Leaf",
+            "这个文档链接无效或不完整。",
+            "",
+            "",
+        ).encode("utf-8")
+        self.send_response(HTTPStatus.BAD_REQUEST)
+        self._send_open_headers(len(body))
+        self.end_headers()
+        if send_body:
+            self.wfile.write(body)
+
+    def _send_open_headers(self, content_length):
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(content_length))
+        self.send_header("Cache-Control", "no-store")
+        self.send_header(
+            "Content-Security-Policy",
+            "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; "
+            "connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+        )
+        self.send_header("Referrer-Policy", "no-referrer")
+        self.send_header("X-Content-Type-Options", "nosniff")
+
+    def _handle_open_status(self):
+        parsed = urlparse(self.path)
+        if parsed.path != "/open/status":
+            return False
+        handoff_id = single_handoff_id(parsed.query)
+        if not handoff_id:
+            self._send_json(HTTPStatus.BAD_REQUEST, {"opened": False})
+            return True
+        self._send_json(HTTPStatus.OK, {
+            "opened": self.server.handoffs.opened(handoff_id),
+        })
+        return True
+
+    def _handle_share_status(self):
+        parsed = urlparse(self.path)
+        if parsed.path != "/share/status":
+            return False
+        handoff_id = single_handoff_id(parsed.query)
+        if not handoff_id:
+            self._send_json(HTTPStatus.BAD_REQUEST, {"opened": False, "state": "invalid"})
+            return True
+        state = self.server.handoffs.state(handoff_id)
+        self._send_json(HTTPStatus.OK, {
+            "opened": state == "opened",
+            "state": state,
+        })
+        return True
+
+    def _handle_share_state(self):
+        parsed = urlparse(self.path)
+        if parsed.path != "/share/state":
+            return False
+        handoff_id = single_handoff_id(parsed.query)
+        state_values = parse_qs(parsed.query, keep_blank_values=True).get("state", [])
+        if not handoff_id or len(state_values) != 1:
+            self._send_json(HTTPStatus.BAD_REQUEST, {"updated": False})
+            return True
+        if not self.server.handoffs.update(handoff_id, state_values[0]):
+            self._send_json(HTTPStatus.NOT_FOUND, {"updated": False})
+            return True
+        self.send_response(HTTPStatus.NO_CONTENT)
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        return True
+
+    def _handle_open_confirm(self):
+        parsed = urlparse(self.path)
+        if parsed.path != "/open/confirm":
+            return False
+        handoff_id = single_handoff_id(parsed.query)
+        if not handoff_id:
+            self._send_json(HTTPStatus.BAD_REQUEST, {"confirmed": False})
+            return True
+        if not self.server.handoffs.confirm(handoff_id):
+            self._send_json(HTTPStatus.NOT_FOUND, {"confirmed": False})
+            return True
+        self.send_response(HTTPStatus.NO_CONTENT)
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        return True
+
+    def _send_json(self, status, payload):
+        body = json.dumps(payload).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _handle_telemetry_events(self):
+        if urlparse(self.path).path != "/telemetry/v1/events":
+            return False
+        content_type = self.headers.get("Content-Type", "").split(";", 1)[0].strip().lower()
+        if content_type != "application/json":
+            self._send_json(HTTPStatus.UNSUPPORTED_MEDIA_TYPE, {"accepted": 0, "error": "invalid_request"})
+            return True
+        content_length = self.headers.get("Content-Length", "")
+        try:
+            body_length = int(content_length)
+        except ValueError:
+            body_length = -1
+        if body_length <= 0 or body_length > TELEMETRY_MAX_BODY_BYTES:
+            self._send_json(HTTPStatus.BAD_REQUEST, {"accepted": 0, "error": "invalid_request"})
+            return True
+        try:
+            payload = json.loads(self.rfile.read(body_length).decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            self._send_json(HTTPStatus.BAD_REQUEST, {"accepted": 0, "error": "invalid_json"})
+            return True
+        events = payload.get("events") if exact_dict_keys(payload, {"events"}) else None
+        if (
+            not isinstance(events, list)
+            or not events
+            or len(events) > TELEMETRY_MAX_BATCH_EVENTS
+            or not all(valid_telemetry_event(event) for event in events)
+        ):
+            self._send_json(HTTPStatus.BAD_REQUEST, {"accepted": 0, "error": "invalid_event"})
+            return True
+        source = self.client_address[0] if self.client_address else "unknown"
+        if not self.server.telemetry_rate_limiter.allow(source, events):
+            self._send_json(HTTPStatus.TOO_MANY_REQUESTS, {"accepted": 0, "error": "rate_limited"})
+            return True
+
+        received_at = datetime.now(timezone.utc)
+        stored_events = [
+            {**event, "received_at": received_at.isoformat(timespec="milliseconds").replace("+00:00", "Z")}
+            for event in events
+        ]
+        try:
+            self.server.telemetry_log_store.append(stored_events, received_at)
+        except OSError:
+            self._send_json(HTTPStatus.INTERNAL_SERVER_ERROR, {"accepted": 0, "error": "write_failed"})
+            return True
+        self._send_json(HTTPStatus.ACCEPTED, {"accepted": len(stored_events)})
+        return True
+
+    def _handle_mac_release_feed(self, send_body):
+        match = re.fullmatch(
+            r"/git-leaf/([^/]+)/(darwin-(?:universal|arm64))/releases/([^/]+)",
+            urlparse(self.path).path,
+        )
+        if not match:
+            return False
+
+        channel = unquote(match.group(1))
+        platform = match.group(2)
+        current_version = unquote(match.group(3))
+        latest_path = Path(self.directory) / "git-leaf" / channel / platform / "latest.json"
+        try:
+            manifest = json.loads(latest_path.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            self.send_error(HTTPStatus.NOT_FOUND, "latest.json not found")
+            return True
+        except json.JSONDecodeError:
+            self.send_error(HTTPStatus.INTERNAL_SERVER_ERROR, "latest.json is invalid")
+            return True
+
+        if compare_versions(str(manifest.get("version", "")), current_version) <= 0:
+            self.send_response(HTTPStatus.NO_CONTENT)
+            self.end_headers()
+            return True
+
+        payload = manifest.get("autoUpdater") or {}
+        body = json.dumps({
+            "url": payload.get("url", ""),
+            "name": payload.get("name", f"Git Leaf {manifest.get('version', '')}"),
+            "notes": payload.get("notes", manifest.get("notes", "")),
+            "pub_date": payload.get("pub_date", manifest.get("publishedAt", "")),
+        }, ensure_ascii=False).encode("utf-8")
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        if send_body:
+            self.wfile.write(body)
+        return True
+
+
+def valid_telemetry_event(event):
+    if not exact_dict_keys(event, {
+        "schema_version", "event_id", "install_id", "event_name", "occurred_at",
+        "local_date", "timezone_offset_minutes", "app", "properties",
+    }):
+        return False
+    if event.get("schema_version") != 1:
+        return False
+    if not short_identifier(event.get("event_id"), 16, 80):
+        return False
+    if not short_identifier(event.get("install_id"), 16, 80):
+        return False
+    event_name = event.get("event_name")
+    if event_name not in TELEMETRY_EVENT_NAMES:
+        return False
+    occurred_at = parse_iso_timestamp(event.get("occurred_at"))
+    if occurred_at is None:
+        return False
+    local_date = parse_local_date(event.get("local_date"))
+    if local_date is None:
+        return False
+    timezone_offset = event.get("timezone_offset_minutes")
+    if not isinstance(timezone_offset, int) or isinstance(timezone_offset, bool) or not -840 <= timezone_offset <= 840:
+        return False
+    expected_local_date = (
+        occurred_at.astimezone(timezone.utc) + timedelta(minutes=timezone_offset)
+    ).date()
+    if local_date != expected_local_date:
+        return False
+    if not valid_telemetry_app(event.get("app")):
+        return False
+    properties = event.get("properties")
+    if event_name == "git_leaf.installation.observed":
+        return valid_installation_properties(properties)
+    if event_name == "git_leaf.update.state_changed":
+        return valid_update_properties(properties, event["app"]["version"])
+    return valid_daily_summary_properties(properties, event["install_id"], local_date)
+
+
+def valid_telemetry_app(app):
+    if not exact_dict_keys(app, {
+        "version", "build_id", "channel", "platform", "arch", "os_version_major",
+    }):
+        return False
+    return (
+        valid_semver(app.get("version"))
+        and bounded_text(app.get("build_id"), 1, 120)
+        and app.get("channel") == "stable"
+        and app.get("platform") in {"darwin", "win32"}
+        and app.get("arch") in {"arm64", "x64"}
+        and bounded_text(app.get("os_version_major"), 0, 12)
+    )
+
+
+def valid_installation_properties(properties):
+    if not isinstance(properties, dict) or not set(properties).issubset({"reason", "device_name"}):
+        return False
+    if properties.get("reason") not in {"first_observed", "device_name_changed"}:
+        return False
+    return "device_name" not in properties or bounded_text(properties.get("device_name"), 1, 120)
+
+
+def valid_update_properties(properties, app_version):
+    if not isinstance(properties, dict) or not set(properties).issubset({
+        "state", "trigger", "from_version", "to_version", "error_code", "stage",
+    }):
+        return False
+    if properties.get("state") not in {
+        "check_started", "current", "available", "downloaded", "skipped",
+        "install_started", "completed", "failed",
+    }:
+        return False
+    if properties.get("trigger") not in {"automatic", "manual", "windows_bootstrap"}:
+        return False
+    if "from_version" in properties and not valid_semver(properties.get("from_version")):
+        return False
+    if (
+        "to_version" in properties
+        and properties.get("to_version") is not None
+        and not valid_semver(properties.get("to_version"))
+    ):
+        return False
+    if "error_code" in properties and properties.get("error_code") not in {
+        "network", "manifest", "signature", "copy", "launch", "downgrade_blocked", "unknown",
+    }:
+        return False
+    if "stage" in properties and (
+        properties.get("state") != "failed"
+        or properties.get("stage") not in {"check", "download", "prepare", "install", "launch", "unknown"}
+    ):
+        return False
+    if properties.get("state") != "failed" and "error_code" in properties:
+        return False
+    if "from_version" not in properties:
+        return False
+    if compare_semvers(app_version, TELEMETRY_STRICT_UPDATE_CONTRACT_VERSION) < 0:
+        # Queued events retain the event-time App version. Older releases did not
+        # require failure stage/error fields or target versions, so keep accepting
+        # that historical wire contract while validating every field that is present.
+        return True
+
+    keys = set(properties)
+    state = properties["state"]
+    from_version = properties.get("from_version")
+    to_version = properties.get("to_version")
+    if state == "check_started":
+        return (
+            keys == {"state", "trigger", "from_version"}
+            and compare_semvers(from_version, app_version) == 0
+        )
+    if state == "failed":
+        if not {"state", "trigger", "from_version", "error_code", "stage"}.issubset(keys):
+            return False
+        if not keys.issubset({"state", "trigger", "from_version", "to_version", "error_code", "stage"}):
+            return False
+        if properties["stage"] != "check" and to_version is None:
+            return False
+        return compare_semvers(from_version, app_version) == 0
+
+    if keys != {"state", "trigger", "from_version", "to_version"} or to_version is None:
+        return False
+    if state == "completed":
+        return (
+            compare_semvers(to_version, app_version) == 0
+            and compare_semvers(to_version, from_version) != 0
+        )
+    if compare_semvers(from_version, app_version) != 0:
+        return False
+    comparison = compare_semvers(to_version, from_version)
+    if state == "current":
+        return comparison <= 0
+    return comparison > 0
+
+
+def valid_daily_summary_properties(properties, install_id, event_local_date):
+    base_keys = {
+        "summary_id", "revision", "launch_count", "launch_counts_by_entry_kind",
+        "active_minutes", "repository_open_count", "repository_switch_count",
+        "distinct_repository_count", "rolling_30d_distinct_repository_count",
+        "worktree_switch_count", "mode_minutes", "feature_counts",
+    }
+    has_summary_date = isinstance(properties, dict) and "summary_date" in properties
+    expected_keys = base_keys | ({"summary_date"} if has_summary_date else set())
+    if not exact_dict_keys(properties, expected_keys):
+        return False
+    summary_id = properties.get("summary_id")
+    if not isinstance(summary_id, str) or not re.fullmatch(r"[a-f0-9]{32,64}", summary_id):
+        return False
+    if has_summary_date:
+        summary_date = properties.get("summary_date")
+        parsed_summary_date = parse_local_date(summary_date)
+        if parsed_summary_date is None or parsed_summary_date > event_local_date:
+            return False
+        expected_summary_id = hashlib.sha256(
+            f"{install_id}:{summary_date}".encode("utf-8")
+        ).hexdigest()[:len(summary_id)]
+        if summary_id != expected_summary_id:
+            return False
+    if not bounded_integer(properties.get("revision"), 1, 100000):
+        return False
+    for key in {
+        "launch_count", "active_minutes", "repository_open_count", "repository_switch_count",
+        "distinct_repository_count", "rolling_30d_distinct_repository_count", "worktree_switch_count",
+    }:
+        if not bounded_integer(properties.get(key), 0, 1000000):
+            return False
+    launch_counts = properties.get("launch_counts_by_entry_kind")
+    if not isinstance(launch_counts, dict) or not set(launch_counts).issubset({
+        "manual", "deep_link", "update_restart", "windows_bootstrap", "unknown",
+    }):
+        return False
+    if not all(bounded_integer(count, 0, 1000000) for count in launch_counts.values()):
+        return False
+    mode_minutes = properties.get("mode_minutes")
+    if not exact_dict_keys(mode_minutes, {"preview", "source", "live"}):
+        return False
+    if not all(bounded_integer(count, 0, 1000000) for count in mode_minutes.values()):
+        return False
+    feature_counts = properties.get("feature_counts")
+    return (
+        isinstance(feature_counts, list)
+        and len(feature_counts) <= 100
+        and all(valid_feature_counter(counter) for counter in feature_counts)
+    )
+
+
+def valid_feature_counter(counter):
+    if not isinstance(counter, dict) or not set(counter).issubset({"feature_id", "dimensions", "count"}):
+        return False
+    if set(counter) not in ({"feature_id", "count"}, {"feature_id", "dimensions", "count"}):
+        return False
+    feature_id = counter.get("feature_id")
+    allowed_dimensions = TELEMETRY_FEATURE_DIMENSIONS.get(feature_id)
+    if allowed_dimensions is None or not bounded_integer(counter.get("count"), 1, 1000000):
+        return False
+    dimensions = counter.get("dimensions", {})
+    if not isinstance(dimensions, dict) or not set(dimensions).issubset(allowed_dimensions):
+        return False
+    if not all(value in allowed_dimensions[key] for key, value in dimensions.items()):
+        return False
+    if (
+        feature_id == "navigation.deep_link"
+        and "failure_reason" in dimensions
+        and dimensions.get("result") != "error"
+    ):
+        return False
+    return True
+
+
+def exact_dict_keys(value, expected):
+    return isinstance(value, dict) and set(value) == set(expected)
+
+
+def bounded_text(value, minimum, maximum):
+    return (
+        isinstance(value, str)
+        and minimum <= len(value) <= maximum
+        and re.search(r"[\x00-\x1f\x7f]", value) is None
+    )
+
+
+def bounded_integer(value, minimum, maximum):
+    return isinstance(value, int) and not isinstance(value, bool) and minimum <= value <= maximum
+
+
+def short_identifier(value, minimum, maximum):
+    return isinstance(value, str) and minimum <= len(value) <= maximum and bool(re.fullmatch(r"[A-Za-z0-9_-]+", value))
+
+
+def valid_semver(value):
+    return parse_semver(value) is not None
+
+
+def parse_semver(value):
+    if not isinstance(value, str) or len(value) > 40:
+        return None
+    match = SEMVER_PATTERN.fullmatch(value)
+    if not match:
+        return None
+    prerelease = tuple((match.group(4) or "").split(".")) if match.group(4) else ()
+    if any(identifier.isdigit() and len(identifier) > 1 and identifier.startswith("0") for identifier in prerelease):
+        return None
+    return (int(match.group(1)), int(match.group(2)), int(match.group(3)), prerelease)
+
+
+def compare_semvers(left, right):
+    left_value = parse_semver(left)
+    right_value = parse_semver(right)
+    if left_value is None or right_value is None:
+        raise ValueError("compare_semvers requires valid semantic versions")
+    if left_value[:3] != right_value[:3]:
+        return 1 if left_value[:3] > right_value[:3] else -1
+    left_prerelease = left_value[3]
+    right_prerelease = right_value[3]
+    if not left_prerelease or not right_prerelease:
+        if left_prerelease == right_prerelease:
+            return 0
+        return -1 if left_prerelease else 1
+    for left_identifier, right_identifier in zip(left_prerelease, right_prerelease):
+        if left_identifier == right_identifier:
+            continue
+        left_numeric = left_identifier.isdigit()
+        right_numeric = right_identifier.isdigit()
+        if left_numeric and right_numeric:
+            return 1 if int(left_identifier) > int(right_identifier) else -1
+        if left_numeric != right_numeric:
+            return -1 if left_numeric else 1
+        return 1 if left_identifier > right_identifier else -1
+    if len(left_prerelease) == len(right_prerelease):
+        return 0
+    return 1 if len(left_prerelease) > len(right_prerelease) else -1
+
+
+def parse_iso_timestamp(value):
+    if not isinstance(value, str) or len(value) > 40 or not ISO_TIMESTAMP_PATTERN.fullmatch(value):
+        return None
+    try:
+        parsed = datetime.fromisoformat(value[:-1] + "+00:00" if value.endswith("Z") else value)
+        return parsed if parsed.tzinfo is not None and parsed.utcoffset() is not None else None
+    except ValueError:
+        return None
+
+
+def parse_local_date(value):
+    if not isinstance(value, str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
+        return None
+    try:
+        parsed = date.fromisoformat(value)
+        return parsed if parsed.isoformat() == value else None
+    except ValueError:
+        return None
+
+
+def normalize_repository_identity(value):
+    clean_value = str(value or "").strip().removesuffix(".git").lower()
+    if re.fullmatch(r"[a-z0-9_.-]+/[a-z0-9_.-]+", clean_value):
+        return clean_value
+    return ""
+
+
+def normalize_document_path(value):
+    clean_value = str(value or "").strip()
+    if not clean_value or "\\" in clean_value or "\x00" in clean_value:
+        return ""
+    if clean_value.startswith("/"):
+        return ""
+    normalized = posixpath.normpath(clean_value)
+    if normalized == ".." or normalized.startswith("../"):
+        return ""
+    if not re.search(r"\.mdx?$", normalized, re.IGNORECASE):
+        return ""
+    return normalized
+
+
+def normalize_worktree_id(value):
+    clean_value = str(value or "").strip().lower()
+    return clean_value if re.fullmatch(r"[a-f0-9]{16}", clean_value) else ""
+
+
+def normalize_git_revision(value):
+    clean_value = str(value or "").strip().lower()
+    return clean_value if re.fullmatch(r"[a-f0-9]{40}(?:[a-f0-9]{24})?", clean_value) else ""
+
+
+def single_handoff_id(query):
+    values = parse_qs(query, keep_blank_values=True).get("id", [])
+    if len(values) != 1 or not HANDOFF_ID_PATTERN.fullmatch(values[0]):
+        return ""
+    return values[0]
+
+
+def latest_download_links(root, channel="stable"):
+    targets = (
+        ("macOS", ("darwin-universal", "darwin-arm64"), "dmg"),
+        ("Windows", ("win32-x64",), "zip"),
+    )
+    downloads = []
+    for label, platforms, artifact_kind in targets:
+        for platform in platforms:
+            manifest_path = Path(root) / "git-leaf" / channel / platform / "latest.json"
+            try:
+                manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            except (FileNotFoundError, json.JSONDecodeError, OSError):
+                continue
+            artifact = (manifest.get("files") or {}).get(artifact_kind) or {}
+            url = str(artifact.get("url", "")).strip()
+            parsed_url = urlparse(url)
+            if parsed_url.scheme != "https" or not parsed_url.netloc:
+                continue
+            downloads.append({
+                "label": label,
+                "version": str(manifest.get("version", "")).strip(),
+                "url": download_page_url(url),
+            })
+            break
+    return downloads
+
+
+def download_page_url(url):
+    parsed = urlparse(url)
+    query = parse_qs(parsed.query, keep_blank_values=True)
+    query["source"] = ["download-page"]
+    return parsed._replace(query=urlencode(query, doseq=True)).geturl()
+
+
+def distribution_download_record(root, request_target):
+    parsed = urlparse(request_target)
+    if parse_qs(parsed.query, keep_blank_values=True) != {"source": ["download-page"]}:
+        return None
+    match = re.fullmatch(
+        r"/git-leaf/(stable)/(darwin-(?:universal|arm64)|win32-x64)/([^/]+\.(dmg|zip))",
+        parsed.path,
+    )
+    if not match:
+        return None
+    channel, platform, filename, artifact = match.groups()
+    if (platform.startswith("darwin-") and artifact != "dmg") or (
+        platform == "win32-x64" and artifact != "zip"
+    ):
+        return None
+
+    manifest_path = Path(root) / "git-leaf" / channel / platform / "latest.json"
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        artifact_info = (manifest.get("files") or {}).get(artifact) or {}
+        manifest_url = urlparse(str(artifact_info.get("url", "")))
+        target = (Path(root) / unquote(parsed.path).lstrip("/")).resolve()
+        root_path = Path(root).resolve()
+        if (
+            unquote(manifest_url.path) != unquote(parsed.path)
+            or not target.is_relative_to(root_path)
+            or not target.is_file()
+        ):
+            return None
+        size = target.stat().st_size
+    except (FileNotFoundError, json.JSONDecodeError, OSError, ValueError):
+        return None
+
+    version = manifest.get("version")
+    if not valid_semver(version):
+        return None
+    return {
+        "channel": channel,
+        "platform": platform,
+        "version": version,
+        "artifact": artifact,
+        "source": "download_page",
+        "bytes": size,
+    }
+
+
+def normalize_share_preview_text(value, max_length):
+    text = " ".join(str(value or "").split())
+    if not text or len(text) > max_length:
+        return ""
+    if any(ord(character) < 32 for character in text):
+        return ""
+    return text
+
+
+def open_page_html(
+        title,
+        detail,
+        deep_link,
+        handoff_id,
+        downloads=(),
+        status_endpoint="/open/status",
+        preview_title="",
+        preview_description="",
+):
+    safe_title = html.escape(title)
+    safe_detail = html.escape(detail)
+    safe_deep_link = html.escape(deep_link, quote=True)
+    safe_document_title = html.escape(preview_title or title)
+    preview_meta = ""
+    if preview_title or preview_description:
+        safe_preview_title = html.escape(preview_title or title, quote=True)
+        safe_preview_description = html.escape(preview_description or detail, quote=True)
+        preview_meta = (
+            f'  <meta name="description" content="{safe_preview_description}">\n'
+            f'  <meta property="og:title" content="{safe_preview_title}">\n'
+            f'  <meta property="og:description" content="{safe_preview_description}">\n'
+            '  <meta property="og:site_name" content="Git Leaf">\n'
+            '  <meta property="og:type" content="article">\n'
+        )
+    launch_script = ""
+    button = ""
+    download_section = ""
+    if deep_link:
+        status_path = status_endpoint + "?" + urlencode({"id": handoff_id})
+        launch_script = (
+            "<script>(()=>{"
+            "const status=document.querySelector('#handoff-status');"
+            "const attemptClose=()=>{"
+            "if(status)status.textContent='Git Leaf 已确认打开，正在关闭此页面…';"
+            "window.close();window.setTimeout(()=>{"
+            "if(status)status.textContent='Git Leaf 已打开。浏览器未允许自动关闭时，可以关闭此页面。';"
+            "},250);};"
+            "let handoffCompleted=false;let pollTimer=0;"
+            "const pollHandoff=async()=>{"
+            "if(handoffCompleted)return;"
+            "try{"
+            f"const response=await window.fetch({json.dumps(status_path)},{{cache:'no-store'}});"
+            "if(!response.ok)return;"
+            "const result=await response.json();"
+            "if(!result.opened){"
+            "if(result.state==='cancelled')status.textContent='已在 Git Leaf 中取消打开。可以点击按钮重试。';"
+            "else if(result.state==='failed')status.textContent='Git Leaf 无法完成打开。请在应用中处理后重试。';"
+            "else if(result.state==='received')status.textContent='Git Leaf 已收到链接，正在检查本地知识库…';"
+            "return;}"
+            "handoffCompleted=true;window.clearInterval(pollTimer);attemptClose();"
+            "}catch{}"
+            "};"
+            "window.addEventListener('DOMContentLoaded',()=>{"
+            "document.querySelector('#launch-link')?.addEventListener('click',pollHandoff);"
+            "pollTimer=window.setInterval(pollHandoff,300);void pollHandoff();"
+            f"window.location.href={json.dumps(deep_link, ensure_ascii=False)};"
+            "},{once:true});"
+            "})();</script>"
+        )
+        button = f'<a id="launch-link" class="button" href="{safe_deep_link}">在 Git Leaf 中打开</a>'
+    if downloads:
+        download_links = "".join(
+            '<a class="download-link" '
+            f'href="{html.escape(download["url"], quote=True)}" '
+            'rel="noopener noreferrer">下载 '
+            f'{html.escape(download["label"])} 版'
+            f'{" " + html.escape(download["version"]) if download["version"] else ""}</a>'
+            for download in downloads
+        )
+        download_section = (
+            '<section class="downloads" aria-label="下载 Git Leaf">'
+            '<p class="download-label">尚未安装 Git Leaf？</p>'
+            f'<div class="download-links">{download_links}</div>'
+            '</section>'
+        )
+    return f"""<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>{safe_document_title}</title>
+{preview_meta}  <style>
+    :root {{ color-scheme: light dark; font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }}
+    body {{ margin: 0; min-height: 100vh; display: grid; place-items: center; background: #f4f7f5; color: #18211d; }}
+    main {{ width: min(420px,calc(100vw - 48px)); padding: 36px; border: 1px solid #dce5df; border-radius: 18px; background: #fff; box-shadow: 0 18px 48px rgba(27,62,45,.12); text-align: center; }}
+    h1 {{ margin: 0 0 12px; font-size: 25px; }} p {{ margin: 0 0 26px; color: #5c6861; line-height: 1.6; }}
+    .button {{ display: inline-block; padding: 11px 18px; border-radius: 9px; background: #238a5a; color: #fff; font-weight: 650; text-decoration: none; }}
+    .status {{ margin: 18px 0 0; font-size: 13px; }}
+    .downloads {{ margin-top: 26px; padding-top: 22px; border-top: 1px solid #e4ebe7; }}
+    .download-label {{ margin: 0 0 10px; font-size: 13px; }}
+    .download-links {{ display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 14px; }}
+    .download-link {{ color: #1f7650; font-size: 13px; font-weight: 600; text-underline-offset: 3px; }}
+    @media (prefers-color-scheme: dark) {{ body {{ background:#101512;color:#edf4f0; }} main {{ background:#17201b;border-color:#2a3830; }} p {{ color:#a9b8b0; }} .downloads {{ border-color:#2a3830; }} .download-link {{ color:#70d3a4; }} }}
+  </style>
+</head>
+<body><main><h1>{safe_title}</h1><p>{safe_detail}</p>{button}<p id="handoff-status" class="status">如果应用没有自动打开，请点击按钮。</p>{download_section}</main>{launch_script}</body>
+</html>"""
+
+
+def compare_versions(left, right):
+    left_parts = version_core(left)
+    right_parts = version_core(right)
+    length = max(len(left_parts), len(right_parts))
+    for index in range(length):
+        left_value = left_parts[index] if index < len(left_parts) else 0
+        right_value = right_parts[index] if index < len(right_parts) else 0
+        if left_value > right_value:
+            return 1
+        if left_value < right_value:
+            return -1
+    return 0
+
+
+def version_core(value):
+    core = str(value or "0").strip().lstrip("vV").split("+", 1)[0].split("-", 1)[0]
+    parts = []
+    for part in core.split("."):
+        try:
+            parts.append(int(part))
+        except ValueError:
+            parts.append(0)
+    return parts or [0]
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--root", required=True)
+    parser.add_argument("--telemetry-root")
+    parser.add_argument("--bind", default="127.0.0.1")
+    parser.add_argument("--port", type=int, default=8320)
+    args = parser.parse_args()
+
+    handler = lambda *handler_args: GitLeafUpdateHandler(
+        *handler_args,
+        directory=args.root,
+    )
+    server = ThreadingHTTPServer((args.bind, args.port), handler)
+    server.handoffs = HandoffRegistry()
+    telemetry_root = args.telemetry_root or os.path.join(args.root, ".telemetry")
+    server.telemetry_log_store = TelemetryLogStore(telemetry_root)
+    server.download_log_store = DistributionDownloadLogStore(telemetry_root)
+    server.telemetry_rate_limiter = TelemetryRateLimiter()
+    maintenance = TelemetryMaintenanceRunner((
+        server.telemetry_log_store,
+        server.download_log_store,
+    ))
+    maintenance.start()
+    print(f"PORT={server.server_port}", flush=True)
+    try:
+        server.serve_forever()
+    finally:
+        maintenance.stop()
+        server.server_close()
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,62 @@
+{
+  "name": "git-leaf",
+  "version": "1.11.2",
+  "private": true,
+  "type": "module",
+  "main": "desktop/main.mjs",
+  "description": "Git-native docs for teams: local Markdown and MDX preview for Git repositories.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MangoFuture1210/git-leaf.git"
+  },
+  "homepage": "https://github.com/MangoFuture1210/git-leaf#readme",
+  "bugs": {
+    "url": "https://github.com/MangoFuture1210/git-leaf/issues"
+  },
+  "scripts": {
+    "build:client": "node scripts/build-client.mjs",
+    "desktop": "electron desktop/main.mjs",
+    "docs:check": "node scripts/check-doc-links.mjs",
+    "install:mac:dev": "node scripts/release-mac.mjs dev-install",
+    "package:mac": "node scripts/release-mac.mjs package",
+    "package:win": "node scripts/release-windows.mjs package",
+    "portable:win": "node scripts/release-windows.mjs portable",
+    "prototype:git-sync-snapshot": "node scripts/git-sync-snapshot-prototype.mjs",
+    "publish:updates:mac": "node scripts/release-mac.mjs publish-updates",
+    "publish:updates:win": "node scripts/release-windows.mjs publish-updates",
+    "release:prepare": "node scripts/release-worktree.mjs prepare",
+    "release:status": "node scripts/release-worktree.mjs status --remote",
+    "release:mac": "node scripts/release-mac.mjs release",
+    "release:win": "node scripts/release-windows.mjs release",
+    "start": "node src/cli.mjs",
+    "telemetry:summary": "node scripts/summarize-telemetry.mjs",
+    "test": "node scripts/test-suite.mjs core",
+    "test:all": "node scripts/test-suite.mjs all",
+    "test:ci:mac": "node scripts/test-suite.mjs ci:mac",
+    "test:ci:win": "node scripts/test-suite.mjs ci:win",
+    "test:core": "node scripts/test-suite.mjs core",
+    "test:release:mac": "node scripts/test-suite.mjs release:mac",
+    "test:release:win": "node scripts/test-suite.mjs release:win"
+  },
+  "bin": {
+    "git-leaf": "src/cli.mjs"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "dependencies": {
+    "@codemirror/autocomplete": "^6.20.3",
+    "@codemirror/lang-markdown": "^6.5.0",
+    "@codemirror/state": "^6.7.0",
+    "@codemirror/view": "^6.43.4",
+    "codemirror": "^6.0.2",
+    "extract-zip": "^2.0.1",
+    "markdown-it": "^14.3.0"
+  },
+  "devDependencies": {
+    "@electron/packager": "^20.0.2",
+    "electron": "^43.0.0",
+    "esbuild": "^0.28.1"
+  }
+}

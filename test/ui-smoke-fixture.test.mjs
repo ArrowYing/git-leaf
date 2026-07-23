@@ -1,0 +1,41 @@
+import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import test from "node:test";
+
+import {
+  TREE_TOOLTIP_SMOKE_RELATIVE_FILE,
+  cleanupTreeTooltipSmokeFixture,
+  createTreeTooltipSmokeFixture,
+} from "../scripts/ui-smoke-fixture.mjs";
+
+test("tree tooltip smoke fixture creates and cleans a deterministic long filename repository", async () => {
+  const temporaryRoot = await mkdtemp(path.join(tmpdir(), "git-leaf-ui-smoke-fixture-test-"));
+  const fixture = createTreeTooltipSmokeFixture({ temporaryRoot });
+  try {
+    assert.equal(fixture.file, TREE_TOOLTIP_SMOKE_RELATIVE_FILE);
+    assert.ok(path.basename(fixture.file).length > 70);
+    assert.match(fixture.acceptance, /静止至少 10 秒/);
+    assert.equal(
+      execFileSync("git", ["rev-parse", "--is-inside-work-tree"], {
+        cwd: fixture.repoRoot,
+        encoding: "utf8",
+      }).trim(),
+      "true",
+    );
+    assert.match(
+      readFileSync(path.join(fixture.repoRoot, fixture.file), "utf8"),
+      /Long filename tooltip smoke/,
+    );
+    const siblings = readdirSync(path.dirname(path.join(fixture.repoRoot, fixture.file)));
+    assert.ok(siblings.length >= 5);
+    assert.ok(siblings.every((fileName) => fileName.endsWith(".md")));
+  } finally {
+    cleanupTreeTooltipSmokeFixture(fixture);
+    await rm(temporaryRoot, { recursive: true, force: true });
+  }
+  assert.equal(existsSync(fixture.repoRoot), false);
+});

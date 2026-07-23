@@ -1,0 +1,10 @@
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Keyboard shortcut label mistaken for a generic API key"
+condition = "AND"
+targetRules = ["generic-api-key"]
+paths = ['''public/keyboard-shortcuts\.js$''']
+regexTarget = "match"
+regexes = ['''keys:\s*"Ctrl\+Shift\+Tab"''']

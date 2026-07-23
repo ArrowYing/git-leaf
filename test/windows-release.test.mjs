@@ -1,0 +1,214 @@
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import test from "node:test";
+
+import {
+  DEFAULT_ELECTRON_MIRROR,
+  DEFAULT_WINDOWS_RELEASE_OPTIONS,
+  windowsCommandRequiresNewReleaseVersion,
+  windowsUpdateMetadataPaths,
+  windowsElectronPackagerArgs,
+  windowsPortableSteps,
+  windowsReleasePaths,
+  windowsReleaseSteps,
+  windowsZipCommand,
+} from "../scripts/release-windows.mjs";
+
+test("windows release package args include x64 target metadata", () => {
+  const args = windowsElectronPackagerArgs({
+    appName: "Git Leaf",
+    version: "1.9.1",
+    companyName: "Mango Future",
+    productName: "Git Leaf",
+    outDir: "dist",
+  });
+
+  assert.ok(args.includes("--platform=win32"));
+  assert.ok(args.includes("--arch=x64"));
+  assert.ok(args.includes("--app-version=1.9.1"));
+  assert.ok(args.includes("--protocol=git-leaf"));
+  assert.ok(args.includes("--protocol-name=Git Leaf Document"));
+  assert.ok(args.includes("--win32metadata.CompanyName=Mango Future"));
+  assert.ok(args.includes("--win32metadata.ProductName=Git Leaf"));
+  assert.ok(args.includes("--win32metadata.OriginalFilename=Git Leaf.exe"));
+  assert.equal(
+    args.some((arg) => arg.includes("requested-execution-level")),
+    false,
+    "the Electron default asInvoker manifest should not be rewritten",
+  );
+  assert.ok(args.includes("--ignore=^/test($|/)"));
+  assert.ok(args.includes("--ignore=^/dist($|/)"));
+});
+
+test("windows release package args exclude internal docs, release scripts, and dev-only dependencies", () => {
+  const args = windowsElectronPackagerArgs({
+    appName: "Git Leaf",
+    companyName: "Mango Future",
+    productName: "Git Leaf",
+    outDir: "dist",
+  });
+  const ignorePatterns = args
+    .filter((arg) => arg.startsWith("--ignore="))
+    .map((arg) => new RegExp(arg.slice("--ignore=".length)));
+  const isIgnored = (filePath) => ignorePatterns.some((pattern) => pattern.test(filePath));
+
+  for (const filePath of [
+    "/scripts/release-windows.mjs",
+    "/Makefile",
+    "/AGENTS.md",
+    "/CLAUDE.md",
+    "/CONTRIBUTING.md",
+    "/SECURITY.md",
+    "/architecture.md",
+    "/release.md",
+    "/mdx-lite-guide.md",
+    "/windows-portable-guide.md",
+    "/docs/app-usage-analytics-spec.md",
+    "/.superpowers/brainstorm/demo/content/index.html",
+    "/.gitignore",
+    "/.gitleaks.toml",
+    "/.github/workflows/windows-release-smoke.yml",
+    "/node_modules/@electron/get/package.json",
+    "/node_modules/@esbuild/win32-x64/esbuild.exe",
+    "/node_modules/@types/node/index.d.ts",
+    "/node_modules/@lezer/css/test/test-css.js",
+    "/node_modules/@lezer/markdown/test-markdown.js",
+  ]) {
+    assert.equal(isIgnored(filePath), true, `${filePath} should not be copied into app.asar`);
+  }
+});
+
+test("windows release paths point to the packaged executable", () => {
+  const paths = windowsReleasePaths({
+    rootDir: "/repo",
+    appName: "Git Leaf",
+    version: "0.1.1",
+  });
+
+  assert.equal(slashPath(paths.appRoot), "/repo/dist/Git Leaf-win32-x64");
+  assert.equal(slashPath(paths.exePath), "/repo/dist/Git Leaf-win32-x64/Git Leaf.exe");
+  assert.equal(slashPath(paths.zipPath), "/repo/dist/GitLeaf-0.1.1-win32-x64.zip");
+});
+
+test("windows release filenames stay friendly when build id metadata is available", () => {
+  const paths = windowsReleasePaths({
+    rootDir: "/repo",
+    appName: "Git Leaf",
+    version: "0.1.1",
+    buildId: "93458e1.20260705T114700Z",
+  });
+
+  assert.equal(
+    slashPath(paths.zipPath),
+    "/repo/dist/GitLeaf-0.1.1-win32-x64.zip",
+  );
+});
+
+test("windows update metadata paths mirror the update service update directory shape", () => {
+  const paths = windowsUpdateMetadataPaths({
+    rootDir: "/repo",
+    channel: "stable",
+    platformKey: "win32-x64",
+  });
+
+  assert.equal(slashPath(paths.updateDir), "/repo/dist/updates/git-leaf/stable/win32-x64");
+  assert.equal(slashPath(paths.latestJsonPath), "/repo/dist/updates/git-leaf/stable/win32-x64/latest.json");
+  assert.equal(slashPath(paths.sha256Path), "/repo/dist/updates/git-leaf/stable/win32-x64/sha256sums.txt");
+});
+
+test("windows release sequence creates an unsigned portable package", () => {
+  assert.deepEqual(windowsPortableSteps, [
+    "package",
+    "zip",
+    "verify",
+  ]);
+  assert.deepEqual(windowsReleaseSteps, [
+    "check-version",
+    "test",
+    "package",
+    "zip",
+    "verify",
+    "tag",
+  ]);
+  assert.equal(
+    DEFAULT_WINDOWS_RELEASE_OPTIONS.companyName,
+    "Shenzhen Mango Future Technology Co., Ltd.",
+  );
+  assert.equal(DEFAULT_ELECTRON_MIRROR, "https://npmmirror.com/mirrors/electron/");
+});
+
+test("windows publish commands require an unpublished version without blocking smoke portable builds", () => {
+  for (const command of ["stage-updates", "publish-updates"]) {
+    assert.equal(windowsCommandRequiresNewReleaseVersion(command), true, command);
+  }
+
+  for (const command of ["test", "package", "zip", "verify", "tag", "portable", "help"]) {
+    assert.equal(windowsCommandRequiresNewReleaseVersion(command), false, command);
+  }
+});
+
+test("windows zip command uses PowerShell on Windows hosts", () => {
+  const command = windowsZipCommand({
+    platform: "win32",
+    appRoot: "C:\\repo\\dist\\Git Leaf-win32-x64",
+    zipPath: "C:\\repo\\dist\\GitLeaf-0.1.1-win32-x64.zip",
+  });
+
+  assert.equal(command.command, "powershell.exe");
+  const commandText = command.args.at(-1);
+
+  assert.match(commandText, /Compress-Archive/);
+  assert.match(commandText, /-LiteralPath 'C:\\repo\\dist\\Git Leaf-win32-x64'/);
+  assert.match(
+    commandText,
+    /-DestinationPath 'C:\\repo\\dist\\GitLeaf-0\.1\.1-win32-x64\.zip'/,
+  );
+  assert.equal(command.args.includes("C:\\repo\\dist\\Git Leaf-win32-x64"), false);
+});
+
+test("windows zip command keeps zip on POSIX hosts", () => {
+  const command = windowsZipCommand({
+    platform: "darwin",
+    appRoot: "/repo/dist/Git Leaf-win32-x64",
+    zipPath: "/repo/dist/GitLeaf-0.1.1-win32-x64.zip",
+  });
+
+  assert.equal(command.command, "zip");
+  assert.deepEqual(command.args, [
+    "-qry",
+    "/repo/dist/GitLeaf-0.1.1-win32-x64.zip",
+    "Git Leaf-win32-x64",
+  ]);
+  assert.equal(command.cwd, "/repo/dist");
+});
+
+test("windows release version follows package.json", async () => {
+  const packageJson = JSON.parse(await readFile("package.json", "utf8"));
+
+  assert.equal(DEFAULT_WINDOWS_RELEASE_OPTIONS.version, packageJson.version);
+});
+
+test("npm windows package scripts use the release packager wrapper", async () => {
+  const packageJson = JSON.parse(await readFile("package.json", "utf8"));
+
+  assert.equal(packageJson.scripts["package:win"], "node scripts/release-windows.mjs package");
+  assert.equal(packageJson.scripts["portable:win"], "node scripts/release-windows.mjs portable");
+  assert.equal(packageJson.scripts["release:win"], "node scripts/release-windows.mjs release");
+  assert.equal(packageJson.scripts["test:ci:win"], "node scripts/test-suite.mjs ci:win");
+  assert.equal(
+    packageJson.scripts["publish:updates:win"],
+    "node scripts/release-windows.mjs publish-updates",
+  );
+});
+
+test("Makefile exposes Windows package and release targets", async () => {
+  const makefile = await readFile("Makefile", "utf8");
+
+  assert.match(makefile, /^package-win:/m);
+  assert.match(makefile, /^release-win:/m);
+  assert.match(makefile, /^publish-updates-win:/m);
+});
+
+function slashPath(value) {
+  return value.replace(/\\/g, "/");
+}

@@ -1,0 +1,74 @@
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import test from "node:test";
+
+test("Windows release smoke workflow builds, launches, screenshots, and uploads artifacts", async () => {
+  const workflow = await readFile(".github/workflows/windows-release-smoke.yml", "utf8");
+
+  assert.match(workflow, /^name:\s*Windows Release Smoke/m);
+  assert.match(workflow, /^\s*workflow_dispatch:/m);
+  assert.match(workflow, /^\s*pull_request:/m);
+  assert.match(workflow, /^\s*push:/m);
+  assert.match(workflow, /^\s*branches:\s*\["main"\]/m);
+  assert.match(workflow, /runs-on:\s*windows-latest/);
+  assert.match(workflow, /node-version:\s*22/);
+  assert.match(workflow, /npm ci/);
+  assert.match(workflow, /npm run test:ci:win/);
+  assert.doesNotMatch(workflow, /npm test/);
+  assert.match(workflow, /npm run portable:win/);
+  assert.match(workflow, /Write Windows release gate evidence/);
+  assert.match(workflow, /\$env:GITHUB_RUN_ID/);
+  assert.match(workflow, /\$env:GITHUB_SHA/);
+  assert.match(workflow, /\$env:RUNNER_OS/);
+  assert.match(workflow, /Get-FileHash/);
+  assert.doesNotMatch(workflow, /-\s+"scripts\/\*\*"/);
+  assert.match(workflow, /-\s+"scripts\/release-windows\.mjs"/);
+  assert.match(workflow, /-\s+"scripts\/release-shared\.mjs"/);
+  assert.match(workflow, /-\s+"scripts\/test-suite\.mjs"/);
+  assert.match(workflow, /-\s+"scripts\/windows-smoke\.ps1"/);
+  assert.doesNotMatch(workflow, /-\s+"scripts\/release-mac\.mjs"/);
+  assert.doesNotMatch(workflow, /node scripts\/release-windows\.mjs zip/);
+  assert.doesNotMatch(workflow, /node scripts\/release-windows\.mjs verify/);
+  assert.match(workflow, /Prepare smoke repository/);
+  assert.match(workflow, /git-leaf-smoke-repo/);
+  assert.match(workflow, /GIT_LEAF_SMOKE_REPO/);
+  assert.match(workflow, /pwsh scripts\/windows-smoke\.ps1/);
+  assert.match(workflow, /-RepoRoot "\$env:GIT_LEAF_SMOKE_REPO"/);
+  assert.doesNotMatch(workflow, /-RepoRoot "\$env:GITHUB_WORKSPACE"/);
+  assert.match(workflow, /actions\/upload-artifact@v4/);
+  assert.match(workflow, /dist\/GitLeaf-\*-win32-x64\.zip/);
+  assert.match(workflow, /dist\/windows-smoke\/release-gate\.json/);
+  assert.match(workflow, /dist\/windows-smoke\/home\.png/);
+});
+
+test("Windows smoke script starts the packaged app, checks health, captures UI, and exits cleanly", async () => {
+  const script = await readFile("scripts/windows-smoke.ps1", "utf8");
+
+  assert.match(script, /param\s*\(/);
+  assert.match(script, /Git Leaf\.exe/);
+  assert.match(script, /Start-Process/);
+  assert.match(script, /LOCALAPPDATA.+GitLeaf\\app/);
+  assert.match(script, /HKEY_CURRENT_USER\\Software\\Classes\\git-leaf\\shell\\open\\command/);
+  assert.match(script, /Stable executable/);
+  assert.match(script, /install-state\.json/);
+  assert.match(script, /Installed version/);
+  assert.match(script, /same package again to verify stable-app redirect/);
+  assert.match(script, /Same-version package redirected to the stable app/);
+  assert.match(script, /newer installed-version marker to verify downgrade blocking/);
+  assert.match(script, /Outdated package was blocked from downgrading the stable app/);
+  assert.match(script, /running app blocks a manual cross-version replacement/);
+  assert.match(script, /Manual cross-version replacement left the stable executable unchanged/);
+  assert.match(script, /Get-FileHash -LiteralPath \$installedExe/);
+  assert.match(script, /manual upgrade process exited before the running-app guard was observed/i);
+  assert.match(script, /Protocol command/);
+  assert.match(script, /git-leaf:\/\/open\?repo=/);
+  assert.match(script, /docs%2Fnotes\.md/);
+  assert.match(script, /ExpectedInitialFile/);
+  assert.match(script, /activeTabPath/);
+  assert.match(script, /Deep link opened requested document/);
+  assert.match(script, /api\/health\?check=1/);
+  assert.match(script, /Invoke-WebRequest/);
+  assert.match(script, /System\.Windows\.Forms/);
+  assert.match(script, /CopyFromScreen/);
+  assert.match(script, /Stop-Process/);
+});

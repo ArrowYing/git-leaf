@@ -1,0 +1,2604 @@
+import {
+  app,
+  autoUpdater,
+  BrowserWindow,
+  clipboard,
+  dialog,
+  ipcMain,
+  Menu,
+  nativeTheme,
+  powerMonitor,
+  shell,
+  WebContentsView,
+} from "electron";
+import { access, realpath, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import process from "node:process";
+
+import { createDesktopUpdateController } from "./updates.mjs";
+import { createSettingsCenterController } from "./settings-center.mjs";
+import { saveAndSyncDesktopPreferences } from "./preference-sync.mjs";
+import { createUpdateCheckScheduler } from "./update-check-schedule.mjs";
+import { completeDesktopShutdown } from "./shutdown.mjs";
+import { parseDesktopArgs } from "../src/desktop-args.mjs";
+import { desktopSecondInstanceAction } from "../src/desktop-instance-routing.mjs";
+import {
+  aboutPanelCopyright,
+  appDisplayName,
+  BUILD_INFO,
+  buildDistributionLabel,
+  isOfficialDistribution,
+  releaseDateLabel,
+} from "../src/build-info.mjs";
+import {
+  closeDesktopRepository,
+  readDesktopConfig,
+  saveDesktopPreferences,
+  saveDesktopRepository,
+  saveDesktopUsageAnalyticsEnabled,
+  saveDesktopWindowState,
+} from "../src/desktop-config.mjs";
+import {
+  desktopHomeHtml,
+  desktopPageBackgroundColor,
+  desktopProgressHtml,
+  DESKTOP_OPEN_REPOSITORY_URL,
+  DESKTOP_OPEN_WORKTREE_URL,
+} from "../src/desktop-home.mjs";
+import { classifyDesktopNavigation } from "../src/desktop-navigation.mjs";
+import { waitForWebContentsPaint } from "../src/desktop-paint.mjs";
+import {
+  repositorySelectionErrorMessage,
+  startupRepositoryErrorMessage,
+} from "../src/desktop-repository-errors.mjs";
+import { startDesktopGitLeafServer } from "../src/desktop-server.mjs";
+import { GIT_LEAF_PROTOCOL } from "../src/desktop-deep-link.mjs";
+import {
+  confirmGitLeafHandoff,
+  reportGitLeafShareHandoffState,
+  writeDesktopDeepLinkLog,
+} from "../src/desktop-handoff.mjs";
+import { desktopEnvironmentChecks } from "../src/git-environment.mjs";
+import { applyDevelopmentUserDataOverride } from "../src/desktop-user-data.mjs";
+import {
+  fastForwardSharedMain,
+  inspectSharedMain,
+  sharedMainWorktree,
+} from "../src/git-share-open.mjs";
+import { syncSelectedFiles } from "../src/git-sync.mjs";
+import { listGitWorktrees } from "../src/git-worktrees.mjs";
+import { findRepoRoot } from "../src/paths.mjs";
+import { findGithubRepositoryRoot } from "../src/repositories.mjs";
+import {
+  adjacentRepository,
+  repositoryAfterClose,
+  repositoryAtIndex,
+} from "../src/repository-navigation.mjs";
+import {
+  bootstrapWindowsApp,
+  confirmWindowsAppLaunch,
+  windowsAppBootstrapPlan,
+  windowsBootstrapNeedsExclusiveLock,
+  windowsInstalledAppPaths,
+} from "../src/windows-app-install.mjs";
+import {
+  cleanupWindowsUpdateCache,
+  prepareWindowsAppUpdate,
+  windowsPreparedUpdateLaunch,
+} from "../src/windows-app-update.mjs";
+import { windowsInstallProgressHtml } from "../src/windows-install-progress.mjs";
+import {
+  createTelemetryClient,
+  isTelemetryEnabled,
+  normalizeTelemetryAction,
+} from "../src/telemetry.mjs";
+import { createTelemetryActivityTracker } from "../src/telemetry-activity.mjs";
+import {
+  createTelemetryUploadScheduler,
+  DEFAULT_TELEMETRY_SHUTDOWN_UPLOAD_TIMEOUT_MS,
+} from "../src/telemetry-upload-scheduler.mjs";
+import { initializeUsageAnalyticsSetting } from "../src/usage-analytics-setting.mjs";
+import { FILE_TYPE_HELP_ROWS, GIT_LEAF_HELP_SECTIONS } from "../public/help-content.js";
+import { KEYBOARD_SHORTCUT_GROUPS } from "../public/keyboard-shortcuts.js";
+
+applyDevelopmentUserDataOverride({ app, isDevBuild: BUILD_INFO.dev || !app.isPackaged });
+
+let mainWindow = null;
+let activeServer = null;
+let updateController = null;
+let updateCheckScheduler = null;
+let settingsCenter = null;
+let repositoryTransitionView = null;
+let desktopUpdateStatus = { state: "idle" };
+let isQuitting = false;
+let isRepositoryTransitioning = false;
+let isDesktopReady = false;
+let pendingDesktopOpenRequest = null;
+let telemetryClient = null;
+let telemetryActivityTracker = null;
+let telemetryUploadScheduler = null;
+let telemetryMode = "preview";
+let usageAnalyticsEnabled = false;
+const settingsShortcutBridges = new WeakSet();
+let desktopRepositoryState = {
+  openRepoRoots: [],
+};
+const DESKTOP_OPEN_REPOSITORY_ACTION = new URL(DESKTOP_OPEN_REPOSITORY_URL);
+const DESKTOP_OPEN_WORKTREE_ACTION = new URL(DESKTOP_OPEN_WORKTREE_URL);
+const DESKTOP_INSTALL_UPDATE_ACTION = new URL("git-leaf://install-update");
+const APP_DISPLAY_NAME = appDisplayName(BUILD_INFO);
+const windowsBootstrap = prepareWindowsAppInstall();
+const manualWindowsBootstrapNeedsLock = windowsBootstrapNeedsExclusiveLock(windowsBootstrap);
+const hasSingleInstanceLock = windowsBootstrap.status === "current" || manualWindowsBootstrapNeedsLock
+  ? app.requestSingleInstanceLock()
+  : false;
+const manualWindowsBootstrapBlocked = manualWindowsBootstrapNeedsLock && !hasSingleInstanceLock;
+let manualWindowsBootstrapLockReleased = false;
+const MAC_WINDOW_CHROME_OPTIONS = process.platform === "darwin"
+  ? {
+      titleBarStyle: "hiddenInset",
+      trafficLightPosition: { x: 12, y: 13 },
+    }
+  : {};
+const DEFAULT_WINDOW_BOUNDS = {
+  width: 1280,
+  height: 860,
+};
+const TELEMETRY_CHANNEL = process.env.GIT_LEAF_UPDATE_CHANNEL || "stable";
+
+if (windowsBootstrap.status === "current") {
+  registerDesktopProtocol();
+  app.on("open-url", (event, url) => {
+    event.preventDefault();
+    const request = parseDesktopArgs([url]);
+    if (!isDesktopReady) {
+      pendingDesktopOpenRequest = request;
+      return;
+    }
+    void openDesktopRequest(request);
+  });
+}
+
+function prepareWindowsAppInstall() {
+  try {
+    return windowsAppBootstrapPlan({
+      isPackaged: app.isPackaged,
+      version: app.getVersion(),
+    });
+  } catch (error) {
+    return {
+      status: "error",
+      error,
+    };
+  }
+}
+
+async function runWindowsAppInstall(plan) {
+  const progressWindow = new BrowserWindow({
+    width: 520,
+    height: 320,
+    resizable: false,
+    minimizable: false,
+    maximizable: false,
+    closable: false,
+    frame: false,
+    show: false,
+    center: true,
+    backgroundColor: "#f8fafc",
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  });
+  await progressWindow.loadURL(htmlDataUrl(windowsInstallProgressHtml({
+    version: plan.version,
+    mode: plan.status,
+  })));
+  progressWindow.show();
+  progressWindow.setProgressBar(0.03);
+  await new Promise((resolve) => setTimeout(resolve, 250));
+
+  const updateProgress = async (state) => {
+    if (progressWindow.isDestroyed()) {
+      return;
+    }
+    progressWindow.setProgressBar(state.percent / 100);
+    await progressWindow.webContents.executeJavaScript(
+      `window.updateInstallProgress(${JSON.stringify(state)})`,
+    );
+  };
+
+  try {
+    await bootstrapWindowsApp({
+      plan,
+      onProgress: updateProgress,
+      beforeRelaunch: releaseManualWindowsBootstrapLock,
+    });
+    app.exit(0);
+  } catch (error) {
+    const failure = windowsInstallFailureCopy(plan, error);
+    await updateProgress({
+      phase: "error",
+      percent: 100,
+      title: "Git Leaf 更新失败",
+      message: failure.message,
+      detail: failure.detail,
+      stage: "更新失败",
+    });
+    progressWindow.setProgressBar(-1);
+    await dialog.showMessageBox(progressWindow, {
+      type: "error",
+      buttons: ["关闭"],
+      defaultId: 0,
+      message: "Git Leaf 更新失败",
+      detail: [
+        failure.message,
+        failure.detail,
+        error instanceof Error ? error.message : String(error),
+      ].join("\n\n"),
+    });
+    app.exit(1);
+  }
+}
+
+function windowsInstallFailureCopy(plan, error) {
+  if (error?.code === "WINDOWS_INSTALL_RECOVERY_REQUIRED") {
+    return {
+      message: "新版本切换失败，并且没有自动恢复到固定目录。",
+      detail: `旧版本备份仍保留在：${plan.previousRoot}`,
+    };
+  }
+  if (plan.status === "install") {
+    return {
+      message: "Git Leaf 安装未完成。请重新完整解压安装包后再试。",
+      detail: "这是首次安装，固定目录中没有可恢复的旧版本。",
+    };
+  }
+  return {
+    message: plan.waitForPid
+      ? "原版本已恢复。请从开始菜单重新启动 Git Leaf，稍后可以再次更新。"
+      : "原版本已恢复。请重新双击这个新版解压目录中的 Git Leaf.exe。",
+    detail: "固定目录中的原版本仍然可用。",
+  };
+}
+
+async function releaseManualWindowsBootstrapLock() {
+  if (!manualWindowsBootstrapNeedsLock || manualWindowsBootstrapLockReleased) {
+    return;
+  }
+  app.releaseSingleInstanceLock();
+  manualWindowsBootstrapLockReleased = true;
+}
+
+function registerDesktopProtocol() {
+  if (process.defaultApp && process.argv[1]) {
+    return app.setAsDefaultProtocolClient(
+      GIT_LEAF_PROTOCOL,
+      process.execPath,
+      [path.resolve(process.argv[1])],
+    );
+  }
+  return app.setAsDefaultProtocolClient(GIT_LEAF_PROTOCOL);
+}
+
+function installWindowsStartMenuShortcut() {
+  if (process.platform !== "win32" || !app.isPackaged || !process.env.LOCALAPPDATA) {
+    return;
+  }
+  const { shortcut } = windowsInstalledAppPaths({
+    localAppData: process.env.LOCALAPPDATA,
+    roamingAppData: process.env.APPDATA,
+  });
+  try {
+    shell.writeShortcutLink(shortcut, {
+      target: process.execPath,
+      description: "Open Git repositories and Markdown documents in Git Leaf.",
+      icon: process.execPath,
+      iconIndex: 0,
+    });
+  } catch {
+    // A missing Start Menu shortcut must not prevent Git Leaf from opening.
+  }
+}
+
+function scheduleWindowsUpdateCacheCleanup() {
+  if (process.platform !== "win32" || !app.isPackaged || !process.env.LOCALAPPDATA) {
+    return;
+  }
+  setTimeout(() => {
+    void cleanupWindowsUpdateCache({
+      localAppData: process.env.LOCALAPPDATA,
+      currentVersion: app.getVersion(),
+    });
+  }, 10_000).unref?.();
+}
+
+function userDataDir() {
+  return app.getPath("userData");
+}
+
+async function initializeDesktopTelemetry() {
+  try {
+    const setting = await initializeUsageAnalyticsSetting({
+      userDataDir: userDataDir(),
+      buildInfo: BUILD_INFO,
+      currentConfig: desktopRepositoryState,
+      saveEnabled: (enabled) => saveDesktopUsageAnalyticsEnabled({
+        userDataDir: userDataDir(),
+        enabled,
+        repoRoot: activeServer?.repoRoot ?? "",
+      }),
+    });
+    usageAnalyticsEnabled = setting.enabled;
+    desktopRepositoryState = setting.config;
+    const enabled = isTelemetryEnabled({
+      isPackaged: app.isPackaged,
+      buildInfo: BUILD_INFO,
+      usageAnalyticsEnabled,
+      channel: TELEMETRY_CHANNEL,
+      platform: process.platform,
+      arch: process.arch,
+    });
+    telemetryClient = createTelemetryClient({
+      enabled,
+      userDataDir: userDataDir(),
+      buildInfo: BUILD_INFO,
+      channel: TELEMETRY_CHANNEL,
+      ...(process.env.GIT_LEAF_TELEMETRY_ENDPOINT
+        ? { endpoint: process.env.GIT_LEAF_TELEMETRY_ENDPOINT }
+        : {}),
+      platform: process.platform,
+      arch: process.arch,
+      osVersion: app.getSystemVersion?.() || os.release(),
+      deviceName: os.hostname(),
+    });
+    const initialization = telemetryClient.initialize();
+    telemetryClient.recordLaunch(initialTelemetryEntryKind());
+    const initializedClient = telemetryClient;
+    void initialization
+      .then((initialized) => {
+        if (!initialized || !initializedClient.enabled || telemetryClient !== initializedClient || isQuitting) return;
+        telemetryUploadScheduler = createTelemetryUploadScheduler({ telemetry: initializedClient });
+        telemetryUploadScheduler.start();
+      })
+      .catch(() => {
+        // The client also fails closed internally; this is a final startup guard.
+      });
+  } catch {
+    // Usage analytics is strictly best-effort and must never block App startup.
+    telemetryClient = null;
+    usageAnalyticsEnabled = false;
+  }
+}
+
+function initialTelemetryEntryKind() {
+  if (process.argv.some((argument) => String(argument).startsWith("--git-leaf-install-confirm="))) {
+    return "windows_bootstrap";
+  }
+  return process.argv.some((argument) => String(argument).startsWith(`${GIT_LEAF_PROTOCOL}://`))
+    ? "deep_link"
+    : "manual";
+}
+
+function startDesktopTelemetryRuntime() {
+  if (!telemetryClient?.enabled || !mainWindow) {
+    return;
+  }
+  telemetryActivityTracker = createTelemetryActivityTracker({
+    browserWindow: mainWindow,
+    powerMonitor,
+    telemetry: telemetryClient,
+    getMode: () => telemetryMode,
+    isQuitting: () => isQuitting,
+    isUpdating: () => isQuitting && Boolean(updateController?.hasPendingUpdateOnQuit?.()),
+  });
+  telemetryActivityTracker.start();
+}
+
+async function recordDesktopTelemetryActions(actions) {
+  if (!telemetryClient?.enabled || !Array.isArray(actions)) {
+    return 0;
+  }
+  const normalized = actions.map(normalizeTelemetryAction);
+  if (normalized.some((action) => !action)) {
+    return 0;
+  }
+  for (const action of normalized) {
+    if (action.kind === "mode") {
+      telemetryMode = action.mode;
+    } else {
+      telemetryClient.recordFeature(action.featureId, action.dimensions);
+    }
+  }
+  return normalized.length;
+}
+
+function recordTelemetryFeature(featureId, dimensions = {}) {
+  return telemetryClient?.recordFeature(featureId, dimensions) ?? false;
+}
+
+async function recordTelemetryUpdateState(update) {
+  try {
+    const recorded = telemetryClient?.recordUpdateState(update) ?? false;
+    if (recorded) {
+      await telemetryClient?.checkpoint();
+    }
+    return recorded;
+  } catch {
+    return false;
+  }
+}
+
+async function saveDesktopPreferenceValues(preferences, { notifyRenderer = true } = {}) {
+  const saved = await saveAndSyncDesktopPreferences({
+    preferences,
+    persistPreferences: (nextPreferences) => saveDesktopPreferences({
+      userDataDir: userDataDir(),
+      preferences: nextPreferences,
+      repoRoot: activeServer?.repoRoot ?? "",
+    }),
+    updateServerPreferences: (nextPreferences) => {
+      activeServer?.updateDesktopPreferences?.(nextPreferences);
+    },
+    sendRendererPreferences: (nextPreferences) => sendRendererEvent(
+      "git-leaf-desktop-preferences",
+      nextPreferences,
+    ),
+    notifyRenderer,
+  });
+  desktopRepositoryState = saved.state;
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.setBackgroundColor(desktopPageBackgroundColor(
+      desktopRepositoryState.preferences ?? {},
+      { systemDark: nativeTheme.shouldUseDarkColors },
+    ));
+  }
+  return saved.preferences;
+}
+
+async function saveDesktopPreferenceValuesFromRenderer(preferences) {
+  return saveDesktopPreferenceValues(preferences, { notifyRenderer: false });
+}
+
+async function loadDesktopRepositoryState() {
+  desktopRepositoryState = await readDesktopConfig({
+    userDataDir: userDataDir(),
+  });
+}
+
+async function createMainWindow() {
+  const windowOptions = windowOptionsFromDesktopState(desktopRepositoryState.windowState);
+  mainWindow = new BrowserWindow({
+    ...windowOptions,
+    minWidth: 980,
+    minHeight: 640,
+    title: APP_DISPLAY_NAME,
+    backgroundColor: desktopPageBackgroundColor(
+      desktopRepositoryState.preferences ?? {},
+      { systemDark: nativeTheme.shouldUseDarkColors },
+    ),
+    ...MAC_WINDOW_CHROME_OPTIONS,
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  });
+  restoreDesktopWindowState(mainWindow, desktopRepositoryState.windowState);
+  installDesktopShortcutBridge(mainWindow);
+  installSettingsCenterController(mainWindow);
+  mainWindow.on("resize", () => {
+    resizeRepositoryTransitionView(mainWindow);
+  });
+
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (isDesktopActionUrl(url)) {
+      void handleDesktopAction(url);
+      return { action: "deny" };
+    }
+
+    handleDesktopNavigation(url);
+    return { action: "deny" };
+  });
+  mainWindow.webContents.on("will-navigate", (event, url) => {
+    if (isDesktopActionUrl(url)) {
+      event.preventDefault();
+      void handleDesktopAction(url);
+      return;
+    }
+
+    const action = classifyDesktopNavigation({
+      currentUrl: mainWindow?.webContents.getURL() ?? "",
+      targetUrl: url,
+    });
+    if (action === "internal") {
+      return;
+    }
+
+    event.preventDefault();
+    handleDesktopNavigation(url);
+  });
+  mainWindow.webContents.on("did-finish-load", () => {
+    void syncDesktopUpdateStatus();
+  });
+  mainWindow.on("focus", () => {
+    void updateCheckScheduler?.onActivate();
+  });
+
+  mainWindow.on("close", (event) => {
+    if (isQuitting) {
+      return;
+    }
+    event.preventDefault();
+    void quitAfterClosingServer();
+  });
+
+  mainWindow.on("closed", () => {
+    hideRepositoryTransitionView(mainWindow);
+    settingsCenter?.destroy();
+    settingsCenter = null;
+    mainWindow = null;
+  });
+}
+
+function installSettingsCenterController(browserWindow) {
+  settingsCenter?.destroy();
+  settingsCenter = createSettingsCenterController({
+    mainWindow: browserWindow,
+    WebContentsView,
+    ipcMain,
+    shell,
+    getPreferences: async () => desktopRepositoryState.preferences ?? {},
+    savePreferences: saveDesktopPreferenceValues,
+    getStatus: settingsCenterStatus,
+    getContent: async () => ({
+      helpSections: settingsCenterHelpSections(),
+      shortcutGroups: KEYBOARD_SHORTCUT_GROUPS,
+    }),
+    getSystemDark: () => nativeTheme.shouldUseDarkColors,
+    checkForUpdates: async () => {
+      await updateCheckScheduler?.checkManually();
+      return desktopUpdateStatus;
+    },
+  });
+  browserWindow.on("resize", () => {
+    settingsCenter?.resize();
+  });
+}
+
+async function ensureMainWindow() {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    return;
+  }
+  await createMainWindow();
+}
+
+function windowOptionsFromDesktopState(windowState) {
+  const bounds = windowState?.bounds ?? {};
+  return {
+    width: bounds.width ?? DEFAULT_WINDOW_BOUNDS.width,
+    height: bounds.height ?? DEFAULT_WINDOW_BOUNDS.height,
+    ...(Number.isFinite(bounds.x) ? { x: bounds.x } : {}),
+    ...(Number.isFinite(bounds.y) ? { y: bounds.y } : {}),
+  };
+}
+
+function restoreDesktopWindowState(browserWindow, windowState) {
+  if (windowState?.isFullScreen) {
+    browserWindow.setFullScreen(true);
+    return;
+  }
+
+  if (windowState?.isMaximized) {
+    browserWindow.maximize();
+  }
+}
+
+async function saveCurrentWindowState({ repoRoot = activeServer?.repoRoot ?? "" } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return;
+  }
+
+  try {
+    desktopRepositoryState = await saveDesktopWindowState({
+      userDataDir: userDataDir(),
+      windowState: windowStateFromBrowserWindow(mainWindow),
+      repoRoot,
+    });
+  } catch {
+    // Do not block quit when the preference file cannot be updated.
+  }
+}
+
+function windowStateFromBrowserWindow(browserWindow) {
+  const bounds = browserWindow.isMaximized() && typeof browserWindow.getNormalBounds === "function"
+    ? browserWindow.getNormalBounds()
+    : browserWindow.getBounds();
+
+  return {
+    bounds: {
+      ...(Number.isFinite(bounds.x) ? { x: bounds.x } : {}),
+      ...(Number.isFinite(bounds.y) ? { y: bounds.y } : {}),
+      width: bounds.width,
+      height: bounds.height,
+    },
+    isMaximized: browserWindow.isMaximized(),
+    ...(browserWindow.isFullScreen?.() ? { isFullScreen: true } : {}),
+  };
+}
+
+function focusMainWindow() {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return;
+  }
+  if (mainWindow.isMinimized()) {
+    mainWindow.restore();
+  }
+  mainWindow.show();
+  mainWindow.focus();
+}
+
+function installAboutPanelOptions() {
+  if (typeof app.setAboutPanelOptions !== "function") {
+    return;
+  }
+
+  const aboutCopyright = aboutPanelCopyright(BUILD_INFO);
+  app.setAboutPanelOptions({
+    applicationName: APP_DISPLAY_NAME,
+    applicationVersion: BUILD_INFO.version,
+    version: "",
+    copyright: aboutCopyright,
+  });
+}
+
+function installUpdateController() {
+  updateController = createDesktopUpdateController({
+    app,
+    autoUpdater,
+    buildInfo: BUILD_INFO,
+    dialog,
+    shell,
+    showUpdateStatus: showDesktopUpdateStatus,
+    getUpdatePreferences: () => desktopRepositoryState.preferences ?? {},
+    saveUpdatePreferences: saveDesktopPreferenceValues,
+    recordUpdateState: recordTelemetryUpdateState,
+    prepareWindowsUpdate: (manifest) => prepareWindowsAppUpdate({
+      manifest,
+      localAppData: process.env.LOCALAPPDATA,
+    }),
+    launchWindowsUpdate: (prepared) => windowsPreparedUpdateLaunch({
+      prepared,
+      currentProcessId: process.pid,
+      args: process.argv.slice(1),
+    }),
+    requestQuitForUpdate: quitAfterClosingServer,
+  });
+  updateCheckScheduler = createUpdateCheckScheduler({
+    checkForUpdates: (options) => updateController?.checkForUpdates(options),
+  });
+}
+
+function checkForUpdatesMenuItem() {
+  return {
+    label: "Check for Updates...",
+    click: () => {
+      void updateCheckScheduler?.checkManually();
+    },
+  };
+}
+
+function installDesktopShortcutBridge(browserWindow) {
+  browserWindow.webContents.on("before-input-event", (event, input) => {
+    const shellAction = desktopShellShortcutFromInput(input);
+    if (shellAction) {
+      event.preventDefault();
+      void runDesktopShellShortcut(shellAction, browserWindow);
+      return;
+    }
+
+    const repositoryAction = desktopRepositoryShortcutFromInput(input);
+    if (repositoryAction) {
+      event.preventDefault();
+      void runDesktopRepositoryShortcut(repositoryAction);
+      return;
+    }
+
+    if (!activeServer || isRepositoryTransitioning) {
+      return;
+    }
+
+    const action = desktopShortcutActionFromInput(input);
+    if (!action) {
+      return;
+    }
+
+    event.preventDefault();
+    void sendShortcutToRenderer(action);
+  });
+}
+
+function installSettingsViewShortcutBridge(webContents) {
+  if (!webContents || settingsShortcutBridges.has(webContents)) {
+    return;
+  }
+  settingsShortcutBridges.add(webContents);
+  webContents.on("before-input-event", (event, input) => {
+    const shellAction = desktopShellShortcutFromInput(input);
+    if (shellAction) {
+      event.preventDefault();
+      void runDesktopShellShortcut(shellAction, mainWindow);
+      return;
+    }
+    const repositoryAction = desktopRepositoryShortcutFromInput(input);
+    if (repositoryAction) {
+      event.preventDefault();
+      void runDesktopRepositoryShortcut(repositoryAction);
+      return;
+    }
+    if (desktopShortcutActionFromInput(input)) {
+      event.preventDefault();
+    }
+  });
+}
+
+function desktopShellShortcutFromInput(input) {
+  if (input.type && input.type !== "keyDown") {
+    return null;
+  }
+  const key = String(input.key || "").toLowerCase();
+  const code = String(input.code || "");
+  const meta = input.meta === true;
+  const ctrl = input.control === true;
+  const shift = input.shift === true;
+  const alt = input.alt === true;
+  if (alt || shift) {
+    return null;
+  }
+  if (settingsCenter?.visible && key === "escape") {
+    return { command: "close-settings" };
+  }
+  if ((meta || ctrl) && (key === "," || code === "Comma")) {
+    return { command: "show-settings", section: "appearance" };
+  }
+  if ((meta || ctrl) && (key === "/" || code === "Slash")) {
+    return { command: "show-settings", section: "shortcuts" };
+  }
+  if (process.platform === "darwin" && meta && !ctrl && key === "m") {
+    return { command: "minimize-window" };
+  }
+  if (process.platform === "darwin" && meta && ctrl && key === "f") {
+    return { command: "toggle-full-screen" };
+  }
+  return null;
+}
+
+async function runDesktopShellShortcut(action, browserWindow) {
+  switch (action?.command) {
+    case "close-settings":
+      settingsCenter?.hide();
+      return;
+    case "show-settings":
+      await showSettingsAndHelpCenter(action.section);
+      return;
+    case "minimize-window":
+      browserWindow.minimize();
+      return;
+    case "toggle-full-screen":
+      browserWindow.setFullScreen(!browserWindow.isFullScreen());
+      return;
+    default:
+  }
+}
+
+function desktopRepositoryShortcutFromInput(input) {
+  if (input.type && input.type !== "keyDown") {
+    return null;
+  }
+  const code = String(input.code || "");
+  const meta = input.meta === true;
+  const ctrl = input.control === true;
+  const shift = input.shift === true;
+  const alt = input.alt === true;
+  const digitMatch = /^Digit([1-9])$/.exec(code);
+
+  if (alt && !shift && (meta || ctrl) && digitMatch) {
+    return {
+      command: "switch-repository-at-index",
+      index: Number(digitMatch[1]) - 1,
+    };
+  }
+  if (alt && !shift && (meta || ctrl) && code === "ArrowLeft") {
+    return { command: "previous-repository" };
+  }
+  if (alt && !shift && (meta || ctrl) && code === "ArrowRight") {
+    return { command: "next-repository" };
+  }
+  return null;
+}
+
+async function runDesktopRepositoryShortcut(action) {
+  if (isRepositoryTransitioning) {
+    return false;
+  }
+  const repoRoots = desktopRepositoryState.openRepoRoots ?? [];
+  const activeRepositoryRoot = activeServer?.repositoryRoot ?? "";
+  let targetRoot = "";
+  if (action?.command === "switch-repository-at-index") {
+    targetRoot = repositoryAtIndex(repoRoots, Number(action.index));
+  } else if (action?.command === "previous-repository") {
+    targetRoot = adjacentRepository(repoRoots, activeRepositoryRoot, -1);
+  } else if (action?.command === "next-repository") {
+    targetRoot = adjacentRepository(repoRoots, activeRepositoryRoot, 1);
+  }
+  if (!targetRoot || targetRoot === activeRepositoryRoot) {
+    return false;
+  }
+  return openKnownRepository(targetRoot);
+}
+
+function desktopShortcutActionFromInput(input) {
+  if (input.type && input.type !== "keyDown") {
+    return null;
+  }
+
+  const key = String(input.key || "").toLowerCase();
+  const code = String(input.code || "");
+  const meta = input.meta === true;
+  const ctrl = input.control === true;
+  const shift = input.shift === true;
+  const alt = input.alt === true;
+  if (alt) {
+    return null;
+  }
+
+  if (meta && shift && code === "BracketLeft") {
+    return { command: "previous-tab" };
+  }
+
+  if (meta && shift && code === "BracketRight") {
+    return { command: "next-tab" };
+  }
+
+  if (!meta && ctrl && key === "tab") {
+    return { command: shift ? "previous-tab" : "next-tab" };
+  }
+
+  if (!shift && (meta || ctrl) && code === "BracketLeft") {
+    return { command: "history-back" };
+  }
+
+  if (!shift && (meta || ctrl) && code === "BracketRight") {
+    return { command: "history-forward" };
+  }
+
+  if (!(meta || ctrl)) {
+    return null;
+  }
+
+  if (!shift && key === "b") {
+    return { command: "toggle-sidebar" };
+  }
+
+  if (shift && key === "b") {
+    return { command: "toggle-document-outline" };
+  }
+
+  if (shift && key === "c") {
+    return { command: "copy-document-path" };
+  }
+
+  if (shift && key === "l") {
+    return { command: "copy-document-share-link" };
+  }
+
+  if (shift && key === "g") {
+    return { command: "open-document-github" };
+  }
+
+  if (shift && key === "o") {
+    return { command: "open-document-source" };
+  }
+
+  if (shift && key === "r") {
+    return { command: "reveal-file-manager" };
+  }
+
+  if (shift && key === "e") {
+    return { command: "focus-file-tree" };
+  }
+
+  if (!shift && key === "w") {
+    return { command: "close-current-tab" };
+  }
+
+  if (!shift && /^[1-8]$/.test(key)) {
+    return { command: "switch-tab-at-index", index: Number(key) - 1 };
+  }
+
+  if (!shift && key === "9") {
+    return { command: "switch-last-tab" };
+  }
+
+  if (!shift && key === "p") {
+    return { command: "set-mode", mode: "preview" };
+  }
+
+  if (!shift && key === "s") {
+    return { command: "set-mode", mode: "source" };
+  }
+
+  if (!shift && key === "l") {
+    return { command: "set-mode", mode: "live" };
+  }
+
+  if (!shift && key === "k") {
+    return { command: "focus-file-search" };
+  }
+
+  if (!shift && key === "f") {
+    return { command: "find-in-document" };
+  }
+
+  return null;
+}
+
+async function sendShortcutToRenderer(action) {
+  return sendRendererEvent("git-leaf-desktop-shortcut", action);
+}
+
+async function showDesktopUpdateStatus(status) {
+  desktopUpdateStatus = status && typeof status === "object" ? { ...status } : { state: "idle" };
+  if (desktopUpdateStatus.state === "error" && desktopUpdateStatus.manual !== true) {
+    updateCheckScheduler?.retrySoon();
+  }
+  const handled = await sendRendererEvent("git-leaf-desktop-update-status", desktopUpdateStatus);
+  await settingsCenter?.refresh();
+  if (!handled) {
+    await showDesktopUpdateStatusFallback(desktopUpdateStatus);
+  }
+}
+
+async function syncDesktopUpdateStatus() {
+  return sendRendererEvent("git-leaf-desktop-update-status", desktopUpdateStatus);
+}
+
+async function sendRendererEvent(eventName, detailObject) {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return false;
+  }
+
+  const detail = JSON.stringify(detailObject);
+  const safeEventName = JSON.stringify(eventName);
+  return mainWindow.webContents.executeJavaScript(
+    `(() => {
+      const event = new CustomEvent(${safeEventName}, { detail: ${detail}, cancelable: true });
+      window.dispatchEvent(event);
+      return event.defaultPrevented;
+    })();`,
+    true,
+  ).then(Boolean).catch(() => false);
+}
+
+async function showDesktopUpdateStatusFallback(status) {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return false;
+  }
+
+  const statusMessage = desktopUpdateStatusMessage(status);
+  if (!statusMessage) {
+    return false;
+  }
+  const message = JSON.stringify(statusMessage);
+  return mainWindow.webContents.executeJavaScript(
+    `(() => {
+      let toast = document.querySelector("#desktop-update-toast");
+      if (!toast) {
+        toast = document.createElement("div");
+        toast.id = "desktop-update-toast";
+        toast.setAttribute("role", "status");
+        toast.setAttribute("aria-live", "polite");
+        Object.assign(toast.style, {
+          position: "fixed",
+          top: "18px",
+          left: "50%",
+          zIndex: "1000",
+          transform: "translateX(-50%)",
+          border: "1px solid rgba(90, 203, 160, 0.55)",
+          borderRadius: "8px",
+          background: "rgb(52, 168, 128)",
+          color: "#ffffff",
+          fontSize: "15px",
+          fontWeight: "750",
+          padding: "10px 16px",
+          boxShadow: "0 14px 30px rgba(0, 0, 0, 0.35)",
+        });
+        document.body.append(toast);
+      }
+      toast.textContent = ${message};
+      toast.hidden = false;
+      window.clearTimeout(window.__gitLeafDesktopUpdateToastTimer);
+      window.__gitLeafDesktopUpdateToastTimer = window.setTimeout(() => {
+        toast.hidden = true;
+      }, 7000);
+      return true;
+    })();`,
+    true,
+  ).then(Boolean).catch(() => false);
+}
+
+function desktopUpdateStatusMessage(status) {
+  if (typeof status?.message === "string" && status.message.trim()) {
+    return status.message.trim();
+  }
+
+  switch (status?.state) {
+    case "checking":
+      return "正在检查更新…";
+    case "downloading":
+      return "正在下载并准备新版本…";
+    case "downloaded":
+      return "新版本已准备好，退出 Git Leaf 后自动安装。";
+    case "available":
+      return "发现新版本，点击更新后开始下载。";
+    case "current":
+      return "Git Leaf 已经是最新版本。";
+    case "error":
+      return "检查更新失败。";
+    default:
+      return "";
+  }
+}
+
+async function showSettingsAndHelpCenter(section = "appearance") {
+  if (!settingsCenter || !mainWindow || mainWindow.isDestroyed()) {
+    return false;
+  }
+  await settingsCenter.show(section);
+  installSettingsViewShortcutBridge(settingsCenter.webContents);
+  installMenu();
+  return true;
+}
+
+function settingsCenterHelpSections() {
+  return [
+    ...GIT_LEAF_HELP_SECTIONS,
+    {
+      id: "file-types",
+      title: "文件类型支持",
+      body: [
+        "“默认显示”表示文件会常驻内容目录；“按需显示”表示它只在当前打开、被文档引用、命中搜索或存在本地改动时临时出现。切换到“全部仓库文件”可以随时查看完整仓库。",
+      ],
+      fileTypes: FILE_TYPE_HELP_ROWS,
+    },
+  ];
+}
+
+async function settingsCenterStatus() {
+  const environment = await desktopEnvironmentChecks();
+  return {
+    updatesEnabled: isOfficialDistribution(BUILD_INFO),
+    app: {
+      version: { label: "版本", value: BUILD_INFO.version },
+      build: {
+        label: "构建",
+        value: buildDistributionLabel(BUILD_INFO),
+      },
+      release: { label: "更新时间", value: releaseDateLabel(BUILD_INFO) || "未知" },
+      update: {
+        label: "更新状态",
+        value: desktopUpdateStatusMessage(desktopUpdateStatus) || "尚未检查更新。",
+        status: settingsUpdateStatusTone(desktopUpdateStatus),
+      },
+      privacy: {
+        label: "隐私与使用统计",
+        value: telemetryClient?.enabled
+          ? "使用统计已开启；只发送匿名汇总与更新状态，不发送仓库名、路径、文件名、搜索词、文档内容或 Git 身份。"
+          : "使用统计已关闭；当前构建不会发送使用统计。",
+      },
+    },
+    environment,
+    repository: await settingsCenterRepositoryStatus(),
+  };
+}
+
+async function settingsCenterRepositoryStatus() {
+  const server = activeServer;
+  if (!server || isRepositoryTransitioning) {
+    return {};
+  }
+
+  let treePayload = null;
+  try {
+    const response = await fetch(new URL("/api/tree", server.url));
+    if (response.ok) {
+      treePayload = await response.json();
+    }
+  } catch {
+    treePayload = null;
+  }
+  const counts = settingsTreeFileCounts(treePayload?.tree);
+  const hasFrontmatterRules = await access(
+    path.join(server.repoRoot, "docs", "frontmatter-rules.json"),
+  ).then(() => true, () => false);
+  const allowedKeys = Array.isArray(treePayload?.frontmatterAllowedKeys)
+    ? treePayload.frontmatterAllowedKeys
+    : [];
+  return {
+    repository: { label: "仓库", value: server.repoName },
+    path: { label: "工作目录", value: server.repoRoot },
+    worktree: {
+      label: "Worktree",
+      value: server.repoRoot === server.repositoryRoot
+        ? "主工作目录"
+        : server.worktreeName || path.basename(server.repoRoot),
+    },
+    branch: {
+      label: "分支",
+      value: treePayload?.detached ? "Detached HEAD" : treePayload?.branch || "未知",
+      status: treePayload?.detached ? "warning" : "ok",
+    },
+    files: { label: "仓库文件", value: `${counts.total} 个` },
+    markdown: { label: "Markdown / MDX", value: `${counts.markdown} 个` },
+    frontmatter: {
+      label: "Front Matter 规则",
+      value: hasFrontmatterRules
+        ? allowedKeys.length > 0
+          ? `已检测，${allowedKeys.length} 个可筛选字段：${allowedKeys.join("、")}`
+          : "已检测，但没有可筛选字段"
+        : "未检测到 docs/frontmatter-rules.json",
+      status: hasFrontmatterRules ? "ok" : "warning",
+    },
+  };
+}
+
+function settingsTreeFileCounts(nodes) {
+  const counts = { total: 0, markdown: 0 };
+  for (const node of Array.isArray(nodes) ? nodes : []) {
+    if (node?.type === "file") {
+      counts.total += 1;
+      if (node.kind === "markdown") {
+        counts.markdown += 1;
+      }
+      continue;
+    }
+    const children = settingsTreeFileCounts(node?.children);
+    counts.total += children.total;
+    counts.markdown += children.markdown;
+  }
+  return counts;
+}
+
+function settingsUpdateStatusTone(status) {
+  if (status?.state === "error") {
+    return "error";
+  }
+  if (["current", "downloaded"].includes(status?.state)) {
+    return "ok";
+  }
+  return "warning";
+}
+
+async function exportCurrentDocumentPdf() {
+  if (!mainWindow || mainWindow.isDestroyed() || !activeServer || isRepositoryTransitioning) {
+    return;
+  }
+
+  let metadata = null;
+  try {
+    metadata = await mainWindow.webContents.executeJavaScript(
+      "window.gitLeafPreparePdfExport ? window.gitLeafPreparePdfExport() : null",
+      true,
+    );
+  } catch (error) {
+    recordTelemetryFeature("output.pdf_export", { result: "error" });
+    await showPdfExportError(error);
+    return;
+  }
+
+  if (!metadata?.path) {
+    await dialog.showMessageBox(mainWindow, {
+      type: "info",
+      message: "Open a document before exporting PDF.",
+    });
+    return;
+  }
+
+  const result = await dialog.showSaveDialog(mainWindow, {
+    title: "Export PDF",
+    defaultPath: defaultPdfExportPath(metadata),
+    filters: [{ name: "PDF", extensions: ["pdf"] }],
+  });
+  if (result.canceled || !result.filePath) {
+    recordTelemetryFeature("output.pdf_export", { result: "cancel" });
+    await finishCurrentDocumentPdfExport(metadata);
+    return;
+  }
+
+  try {
+    const pdf = await mainWindow.webContents.printToPDF({
+      pageSize: "A4",
+      printBackground: true,
+      preferCSSPageSize: true,
+    });
+    await writeFile(result.filePath, pdf);
+    recordTelemetryFeature("output.pdf_export", { result: "success" });
+  } catch (error) {
+    recordTelemetryFeature("output.pdf_export", { result: "error" });
+    await showPdfExportError(error);
+  } finally {
+    await finishCurrentDocumentPdfExport(metadata);
+  }
+}
+
+async function finishCurrentDocumentPdfExport(metadata) {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return;
+  }
+  const detail = JSON.stringify(metadata || {});
+  await mainWindow.webContents.executeJavaScript(
+    `window.gitLeafFinishPdfExport && window.gitLeafFinishPdfExport(${detail});`,
+    true,
+  ).catch(() => {});
+}
+
+function defaultPdfExportPath(metadata) {
+  const baseName = pdfExportBaseName(metadata);
+  const fileName = pdfFileName(baseName);
+  return path.join(app.getPath("documents"), fileName);
+}
+
+function pdfExportBaseName(metadata) {
+  const title = String(metadata?.title || "").trim();
+  if (title) {
+    return title;
+  }
+  const documentPath = String(metadata?.path || "").trim();
+  if (!documentPath) {
+    return "Git Leaf Document";
+  }
+  return path.basename(documentPath, path.extname(documentPath));
+}
+
+function pdfFileName(value) {
+  const safeName = String(value || "")
+    .trim()
+    .replace(/[<>:"/\\|?*\x00-\x1F]/g, "-")
+    .replace(/\s+/g, " ")
+    .replace(/^\.+$/, "")
+    .slice(0, 120) || "Git Leaf Document";
+  return safeName.toLowerCase().endsWith(".pdf") ? safeName : `${safeName}.pdf`;
+}
+
+async function showPdfExportError(error) {
+  const detail = error?.message ? String(error.message) : "Unknown PDF export error.";
+  await dialog.showMessageBox(mainWindow, {
+    type: "error",
+    message: "Could not export PDF.",
+    detail,
+  });
+}
+
+function handleDesktopNavigation(url) {
+  if (!mainWindow) {
+    return;
+  }
+
+  if (isDesktopActionUrl(url)) {
+    void handleDesktopAction(url);
+    return;
+  }
+
+  const action = classifyDesktopNavigation({
+    currentUrl: mainWindow.webContents.getURL(),
+    targetUrl: url,
+  });
+  if (action === "internal") {
+    void mainWindow.loadURL(url);
+    return;
+  }
+  if (action === "external") {
+    void shell.openExternal(url);
+  }
+}
+
+async function handleDesktopAction(url) {
+  if (!isDesktopActionUrl(url)) {
+    return;
+  }
+  const action = new URL(url);
+  if (action.hostname === DESKTOP_OPEN_REPOSITORY_ACTION.hostname) {
+    await chooseAndOpenRepository();
+    return;
+  }
+  if (action.hostname === DESKTOP_OPEN_WORKTREE_ACTION.hostname) {
+    await openWorktreeFromAction(action.searchParams.get("path") ?? "");
+    return;
+  }
+  if (action.hostname === DESKTOP_INSTALL_UPDATE_ACTION.hostname) {
+    await updateController?.handleUpdateAction();
+  }
+}
+
+function isDesktopActionUrl(url) {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === DESKTOP_OPEN_REPOSITORY_ACTION.protocol && [
+      DESKTOP_OPEN_REPOSITORY_ACTION.hostname,
+      DESKTOP_OPEN_WORKTREE_ACTION.hostname,
+      DESKTOP_INSTALL_UPDATE_ACTION.hostname,
+    ].includes(parsed.hostname);
+  } catch {
+    return false;
+  }
+}
+
+async function openWorktreeFromAction(requestedRoot) {
+  if (!activeServer || !requestedRoot || isRepositoryTransitioning) {
+    return;
+  }
+
+  try {
+    const resolvedRoot = await realpath(await findRepoRoot(requestedRoot));
+    const worktrees = await listGitWorktrees(activeServer.repoRoot);
+    const selected = worktrees.find((worktree) => worktree.root === resolvedRoot);
+    if (!selected || selected.bare || selected.prunable) {
+      throw new Error("所选工作树不属于当前仓库，或已经不可用。");
+    }
+    if (selected.root === activeServer.repoRoot) {
+      return;
+    }
+    await openRepository(selected.root, "", { worktreeSwitch: true });
+    recordTelemetryFeature("navigation.worktree_switch", { result: "success" });
+  } catch (error) {
+    recordTelemetryFeature("navigation.worktree_switch", { result: "error" });
+    const options = {
+      type: "error",
+      message: "无法切换工作树",
+      detail: error instanceof Error ? error.message : String(error),
+    };
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      await dialog.showMessageBox(mainWindow, options);
+    } else {
+      await dialog.showMessageBox(options);
+    }
+  }
+}
+
+async function showHomePage({ errorMessage = "", closeActiveRepository = true } = {}) {
+  await ensureMainWindow();
+  settingsCenter?.hide();
+  hideRepositoryTransitionView();
+
+  const checks = await desktopEnvironmentChecks();
+  const previousServer = closeActiveRepository ? activeServer : null;
+  const html = desktopHomeHtml({
+    checks,
+    errorMessage,
+    preferences: desktopRepositoryState.preferences ?? {},
+  });
+  if (closeActiveRepository) {
+    activeServer = null;
+  }
+  await mainWindow.loadURL(htmlDataUrl(html));
+  mainWindow.setTitle(APP_DISPLAY_NAME);
+  isRepositoryTransitioning = false;
+  installMenu();
+
+  if (previousServer) {
+    await previousServer.close();
+  }
+}
+
+async function showProgressPage({ title, message }) {
+  await ensureMainWindow();
+  settingsCenter?.hide();
+
+  isRepositoryTransitioning = true;
+  installMenu();
+  const backgroundColor = desktopPageBackgroundColor(
+    desktopRepositoryState.preferences ?? {},
+    { systemDark: nativeTheme.shouldUseDarkColors },
+  );
+  mainWindow.setBackgroundColor(backgroundColor);
+  if (await showRepositoryTransitionView(mainWindow, {
+    title,
+    message,
+  })) {
+    mainWindow.setTitle(`${APP_DISPLAY_NAME} - ${title}`);
+    return;
+  }
+  await mainWindow.loadURL(htmlDataUrl(desktopProgressHtml({
+    title,
+    message,
+    preferences: desktopRepositoryState.preferences ?? {},
+  })));
+  await waitForWebContentsPaint(mainWindow.webContents);
+  mainWindow.setTitle(`${APP_DISPLAY_NAME} - ${title}`);
+}
+
+async function showRepositoryTransitionView(browserWindow, { title, message }) {
+  hideRepositoryTransitionView();
+  if (!browserWindow || browserWindow.isDestroyed?.()) {
+    return false;
+  }
+  const view = new WebContentsView({
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  });
+  repositoryTransitionView = view;
+  try {
+    await view.webContents.loadURL(htmlDataUrl(desktopProgressHtml({
+      title,
+      message,
+      preferences: desktopRepositoryState.preferences ?? {},
+    })));
+    if (repositoryTransitionView !== view || browserWindow.isDestroyed?.()) {
+      closeWebContentsView(view);
+      return false;
+    }
+    browserWindow.contentView.addChildView(view);
+    resizeRepositoryTransitionView(browserWindow);
+    await waitForWebContentsPaint(view.webContents);
+    return repositoryTransitionView === view;
+  } catch {
+    if (repositoryTransitionView === view) {
+      repositoryTransitionView = null;
+    }
+    closeWebContentsView(view);
+    return false;
+  }
+}
+
+function resizeRepositoryTransitionView(browserWindow = mainWindow) {
+  if (!repositoryTransitionView || !browserWindow || browserWindow.isDestroyed?.()) {
+    return false;
+  }
+  const bounds = browserWindow.getContentBounds();
+  repositoryTransitionView.setBounds({
+    x: 0,
+    y: 0,
+    width: Math.max(0, Math.round(bounds.width)),
+    height: Math.max(0, Math.round(bounds.height)),
+  });
+  return true;
+}
+
+function hideRepositoryTransitionView(browserWindow = mainWindow) {
+  const view = repositoryTransitionView;
+  repositoryTransitionView = null;
+  if (!view) {
+    return false;
+  }
+  if (browserWindow && !browserWindow.isDestroyed?.()) {
+    try {
+      browserWindow.contentView.removeChildView(view);
+    } catch {
+      // The view may already have been detached during window shutdown.
+    }
+  }
+  closeWebContentsView(view);
+  return true;
+}
+
+function closeWebContentsView(view) {
+  if (view && !view.webContents.isDestroyed?.()) {
+    view.webContents.close?.({ waitForBeforeUnload: false });
+  }
+}
+
+async function waitForWorkbenchReady(browserWindow, timeoutMs = 15_000) {
+  const executeJavaScript = browserWindow?.webContents?.executeJavaScript;
+  if (typeof executeJavaScript !== "function") {
+    return false;
+  }
+  try {
+    return await executeJavaScript.call(browserWindow.webContents, `
+      new Promise((resolve) => {
+        const root = document.documentElement;
+        const ready = () => !root.classList.contains("is-workbench-loading");
+        if (ready()) {
+          resolve(true);
+          return;
+        }
+        const observer = new MutationObserver(() => {
+          if (ready()) {
+            observer.disconnect();
+            clearTimeout(timer);
+            resolve(true);
+          }
+        });
+        const timer = setTimeout(() => {
+          observer.disconnect();
+          resolve(false);
+        }, ${Math.max(0, Number(timeoutMs) || 0)});
+        observer.observe(root, { attributes: true, attributeFilter: ["class"] });
+      })
+    `, true) === true;
+  } catch {
+    return false;
+  }
+}
+
+function htmlDataUrl(html) {
+  return `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;
+}
+
+async function openRepository(
+  repoRoot,
+  initialFilePath = "",
+  { worktreeSwitch = false, showProgress = true } = {},
+) {
+  await ensureMainWindow();
+  if (showProgress) {
+    await showProgressPage({
+      title: activeServer ? "正在切换仓库" : "正在打开仓库",
+      message: `正在准备 ${path.basename(repoRoot)} 的文档工作区。`,
+    });
+  }
+
+  const previousServer = activeServer;
+  const previousRepositoryRoot = previousServer?.repositoryRoot ?? "";
+  activeServer = null;
+  if (previousServer) {
+    await previousServer.close();
+  }
+
+  const nextServer = await startDesktopGitLeafServer({
+    repoRoot,
+    initialFilePath,
+    desktopPreferences: desktopRepositoryState.preferences ?? {},
+    saveDesktopPreferences: saveDesktopPreferenceValuesFromRenderer,
+    recordTelemetryActions: telemetryClient?.enabled ? recordDesktopTelemetryActions : null,
+  });
+  activeServer = nextServer;
+  await mainWindow.loadURL(nextServer.url);
+  await waitForWorkbenchReady(mainWindow);
+  hideRepositoryTransitionView();
+  await waitForWebContentsPaint(mainWindow.webContents);
+  mainWindow.setTitle(`${APP_DISPLAY_NAME} - ${nextServer.repoName}`);
+  desktopRepositoryState = await saveDesktopRepository({
+    userDataDir: userDataDir(),
+    repoRoot: nextServer.repoRoot,
+    repositoryRoot: nextServer.repositoryRoot,
+  });
+  telemetryClient?.recordRepositoryOpened(nextServer.commonDir, {
+    switched: Boolean(previousRepositoryRoot && previousRepositoryRoot !== nextServer.repositoryRoot),
+    worktreeSwitch,
+  });
+  isRepositoryTransitioning = false;
+  installMenu();
+}
+
+async function chooseAndOpenRepository() {
+  if (isRepositoryTransitioning) {
+    return "busy";
+  }
+
+  const dialogOptions = {
+    title: "Open Repository",
+    properties: ["openDirectory"],
+  };
+  const result = mainWindow && !mainWindow.isDestroyed()
+    ? await dialog.showOpenDialog(mainWindow, dialogOptions)
+    : await dialog.showOpenDialog(dialogOptions);
+  if (result.canceled || !result.filePaths[0]) {
+    return "canceled";
+  }
+
+  try {
+    await showProgressPage({
+      title: "正在打开仓库",
+      message: "正在检查所选目录并启动本地服务。",
+    });
+    const repoRoot = await findRepoRoot(result.filePaths[0]);
+    await openRepository(repoRoot, "", { showProgress: false });
+    return "opened";
+  } catch (error) {
+    await showHomePage({
+      errorMessage: repositorySelectionErrorMessage(result.filePaths[0], error),
+      closeActiveRepository: false,
+    });
+    return "invalid";
+  }
+}
+
+async function openKnownRepository(
+  repoRoot,
+  initialFilePath = "",
+  { showProgress = true } = {},
+) {
+  if (isRepositoryTransitioning && showProgress) {
+    return false;
+  }
+
+  try {
+    if (showProgress) {
+      const currentRepoName = activeServer ? path.basename(activeServer.repoRoot) : "";
+      await showProgressPage({
+        title: currentRepoName ? "正在切换仓库" : "正在打开仓库",
+        message: currentRepoName
+          ? `正在从 ${currentRepoName} 切换到 ${path.basename(repoRoot)}。`
+          : `正在准备 ${path.basename(repoRoot)} 的文档工作区。`,
+      });
+    } else if (!isRepositoryTransitioning) {
+      isRepositoryTransitioning = true;
+      installMenu();
+    }
+    const resolvedRepoRoot = await findRepoRoot(repoRoot);
+    await openRepository(resolvedRepoRoot, initialFilePath, { showProgress: false });
+    return true;
+  } catch (error) {
+    await showHomePage({
+      errorMessage: startupRepositoryErrorMessage(repoRoot, error),
+      closeActiveRepository: false,
+    });
+    return false;
+  }
+}
+
+async function closeCurrentRepository() {
+  if (isRepositoryTransitioning) {
+    return;
+  }
+
+  if (!activeServer) {
+    await showHomePage();
+    return;
+  }
+
+  const closingServer = activeServer;
+  const closingRepoRoot = closingServer.repoRoot;
+  const nextRepositoryRoot = repositoryAfterClose(
+    desktopRepositoryState.openRepoRoots,
+    closingServer.repositoryRoot,
+  );
+  await showProgressPage({
+    title: nextRepositoryRoot ? "正在切换仓库" : "正在关闭仓库",
+    message: nextRepositoryRoot
+      ? `正在从 ${path.basename(closingRepoRoot)} 切换到 ${path.basename(nextRepositoryRoot)}。`
+      : `正在关闭 ${path.basename(closingRepoRoot)}，并停止本地服务。`,
+  });
+  activeServer = null;
+  desktopRepositoryState = await closeDesktopRepository({
+    userDataDir: userDataDir(),
+    repoRoot: closingRepoRoot,
+    repositoryRoot: closingServer.repositoryRoot,
+  });
+  await closingServer.close();
+  if (nextRepositoryRoot) {
+    await openKnownRepository(nextRepositoryRoot, "", { showProgress: false });
+    return;
+  }
+  await showHomePage({ closeActiveRepository: false });
+}
+
+function installMenu() {
+  const isMac = process.platform === "darwin";
+  const hasActiveRepository = Boolean(activeServer) && !isRepositoryTransitioning;
+  const openRepoRoots = desktopRepositoryState.openRepoRoots;
+  const shouldShowOpenRepositories = (
+    openRepoRoots.length >= 2
+    || (!activeServer && openRepoRoots.length === 1)
+  );
+  const openRepositoryItems = shouldShowOpenRepositories
+    ? repositoryMenuItems(openRepoRoots, {
+        markActive: true,
+        enabled: !isRepositoryTransitioning,
+      })
+    : [];
+  const template = [
+    ...(isMac
+      ? [{
+          label: APP_DISPLAY_NAME,
+          submenu: [
+            { role: "about", label: `About ${APP_DISPLAY_NAME}` },
+            ...(isOfficialDistribution(BUILD_INFO) ? [checkForUpdatesMenuItem()] : []),
+            {
+              label: "Settings...",
+              accelerator: "CmdOrCtrl+,",
+              click: () => {
+                void showSettingsAndHelpCenter("appearance");
+              },
+            },
+            { type: "separator" },
+            { role: "hide", label: `Hide ${APP_DISPLAY_NAME}` },
+            { role: "hideOthers" },
+            { role: "unhide" },
+            { type: "separator" },
+            { role: "quit", label: `Quit ${APP_DISPLAY_NAME}` },
+          ],
+        }]
+      : []),
+    {
+      label: "File",
+      submenu: [
+        {
+          label: "Open Repository...",
+          accelerator: "CmdOrCtrl+O",
+          enabled: !isRepositoryTransitioning,
+          click: () => {
+            void chooseAndOpenRepository();
+          },
+        },
+        { type: "separator" },
+        ...(openRepositoryItems.length > 0
+          ? [
+              ...(openRepoRoots.length >= 2
+                ? [
+                    {
+                      label: "Previous Repository",
+                      accelerator: "CmdOrCtrl+Alt+Left",
+                      enabled: !isRepositoryTransitioning,
+                      click: () => {
+                        void runDesktopRepositoryShortcut({ command: "previous-repository" });
+                      },
+                    },
+                    {
+                      label: "Next Repository",
+                      accelerator: "CmdOrCtrl+Alt+Right",
+                      enabled: !isRepositoryTransitioning,
+                      click: () => {
+                        void runDesktopRepositoryShortcut({ command: "next-repository" });
+                      },
+                    },
+                    { type: "separator" },
+                  ]
+                : []),
+              ...openRepositoryItems,
+              { type: "separator" },
+            ]
+          : []),
+        {
+          label: "Export PDF...",
+          enabled: hasActiveRepository,
+          click: () => {
+            void exportCurrentDocumentPdf();
+          },
+        },
+        { type: "separator" },
+        {
+          label: "Close Repository",
+          enabled: hasActiveRepository,
+          click: () => {
+            void closeCurrentRepository();
+          },
+        },
+        ...(!isMac
+          ? [
+              { type: "separator" },
+              {
+                label: "Settings...",
+                accelerator: "CmdOrCtrl+,",
+                click: () => {
+                  void showSettingsAndHelpCenter("appearance");
+                },
+              },
+              ...(isOfficialDistribution(BUILD_INFO) ? [checkForUpdatesMenuItem()] : []),
+              { role: "quit" },
+            ]
+          : []),
+      ],
+    },
+    {
+      label: "Edit",
+      submenu: [
+        { role: "undo" },
+        { role: "redo" },
+        { type: "separator" },
+        { role: "cut" },
+        { role: "copy" },
+        { role: "paste" },
+        { type: "separator" },
+        { role: "selectAll" },
+        { type: "separator" },
+        rendererShortcutMenuItem("Find in Document", "CmdOrCtrl+F", { command: "find-in-document" }, {
+          enabled: hasActiveRepository,
+        }),
+      ],
+    },
+    {
+      label: "View",
+      submenu: [
+        rendererShortcutMenuItem("Toggle Sidebar", "CmdOrCtrl+B", { command: "toggle-sidebar" }, {
+          enabled: hasActiveRepository,
+        }),
+        rendererShortcutMenuItem("Toggle Document Navigation", "CmdOrCtrl+Shift+B", { command: "toggle-document-outline" }, {
+          enabled: hasActiveRepository,
+        }),
+        { type: "separator" },
+        rendererShortcutMenuItem("Preview", "CmdOrCtrl+P", { command: "set-mode", mode: "preview" }, {
+          enabled: hasActiveRepository,
+        }),
+        rendererShortcutMenuItem("Source", "CmdOrCtrl+S", { command: "set-mode", mode: "source" }, {
+          enabled: hasActiveRepository,
+        }),
+        rendererShortcutMenuItem("Live", "CmdOrCtrl+L", { command: "set-mode", mode: "live" }, {
+          enabled: hasActiveRepository,
+        }),
+        { type: "separator" },
+        {
+          label: "Tabs",
+          submenu: [
+            rendererShortcutMenuItem("Previous Tab", previousTabAccelerator(), { command: "previous-tab" }, {
+              enabled: hasActiveRepository,
+            }),
+            rendererShortcutMenuItem("Next Tab", nextTabAccelerator(), { command: "next-tab" }, {
+              enabled: hasActiveRepository,
+            }),
+            { type: "separator" },
+            rendererShortcutMenuItem("Close Tab", "CmdOrCtrl+W", { command: "close-current-tab" }, {
+              enabled: hasActiveRepository,
+            }),
+          ],
+        },
+        { type: "separator" },
+        ...(BUILD_INFO.dev === true
+          ? [{ role: "reload" }, { type: "separator" }]
+          : []),
+        { role: "resetZoom" },
+        { role: "zoomIn" },
+        { role: "zoomOut" },
+      ],
+    },
+    {
+      label: "Help",
+      submenu: [
+        {
+          label: "Git Leaf Help...",
+          click: () => {
+            void showSettingsAndHelpCenter("help");
+          },
+        },
+      ],
+    },
+  ];
+
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
+
+function rendererShortcutMenuItem(label, accelerator, action, { enabled = true } = {}) {
+  return {
+    label,
+    accelerator,
+    enabled,
+    click: () => {
+      void sendShortcutToRenderer(action);
+    },
+  };
+}
+
+function previousTabAccelerator() {
+  return process.platform === "darwin" ? "Cmd+Shift+[" : "Ctrl+Shift+Tab";
+}
+
+function nextTabAccelerator() {
+  return process.platform === "darwin" ? "Cmd+Shift+]" : "Ctrl+Tab";
+}
+
+function repositoryMenuItems(repoRoots, { markActive = false, enabled = true } = {}) {
+  return repoRoots.map((repoRoot, index) => {
+    const isActive = activeServer?.repositoryRoot === repoRoot;
+    return {
+      label: repositoryMenuLabel(repoRoot, repoRoots),
+      ...(index < 9 ? { accelerator: repositoryIndexAccelerator(index) } : {}),
+      ...(markActive ? { type: "checkbox", checked: isActive } : {}),
+      enabled: enabled && !isActive,
+      click: () => {
+        void openKnownRepository(repoRoot);
+      },
+    };
+  });
+}
+
+function repositoryIndexAccelerator(index) {
+  return `CmdOrCtrl+Alt+${index + 1}`;
+}
+
+function repositoryMenuLabel(repoRoot, repoRoots = []) {
+  const name = path.basename(repoRoot);
+  const duplicateName = repoRoots.some(
+    (candidate) => candidate !== repoRoot && path.basename(candidate) === name,
+  );
+  return duplicateName ? `${name} — ${path.basename(path.dirname(repoRoot))}` : name;
+}
+
+async function openInitialRepository() {
+  const options = pendingDesktopOpenRequest ?? parseDesktopArgs(process.argv.slice(1));
+  pendingDesktopOpenRequest = null;
+  if (options.share || desktopRequestHasRepository(options)) {
+    await openDesktopRequest(options);
+    return;
+  }
+  void logDesktopHandoff("received", options);
+  let startupError = "";
+  const candidates = await initialRepositoryCandidates(options);
+  if (options.repository && candidates.length === 0) {
+    startupError = options.worktree
+      ? repositoryWorktreeNotFoundMessage(options.repository, options.worktree)
+      : repositoryIdentityNotFoundMessage(options.repository);
+  }
+  for (const candidate of candidates) {
+    try {
+      await showProgressPage({
+        title: "正在打开仓库",
+        message: `正在恢复 ${path.basename(candidate)} 的工作区。`,
+      });
+      const repoRoot = await findRepoRoot(candidate);
+      await openRepository(repoRoot, options.file, { showProgress: false });
+      void confirmDesktopHandoff(options);
+      return;
+    } catch (error) {
+      startupError = startupRepositoryErrorMessage(candidate, error);
+    }
+  }
+
+  await showHomePage({ errorMessage: startupError });
+  if (options.handoff && !desktopRequestHasRepository(options) && !startupError) {
+    void confirmDesktopHandoff(options);
+  } else if (options.handoff) {
+    void logDesktopHandoff("failed", options, startupError || "repository not found");
+  }
+}
+
+async function initialRepositoryCandidates(options) {
+  if (options.repoRoot) {
+    return [options.repoRoot];
+  }
+  if (options.repository) {
+    const repoRoot = await findGithubRepositoryRoot(
+      options.repository,
+      desktopRepositoryCandidates(),
+      { worktree: options.worktree },
+    );
+    return repoRoot ? [repoRoot] : [];
+  }
+
+  return [desktopRepositoryState.repoRoot].filter(Boolean);
+}
+
+async function handleSecondInstance(argv) {
+  const options = parseDesktopArgs(argv.slice(1));
+  const action = desktopSecondInstanceAction({
+    isDesktopReady,
+    request: options,
+  });
+  if (action === "focus") {
+    focusMainWindow();
+    return;
+  }
+  if (action === "queue") {
+    pendingDesktopOpenRequest = options;
+    focusMainWindow();
+    return;
+  }
+  await openDesktopRequest(options);
+}
+
+async function openDesktopRequest(options) {
+  if (options.share) {
+    await openSharedDesktopRequest(options);
+    return;
+  }
+  void logDesktopHandoff("received", options);
+  let repoRoot = options.repoRoot || await findGithubRepositoryRoot(
+    options.repository,
+    desktopRepositoryCandidates(),
+    { worktree: options.worktree },
+  );
+  if (!repoRoot && options.repository) {
+    const selection = await requestDeepLinkRepository(options);
+    if (selection.status === "cancelled") {
+      await restoreAfterDeepLinkAbort();
+      recordDeepLinkTelemetry(options, "cancel");
+      void logDesktopHandoff("cancelled", options, selection.detail);
+      return;
+    }
+    if (selection.status === "error") {
+      await restoreAfterDeepLinkAbort();
+      recordDeepLinkTelemetry(options, "error", selection.failureReason);
+      void logDesktopHandoff("failed", options, selection.detail);
+      return;
+    }
+    repoRoot = selection.repoRoot;
+  }
+  if (repoRoot) {
+    const opened = await openKnownRepository(repoRoot, options.file);
+    focusMainWindow();
+    if (opened) {
+      recordDeepLinkTelemetry(options, "success");
+      void confirmDesktopHandoff(options);
+    } else {
+      recordDeepLinkTelemetry(options, "error", "repository_open_failed");
+      void logDesktopHandoff("failed", options, "repository or document did not open");
+    }
+    return;
+  }
+
+  await ensureMainWindow();
+  if (activeServer) {
+    await mainWindow.loadURL(activeServer.url);
+    mainWindow.setTitle(`${APP_DISPLAY_NAME} - ${activeServer.repoName}`);
+  } else {
+    await showHomePage();
+  }
+  focusMainWindow();
+  void confirmDesktopHandoff(options);
+}
+
+async function openSharedDesktopRequest(options) {
+  void logDesktopHandoff("received", options);
+  let matchedRoot = await findGithubRepositoryRoot(
+    options.repository,
+    desktopRepositoryCandidates(),
+  );
+  if (!matchedRoot) {
+    const selection = await requestDeepLinkRepository(options);
+    if (selection.status === "cancelled") {
+      await restoreAfterDeepLinkAbort();
+      recordDeepLinkTelemetry(options, "cancel");
+      void logDesktopHandoff("cancelled", options, selection.detail);
+      return;
+    }
+    if (selection.status === "error") {
+      await restoreAfterDeepLinkAbort();
+      recordDeepLinkTelemetry(options, "error", selection.failureReason);
+      void logDesktopHandoff("failed", options, selection.detail);
+      return;
+    }
+    matchedRoot = selection.repoRoot;
+  }
+
+  let target;
+  try {
+    target = await sharedMainWorktree(matchedRoot);
+  } catch (error) {
+    await failSharedDesktopRequest(
+      options,
+      "无法检查主工作区",
+      error instanceof Error ? error.message : String(error),
+      "main_worktree_check_failed",
+    );
+    return;
+  }
+  if (!target.ok) {
+    const detail = target.state === "primary_not_main"
+      ? [
+        `该仓库的主工作区当前位于 ${target.branch}。`,
+        "分享链接只能在主工作区的 main 分支打开。请先切换回 main，再重新打开链接。",
+      ].join("\n")
+      : "Git Leaf 找不到这个仓库可用的主工作区。请确认主工作区仍在本机且可以访问，再重新打开链接。";
+    await failSharedDesktopRequest(
+      options,
+      "无法打开分享链接",
+      detail,
+      target.state === "primary_not_main" ? "primary_not_main" : "main_worktree_unavailable",
+    );
+    return;
+  }
+
+  const primaryRoot = target.primary.root;
+  const activeIsLinkedWorktree = activeServer
+    && activeServer.repositoryRoot === primaryRoot
+    && activeServer.repoRoot !== primaryRoot;
+  if (activeIsLinkedWorktree) {
+    const current = target.worktrees.find((worktree) => worktree.root === activeServer.repoRoot);
+    const confirmed = await confirmSharedDesktopAction({
+      message: "切换到主工作区？",
+      detail: [
+        "打开分享链接需要切换到主工作区的 main 分支。",
+        "",
+        `当前工作区：${current?.branch || current?.name || "其他工作区"}`,
+        "目标工作区：主工作区 · main",
+      ].join("\n"),
+      confirmText: "切换并打开",
+    });
+    if (!confirmed) {
+      recordDeepLinkTelemetry(options, "cancel");
+      void logDesktopHandoff("cancelled", options, "workspace switch cancelled");
+      focusMainWindow();
+      return;
+    }
+  }
+
+  let state = await inspectSharedMain({
+    repoRoot: primaryRoot,
+    file: options.file,
+    rev: options.rev,
+  });
+  try {
+    if (state.state === "behind_clean") {
+      await fastForwardSharedMain(primaryRoot);
+    } else if (state.state === "behind_dirty_disjoint") {
+      const confirmed = await confirmSharedDesktopAction({
+        message: "打开分享内容需要更新 main",
+        detail: [
+          `你有 ${state.dirtyPaths.length} 个未提交文件，但与本次更新不冲突。`,
+          "本地修改将被保留。",
+        ].join("\n"),
+        confirmText: "保留修改并更新",
+      });
+      if (!confirmed) {
+        recordDeepLinkTelemetry(options, "cancel");
+        void logDesktopHandoff("cancelled", options, "fast-forward cancelled");
+        focusMainWindow();
+        return;
+      }
+      await fastForwardSharedMain(primaryRoot);
+    } else if (state.state === "sync_required") {
+      const confirmed = await confirmSharedDesktopAction({
+        message: "打开分享内容需要先同步本地修改",
+        detail: [
+          "以下文件存在本地修改，需要先提交、同步 main 并推送：",
+          ...state.dirtyPaths.map((file) => `• ${file}`),
+        ].join("\n"),
+        confirmText: "同步并打开",
+      });
+      if (!confirmed) {
+        recordDeepLinkTelemetry(options, "cancel");
+        void logDesktopHandoff("cancelled", options, "document sync cancelled");
+        focusMainWindow();
+        return;
+      }
+      const sync = await syncSelectedFiles({
+        repo: {
+          id: path.basename(primaryRoot),
+          root: primaryRoot,
+          branch: "main",
+        },
+        files: state.dirtyPaths,
+        note: "打开分享链接前同步本地文件",
+      });
+      if (!sync.ok) {
+        await showSharedSyncFailure(sync);
+        recordDeepLinkTelemetry(options, "error", "sync_failed");
+        void logDesktopHandoff("failed", options, sync.error || "git sync failed");
+        return;
+      }
+    } else if (state.state !== "ready") {
+      await failSharedDesktopRequest(
+        options,
+        sharedOpenFailureTitle(state),
+        sharedOpenFailureDetail(state),
+        sharedOpenFailureReason(state),
+      );
+      return;
+    }
+  } catch (error) {
+    await failSharedDesktopRequest(
+      options,
+      "无法安全更新 main",
+      error instanceof Error ? error.message : String(error),
+      "safe_update_failed",
+    );
+    return;
+  }
+
+  if (state.state !== "ready") {
+    state = await inspectSharedMain({
+      repoRoot: primaryRoot,
+      file: options.file,
+      rev: options.rev,
+      fetchRemote: false,
+    });
+  }
+  if (state.state !== "ready") {
+    await failSharedDesktopRequest(
+      options,
+      sharedOpenFailureTitle(state),
+      sharedOpenFailureDetail(state),
+      sharedOpenFailureReason(state),
+    );
+    return;
+  }
+
+  const opened = await openKnownRepository(primaryRoot, options.file);
+  focusMainWindow();
+  if (!opened) {
+    recordDeepLinkTelemetry(options, "error", "document_open_failed");
+    void logDesktopHandoff("failed", options, "shared document did not open");
+    return;
+  }
+  recordDeepLinkTelemetry(options, "success");
+  void confirmDesktopHandoff(options);
+}
+
+async function confirmSharedDesktopAction({ message, detail, confirmText }) {
+  const options = {
+    type: "question",
+    message,
+    detail,
+    buttons: [confirmText, "取消"],
+    defaultId: 0,
+    cancelId: 1,
+    noLink: true,
+  };
+  const result = mainWindow && !mainWindow.isDestroyed()
+    ? await dialog.showMessageBox(mainWindow, options)
+    : await dialog.showMessageBox(options);
+  return result.response === 0;
+}
+
+async function requestDeepLinkRepository(options) {
+  const promptOptions = {
+    type: "warning",
+    message: options.worktree ? "本机尚未找到目标工作树" : "此仓库尚未添加到 Git Leaf",
+    detail: options.worktree
+      ? repositoryWorktreeNotFoundMessage(options.repository, options.worktree)
+      : repositoryIdentityNotFoundMessage(options.repository),
+    buttons: ["选择本机仓库…", "取消"],
+    defaultId: 0,
+    cancelId: 1,
+    noLink: true,
+  };
+  const prompt = mainWindow && !mainWindow.isDestroyed()
+    ? await dialog.showMessageBox(mainWindow, promptOptions)
+    : await dialog.showMessageBox(promptOptions);
+  if (prompt.response !== 0) {
+    return { status: "cancelled", detail: "repository selection cancelled" };
+  }
+
+  while (!isRepositoryTransitioning) {
+    const pickerOptions = {
+      title: "选择链接对应的 Git 仓库",
+      properties: ["openDirectory"],
+    };
+    const picked = mainWindow && !mainWindow.isDestroyed()
+      ? await dialog.showOpenDialog(mainWindow, pickerOptions)
+      : await dialog.showOpenDialog(pickerOptions);
+    if (picked.canceled || !picked.filePaths[0]) {
+      return { status: "cancelled", detail: "repository picker cancelled" };
+    }
+
+    let selectedRoot = "";
+    let failureReason = "repository_selection_invalid";
+    let failureMessage = "所选文件夹不是可用的 Git 仓库";
+    let failureDetail = "请选择链接对应仓库的本机目录。";
+    try {
+      selectedRoot = await findRepoRoot(picked.filePaths[0]);
+      const identityRoot = await findGithubRepositoryRoot(options.repository, [selectedRoot]);
+      if (!identityRoot) {
+        failureReason = "repository_identity_mismatch";
+        failureMessage = "所选仓库与链接不匹配";
+        failureDetail = repositorySelectionMismatchMessage(options.repository);
+      } else if (options.worktree) {
+        const worktreeRoot = await findGithubRepositoryRoot(
+          options.repository,
+          [identityRoot],
+          { worktree: options.worktree },
+        );
+        if (worktreeRoot) {
+          return { status: "selected", repoRoot: worktreeRoot };
+        }
+        failureReason = "worktree_not_found";
+        failureMessage = "所选仓库中没有目标工作树";
+        failureDetail = repositoryWorktreeNotFoundMessage(options.repository, options.worktree);
+      } else {
+        return { status: "selected", repoRoot: identityRoot };
+      }
+    } catch (error) {
+      failureDetail = repositorySelectionErrorMessage(picked.filePaths[0], error);
+    }
+
+    const retryOptions = {
+      type: "warning",
+      message: failureMessage,
+      detail: failureDetail,
+      buttons: ["重新选择", "取消"],
+      defaultId: 0,
+      cancelId: 1,
+      noLink: true,
+    };
+    const retry = mainWindow && !mainWindow.isDestroyed()
+      ? await dialog.showMessageBox(mainWindow, retryOptions)
+      : await dialog.showMessageBox(retryOptions);
+    if (retry.response !== 0) {
+      return {
+        status: "error",
+        failureReason,
+        detail: failureDetail,
+      };
+    }
+  }
+
+  return {
+    status: "error",
+    failureReason: "repository_open_failed",
+    detail: "repository transition already in progress",
+  };
+}
+
+async function restoreAfterDeepLinkAbort() {
+  if (!activeServer) {
+    await showHomePage();
+  }
+  focusMainWindow();
+}
+
+async function failSharedDesktopRequest(options, message, detail, failureReason = "unknown") {
+  const dialogOptions = {
+    type: "warning",
+    message,
+    detail,
+    buttons: ["知道了"],
+    defaultId: 0,
+  };
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    await dialog.showMessageBox(mainWindow, dialogOptions);
+  } else {
+    await dialog.showMessageBox(dialogOptions);
+  }
+  focusMainWindow();
+  recordDeepLinkTelemetry(options, "error", failureReason);
+  void logDesktopHandoff("failed", options, detail);
+}
+
+async function showSharedSyncFailure(sync) {
+  const options = {
+    type: "error",
+    message: "同步本地修改失败",
+    detail: sync.error || "Git 同步没有完成。",
+    buttons: sync.agentPrompt ? ["复制 Agent 提示词", "知道了"] : ["知道了"],
+    defaultId: sync.agentPrompt ? 1 : 0,
+    cancelId: sync.agentPrompt ? 1 : 0,
+  };
+  const result = mainWindow && !mainWindow.isDestroyed()
+    ? await dialog.showMessageBox(mainWindow, options)
+    : await dialog.showMessageBox(options);
+  if (sync.agentPrompt && result.response === 0) {
+    clipboard.writeText(sync.agentPrompt);
+  }
+}
+
+function sharedOpenFailureTitle(state) {
+  if (state.state === "fetch_failed") return "无法获取最新 main";
+  if (state.state === "revision_missing") return "分享版本已失效";
+  if (state.state === "ahead" || state.state === "diverged") return "main 存在尚未同步的提交";
+  return "无法打开分享链接";
+}
+
+function sharedOpenFailureDetail(state) {
+  if (state.state === "fetch_failed") {
+    return [
+      "Git Leaf 无法从 GitHub 获取最新 main。请检查网络和 GitHub 访问状态，然后重新打开链接。",
+      state.error ? `技术信息：${String(state.error).slice(0, 240)}` : "",
+    ].filter(Boolean).join("\n");
+  }
+  if (state.state === "revision_missing") {
+    return "origin/main 已不再包含链接中的文档版本。请联系分享者重新生成链接。";
+  }
+  if (state.state === "ahead") {
+    return "本地主工作区有尚未推送的 commit。请先在 Git Leaf 中完成 Git 同步，再重新打开链接。";
+  }
+  if (state.state === "diverged") {
+    return "本地主工作区与 origin/main 已经分叉。请先让 AI Agent 处理分叉并完成 Git 同步，再重新打开链接。";
+  }
+  return "主工作区当前不满足安全打开条件。请先完成 Git 同步，再重新打开链接。";
+}
+
+function sharedOpenFailureReason(state) {
+  if (state.state === "fetch_failed") return "fetch_failed";
+  if (state.state === "revision_missing") return "revision_missing";
+  if (state.state === "ahead") return "main_ahead";
+  if (state.state === "diverged") return "main_diverged";
+  return "unknown";
+}
+
+function recordDeepLinkTelemetry(options, result, failureReason = "") {
+  if (!options?.repository) {
+    return false;
+  }
+  return recordTelemetryFeature("navigation.deep_link", {
+    type: options.worktree ? "exact_worktree" : "repository",
+    result,
+    ...(result === "error" ? { failure_reason: failureReason || "unknown" } : {}),
+  });
+}
+
+async function confirmDesktopHandoff(options) {
+  if (!options?.handoff) {
+    return false;
+  }
+  await logDesktopHandoff("opened", options);
+  const confirmed = await confirmGitLeafHandoff(options.handoff);
+  await logDesktopHandoff(confirmed ? "confirmed" : "confirm-failed", options);
+  return confirmed;
+}
+
+async function logDesktopHandoff(event, request, detail = "") {
+  try {
+    const logged = await writeDesktopDeepLinkLog({
+      userDataDir: userDataDir(),
+      event,
+      request,
+      detail,
+    });
+    if (request?.share && ["received", "cancelled", "failed"].includes(event)) {
+      void reportGitLeafShareHandoffState(request.handoff, event);
+    }
+    return logged;
+  } catch {
+    return false;
+  }
+}
+
+function desktopRequestHasRepository(options) {
+  return Boolean(options?.repoRoot || options?.repository);
+}
+
+function desktopRepositoryCandidates() {
+  return [
+    activeServer?.repoRoot,
+    activeServer?.repositoryRoot,
+    desktopRepositoryState.repoRoot,
+    ...(desktopRepositoryState.openRepoRoots ?? []),
+  ].filter(Boolean);
+}
+
+function repositoryIdentityNotFoundMessage(repository) {
+  return [
+    `Git Leaf 的仓库列表里还没有 ${repository}。`,
+    "选择它的本机目录后，Git Leaf 会核对 GitHub origin，并继续打开当前链接。",
+  ].join("\n");
+}
+
+function repositoryWorktreeNotFoundMessage(repository, worktree) {
+  return [
+    `Git Leaf 在本机尚未找到 ${repository} 的目标工作树 ${worktree}。`,
+    "请选择该仓库任一工作树的本机目录，Git Leaf 会继续查找链接指定的工作树。",
+    "如果目标工作树只存在于另一台电脑，请在创建链接的电脑上打开。",
+  ].join("\n");
+}
+
+function repositorySelectionMismatchMessage(repository) {
+  return [
+    `这个链接需要 ${repository}。`,
+    "请选择该 GitHub 仓库的本机目录；Git Leaf 不会用其他仓库替代打开。",
+  ].join("\n");
+}
+
+if (manualWindowsBootstrapBlocked) {
+  app.whenReady().then(() => {
+    dialog.showErrorBox(
+      "请先完全退出正在运行的 Git Leaf",
+      [
+        "检测到另一个 Git Leaf 仍在运行，因此尚未修改任何安装文件。",
+        "请退出旧版本，然后重新双击这个新版解压目录中的 Git Leaf.exe。",
+      ].join("\n\n"),
+    );
+    app.exit(1);
+  });
+} else if (windowsBootstrap.status === "error") {
+  app.whenReady().then(() => {
+    dialog.showErrorBox(
+      "无法准备 Git Leaf",
+      [
+        "Git Leaf 无法更新本机固定安装位置。",
+        "请先退出正在运行的 Git Leaf，然后重新双击这个新版本。",
+        windowsBootstrap.error instanceof Error
+          ? windowsBootstrap.error.message
+          : String(windowsBootstrap.error),
+      ].join("\n\n"),
+    );
+    app.exit(1);
+  });
+} else if (["install", "update", "redirect", "outdated"].includes(windowsBootstrap.status)) {
+  app.whenReady().then(() => runWindowsAppInstall(windowsBootstrap));
+} else if (!hasSingleInstanceLock) {
+  app.quit();
+} else {
+  app.on("second-instance", (_event, argv) => {
+    void handleSecondInstance(argv);
+  });
+
+  app.whenReady().then(async () => {
+    installAboutPanelOptions();
+    await loadDesktopRepositoryState();
+    await initializeDesktopTelemetry();
+    installUpdateController();
+    installWindowsStartMenuShortcut();
+    scheduleWindowsUpdateCacheCleanup();
+    await updateController?.restoreKnownUpdate?.();
+    installMenu();
+    await createMainWindow();
+    await confirmWindowsAppLaunch();
+    startDesktopTelemetryRuntime();
+    await openInitialRepository();
+    isDesktopReady = true;
+    if (pendingDesktopOpenRequest) {
+      const request = pendingDesktopOpenRequest;
+      pendingDesktopOpenRequest = null;
+      await openDesktopRequest(request);
+    }
+    updateCheckScheduler.start();
+    powerMonitor.on("resume", () => {
+      void updateCheckScheduler?.onResume();
+    });
+
+    app.on("activate", async () => {
+      void updateCheckScheduler?.onActivate();
+      if (BrowserWindow.getAllWindows().length === 0) {
+        if (activeServer) {
+          await ensureMainWindow();
+          await mainWindow.loadURL(activeServer.url);
+          mainWindow.setTitle(`${APP_DISPLAY_NAME} - ${activeServer.repoName}`);
+          return;
+        }
+        await ensureMainWindow();
+        await openInitialRepository();
+      }
+    });
+  }).catch(handleDesktopStartupFailure);
+
+  app.on("window-all-closed", () => {
+    if (process.platform !== "darwin") {
+      app.quit();
+    }
+  });
+
+  app.on("before-quit", async (event) => {
+    if (isQuitting) {
+      return;
+    }
+
+    event.preventDefault();
+    void quitAfterClosingServer();
+  });
+}
+
+function handleDesktopStartupFailure(error) {
+  const invalidConfig = error?.code === "DESKTOP_CONFIG_INVALID";
+  console.error("Git Leaf desktop startup failed", error);
+  dialog.showErrorBox(
+    invalidConfig ? "Git Leaf 配置文件损坏" : "Git Leaf 启动失败",
+    invalidConfig
+      ? [
+          "Git Leaf 检测到设置文件和备份都无法读取。",
+          "为避免覆盖原有仓库、外观与工作台状态，App 已停止启动，现有文件保持不变。",
+          error instanceof Error ? error.message : String(error),
+        ].join("\n\n")
+      : (error instanceof Error ? error.message : String(error)),
+  );
+  isQuitting = true;
+  app.exit(1);
+}
+
+async function quitAfterClosingServer() {
+  if (isQuitting) {
+    return;
+  }
+
+  isQuitting = true;
+  telemetryActivityTracker?.stop();
+  telemetryActivityTracker = null;
+  telemetryUploadScheduler?.stop();
+  updateCheckScheduler?.stop();
+  const server = activeServer;
+  activeServer = null;
+  await completeDesktopShutdown({
+    prepareUpdate: () => updateController?.preparePendingUpdateOnQuit?.(),
+    shutdownSteps: [
+      () => saveCurrentWindowState({ repoRoot: server?.repoRoot ?? "" }),
+      () => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.destroy();
+        }
+      },
+      () => server?.close(),
+      () => telemetryUploadScheduler
+        ? telemetryUploadScheduler.shutdown()
+        : telemetryClient?.shutdown({
+          upload: true,
+          uploadTimeoutMs: DEFAULT_TELEMETRY_SHUTDOWN_UPLOAD_TIMEOUT_MS,
+        }),
+    ],
+    installUpdate: () => updateController?.installPendingUpdateOnQuit?.(),
+    exit: (code) => app.exit(code),
+  });
+  telemetryUploadScheduler = null;
+}

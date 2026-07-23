@@ -1,0 +1,21 @@
+node_modules/
+dist/
+.superpowers/
+.DS_Store
+npm-debug.log*
+
+# Local release profiles and environment files
+.env
+.env.*
+!.env.example
+git-leaf-release-profile*.json
+*.pem
+*.key
+*.p12
+*.mobileprovision
+*.cer
+*.crt
+
+# Python runtime artifacts
+__pycache__/
+*.py[cod]

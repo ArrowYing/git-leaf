@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"
+    >
+    <title>Git Leaf 设置与帮助</title>
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <div class="settings-shell">
+      <header class="settings-titlebar">
+        <button id="settings-back" class="back-button" type="button" aria-label="返回 Git Leaf">
+          <svg viewBox="0 0 20 20" aria-hidden="true">
+            <path d="m12.5 4.5-5 5.5 5 5.5"></path>
+          </svg>
+          <span>返回</span>
+        </button>
+        <span class="escape-hint" aria-hidden="true">Esc</span>
+        <div class="titlebar-title">Git Leaf</div>
+      </header>
+
+      <div class="settings-layout">
+        <aside class="settings-sidebar" aria-label="设置与帮助栏目">
+          <div class="settings-heading">
+            <span class="app-mark" aria-hidden="true">GL</span>
+            <div>
+              <strong>设置与帮助</strong>
+              <span>Git Leaf</span>
+            </div>
+          </div>
+          <nav id="settings-navigation" class="settings-navigation">
+            <button type="button" data-section="appearance" aria-current="page">外观</button>
+            <button type="button" data-section="files">文件与目录</button>
+            <button type="button" data-section="help">使用帮助</button>
+            <button type="button" data-section="shortcuts">快捷键</button>
+            <button type="button" data-section="status">关于与状态</button>
+          </nav>
+          <nav id="help-navigation" class="help-navigation" aria-label="使用帮助章节" hidden></nav>
+        </aside>
+
+        <main id="settings-content" class="settings-content" tabindex="-1">
+          <section class="settings-section" data-section-panel="appearance" aria-labelledby="appearance-title">
+            <header class="section-header">
+              <p class="section-kicker">Appearance</p>
+              <h1 id="appearance-title">外观</h1>
+              <p>只保留会持续影响阅读体验的个人偏好。</p>
+            </header>
+
+            <div class="setting-group">
+              <div class="setting-copy">
+                <h2>明暗模式</h2>
+                <p>跟随系统时，Git Leaf 会随 macOS 或 Windows 的外观自动切换。</p>
+              </div>
+              <fieldset class="choice-grid choice-grid-three" aria-label="明暗模式">
+                <label class="choice-card">
+                  <input type="radio" name="colorMode" value="system">
+                  <span class="theme-swatch is-system" aria-hidden="true"><i></i></span>
+                  <strong>跟随系统</strong>
+                </label>
+                <label class="choice-card">
+                  <input type="radio" name="colorMode" value="light">
+                  <span class="theme-swatch is-light" aria-hidden="true"></span>
+                  <strong>浅色</strong>
+                </label>
+                <label class="choice-card">
+                  <input type="radio" name="colorMode" value="dark">
+                  <span class="theme-swatch is-dark" aria-hidden="true"></span>
+                  <strong>深色</strong>
+                </label>
+              </fieldset>
+            </div>
+
+            <div class="setting-group">
+              <div class="setting-copy">
+                <h2>文档字体</h2>
+                <p>影响 Preview 和 Live 的正文；Source 始终使用等宽字体。</p>
+              </div>
+              <fieldset class="choice-grid choice-grid-two" aria-label="文档字体">
+                <label class="choice-card font-choice is-sans">
+                  <input type="radio" name="documentFont" value="system-sans">
+                  <span class="font-sample" aria-hidden="true">Aa 文档</span>
+                  <strong>系统无衬线</strong>
+                </label>
+                <label class="choice-card font-choice is-serif">
+                  <input type="radio" name="documentFont" value="reading-serif">
+                  <span class="font-sample" aria-hidden="true">Aa 文档</span>
+                  <strong>阅读衬线</strong>
+                </label>
+              </fieldset>
+            </div>
+
+            <div class="setting-group setting-group-inline">
+              <div class="setting-copy">
+                <h2>文字大小</h2>
+                <p>统一调整文档正文、Live、Source 和行号的排版比例。</p>
+              </div>
+              <label class="text-size-control" for="document-font-size">
+                <span class="size-label is-small" aria-hidden="true">A</span>
+                <input id="document-font-size" type="range" min="14" max="22" step="1" value="16">
+                <span class="size-label is-large" aria-hidden="true">A</span>
+                <output id="document-font-size-value" for="document-font-size">16 px</output>
+              </label>
+            </div>
+          </section>
+
+          <section class="settings-section" data-section-panel="files" aria-labelledby="files-title" hidden>
+            <header class="section-header">
+              <p class="section-kicker">Files</p>
+              <h1 id="files-title">文件与目录</h1>
+              <p>决定左侧目录树呈现多少仓库内容。</p>
+            </header>
+
+            <div class="setting-group">
+              <div class="setting-copy">
+                <h2>目录树显示范围</h2>
+                <p>面向阅读者时可以隐藏开发配置噪音，需要时仍可查看完整仓库。</p>
+              </div>
+              <fieldset class="stacked-choices" aria-label="目录树显示范围">
+                <label class="stacked-choice">
+                  <input type="radio" name="fileTreeMode" value="content">
+                  <span>
+                    <strong>内容文件（推荐）</strong>
+                    <small>聚焦 Markdown / MDX、HTML、图片和 PDF；其他文件按需显示。</small>
+                  </span>
+                </label>
+                <label class="stacked-choice">
+                  <input type="radio" name="fileTreeMode" value="all">
+                  <span>
+                    <strong>全部仓库文件</strong>
+                    <small>显示 Git 已跟踪和未被忽略的所有文件。</small>
+                  </span>
+                </label>
+              </fieldset>
+              <p class="boundary-note">
+                此设置只改变目录树显示，不改变 Git 改动发现、同步或提交范围。
+              </p>
+            </div>
+          </section>
+
+          <section class="settings-section" data-section-panel="help" aria-labelledby="help-title" hidden>
+            <header class="section-header">
+              <p class="section-kicker">Help</p>
+              <h1 id="help-title">使用帮助</h1>
+              <p>文件、筛选、worktree、分享和隐私说明集中在这里。</p>
+            </header>
+            <div id="help-sections" class="help-document"></div>
+          </section>
+
+          <section class="settings-section" data-section-panel="shortcuts" aria-labelledby="shortcuts-title" hidden>
+            <header class="section-header">
+              <p class="section-kicker">Keyboard</p>
+              <h1 id="shortcuts-title">快捷键</h1>
+              <p>保留系统菜单入口和 Git Leaf 当前键盘操作。</p>
+            </header>
+            <div id="shortcut-groups" class="shortcut-groups"></div>
+          </section>
+
+          <section class="settings-section" data-section-panel="status" aria-labelledby="status-title" hidden>
+            <header class="section-header">
+              <p class="section-kicker">About &amp; Status</p>
+              <h1 id="status-title">关于与状态</h1>
+              <p>查看版本、运行环境以及当前仓库状态。</p>
+            </header>
+            <div id="app-status" class="status-block"></div>
+            <div class="status-actions" aria-label="更新操作" hidden>
+              <button id="check-for-updates" type="button">检查更新</button>
+              <span id="update-check-result" role="status" aria-live="polite"></span>
+            </div>
+            <div id="environment-status" class="status-block"></div>
+            <div id="repository-status" class="status-block"></div>
+          </section>
+
+          <div id="settings-error" class="settings-error" role="alert" hidden></div>
+        </main>
+      </div>
+      <div id="settings-save-status" class="save-status" role="status" aria-live="polite"></div>
+    </div>
+    <script src="./renderer.js"></script>
+  </body>
+</html>

@@ -1,0 +1,10 @@
+{
+  "distribution": "official",
+  "usageAnalyticsDefault": false,
+  "developerIdApplication": "Developer ID Application: Example Company (TEAMID1234)",
+  "notaryProfile": "local-notary-profile-name",
+  "updateBaseUrl": "https://updates.example.com/git-leaf",
+  "updateChannel": "stable",
+  "updateRemoteHost": "release-host-alias",
+  "updateRemoteRoot": "/srv/git-leaf/updates"
+}

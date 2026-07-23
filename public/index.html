@@ -1,0 +1,412 @@
+<!doctype html>
+<html lang="zh-CN" class="is-workbench-loading">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Git Leaf</title>
+    <script>
+      window.GIT_LEAF_INITIAL_FILE = __GIT_LEAF_INITIAL_FILE__;
+      window.GIT_LEAF_INITIAL_REPO = __GIT_LEAF_INITIAL_REPO__;
+      window.GIT_LEAF_WORKTREE_ID = __GIT_LEAF_WORKTREE_ID__;
+      window.GIT_LEAF_CAN_EDIT = __GIT_LEAF_CAN_EDIT__;
+      window.GIT_LEAF_DESKTOP_PREFERENCES = __GIT_LEAF_DESKTOP_PREFERENCES__;
+      window.GIT_LEAF_TELEMETRY_ENABLED = __GIT_LEAF_TELEMETRY_ENABLED__;
+      (() => {
+        const preferences = window.GIT_LEAF_DESKTOP_PREFERENCES;
+        let colorMode = preferences?.colorMode;
+        if (!["system", "light", "dark"].includes(colorMode)) {
+          try {
+            colorMode = window.localStorage.getItem("git-leaf-theme") || "light";
+          } catch {
+            colorMode = "light";
+          }
+        }
+        const systemDark = window.matchMedia?.("(prefers-color-scheme: dark)").matches === true;
+        const theme = colorMode === "dark" || (colorMode === "system" && systemDark)
+          ? "dark"
+          : "light";
+        document.documentElement.dataset.theme = theme;
+        document.documentElement.style.colorScheme = theme;
+      })();
+    </script>
+    <style>
+      :root {
+        --workbench-loading-bg: #f6f7f9;
+        --workbench-loading-text: #17202e;
+        --workbench-loading-muted: #667085;
+        --workbench-loading-accent: #2563eb;
+        background: var(--workbench-loading-bg);
+      }
+
+      :root[data-theme="dark"] {
+        --workbench-loading-bg: #111214;
+        --workbench-loading-text: #f2f1ec;
+        --workbench-loading-muted: #aaa59c;
+        --workbench-loading-accent: #7aa2f7;
+      }
+
+      .is-workbench-loading #app-shell {
+        visibility: hidden;
+      }
+
+      #workbench-loading {
+        position: fixed;
+        inset: 0;
+        z-index: 10000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 48px;
+        background: var(--workbench-loading-bg);
+        color: var(--workbench-loading-text);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        transition: opacity 120ms ease-out;
+      }
+
+      .is-workbench-ready #workbench-loading {
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      .workbench-loading-inner {
+        width: min(720px, calc(100vw - 48px));
+      }
+
+      .workbench-loading-indicator {
+        width: 28px;
+        height: 28px;
+        margin-bottom: 22px;
+        border: 3px solid color-mix(in srgb, var(--workbench-loading-accent) 24%, transparent);
+        border-top-color: var(--workbench-loading-accent);
+        border-radius: 999px;
+        animation: workbench-loading-spin 0.8s linear infinite;
+      }
+
+      #workbench-loading h1 {
+        margin: 0 0 12px;
+        font-size: 30px;
+        line-height: 1.2;
+        font-weight: 680;
+      }
+
+      #workbench-loading p {
+        margin: 0;
+        color: var(--workbench-loading-muted);
+        font-size: 15px;
+        line-height: 1.65;
+      }
+
+      @keyframes workbench-loading-spin {
+        to { transform: rotate(360deg); }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        #workbench-loading { transition: none; }
+        .workbench-loading-indicator { animation-duration: 1.6s; }
+      }
+    </style>
+    <link rel="stylesheet" href="/styles.css?v=__GIT_LEAF_ASSET_VERSION__">
+  </head>
+  <body>
+    <div id="workbench-loading" role="status" aria-live="polite" aria-busy="true">
+      <div class="workbench-loading-inner">
+        <div class="workbench-loading-indicator" aria-hidden="true"></div>
+        <h1>正在打开仓库</h1>
+        <p>正在准备文档与工作区。</p>
+      </div>
+    </div>
+    <div id="app-shell" class="app-shell">
+      <header class="app-toolbar" aria-label="窗口工具栏">
+        <div class="toolbar-sidebar">
+          <div class="mac-traffic-spacer" aria-hidden="true"></div>
+          <nav class="titlebar-navigation" aria-label="工作台导航">
+            <button
+              id="sidebar-toggle"
+              class="titlebar-icon-button"
+              type="button"
+              aria-label="收起侧边栏"
+              aria-controls="workspace-sidebar"
+              aria-expanded="true"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <rect x="3.5" y="3.5" width="17" height="17" rx="2.5"></rect>
+                <path d="M9 4v16"></path>
+                <path class="sidebar-toggle-direction" d="m15 9-3 3 3 3"></path>
+              </svg>
+            </button>
+            <button id="history-back" class="titlebar-icon-button" type="button" aria-label="后退">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"></path></svg>
+            </button>
+            <button id="history-forward" class="titlebar-icon-button" type="button" aria-label="前进">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg>
+            </button>
+          </nav>
+        </div>
+        <div class="toolbar-divider" aria-hidden="true"></div>
+        <div class="toolbar-main">
+          <div class="document-tab-strip">
+            <nav id="document-tabs" class="document-tabs" aria-label="打开的文件"></nav>
+            <button id="document-new" class="document-new" type="button" aria-label="新建文档" title="新建文档">＋</button>
+          </div>
+          <div id="document-tab-tooltip" class="document-tab-tooltip" role="tooltip" hidden></div>
+          <div class="toolbar-system-controls" aria-label="系统操作">
+            <div class="mode-switch" aria-label="显示模式">
+              <button id="mode-preview" type="button" data-mode="preview" aria-pressed="true">Preview</button>
+              <button id="mode-source" type="button" data-mode="source" aria-pressed="false">Source</button>
+              <button id="mode-live" type="button" data-mode="live" aria-pressed="false">Live</button>
+            </div>
+            <button
+              id="theme-toggle"
+              class="theme-toggle"
+              type="button"
+              aria-label="切换到深色模式"
+              aria-pressed="false"
+              hidden
+            ></button>
+          </div>
+        </div>
+      </header>
+      <div class="app-workbench">
+        <aside id="workspace-sidebar" class="sidebar" aria-label="文件浏览器">
+          <div id="workspace-sidebar-header" class="workspace-sidebar-header">
+            <div id="repository-title" class="toolbar-repository">Git Leaf</div>
+            <div id="worktree-switcher" class="worktree-switcher" hidden>
+              <button
+                id="worktree-switcher-toggle"
+                class="worktree-switcher-toggle"
+                type="button"
+                aria-haspopup="listbox"
+                aria-expanded="false"
+                aria-controls="worktree-switcher-menu"
+              >
+                <span class="worktree-switcher-current">
+                  <span id="worktree-current-name" class="worktree-current-name"></span>
+                  <span id="worktree-current-branch" class="worktree-current-branch"></span>
+                </span>
+                <span class="worktree-switcher-chevron" aria-hidden="true">⌄</span>
+              </button>
+              <div
+                id="worktree-switcher-menu"
+                class="worktree-switcher-menu"
+                role="listbox"
+                aria-label="Git 工作树"
+                hidden
+              ></div>
+            </div>
+          </div>
+          <div class="tree-controls">
+            <div class="tree-search-row">
+              <label class="search-box">
+                <input id="tree-filter" type="search" placeholder="搜索路径、文件名或 AI snippet">
+              </label>
+              <button
+                id="frontmatter-filter-toggle"
+                class="frontmatter-filter-toggle"
+                type="button"
+                aria-label="文档 Frontmatter 筛选"
+                aria-expanded="false"
+                aria-controls="frontmatter-filter-popover"
+                hidden
+              >筛选</button>
+            </div>
+            <div
+              id="frontmatter-active-filters"
+              class="frontmatter-active-filters"
+              aria-label="已启用的 Frontmatter 筛选"
+              hidden
+            ></div>
+            <div id="git-change-toolbar" class="git-change-toolbar" hidden>
+              <button id="git-changes-toggle" type="button" aria-pressed="false">
+                本地改动 <span id="git-change-count">0</span>
+              </button>
+              <button id="git-sync-open" type="button">同步</button>
+            </div>
+            <div
+              id="frontmatter-filter-popover"
+              class="frontmatter-filter-popover"
+              aria-label="文档 Frontmatter 筛选"
+              hidden
+            ></div>
+          </div>
+          <nav id="file-tree" class="file-tree" aria-label="仓库文件"></nav>
+          <section id="desktop-update-panel" class="desktop-update-panel" aria-label="Git Leaf 更新" aria-live="polite" hidden>
+            <div class="desktop-update-copy">
+              <strong id="desktop-update-title"></strong>
+              <span id="desktop-update-detail"></span>
+            </div>
+            <button id="desktop-update-action" class="desktop-update-action" type="button"></button>
+          </section>
+          <section id="agent-context-widget" class="agent-context-widget" aria-label="Agent 上下文">
+            <div id="agent-context-popover" class="agent-context-popover" hidden>
+              <header class="agent-context-popover-header">
+                <strong class="agent-context-popover-title">Agent 上下文</strong>
+                <button id="agent-context-close" type="button" aria-label="收起 Agent 上下文">⌄</button>
+              </header>
+              <div id="agent-context-list" class="agent-context-list"></div>
+              <div id="agent-context-empty" class="agent-context-empty" hidden>
+                <strong>还没有上下文片段</strong>
+                <span>在文档中选择行，再点击“加入上下文”。</span>
+              </div>
+              <footer class="agent-context-popover-footer">
+                <button id="agent-context-clear" type="button">清空</button>
+                <button id="agent-context-copy" type="button">复制片段</button>
+              </footer>
+            </div>
+            <button
+              id="agent-context-toggle"
+              class="agent-context-toggle"
+              type="button"
+              aria-controls="agent-context-popover"
+              aria-expanded="false"
+            >
+              <span class="agent-context-toggle-label">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="m12 3-9 5 9 5 9-5-9-5Z"></path>
+                  <path d="m3 12 9 5 9-5"></path>
+                  <path d="m3 16 9 5 9-5"></path>
+                </svg>
+                <span>Agent 上下文</span>
+              </span>
+              <span id="agent-context-toggle-count" class="agent-context-count">0</span>
+            </button>
+          </section>
+        </aside>
+        <div
+          id="sidebar-resizer"
+          class="sidebar-resizer"
+          role="separator"
+          aria-label="调整文件浏览器宽度"
+          aria-orientation="vertical"
+          tabindex="0"
+        ></div>
+
+        <main class="preview-pane">
+          <section id="document-search" class="document-search" role="search" aria-label="在当前文件中查找" hidden>
+            <label class="document-search-field">
+              <span class="visually-hidden">查找内容</span>
+              <input
+                id="document-search-input"
+                type="search"
+                placeholder="在当前文件中查找"
+                autocomplete="off"
+                spellcheck="false"
+              >
+            </label>
+            <output id="document-search-count" class="document-search-count" aria-live="polite">0 / 0</output>
+            <button id="document-search-previous" type="button" aria-label="上一个匹配" title="上一个匹配（Shift+Enter）">↑</button>
+            <button id="document-search-next" type="button" aria-label="下一个匹配" title="下一个匹配（Enter）">↓</button>
+            <button id="document-search-close" type="button" aria-label="关闭查找" title="关闭查找（Esc）">×</button>
+          </section>
+          <div id="floating-document-actions" class="floating-document-actions" aria-label="文件操作" hidden>
+            <span id="source-sync-status" class="source-sync-status" hidden></span>
+            <button id="copy-share-link" type="button">复制分享链接</button>
+            <button id="document-actions-more" type="button" aria-label="更多文件操作" aria-haspopup="menu" aria-expanded="false">···</button>
+          </div>
+          <div id="branch-status" class="branch-status" role="status" aria-live="polite" hidden></div>
+          <div id="document-body" class="document-body">
+            <aside id="document-outline" class="document-outline" aria-label="文档内导航" hidden></aside>
+            <button
+              id="document-outline-toggle"
+              class="document-outline-toggle"
+              type="button"
+              aria-label="隐藏目录"
+              aria-controls="document-outline"
+              aria-expanded="true"
+              hidden
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <rect x="3.5" y="3.5" width="17" height="17" rx="2.5"></rect>
+                <path d="M9 4v16"></path>
+                <path class="document-outline-toggle-direction" d="m15 9-3 3 3 3"></path>
+              </svg>
+            </button>
+            <div id="document-workspace" class="document-workspace" tabindex="-1">
+              <article id="document-content" class="document-content" tabindex="-1"></article>
+              <div id="document-empty-state" class="document-empty-state" hidden>
+                <div class="document-empty-state-inner">
+                  <h1>未打开文件</h1>
+                  <p>从左侧目录树选择仓库文件。Markdown / MDX 支持编辑，其他文件只读查看。</p>
+                  <button id="empty-new-document" type="button">新建文档</button>
+                </div>
+              </div>
+              <div
+                id="source-splitter"
+                class="source-splitter"
+                role="separator"
+                aria-label="调整预览和 Source 编辑器高度"
+                aria-orientation="horizontal"
+                tabindex="0"
+                hidden
+              ></div>
+              <section id="source-editor-pane" class="source-editor-pane" aria-label="Source 编辑器" hidden>
+                <div id="source-editor" class="source-editor"></div>
+              </section>
+            </div>
+          </div>
+          <div id="selection-popover" class="selection-popover" hidden>
+            <button id="copy-selection-popover" type="button">复制内容</button>
+            <button id="add-selection-agent-context" type="button">加入上下文</button>
+          </div>
+          <div id="image-popover" class="image-popover" hidden>
+            <button type="button" data-image-action="align-left">左对齐</button>
+            <button type="button" data-image-action="align-center">居中</button>
+            <button type="button" data-image-action="shrink">缩小</button>
+            <button type="button" data-image-action="grow">放大</button>
+            <button type="button" data-image-action="caption">说明</button>
+          </div>
+          <div id="link-popover" class="link-popover" hidden>
+            <button type="button" data-link-action="edit">修改链接</button>
+            <button type="button" data-link-action="open">打开链接</button>
+            <button type="button" data-link-action="open-tab">新标签页</button>
+          </div>
+          <div
+            id="frontmatter-field-popover"
+            class="frontmatter-field-popover"
+            aria-label="Frontmatter 字段操作"
+            hidden
+          ></div>
+          <div id="copy-toast" class="copy-toast" role="status" aria-live="polite" hidden></div>
+        </main>
+      </div>
+      <div id="tree-item-tooltip" class="tree-item-tooltip" role="tooltip" hidden></div>
+      <div id="file-action-menu" class="file-action-menu" role="menu" aria-label="文件操作" hidden></div>
+      <div id="git-sync-panel" class="git-sync-panel" role="dialog" aria-modal="true" aria-labelledby="git-sync-title" hidden>
+        <section class="git-sync-dialog">
+          <header class="git-sync-header">
+            <div>
+              <h2 id="git-sync-title">需要 AI Agent 处理</h2>
+              <p>本地修改都已保留，可以交给 AI Agent 继续完成同步。</p>
+            </div>
+            <button id="git-sync-close" type="button" aria-label="关闭同步面板">×</button>
+          </header>
+          <div id="git-sync-result" class="git-sync-result" hidden>
+            <p id="git-sync-result-title"></p>
+            <p id="git-sync-result-help"></p>
+            <textarea id="git-sync-agent-prompt" rows="10" readonly></textarea>
+            <button id="git-sync-copy-prompt" type="button">复制提示词</button>
+          </div>
+        </section>
+      </div>
+      <div id="app-dialog" class="app-dialog" role="dialog" aria-modal="true" aria-labelledby="app-dialog-title" hidden>
+        <section id="app-dialog-card" class="app-dialog-card">
+          <header class="app-dialog-header">
+            <h2 id="app-dialog-title"></h2>
+            <button id="app-dialog-close" type="button" aria-label="关闭">×</button>
+          </header>
+          <p id="app-dialog-message" class="app-dialog-message"></p>
+          <div id="app-dialog-content" class="app-dialog-content" hidden></div>
+          <label id="app-dialog-input-wrap" class="app-dialog-input-wrap" hidden>
+            <span id="app-dialog-input-label"></span>
+            <input id="app-dialog-input" type="text">
+          </label>
+          <div id="app-dialog-fields" class="app-dialog-fields" hidden></div>
+          <div id="app-dialog-actions" class="app-dialog-actions">
+            <button id="app-dialog-cancel" type="button">取消</button>
+            <button id="app-dialog-confirm" type="button">确定</button>
+          </div>
+        </section>
+      </div>
+    </div>
+    <script src="/app.js?v=__GIT_LEAF_ASSET_VERSION__" type="module"></script>
+  </body>
+</html>

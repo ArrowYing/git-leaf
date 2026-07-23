@@ -1,0 +1,78 @@
+export const DEFAULT_UPDATE_BASE_URL = "https://updates.mangofuture.com/git-leaf";
+export const DEFAULT_UPDATE_CHANNEL = "stable";
+
+export function compareAppVersions(left, right) {
+  const leftParts = versionCore(left).split(".").map(numericPart);
+  const rightParts = versionCore(right).split(".").map(numericPart);
+  const length = Math.max(leftParts.length, rightParts.length);
+  for (let index = 0; index < length; index += 1) {
+    const leftValue = leftParts[index] ?? 0;
+    const rightValue = rightParts[index] ?? 0;
+    if (leftValue > rightValue) {
+      return 1;
+    }
+    if (leftValue < rightValue) {
+      return -1;
+    }
+  }
+  return 0;
+}
+
+export function isAppVersionNewer(candidateVersion, currentVersion) {
+  return compareAppVersions(candidateVersion, currentVersion) > 0;
+}
+
+export function appUpdatePlatformKey({
+  platform = process.platform,
+  arch = process.arch,
+} = {}) {
+  if (platform === "darwin") {
+    return "darwin-universal";
+  }
+  return `${platform}-${arch}`;
+}
+
+export function updateManifestUrl({
+  baseUrl = DEFAULT_UPDATE_BASE_URL,
+  channel = DEFAULT_UPDATE_CHANNEL,
+  platformKey = appUpdatePlatformKey(),
+} = {}) {
+  return [
+    normalizeBaseUrl(baseUrl),
+    encodeURIComponent(channel),
+    encodeURIComponent(platformKey),
+    "latest.json",
+  ].join("/");
+}
+
+export function macAutoUpdaterFeedUrl({
+  baseUrl = DEFAULT_UPDATE_BASE_URL,
+  channel = DEFAULT_UPDATE_CHANNEL,
+  platformKey = appUpdatePlatformKey({ platform: "darwin" }),
+  currentVersion,
+} = {}) {
+  return [
+    normalizeBaseUrl(baseUrl),
+    encodeURIComponent(channel),
+    encodeURIComponent(platformKey),
+    "releases",
+    encodeURIComponent(versionCore(currentVersion)),
+  ].join("/");
+}
+
+function normalizeBaseUrl(value) {
+  return String(value || DEFAULT_UPDATE_BASE_URL).replace(/\/+$/, "");
+}
+
+function versionCore(value) {
+  return String(value || "0")
+    .trim()
+    .replace(/^v/i, "")
+    .split("+")[0]
+    .split("-")[0] || "0";
+}
+
+function numericPart(value) {
+  const parsed = Number.parseInt(String(value || "0"), 10);
+  return Number.isFinite(parsed) ? parsed : 0;
+}

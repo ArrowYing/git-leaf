@@ -1,0 +1,542 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { EditorState } from "@codemirror/state";
+
+import {
+  pastedImageInsertionText,
+  imageLineAttributes,
+  imageLineForAction,
+  pastedTextLinkCandidate,
+  closestElement,
+  liveClassForLine,
+  livePreviewBlocksForSource,
+  livePreviewHtmlForBlock,
+  liveInlineRangesForLine,
+  liveMarkdownLinkAtPosition,
+  liveMarkdownLinksForLine,
+  liveFrontmatterFieldAtPosition,
+  liveFrontmatterFieldForLine,
+  liveFrontmatterRangesForLine,
+  liveReadableReplacementsForLine,
+  liveVisualRangesForLine,
+  liveMdxComponentForLine,
+  nextLiveEditingSuppression,
+  listItemIndentChange,
+  SLASH_COMMANDS,
+  isMarkdownDocumentPath,
+  slashCommandTemplate,
+} from "../src/client/source-editor.mjs";
+
+test("liveClassForLine styles common Markdown source lines", () => {
+  assert.equal(
+    liveClassForLine({ lineNumber: 1, text: "# Title" }),
+    "cm-live-heading cm-live-heading-1",
+  );
+  assert.equal(
+    liveClassForLine({ lineNumber: 3, text: "- Item" }),
+    "cm-live-list",
+  );
+  assert.equal(
+    liveClassForLine({ lineNumber: 4, text: "> Note" }),
+    "cm-live-blockquote",
+  );
+  assert.equal(
+    liveClassForLine({ lineNumber: 5, text: "body", inCodeBlock: true }),
+    "cm-live-code",
+  );
+});
+
+test("liveClassForLine only treats opening frontmatter as frontmatter", () => {
+  assert.equal(
+    liveClassForLine({ lineNumber: 1, text: "---" }),
+    "cm-live-frontmatter",
+  );
+  assert.equal(
+    liveClassForLine({ lineNumber: 2, text: "---", inFrontmatter: true }),
+    "cm-live-frontmatter",
+  );
+  assert.equal(
+    liveClassForLine({ lineNumber: 4, text: "---", frontmatterClosed: false }),
+    "cm-live-horizontal-rule",
+  );
+});
+
+test("liveInlineRangesForLine marks source syntax separately from readable content", () => {
+  const ranges = liveInlineRangesForLine("# Revenue **up** with `cash` in [report](docs/report.md)");
+
+  assert.deepEqual(ranges[0], { from: 0, to: 1, className: "cm-live-marker" });
+  assert.ok(
+    ranges.some((range) => range.className === "cm-live-strong" && range.from === 12 && range.to === 14),
+  );
+  assert.ok(
+    ranges.some((range) => range.className === "cm-live-inline-code" && range.from === 23 && range.to === 27),
+  );
+  assert.ok(
+    ranges.some((range) => range.className === "cm-live-link-text" && range.from === 33 && range.to === 39),
+  );
+  assert.deepEqual(
+    ranges.find((range) => range.className === "cm-live-link-text")?.attributes,
+    {
+      "data-live-link": "true",
+      "data-live-link-from": "32",
+      "data-live-link-to": "56",
+    },
+  );
+  assert.ok(
+    ranges.some((range) => range.className === "cm-live-marker" && range.from === 0 && range.to === 1),
+  );
+});
+
+test("liveMarkdownLinksForLine returns source ranges for Live link toolbars", () => {
+  const links = liveMarkdownLinksForLine("See [report](docs/report.md) now");
+
+  assert.deepEqual(links, [
+    {
+      from: 4,
+      to: 28,
+      textFrom: 5,
+      textTo: 11,
+      destinationFrom: 13,
+      destinationTo: 27,
+      text: "report",
+      href: "docs/report.md",
+    },
+  ]);
+  assert.equal(liveMarkdownLinkAtPosition("See [report](docs/report.md) now", 7)?.href, "docs/report.md");
+  assert.equal(liveMarkdownLinkAtPosition("See [report](docs/report.md) now", 29), null);
+});
+
+test("liveFrontmatterFieldForLine returns source ranges for top-level scalar fields", () => {
+  assert.deepEqual(liveFrontmatterFieldForLine("decision_status: accepted"), {
+    from: 0,
+    to: 25,
+    keyFrom: 0,
+    keyTo: 15,
+    valueFrom: 17,
+    valueTo: 25,
+    key: "decision_status",
+    value: "accepted",
+  });
+  assert.equal(liveFrontmatterFieldForLine("  summary: nested entry"), null);
+  assert.equal(liveFrontmatterFieldForLine("change_log:"), null);
+  assert.equal(liveFrontmatterFieldForLine("---"), null);
+});
+
+test("liveFrontmatterRangesForLine marks key and value for Live frontmatter popovers", () => {
+  assert.deepEqual(liveFrontmatterRangesForLine("domain: product"), [
+    {
+      from: 0,
+      to: 6,
+      className: "cm-live-frontmatter-token cm-live-frontmatter-key",
+      attributes: {
+        "data-live-frontmatter": "true",
+        "data-live-frontmatter-key": "domain",
+        "data-live-frontmatter-from": "0",
+        "data-live-frontmatter-to": "15",
+      },
+    },
+    {
+      from: 8,
+      to: 15,
+      className: "cm-live-frontmatter-token cm-live-frontmatter-value",
+      attributes: {
+        "data-live-frontmatter": "true",
+        "data-live-frontmatter-key": "domain",
+        "data-live-frontmatter-from": "0",
+        "data-live-frontmatter-to": "15",
+      },
+    },
+  ]);
+});
+
+test("liveFrontmatterFieldAtPosition finds fields from key, colon, and value positions", () => {
+  assert.equal(liveFrontmatterFieldAtPosition("canonical: true", 0)?.key, "canonical");
+  assert.equal(liveFrontmatterFieldAtPosition("canonical: true", 9)?.value, "true");
+  assert.equal(liveFrontmatterFieldAtPosition("canonical: true", 14)?.value, "true");
+  assert.equal(liveFrontmatterFieldAtPosition("canonical: true", 15), null);
+});
+
+test("closestElement resolves Live token clicks from text-node targets", () => {
+  const fieldElement = {
+    closest(selector) {
+      return selector === ".cm-live-frontmatter-token[data-live-frontmatter-key]"
+        ? this
+        : null;
+    },
+  };
+  const textNodeTarget = {
+    nodeType: 3,
+    parentElement: fieldElement,
+  };
+
+  assert.equal(
+    closestElement(textNodeTarget, ".cm-live-frontmatter-token[data-live-frontmatter-key]"),
+    fieldElement,
+  );
+});
+
+test("liveReadableReplacementsForLine only replaces block-level Markdown markers in reading lines", () => {
+  assert.deepEqual(liveReadableReplacementsForLine("# Title"), [
+    { from: 0, to: 2, widget: "" },
+  ]);
+  assert.deepEqual(liveReadableReplacementsForLine("- Item"), [
+    {
+      from: 0,
+      to: 2,
+      widget: "\u2022",
+      className: "cm-live-list-widget",
+      indentColumns: 0,
+      markerColumns: 2,
+    },
+  ]);
+  assert.deepEqual(liveReadableReplacementsForLine("1. Item"), [
+    {
+      from: 0,
+      to: 3,
+      widget: "1.",
+      className: "cm-live-list-widget",
+      indentColumns: 0,
+      markerColumns: 3,
+    },
+  ]);
+  assert.equal(liveReadableReplacementsForLine("Value is **bold** and `cash`").length, 0);
+});
+
+test("liveReadableReplacementsForLine hides heading markers inside list items", () => {
+  assert.deepEqual(liveReadableReplacementsForLine("- ## Item title"), [
+    {
+      from: 0,
+      to: 2,
+      widget: "\u2022",
+      className: "cm-live-list-widget",
+      indentColumns: 0,
+      markerColumns: 2,
+    },
+    { from: 2, to: 5, widget: "" },
+  ]);
+});
+
+test("liveReadableReplacementsForLine aligns bullets with source marker columns", () => {
+  assert.deepEqual(liveReadableReplacementsForLine("  - Company CEO"), [
+    {
+      from: 2,
+      to: 4,
+      widget: "\u2022",
+      className: "cm-live-list-widget",
+      indentColumns: 0,
+      markerColumns: 2,
+    },
+  ]);
+});
+
+test("liveVisualRangesForLine uses replacements instead of marker marks outside the active line", () => {
+  assert.deepEqual(liveVisualRangesForLine("# Title", { isActiveLine: false }), [
+    { type: "replace", from: 0, to: 2, widget: "" },
+  ]);
+  assert.ok(
+    liveVisualRangesForLine("# Title", { isActiveLine: true }).some(
+      (range) => range.type === "mark" && range.className === "cm-live-marker",
+    ),
+  );
+});
+
+test("liveVisualRangesForLine hides inline Markdown markers in reading lines", () => {
+  const ranges = liveVisualRangesForLine("Value is **bold** and `cash`", { isActiveLine: false });
+
+  assert.ok(ranges.some((range) => range.type === "replace" && range.from === 9 && range.to === 11));
+  assert.ok(ranges.some((range) => range.type === "replace" && range.from === 15 && range.to === 17));
+  assert.ok(ranges.some((range) => range.type === "replace" && range.from === 22 && range.to === 23));
+  assert.ok(ranges.some((range) => range.type === "replace" && range.from === 27 && range.to === 28));
+  assert.ok(ranges.some((range) => range.type === "mark" && range.className === "cm-live-strong"));
+  assert.ok(ranges.some((range) => range.type === "mark" && range.className === "cm-live-inline-code"));
+  assert.equal(
+    ranges.some((range) => range.type === "mark" && String(range.className ?? "").includes("cm-live-marker")),
+    false,
+  );
+});
+
+test("liveVisualRangesForLine keeps inline Markdown markers visible in the active editing line", () => {
+  const ranges = liveVisualRangesForLine("Value is **bold** and `cash`", { isActiveLine: true });
+
+  assert.ok(
+    ranges.some((range) => (
+      range.type === "mark" &&
+      range.from === 9 &&
+      range.to === 11 &&
+      range.className === "cm-live-marker"
+    )),
+  );
+  assert.equal(ranges.some((range) => range.type === "replace"), false);
+});
+
+test("Live typing keeps the active list item in source editing state", () => {
+  assert.equal(
+    nextLiveEditingSuppression(true, { docChanged: true }),
+    false,
+  );
+  assert.deepEqual(liveVisualRangesForLine("- ", { isActiveLine: true }), [
+    { type: "mark", from: 0, to: 1, className: "cm-live-marker" },
+  ]);
+  assert.equal(
+    liveVisualRangesForLine("- ", { isActiveLine: true }).some((range) => range.type === "replace"),
+    false,
+  );
+});
+
+test("Live list item indentation uses two source spaces", () => {
+  assert.deepEqual(listItemIndentChange("- Item", "indent"), {
+    from: 0,
+    to: 0,
+    insert: "  ",
+  });
+  assert.deepEqual(listItemIndentChange("  - Item", "outdent"), {
+    from: 0,
+    to: 2,
+    insert: "",
+  });
+  assert.equal(listItemIndentChange("- Item", "outdent"), null);
+  assert.equal(listItemIndentChange("Plain text", "indent"), null);
+});
+
+test("liveMdxComponentForLine recognizes MDX-lite component openings", () => {
+  assert.deepEqual(
+    liveMdxComponentForLine('<Chart title="收入趋势" type="line">'),
+    { name: "Chart", title: "收入趋势" },
+  );
+  assert.deepEqual(
+    liveMdxComponentForLine("<DataTable>"),
+    { name: "DataTable", title: "DataTable" },
+  );
+  assert.equal(liveMdxComponentForLine("<Unknown />"), null);
+});
+
+test("Slash menu exposes Markdown and MDX-lite commands without AI-generated snippet fields", () => {
+  const labels = SLASH_COMMANDS.map((command) => command.label);
+
+  assert.deepEqual(labels, [
+    "frontmatter",
+    "quote",
+    "code",
+    "link",
+    "doclink",
+    "datatable",
+    "timeline",
+    "chart",
+    "decision",
+    "metrics",
+    "flow",
+  ]);
+  assert.equal(labels.some((label) => /ai[_-]?snippet/i.test(label)), false);
+  assert.equal(labels.some((label) => ["table", "image"].includes(label)), false);
+  assert.equal(
+    SLASH_COMMANDS.some((command) => /ai[_-]?snippet/i.test(command.template ?? "")),
+    false,
+  );
+});
+
+test("pastedTextLinkCandidate only handles URLs and Markdown document paths", () => {
+  assert.equal(pastedTextLinkCandidate("https://example.com/report"), "https://example.com/report");
+  assert.equal(
+    pastedTextLinkCandidate("http://127.0.0.1:4317/?repo=content-repo&file=AGENTS.md"),
+    "http://127.0.0.1:4317/?repo=content-repo&file=AGENTS.md",
+  );
+  assert.equal(pastedTextLinkCandidate("docs/report.md"), "docs/report.md");
+  assert.equal(pastedTextLinkCandidate("/Users/demo/repo/docs/report.mdx"), "/Users/demo/repo/docs/report.mdx");
+  assert.equal(pastedTextLinkCandidate("ordinary text"), "");
+  assert.equal(pastedTextLinkCandidate("https://example.com\nsecond line"), "");
+});
+
+test("Slash menu templates keep frontmatter human-entered and mark MDX component commands", () => {
+  const frontmatter = slashCommandTemplate(
+    SLASH_COMMANDS.find((command) => command.label === "frontmatter"),
+    { today: "2026-07-04" },
+  );
+  const chart = slashCommandTemplate(SLASH_COMMANDS.find((command) => command.label === "chart"));
+
+  assert.match(frontmatter.text, /last_updated: 2026-07-04/);
+  assert.doesNotMatch(frontmatter.text, /ai_snippet/);
+  assert.match(chart.text, /<Chart\b/);
+  assert.ok(SLASH_COMMANDS.find((command) => command.label === "chart")?.requiresMdx);
+  assert.equal(isMarkdownDocumentPath("docs/report.md"), true);
+  assert.equal(isMarkdownDocumentPath("docs/report.mdx"), false);
+});
+
+test("livePreviewBlocksForSource detects Markdown tables outside the active block", () => {
+  const source = [
+    "# Report",
+    "",
+    "| Month | Revenue | Cost |",
+    "| --- | ---: | ---: |",
+    "| 2026-05 | 100 | 70 |",
+    "| 2026-06 | 120 | 80 |",
+    "",
+    "After table.",
+  ].join("\n");
+
+  assert.deepEqual(
+    livePreviewBlocksForSource(source, { activeLineNumber: 1 }).map(
+      ({ type, startLine, endLine }) => ({ type, startLine, endLine }),
+    ),
+    [{ type: "table", startLine: 3, endLine: 6 }],
+  );
+  assert.deepEqual(
+    livePreviewBlocksForSource(source, { activeLineNumber: 4 }),
+    [],
+  );
+});
+
+test("livePreviewBlocksForSource treats HTML image lines as Live preview blocks", () => {
+  const source = [
+    "# Report",
+    "",
+    '<img src="_assets/report.png" alt="" width="760">',
+    "",
+    "After image.",
+  ].join("\n");
+
+  assert.deepEqual(
+    livePreviewBlocksForSource(source, { activeLineNumber: 1 }).map((block) => ({
+      type: block.type,
+      startLine: block.startLine,
+      endLine: block.endLine,
+    })),
+    [{ type: "image", startLine: 3, endLine: 3 }],
+  );
+  assert.deepEqual(livePreviewBlocksForSource(source, { activeLineNumber: 3 }), []);
+});
+
+test("livePreviewBlocksForSource treats Markdown image lines as interactive Live preview blocks", () => {
+  const source = [
+    "# Report",
+    "",
+    "![六月报表](_assets/report.png)",
+    "",
+    "After image.",
+  ].join("\n");
+
+  const [block] = livePreviewBlocksForSource(source, { activeLineNumber: 1 });
+  assert.deepEqual(
+    { type: block?.type, startLine: block?.startLine, endLine: block?.endLine },
+    { type: "image", startLine: 3, endLine: 3 },
+  );
+  assert.match(livePreviewHtmlForBlock(block.source), /data-git-leaf-image="true"/);
+  assert.match(livePreviewHtmlForBlock(block.source), /alt="六月报表"/);
+  assert.deepEqual(livePreviewBlocksForSource(source, { activeLineNumber: 3 }), []);
+});
+
+test("Live image toolbar converts Markdown images to editable safe HTML image lines", () => {
+  const markdownImage = "![六月报表](_assets/report.png)";
+
+  assert.deepEqual(imageLineAttributes(markdownImage), {
+    src: "_assets/report.png",
+    alt: "六月报表",
+  });
+  assert.equal(
+    imageLineForAction(markdownImage, "align-center"),
+    '<img src="_assets/report.png" alt="六月报表" width="760" data-align="center">',
+  );
+  assert.equal(
+    imageLineForAction(
+      '<img src="_assets/report.png" alt="六月报表" width="745" height="181">',
+      "align-center",
+    ),
+    '<img src="_assets/report.png" alt="六月报表" width="745" height="181" data-align="center">',
+  );
+});
+
+test("livePreviewBlocksForSource previews safe HTML image groups in Live mode", () => {
+  const source = [
+    "# Gallery",
+    "",
+    '<p><img src="_assets/one.jpg" width="200"> <img src="_assets/two.jpg" width="200"></p>',
+  ].join("\n");
+
+  const [block] = livePreviewBlocksForSource(source, { activeLineNumber: 1 });
+  assert.deepEqual(
+    { type: block?.type, startLine: block?.startLine, endLine: block?.endLine },
+    { type: "image", startLine: 3, endLine: 3 },
+  );
+  assert.match(livePreviewHtmlForBlock(block.source), /git-leaf-image-gallery/);
+  assert.equal(livePreviewHtmlForBlock(block.source).match(/data-git-leaf-image="true"/g)?.length, 2);
+});
+
+test("pastedImageInsertionText leaves the cursor after the image block", () => {
+  const image = '<img src="_assets/report.png" alt="" width="760">';
+  const emptyLineState = EditorState.create({
+    doc: "Before\n\nAfter",
+    selection: { anchor: 7 },
+  });
+  const inlineState = EditorState.create({
+    doc: "Before",
+    selection: { anchor: 6 },
+  });
+
+  assert.equal(pastedImageInsertionText(emptyLineState, image), `${image}\n`);
+  assert.equal(pastedImageInsertionText(inlineState, image), `\n\n${image}\n`);
+});
+
+test("livePreviewBlocksForSource ignores fenced code tables", () => {
+  const source = [
+    "```md",
+    "| Month | Revenue |",
+    "| --- | ---: |",
+    "| 2026-06 | 120 |",
+    "```",
+  ].join("\n");
+
+  assert.deepEqual(livePreviewBlocksForSource(source), []);
+});
+
+test("livePreviewBlocksForSource detects MDX-lite component blocks outside the active block", () => {
+  const source = [
+    "# Report",
+    "",
+    '<Chart title="收入趋势" type="line" x="month" series="revenue,cost">',
+    "month,revenue,cost",
+    "2026-05,100,70",
+    "2026-06,120,80",
+    "</Chart>",
+    "",
+    '<Timeline title="关键事件" />',
+  ].join("\n");
+
+  assert.deepEqual(
+    livePreviewBlocksForSource(source, { activeLineNumber: 1 }).map(
+      ({ type, component, startLine, endLine }) => ({ type, component, startLine, endLine }),
+    ),
+    [
+      { type: "mdx", component: "Chart", startLine: 3, endLine: 7 },
+      { type: "mdx", component: "Timeline", startLine: 9, endLine: 9 },
+    ],
+  );
+  assert.deepEqual(
+    livePreviewBlocksForSource(source, { activeLineNumber: 5 }).map(
+      ({ type, component, startLine, endLine }) => ({ type, component, startLine, endLine }),
+    ),
+    [{ type: "mdx", component: "Timeline", startLine: 9, endLine: 9 }],
+  );
+});
+
+test("livePreviewHtmlForBlock renders block preview without source line wrappers", () => {
+  const tableHtml = livePreviewHtmlForBlock([
+    "| Month | Revenue |",
+    "| --- | ---: |",
+    "| 2026-06 | 120 |",
+  ].join("\n"));
+  assert.match(tableHtml, /<table>/);
+  assert.match(tableHtml, /Revenue/);
+  assert.doesNotMatch(tableHtml, /source-line-gutter/);
+  assert.doesNotMatch(tableHtml, /source-block-content/);
+
+  const chartHtml = livePreviewHtmlForBlock([
+    '<Chart title="收入趋势" type="line" x="month" series="revenue">',
+    "month,revenue",
+    "2026-06,120",
+    "</Chart>",
+  ].join("\n"));
+  assert.match(chartHtml, /data-mdx-component="Chart"/);
+  assert.match(chartHtml, /mdx-chart/);
+  assert.match(chartHtml, /data-chart-tooltip="2026-06\\nrevenue: 120"/);
+  assert.match(chartHtml, /class="mdx-chart-value-label"[^>]*>120<\/text>/);
+  assert.doesNotMatch(chartHtml, /source-line-gutter/);
+});
