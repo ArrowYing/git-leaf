@@ -35,7 +35,7 @@ test("Windows release smoke workflow builds, launches, screenshots, and uploads 
   assert.match(workflow, /pwsh scripts\/windows-smoke\.ps1/);
   assert.match(workflow, /-RepoRoot "\$env:GIT_LEAF_SMOKE_REPO"/);
   assert.doesNotMatch(workflow, /-RepoRoot "\$env:GITHUB_WORKSPACE"/);
-  assert.match(workflow, /actions\/upload-artifact@v4/);
+  assert.match(workflow, /actions\/upload-artifact@v7/);
   assert.match(workflow, /dist\/GitLeaf-\*-win32-x64\.zip/);
   assert.match(workflow, /dist\/windows-smoke\/release-gate\.json/);
   assert.match(workflow, /dist\/windows-smoke\/home\.png/);
