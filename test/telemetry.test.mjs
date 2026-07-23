@@ -6,10 +6,26 @@ import path from "node:path";
 import test from "node:test";
 
 import {
-  createTelemetryClient,
-  isTelemetryEnabled,
+  createTelemetryClient as createTelemetryClientForPlatform,
+  isTelemetryEnabled as isTelemetryEnabledForPlatform,
   normalizeTelemetryAction,
 } from "../src/telemetry.mjs";
+
+function createTelemetryClient(options = {}) {
+  return createTelemetryClientForPlatform({
+    platform: "darwin",
+    arch: "arm64",
+    ...options,
+  });
+}
+
+function isTelemetryEnabled(options = {}) {
+  return isTelemetryEnabledForPlatform({
+    platform: "darwin",
+    arch: "arm64",
+    ...options,
+  });
+}
 
 test("telemetry is enabled only for packaged stable non-development builds", () => {
   const releaseBuild = {
