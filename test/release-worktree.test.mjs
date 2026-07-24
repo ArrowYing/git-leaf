@@ -23,6 +23,7 @@ import {
   assertReleaseCanBeTagged,
   assertReleaseRunAllowed,
   assertReleaseVersionAboveBaseline,
+  assertWindowsReleaseSmokeVerified,
   defaultReleaseWorktreePath,
   freezeReleaseProfile,
   physicalUpdateChannel,
@@ -31,13 +32,14 @@ import {
   releaseIdentity,
   sanitizedReleaseProcessEnvironment,
   updateRegressionRiskForPath,
+  windowsReleaseSmokeEvidence,
 } from "../scripts/release-worktree.mjs";
 
 const TEST_ROOT = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = dirname(TEST_ROOT);
 
 function releaseState(overrides = {}) {
-  return {
+  const state = {
     version: "1.11.0",
     commit: "0123456789abcdef0123456789abcdef01234567",
     builtAt: "2026-07-15T08:09:10.000Z",
@@ -53,9 +55,20 @@ function releaseState(overrides = {}) {
       baseTag: "v1.10.0",
       reasons: [],
     },
+    windowsReleaseSmoke: {
+      workflowName: "Windows Release Smoke",
+      runId: "123456789",
+      url: "https://github.com/MangoFuture1210/git-leaf/actions/runs/123456789",
+      headSha: "0123456789abcdef0123456789abcdef01234567",
+      event: "push",
+      status: "completed",
+      conclusion: "success",
+      verifiedAt: "2026-07-15T09:30:00.000Z",
+    },
     history: [],
     ...overrides,
   };
+  return state;
 }
 
 function completedPublish(platform, phase, track = "public") {
@@ -424,6 +437,69 @@ test("stable publishing always requires candidate artifact verification", () => 
     command: "publish-updates",
     channel: "stable",
   }));
+});
+
+test("stable publishing requires a successful Windows Release Smoke for the frozen commit", () => {
+  const state = releaseState({
+    candidateArtifactsVerifiedAt: "2026-07-15T10:00:00.000Z",
+    windowsReleaseSmoke: undefined,
+  });
+  assert.throws(
+    () => assertCandidateGateComplete(state),
+    /Windows Release Smoke has not been verified/,
+  );
+  assert.throws(
+    () => assertWindowsReleaseSmokeVerified(releaseState({
+      windowsReleaseSmoke: {
+        ...releaseState().windowsReleaseSmoke,
+        headSha: "f".repeat(40),
+      },
+    })),
+    /does not match the frozen release commit/,
+  );
+});
+
+test("Windows Release Smoke evidence accepts only a successful run for the frozen commit", () => {
+  const state = releaseState();
+  const run = {
+    workflowName: "Windows Release Smoke",
+    headSha: state.commit,
+    event: "push",
+    status: "completed",
+    conclusion: "success",
+    url: "https://github.com/MangoFuture1210/git-leaf/actions/runs/30071711489",
+  };
+  assert.deepEqual(windowsReleaseSmokeEvidence({
+    state,
+    runId: "30071711489",
+    run,
+    now: () => new Date("2026-07-24T06:20:00.000Z"),
+  }), {
+    workflowName: "Windows Release Smoke",
+    runId: "30071711489",
+    url: run.url,
+    headSha: state.commit,
+    event: "push",
+    status: "completed",
+    conclusion: "success",
+    verifiedAt: "2026-07-24T06:20:00.000Z",
+  });
+  assert.throws(
+    () => windowsReleaseSmokeEvidence({
+      state,
+      runId: "30071711489",
+      run: { ...run, headSha: "f".repeat(40) },
+    }),
+    /expected frozen release commit/,
+  );
+  assert.throws(
+    () => windowsReleaseSmokeEvidence({
+      state,
+      runId: "30071711489",
+      run: { ...run, conclusion: "failure" },
+    }),
+    /expected completed\/success/,
+  );
 });
 
 test("required update regression blocks stable until its smoke is recorded", () => {

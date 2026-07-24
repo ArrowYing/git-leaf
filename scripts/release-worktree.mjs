@@ -26,6 +26,7 @@ const REPO_ROOT = path.dirname(path.dirname(SCRIPT_PATH));
 const RELEASE_STATE_FILE = "git-leaf-release-state.json";
 const RELEASE_VERSION_BASELINE = "1.11.2";
 const LEGACY_INTERNAL_MIGRATION_VERSION = "1.11.3";
+const WINDOWS_RELEASE_SMOKE_WORKFLOW = "Windows Release Smoke";
 const RELEASE_TRACKS = new Set(["public", "internal"]);
 const RELEASE_CHANNELS = {
   public: {
@@ -335,6 +336,8 @@ export function assertCandidateGateComplete(state) {
     );
   }
 
+  assertWindowsReleaseSmokeVerified(state);
+
   const regression = state.updateRegression;
   if (!regression) {
     throw new Error("Update regression risk has not been assessed; prepare a new release");
@@ -346,6 +349,71 @@ export function assertCandidateGateComplete(state) {
   }
   if (!regression.required && regression.status !== "not_required") {
     throw new Error("Update regression assessment is unresolved; prepare a new release");
+  }
+}
+
+export function windowsReleaseSmokeEvidence({
+  state,
+  runId,
+  run,
+  now = () => new Date(),
+} = {}) {
+  const normalizedRunId = String(runId || "").trim();
+  if (!/^\d+$/.test(normalizedRunId)) {
+    throw new Error("verify-windows-release-smoke requires a numeric GitHub Actions --run-id");
+  }
+  if (!run || typeof run !== "object" || Array.isArray(run)) {
+    throw new Error(`GitHub Actions run ${normalizedRunId} did not return valid metadata`);
+  }
+  if (run.workflowName !== WINDOWS_RELEASE_SMOKE_WORKFLOW) {
+    throw new Error(
+      `GitHub Actions run ${normalizedRunId} is ${run.workflowName || "an unknown workflow"}, expected ${WINDOWS_RELEASE_SMOKE_WORKFLOW}`,
+    );
+  }
+  if (run.headSha !== state?.commit) {
+    throw new Error(
+      `Windows Release Smoke run ${normalizedRunId} tested ${run.headSha || "an unknown commit"}, expected frozen release commit ${state?.commit || "missing"}`,
+    );
+  }
+  if (run.status !== "completed" || run.conclusion !== "success") {
+    throw new Error(
+      `Windows Release Smoke run ${normalizedRunId} is ${run.status || "unknown"}/${run.conclusion || "unknown"}, expected completed/success`,
+    );
+  }
+  const url = String(run.url || "").trim();
+  if (!url.endsWith(`/actions/runs/${normalizedRunId}`)) {
+    throw new Error(`Windows Release Smoke run ${normalizedRunId} returned an unexpected URL`);
+  }
+
+  return {
+    workflowName: WINDOWS_RELEASE_SMOKE_WORKFLOW,
+    runId: normalizedRunId,
+    url,
+    headSha: run.headSha,
+    event: run.event || null,
+    status: run.status,
+    conclusion: run.conclusion,
+    verifiedAt: now().toISOString(),
+  };
+}
+
+export function assertWindowsReleaseSmokeVerified(state) {
+  const evidence = state.windowsReleaseSmoke;
+  if (!evidence) {
+    throw new Error(
+      "Windows Release Smoke has not been verified. Run verify-windows-release-smoke --run-id ID before publishing stable.",
+    );
+  }
+  if (
+    evidence.workflowName !== WINDOWS_RELEASE_SMOKE_WORKFLOW
+    || evidence.headSha !== state.commit
+    || evidence.status !== "completed"
+    || evidence.conclusion !== "success"
+    || !/^\d+$/.test(String(evidence.runId || ""))
+  ) {
+    throw new Error(
+      "Recorded Windows Release Smoke evidence does not match the frozen release commit and a successful workflow run.",
+    );
   }
 }
 
@@ -666,7 +734,7 @@ function prepareRelease({
   }
 
   const state = {
-    schemaVersion: 3,
+    schemaVersion: 4,
     status: "active",
     sourceRoot: REPO_ROOT,
     worktreePath: resolvedWorktreePath,
@@ -765,6 +833,53 @@ function markCandidateVerified() {
   });
   writeReleaseState(statePath, state);
   console.log(`Recorded candidate artifact verification for Git Leaf ${state.version}`);
+}
+
+function verifyWindowsReleaseSmoke(runId) {
+  const { statePath, state } = readReleaseState();
+  validateReleaseState(state, { refreshRemote: true });
+  const result = spawnSync("gh", [
+    "run",
+    "view",
+    String(runId || ""),
+    "--json",
+    "workflowName,headSha,status,conclusion,url,event",
+  ], {
+    cwd: state.sourceRoot,
+    encoding: "utf8",
+  });
+  if (result.error) {
+    throw result.error;
+  }
+  if (result.status !== 0) {
+    throw new Error(result.stderr || `Could not inspect GitHub Actions run ${runId || "missing"}`);
+  }
+
+  let runMetadata;
+  try {
+    runMetadata = JSON.parse(result.stdout);
+  } catch (error) {
+    throw new Error(`GitHub Actions run ${runId || "missing"} returned invalid JSON`, { cause: error });
+  }
+  const evidence = windowsReleaseSmokeEvidence({
+    state,
+    runId,
+    run: runMetadata,
+  });
+  state.windowsReleaseSmoke = evidence;
+  state.history.push({
+    action: "windows-release-smoke",
+    track: state.track,
+    outcome: "completed",
+    completedAt: evidence.verifiedAt,
+    runId: evidence.runId,
+    runUrl: evidence.url,
+    headSha: evidence.headSha,
+  });
+  writeReleaseState(statePath, state);
+  console.log(
+    `Recorded ${WINDOWS_RELEASE_SMOKE_WORKFLOW} run ${evidence.runId} for ${evidence.headSha}`,
+  );
 }
 
 function markPublicDownloadIsolationVerified() {
@@ -939,6 +1054,9 @@ function printReleaseSummary(state, heading) {
   console.log(`  profile:   ${state.releaseProfile.path}`);
   console.log(`  profile sha256: ${state.releaseProfile.sha256}`);
   console.log(`  candidate artifacts: ${state.candidateArtifactsVerifiedAt ? "verified" : "pending"}`);
+  console.log(
+    `  Windows Release Smoke: ${state.windowsReleaseSmoke ? `verified (run ${state.windowsReleaseSmoke.runId})` : "pending"}`,
+  );
   if (isLegacyInternalMigrationRelease(state)) {
     console.log(
       `  public download isolation: ${state.publicDownloadIsolationVerifiedAt ? "verified" : "pending"}`,
@@ -1032,6 +1150,8 @@ Commands:
       legacy-stable is an internal publish-updates migration bridge only
   mark-candidate-verified
       Record candidate manifests, downloads, signatures, and packages as verified
+  verify-windows-release-smoke --run-id ID
+      Verify and record a successful Windows Release Smoke run for RELEASE_COMMIT
   mark-public-download-isolation-verified
       Record that the public download service hides the internal 1.11.3 stable bridge
   mark-update-regression-verified
@@ -1070,6 +1190,8 @@ function main(args = process.argv.slice(2)) {
       });
     case "mark-candidate-verified":
       return markCandidateVerified();
+    case "verify-windows-release-smoke":
+      return verifyWindowsReleaseSmoke(optionValue(args, "--run-id"));
     case "mark-public-download-isolation-verified":
       return markPublicDownloadIsolationVerified();
     case "mark-update-regression-verified":
