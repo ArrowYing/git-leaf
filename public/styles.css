@@ -1778,6 +1778,7 @@ summary:focus-visible {
 }
 
 .document-outline {
+  min-width: 0;
   overflow-x: hidden;
   overflow-y: auto;
   background: var(--sidebar-bg);
@@ -1906,9 +1907,15 @@ summary:focus-visible {
 .outline-list {
   display: grid;
   gap: 2px;
+  min-width: 0;
+  width: 100%;
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+.outline-list > li {
+  min-width: 0;
 }
 
 .outline-link {
