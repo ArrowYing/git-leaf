@@ -656,9 +656,12 @@ test("release controller prepares, validates, exports, and aborts an isolated wo
     "--channel",
     "candidate",
   ], { cwd: sourceRoot });
-  assert.match(stageOutput, /"formal":"1"/);
-  assert.match(stageOutput, new RegExp(`"profile":"${escapeRegExp(realpathSync(profilePath))}"`));
-  assert.match(stageOutput, /"channel":"internal-candidate"/);
+  const stageInvocation = JSON.parse(stageOutput.trim().split(/\r?\n/).at(-1));
+  assert.deepEqual(stageInvocation, {
+    formal: "1",
+    profile: realpathSync(profilePath),
+    channel: "internal-candidate",
+  });
   state = JSON.parse(readFileSync(statePath, "utf8"));
   assert.deepEqual(
     state.history.at(-1),
