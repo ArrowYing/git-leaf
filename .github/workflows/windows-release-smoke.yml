@@ -137,5 +137,5 @@ jobs:
             dist/windows-smoke/release-gate.json
             dist/windows-smoke/home.png
             dist/windows-smoke/*.log
-          if-no-files-found: warn
+          if-no-files-found: error
           retention-days: 14

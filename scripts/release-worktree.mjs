@@ -26,7 +26,11 @@ const REPO_ROOT = path.dirname(path.dirname(SCRIPT_PATH));
 const RELEASE_STATE_FILE = "git-leaf-release-state.json";
 const RELEASE_VERSION_BASELINE = "1.11.2";
 const LEGACY_INTERNAL_MIGRATION_VERSION = "1.11.3";
+const GITHUB_RELEASE_REPOSITORY = "MangoFuture1210/git-leaf";
 const WINDOWS_RELEASE_SMOKE_WORKFLOW = "Windows Release Smoke";
+const WINDOWS_RELEASE_SMOKE_WORKFLOW_PATH = ".github/workflows/windows-release-smoke.yml";
+const WINDOWS_RELEASE_SMOKE_ARTIFACT_PREFIX = "git-leaf-windows-release-smoke-";
+const WINDOWS_RELEASE_SMOKE_EVENTS = new Set(["push", "workflow_dispatch"]);
 const RELEASE_TRACKS = new Set(["public", "internal"]);
 const RELEASE_CHANNELS = {
   public: {
@@ -356,6 +360,7 @@ export function windowsReleaseSmokeEvidence({
   state,
   runId,
   run,
+  artifacts,
   now = () => new Date(),
 } = {}) {
   const normalizedRunId = String(runId || "").trim();
@@ -365,51 +370,95 @@ export function windowsReleaseSmokeEvidence({
   if (!run || typeof run !== "object" || Array.isArray(run)) {
     throw new Error(`GitHub Actions run ${normalizedRunId} did not return valid metadata`);
   }
-  if (run.workflowName !== WINDOWS_RELEASE_SMOKE_WORKFLOW) {
+  if (String(run.id || "") !== normalizedRunId) {
+    throw new Error(`GitHub Actions returned a different run id for ${normalizedRunId}`);
+  }
+  if (run.repository?.full_name !== GITHUB_RELEASE_REPOSITORY) {
     throw new Error(
-      `GitHub Actions run ${normalizedRunId} is ${run.workflowName || "an unknown workflow"}, expected ${WINDOWS_RELEASE_SMOKE_WORKFLOW}`,
+      `GitHub Actions run ${normalizedRunId} belongs to ${run.repository?.full_name || "an unknown repository"}, expected ${GITHUB_RELEASE_REPOSITORY}`,
     );
   }
-  if (run.headSha !== state?.commit) {
+  if (run.name !== WINDOWS_RELEASE_SMOKE_WORKFLOW) {
     throw new Error(
-      `Windows Release Smoke run ${normalizedRunId} tested ${run.headSha || "an unknown commit"}, expected frozen release commit ${state?.commit || "missing"}`,
+      `GitHub Actions run ${normalizedRunId} is ${run.name || "an unknown workflow"}, expected ${WINDOWS_RELEASE_SMOKE_WORKFLOW}`,
     );
+  }
+  if (run.path !== WINDOWS_RELEASE_SMOKE_WORKFLOW_PATH) {
+    throw new Error(
+      `Windows Release Smoke run ${normalizedRunId} used ${run.path || "an unknown workflow path"}, expected ${WINDOWS_RELEASE_SMOKE_WORKFLOW_PATH}`,
+    );
+  }
+  if (run.head_sha !== state?.commit) {
+    throw new Error(
+      `Windows Release Smoke run ${normalizedRunId} tested ${run.head_sha || "an unknown commit"}, expected frozen release commit ${state?.commit || "missing"}`,
+    );
+  }
+  if (!WINDOWS_RELEASE_SMOKE_EVENTS.has(run.event)) {
+    throw new Error(`Windows Release Smoke run ${normalizedRunId} used unsupported event ${run.event || "unknown"}`);
   }
   if (run.status !== "completed" || run.conclusion !== "success") {
     throw new Error(
       `Windows Release Smoke run ${normalizedRunId} is ${run.status || "unknown"}/${run.conclusion || "unknown"}, expected completed/success`,
     );
   }
-  const url = String(run.url || "").trim();
+  const url = String(run.html_url || "").trim();
   if (!url.endsWith(`/actions/runs/${normalizedRunId}`)) {
     throw new Error(`Windows Release Smoke run ${normalizedRunId} returned an unexpected URL`);
   }
+  const artifactList = Array.isArray(artifacts?.artifacts) ? artifacts.artifacts : [];
+  const artifact = artifactList.find((candidate) => (
+    String(candidate.name || "").startsWith(WINDOWS_RELEASE_SMOKE_ARTIFACT_PREFIX)
+    && String(candidate.name || "").endsWith(`-${state.commit}`)
+    && candidate.expired === false
+    && Number(candidate.size_in_bytes) > 0
+  ));
+  if (!artifact) {
+    throw new Error(
+      `Windows Release Smoke run ${normalizedRunId} has no unexpired release-gate artifact for frozen release commit ${state.commit}`,
+    );
+  }
 
   return {
+    status: "verified",
+    repository: GITHUB_RELEASE_REPOSITORY,
     workflowName: WINDOWS_RELEASE_SMOKE_WORKFLOW,
+    workflowPath: WINDOWS_RELEASE_SMOKE_WORKFLOW_PATH,
     runId: normalizedRunId,
+    runAttempt: Number(run.run_attempt) || null,
     url,
-    headSha: run.headSha,
-    event: run.event || null,
-    status: run.status,
+    headSha: run.head_sha,
+    event: run.event,
+    runStatus: run.status,
     conclusion: run.conclusion,
+    artifactId: String(artifact.id),
+    artifactName: artifact.name,
+    artifactSize: Number(artifact.size_in_bytes),
     verifiedAt: now().toISOString(),
   };
 }
 
 export function assertWindowsReleaseSmokeVerified(state) {
   const evidence = state.windowsReleaseSmoke;
-  if (!evidence) {
+  if (!evidence || evidence.status === "pending") {
     throw new Error(
       "Windows Release Smoke has not been verified. Run verify-windows-release-smoke --run-id ID before publishing stable.",
     );
   }
   if (
-    evidence.workflowName !== WINDOWS_RELEASE_SMOKE_WORKFLOW
+    evidence.status !== "verified"
+    || evidence.repository !== GITHUB_RELEASE_REPOSITORY
+    || evidence.workflowName !== WINDOWS_RELEASE_SMOKE_WORKFLOW
+    || evidence.workflowPath !== WINDOWS_RELEASE_SMOKE_WORKFLOW_PATH
     || evidence.headSha !== state.commit
-    || evidence.status !== "completed"
+    || !WINDOWS_RELEASE_SMOKE_EVENTS.has(evidence.event)
+    || evidence.runStatus !== "completed"
     || evidence.conclusion !== "success"
     || !/^\d+$/.test(String(evidence.runId || ""))
+    || evidence.url !== `https://github.com/${GITHUB_RELEASE_REPOSITORY}/actions/runs/${evidence.runId}`
+    || !/^\d+$/.test(String(evidence.artifactId || ""))
+    || !String(evidence.artifactName || "").startsWith(WINDOWS_RELEASE_SMOKE_ARTIFACT_PREFIX)
+    || !String(evidence.artifactName || "").endsWith(`-${state.commit}`)
+    || Number(evidence.artifactSize) <= 0
   ) {
     throw new Error(
       "Recorded Windows Release Smoke evidence does not match the frozen release commit and a successful workflow run.",
@@ -742,6 +791,12 @@ function prepareRelease({
     releaseProfile,
     ...identity,
     preparedAt: new Date().toISOString(),
+    windowsReleaseSmoke: {
+      status: "pending",
+      repository: GITHUB_RELEASE_REPOSITORY,
+      workflowPath: WINDOWS_RELEASE_SMOKE_WORKFLOW_PATH,
+      headSha: commit,
+    },
     updateRegression,
     history: [{
       action: "update-regression-assessment",
@@ -838,33 +893,20 @@ function markCandidateVerified() {
 function verifyWindowsReleaseSmoke(runId) {
   const { statePath, state } = readReleaseState();
   validateReleaseState(state, { refreshRemote: true });
-  const result = spawnSync("gh", [
-    "run",
-    "view",
-    String(runId || ""),
-    "--json",
-    "workflowName,headSha,status,conclusion,url,event",
-  ], {
+  const normalizedRunId = String(runId || "").trim();
+  const runMetadata = githubApiJson({
+    endpoint: `repos/${GITHUB_RELEASE_REPOSITORY}/actions/runs/${normalizedRunId}`,
     cwd: state.sourceRoot,
-    encoding: "utf8",
   });
-  if (result.error) {
-    throw result.error;
-  }
-  if (result.status !== 0) {
-    throw new Error(result.stderr || `Could not inspect GitHub Actions run ${runId || "missing"}`);
-  }
-
-  let runMetadata;
-  try {
-    runMetadata = JSON.parse(result.stdout);
-  } catch (error) {
-    throw new Error(`GitHub Actions run ${runId || "missing"} returned invalid JSON`, { cause: error });
-  }
+  const artifacts = githubApiJson({
+    endpoint: `repos/${GITHUB_RELEASE_REPOSITORY}/actions/runs/${normalizedRunId}/artifacts`,
+    cwd: state.sourceRoot,
+  });
   const evidence = windowsReleaseSmokeEvidence({
     state,
-    runId,
+    runId: normalizedRunId,
     run: runMetadata,
+    artifacts,
   });
   state.windowsReleaseSmoke = evidence;
   state.history.push({
@@ -875,11 +917,31 @@ function verifyWindowsReleaseSmoke(runId) {
     runId: evidence.runId,
     runUrl: evidence.url,
     headSha: evidence.headSha,
+    artifactId: evidence.artifactId,
+    artifactName: evidence.artifactName,
   });
   writeReleaseState(statePath, state);
   console.log(
     `Recorded ${WINDOWS_RELEASE_SMOKE_WORKFLOW} run ${evidence.runId} for ${evidence.headSha}`,
   );
+}
+
+function githubApiJson({ endpoint, cwd }) {
+  const result = spawnSync("gh", ["api", endpoint], {
+    cwd,
+    encoding: "utf8",
+  });
+  if (result.error) {
+    throw result.error;
+  }
+  if (result.status !== 0) {
+    throw new Error(result.stderr || `Could not inspect GitHub API endpoint ${endpoint}`);
+  }
+  try {
+    return JSON.parse(result.stdout);
+  } catch (error) {
+    throw new Error(`GitHub API endpoint ${endpoint} returned invalid JSON`, { cause: error });
+  }
 }
 
 function markPublicDownloadIsolationVerified() {
@@ -1055,7 +1117,7 @@ function printReleaseSummary(state, heading) {
   console.log(`  profile sha256: ${state.releaseProfile.sha256}`);
   console.log(`  candidate artifacts: ${state.candidateArtifactsVerifiedAt ? "verified" : "pending"}`);
   console.log(
-    `  Windows Release Smoke: ${state.windowsReleaseSmoke ? `verified (run ${state.windowsReleaseSmoke.runId})` : "pending"}`,
+    `  Windows Release Smoke: ${state.windowsReleaseSmoke?.status === "verified" ? `verified (run ${state.windowsReleaseSmoke.runId})` : "pending"}`,
   );
   if (isLegacyInternalMigrationRelease(state)) {
     console.log(

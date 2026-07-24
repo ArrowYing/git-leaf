@@ -56,13 +56,20 @@ function releaseState(overrides = {}) {
       reasons: [],
     },
     windowsReleaseSmoke: {
+      status: "verified",
+      repository: "MangoFuture1210/git-leaf",
       workflowName: "Windows Release Smoke",
+      workflowPath: ".github/workflows/windows-release-smoke.yml",
       runId: "123456789",
+      runAttempt: 1,
       url: "https://github.com/MangoFuture1210/git-leaf/actions/runs/123456789",
       headSha: "0123456789abcdef0123456789abcdef01234567",
       event: "push",
-      status: "completed",
+      runStatus: "completed",
       conclusion: "success",
+      artifactId: "987654321",
+      artifactName: "git-leaf-windows-release-smoke-1-0123456789abcdef0123456789abcdef01234567",
+      artifactSize: 1024,
       verifiedAt: "2026-07-15T09:30:00.000Z",
     },
     history: [],
@@ -462,33 +469,54 @@ test("stable publishing requires a successful Windows Release Smoke for the froz
 test("Windows Release Smoke evidence accepts only a successful run for the frozen commit", () => {
   const state = releaseState();
   const run = {
-    workflowName: "Windows Release Smoke",
-    headSha: state.commit,
+    id: 30071711489,
+    repository: { full_name: "MangoFuture1210/git-leaf" },
+    name: "Windows Release Smoke",
+    path: ".github/workflows/windows-release-smoke.yml",
+    head_sha: state.commit,
     event: "push",
     status: "completed",
     conclusion: "success",
-    url: "https://github.com/MangoFuture1210/git-leaf/actions/runs/30071711489",
+    html_url: "https://github.com/MangoFuture1210/git-leaf/actions/runs/30071711489",
+    run_attempt: 1,
+  };
+  const artifacts = {
+    artifacts: [{
+      id: 8588318244,
+      name: `git-leaf-windows-release-smoke-10-${state.commit}`,
+      size_in_bytes: 152326386,
+      expired: false,
+    }],
   };
   assert.deepEqual(windowsReleaseSmokeEvidence({
     state,
     runId: "30071711489",
     run,
+    artifacts,
     now: () => new Date("2026-07-24T06:20:00.000Z"),
   }), {
+    status: "verified",
+    repository: "MangoFuture1210/git-leaf",
     workflowName: "Windows Release Smoke",
+    workflowPath: ".github/workflows/windows-release-smoke.yml",
     runId: "30071711489",
-    url: run.url,
+    runAttempt: 1,
+    url: run.html_url,
     headSha: state.commit,
     event: "push",
-    status: "completed",
+    runStatus: "completed",
     conclusion: "success",
+    artifactId: "8588318244",
+    artifactName: `git-leaf-windows-release-smoke-10-${state.commit}`,
+    artifactSize: 152326386,
     verifiedAt: "2026-07-24T06:20:00.000Z",
   });
   assert.throws(
     () => windowsReleaseSmokeEvidence({
       state,
       runId: "30071711489",
-      run: { ...run, headSha: "f".repeat(40) },
+      run: { ...run, head_sha: "f".repeat(40) },
+      artifacts,
     }),
     /expected frozen release commit/,
   );
@@ -497,8 +525,20 @@ test("Windows Release Smoke evidence accepts only a successful run for the froze
       state,
       runId: "30071711489",
       run: { ...run, conclusion: "failure" },
+      artifacts,
     }),
     /expected completed\/success/,
+  );
+  assert.throws(
+    () => windowsReleaseSmokeEvidence({
+      state,
+      runId: "30071711489",
+      run,
+      artifacts: {
+        artifacts: [{ ...artifacts.artifacts[0], expired: true }],
+      },
+    }),
+    /no unexpired release-gate artifact/,
   );
 });
 
@@ -705,6 +745,12 @@ test("release controller prepares, validates, exports, and aborts an isolated wo
   assert.equal(state.track, "internal");
   assert.equal(state.releaseProfile.path, realpathSync(profilePath));
   assert.match(state.releaseProfile.sha256, /^[a-f0-9]{64}$/);
+  assert.deepEqual(state.windowsReleaseSmoke, {
+    status: "pending",
+    repository: "MangoFuture1210/git-leaf",
+    workflowPath: ".github/workflows/windows-release-smoke.yml",
+    headSha: state.commit,
+  });
 
   const isolationOutput = node([
     controller,
