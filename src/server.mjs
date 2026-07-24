@@ -195,7 +195,6 @@ async function handleRequest(request, response, context) {
     requestUrl.pathname === "/theme-preference.js" ||
     requestUrl.pathname === "/settings-preferences.js" ||
     requestUrl.pathname === "/file-tree-visibility.js" ||
-    requestUrl.pathname === "/content-dependencies.js" ||
     requestUrl.pathname === "/document-tabs.js" ||
     requestUrl.pathname === "/document-search.js" ||
     requestUrl.pathname === "/keyboard-shortcuts.js" ||

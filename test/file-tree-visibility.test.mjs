@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   filterFileTreeByVisibility,
+  filterWorkbenchFileTree,
   normalizeFileTreeVisibilityMode,
 } from "../public/file-tree-visibility.js";
 
@@ -64,31 +65,27 @@ test("content mode hides source-repository data and configuration files by defau
   ]);
 });
 
-test("current document dependencies reveal otherwise hidden attachments", () => {
-  const result = filterFileTreeByVisibility(contentKindsTree, {
-    revealedPaths: [
-      "leads.csv",
-      "data.json",
-      "campaign.yaml",
-      "notes.txt",
-      "slides.pptx",
-      "archive.zip",
-    ],
+test("switching documents keeps unrelated hidden files out of the workbench tree", () => {
+  const tree = [
+    file("README.md", "markdown"),
+    file("guide.md", "markdown"),
+    file("LICENSE", "code"),
+  ];
+  const readmeTree = filterWorkbenchFileTree(tree, {
+    currentDocument: {
+      path: "README.md",
+      source: "[Apache License 2.0](LICENSE)",
+    },
+  });
+  const guideTree = filterWorkbenchFileTree(tree, {
+    currentDocument: {
+      path: "guide.md",
+      source: "",
+    },
   });
 
-  assert.deepEqual(result.map((node) => node.path), [
-    "README.md",
-    "guide.mdx",
-    "hero.png",
-    "brief.pdf",
-    "leads.csv",
-    "data.json",
-    "campaign.yaml",
-    "notes.txt",
-    "preview.html",
-    "slides.pptx",
-    "archive.zip",
-  ]);
+  assert.deepEqual(paths(readmeTree), paths(guideTree));
+  assert.equal(paths(readmeTree).includes("LICENSE"), false);
 });
 
 test("content mode hides technical directories and common configuration files", () => {
@@ -141,22 +138,9 @@ test("content mode hides generated caches, signing metadata, and other unknown f
   assert.deepEqual(paths(filterFileTreeByVisibility(tree, { mode: "content" })), []);
 });
 
-test("temporary reveal sources keep technical files and their parent directories", () => {
+test("current, search-matched, and changed files remain available in content mode", () => {
   const tree = [
     { type: "file", name: ".gitignore", path: ".gitignore", kind: "code" },
-    {
-      type: "directory",
-      name: ".github",
-      children: [
-        {
-          type: "directory",
-          name: "workflows",
-          children: [
-            { type: "file", name: "ci.yml", path: ".github/workflows/ci.yml", kind: "yaml" },
-          ],
-        },
-      ],
-    },
     {
       type: "directory",
       name: "scripts",
@@ -168,29 +152,12 @@ test("temporary reveal sources keep technical files and their parent directories
   ];
 
   const result = filterFileTreeByVisibility(tree, {
-    revealedPaths: [".github/workflows/ci.yml"],
     currentFile: "scripts/current.js",
     searchMatchedPaths: ["scripts/search.js"],
     gitChangedPaths: [{ path: ".gitignore" }],
   });
 
   assert.deepEqual(result, tree);
-});
-
-test("revealing a technical directory reveals its complete subtree", () => {
-  const tree = [{
-    type: "directory",
-    name: ".github",
-    children: [
-      { type: "file", name: "template.md", path: ".github/template.md", kind: "markdown" },
-      { type: "file", name: "action.js", path: ".github/action.js", kind: "code" },
-    ],
-  }];
-
-  assert.deepEqual(
-    filterFileTreeByVisibility(tree, { revealedPaths: new Set([".github"]) }),
-    tree,
-  );
 });
 
 test("a search match on a hidden technical directory reveals its complete subtree", () => {

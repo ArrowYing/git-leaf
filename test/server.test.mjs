@@ -1530,7 +1530,6 @@ test("public module assets are served for the browser", async () => {
       "theme-preference.js",
       "settings-preferences.js",
       "file-tree-visibility.js",
-      "content-dependencies.js",
       "document-tabs.js",
       "document-search.js",
       "keyboard-shortcuts.js",

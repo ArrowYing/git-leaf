@@ -7,7 +7,7 @@ import {
   gitLeafHelpPlainText,
 } from "../public/help-content.js";
 
-test("Git Leaf help explains filtering dependencies and all repository files", () => {
+test("Git Leaf help explains stable filtering and all repository files", () => {
   const text = gitLeafHelpPlainText();
 
   assert.match(text, /docs\/frontmatter-rules\.json/);
@@ -17,7 +17,8 @@ test("Git Leaf help explains filtering dependencies and all repository files", (
   assert.match(text, /\.md \.mdx\s+默认显示\s+Markdown \/ MDX 预览，可编辑/);
   assert.match(text, /\.json\s+按需显示\s+格式化 JSON 树/);
   assert.match(text, /\.html \.htm\s+默认显示\s+浏览器 HTML 效果预览/);
-  assert.match(text, /当前打开的文件、搜索结果、当前文档引用/);
+  assert.match(text, /当前打开的文件、搜索结果/);
+  assert.match(text, /切换文档不会因为引用关系改变目录内容/);
   assert.match(text, /文本代码 \/ 配置/);
   assert.match(text, /其他文件（例如 \.pptx）/);
   assert.match(text, /工作树与分支/);

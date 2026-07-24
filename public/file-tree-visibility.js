@@ -94,12 +94,11 @@ export function normalizeFileTreeVisibilityMode(value) {
 
 /**
  * Return a filtered copy of a Git Leaf file tree without changing discovery or
- * file capabilities. Paths in any reveal collection override content-mode
- * hiding for the current view. A revealed directory reveals its descendants.
+ * file capabilities. Search matches, the current file, and Git changes override
+ * content-mode hiding for the current view.
  */
 export function filterFileTreeByVisibility(nodes, {
   mode = "content",
-  revealedPaths = [],
   currentFile = "",
   searchMatchedPaths = [],
   gitChangedPaths = [],
@@ -108,10 +107,7 @@ export function filterFileTreeByVisibility(nodes, {
   const visibilityMode = normalizeFileTreeVisibilityMode(mode);
   const context = {
     mode: visibilityMode,
-    revealedPaths: normalizedPathSet([
-      ...pathValues(revealedPaths),
-      ...pathValues(searchMatchedPaths),
-    ]),
+    searchMatchedPaths: normalizedPathSet(searchMatchedPaths),
     overridePaths: normalizedPathSet([
       currentFile,
       ...pathValues(gitChangedPaths),
@@ -134,8 +130,8 @@ function filterNodes(nodes, parentPath, context, inherited) {
 
     if (node.type === "directory") {
       const directoryPath = nodePath(node, parentPath);
-      const explicitlyRevealed = pathCoveredByReveal(directoryPath, context.revealedPaths);
-      const revealAll = inherited.revealAll || explicitlyRevealed;
+      const matchesSearch = pathCoveredByReveal(directoryPath, context.searchMatchedPaths);
+      const revealAll = inherited.revealAll || matchesSearch;
       const hiddenByTechnicalDirectory = revealAll
         ? false
         : inherited.hiddenByTechnicalDirectory || isTechnicalDirectory(node.name);
@@ -157,7 +153,7 @@ function filterNodes(nodes, parentPath, context, inherited) {
 
     const filePath = nodePath(node, parentPath);
     const revealed = inherited.revealAll ||
-      pathCoveredByReveal(filePath, context.revealedPaths) ||
+      pathCoveredByReveal(filePath, context.searchMatchedPaths) ||
       context.overridePaths.has(filePath) ||
       Boolean(context.isSearchMatch?.(node));
     const visibleByMode = context.mode === "all" || (
@@ -169,6 +165,21 @@ function filterNodes(nodes, parentPath, context, inherited) {
     }
   }
   return filtered;
+}
+
+export function filterWorkbenchFileTree(nodes, {
+  mode = "content",
+  currentDocument = null,
+  currentFile = "",
+  searchMatchedPaths = [],
+  gitChangedPaths = [],
+} = {}) {
+  return filterFileTreeByVisibility(nodes, {
+    mode,
+    currentFile: currentDocument?.path || currentFile,
+    searchMatchedPaths,
+    gitChangedPaths,
+  });
 }
 
 function isContentFile(node) {
@@ -222,9 +233,9 @@ function pathValues(values) {
   )).filter((entry) => typeof entry === "string");
 }
 
-function pathCoveredByReveal(candidate, revealedPaths) {
-  for (const revealedPath of revealedPaths) {
-    if (candidate === revealedPath || candidate.startsWith(`${revealedPath}/`)) {
+function pathCoveredByReveal(candidate, matchedPaths) {
+  for (const matchedPath of matchedPaths) {
+    if (candidate === matchedPath || candidate.startsWith(`${matchedPath}/`)) {
       return true;
     }
   }

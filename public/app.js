@@ -63,8 +63,7 @@ import {
   normalizeUserPreferences,
   shouldRebuildFileTreeForPreferences,
 } from "./settings-preferences.js";
-import { filterFileTreeByVisibility } from "./file-tree-visibility.js";
-import { referencedLocalPaths } from "./content-dependencies.js";
+import { filterWorkbenchFileTree } from "./file-tree-visibility.js";
 import {
   closeDocumentTab,
   closeDocumentTabsToRight,
@@ -1963,10 +1962,10 @@ function renderTree() {
   fileTree.innerHTML = "";
   const list = document.createElement("ul");
   list.className = "tree-list";
-  const visibleTree = filterFileTreeByVisibility(state.tree, {
+  const visibleTree = filterWorkbenchFileTree(state.tree, {
     mode: state.fileTreeMode,
+    currentDocument: state.currentDocument,
     currentFile: state.currentFile,
-    revealedPaths: currentContentDependencyPaths(),
     searchMatchedPaths: treeSearchMatchedPaths(),
     gitChangedPaths: state.showOnlyGitChanges ? gitChangedPaths() : [],
   });
@@ -1976,14 +1975,6 @@ function renderTree() {
   fileTree.append(list);
   restoreTreeFocus(previousTreeFocus);
   restoreWorkbenchTreeViewportIfPending();
-}
-
-function currentContentDependencyPaths() {
-  const source = state.currentDocument?.source ??
-    state.currentDocument?.dependencySource ??
-    state.currentDocument?.text ??
-    "";
-  return referencedLocalPaths(source, state.currentFile);
 }
 
 function treeSearchMatchedPaths() {
