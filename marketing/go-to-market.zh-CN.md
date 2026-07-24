@@ -4,6 +4,8 @@ last_updated: 2026-07-23
 
 # 对外传播
 
+[Marketing index](README.zh-CN.md) | 简体中文
+
 ## 目标用户
 
 ### 采用者

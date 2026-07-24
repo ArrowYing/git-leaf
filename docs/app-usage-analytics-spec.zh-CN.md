@@ -536,7 +536,7 @@ WAU 的目标窗口缺少任一有效最终每日汇总业务日时显示“不�
 3. 更新 `scripts/gitleaf-update-server.py` 的服务端校验或分发日志；
 4. 更新 `scripts/summarize-telemetry.mjs` 的汇总公式和标准 Markdown 文案；
 5. 添加正常、重复、缺失、乱序、跨版本和窗口截断测试；
-6. 如果改变应用架构、接收服务 部署或发布边界，同步更新 `architecture.md` 或 `release.md`；
+6. 如果改变应用架构、接收服务部署或发布边界，同步更新 `docs/architecture.zh-CN.md` 或 `docs/release.md`；
 7. 发布后按 App 版本标记新旧契约能力，旧数据不得冒充新口径。
 
 事件 `schema_version` 只有在事件信封或字段兼容性改变时才递增；可选字段逐步发布也必须提供独立的统计契约版本或按 App 版本建立
@@ -556,4 +556,4 @@ WAU 的目标窗口缺少任一有效最终每日汇总业务日时显示“不�
 | 服务端事件校验与下载日志 | `scripts/gitleaf-update-server.py` |
 | 标准汇总与 Markdown 日报 | `scripts/summarize-telemetry.mjs` |
 | 统计契约、隐私、传输、存储和保留边界 | 本文 |
-| 应用架构与发布流程 | `architecture.md`、`release.md` |
+| 应用架构与发布流程 | `docs/architecture.zh-CN.md`、`docs/release.md` |

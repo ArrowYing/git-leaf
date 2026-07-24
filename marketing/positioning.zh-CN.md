@@ -4,6 +4,8 @@ last_updated: 2026-07-23
 
 # 产品定位
 
+[Marketing index](README.zh-CN.md) | 简体中文
+
 ## 产品定义
 
 Git Leaf 是 AI-native 公司使用 Git 管理知识时，提供给所有员工的人类友好工作台。

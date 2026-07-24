@@ -64,4 +64,4 @@ User preferences are stored separately under Electron userData. Back them up or 
 
 ## Reporting problems
 
-For security issues, follow [SECURITY.md](SECURITY.md). For ordinary bugs, open a GitHub issue and include the Git Leaf version, build identity, Windows version, installation source, and minimal reproduction steps. Do not attach private repository content or personal paths.
+For security issues, follow [SECURITY.md](../SECURITY.md). For ordinary bugs, open a GitHub issue and include the Git Leaf version, build identity, Windows version, installation source, and minimal reproduction steps. Do not attach private repository content or personal paths.

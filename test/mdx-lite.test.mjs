@@ -88,7 +88,7 @@ month,revenue,expense
 });
 
 test("renderMarkdown renders the MDX-lite demo without component errors", async () => {
-  const demo = await readFile(new URL("../mdx-lite-components-demo.mdx", import.meta.url), "utf8");
+  const demo = await readFile(new URL("../docs/mdx-lite-components-demo.zh-CN.mdx", import.meta.url), "utf8");
   const html = renderMarkdown(demo);
 
   assert.doesNotMatch(html, /mdx-component-error/);

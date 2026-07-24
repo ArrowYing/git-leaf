@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 test("release documentation exposes the dual-track build and publication boundaries", async () => {
-  const releaseDoc = await readFile("release.md", "utf8");
+  const releaseDoc = await readFile("docs/release.md", "utf8");
   const exampleProfile = JSON.parse(
     await readFile("docs/release-profile.example.json", "utf8"),
   );
@@ -44,4 +44,60 @@ test("release documentation exposes the dual-track build and publication boundar
   assert.equal(exampleProfile.usageAnalyticsDefault, false);
   assert.equal(exampleProfile.updateChannel, "stable");
   assert.match(exampleProfile.updateRemoteRoot, /^\/srv\//);
+});
+
+test("release documentation requires GitHub-hosted Windows smoke evidence before every stable release", async () => {
+  const releaseDoc = await readFile("docs/release.md", "utf8");
+
+  assert.match(releaseDoc, /`npm run test:ci:win` is a local preflight check only/);
+  assert.match(releaseDoc, /cannot replace the Windows GitHub Actions/);
+  assert.match(releaseDoc, /Every formal stable release requires a successful Windows GitHub Actions smoke run/);
+  assert.match(releaseDoc, /every macOS and Windows official stable publication/);
+  assert.match(releaseDoc, /`Windows Release Smoke` workflow run/);
+  assert.match(releaseDoc, /`completed` status with a `success` conclusion/);
+  assert.match(releaseDoc, /`MangoFuture1210\/git-leaf` repository/);
+  assert.match(releaseDoc, /uses `\.github\/workflows\/windows-release-smoke\.yml`/);
+  assert.match(releaseDoc, /head SHA exactly equals the frozen `RELEASE_COMMIT`/);
+  assert.match(
+    releaseDoc,
+    /non-expired, non-empty smoke artifact whose name ends with that exact frozen commit/,
+  );
+  assert.match(
+    releaseDoc,
+    /node scripts\/release-worktree\.mjs verify-windows-release-smoke --run-id <RUN_ID>/,
+  );
+  assert.match(releaseDoc, /controller rejects stable publication when this evidence is missing/);
+  assert.match(releaseDoc, /built from a different commit/);
+  assert.match(releaseDoc, /not risk-based, optional, or limited to/);
+  assert.match(releaseDoc, /Windows-only changes/);
+});
+
+test("release documentation delegates UI acceptance and keeps update regression separate", async () => {
+  const releaseDoc = await readFile("docs/release.md", "utf8");
+
+  assert.match(releaseDoc, /UI-specific acceptance for UI changes and user-reported UI bugs is governed by `AGENTS\.md`/);
+  assert.match(releaseDoc, /before freezing the release commit/);
+  assert.match(releaseDoc, /formal release operator does[\s\S]*not repeat it/);
+  assert.doesNotMatch(releaseDoc, /make smoke-dev-mac|Computer Use/);
+  assert.match(releaseDoc, /update-sensitive changes can make the isolated real packaged-App update regression mandatory/);
+  assert.match(releaseDoc, /complete it before stable publication/);
+  assert.match(releaseDoc, /verifies the installed App's upgrade mechanism with isolated userData/);
+  assert.match(releaseDoc, /remains an independent risk gate for the update mechanism/);
+});
+
+test("release documentation verifies published artifacts end to end without duplicate workstation downloads", async () => {
+  const releaseDoc = await readFile("docs/release.md", "utf8");
+
+  assert.match(releaseDoc, /online candidate manifest must match its local staged manifest exactly/);
+  assert.match(releaseDoc, /every artifact must be read in full through its official HTTPS URL/);
+  assert.match(releaseDoc, /streaming all bytes into a[\s\S]*SHA-256 digest and byte count/);
+  assert.match(releaseDoc, /streaming check may run on a trusted Gateway C/);
+  assert.match(releaseDoc, /does not require[\s\S]*copying the large artifact back to the release workstation/);
+  assert.match(
+    releaseDoc,
+    /SHA-256 and size must match the online manifest, the local build artifact, and the exact[\s\S]*file stored on Gateway C/,
+  );
+  assert.match(releaseDoc, /embedded build identity, `codesign`, `stapler`, and Gatekeeper/);
+  assert.match(releaseDoc, /locally[\s\S]*retained immutable ZIP and DMG whose SHA-256 matches/);
+  assert.match(releaseDoc, /without a second large-file[\s\S]*transfer/);
 });

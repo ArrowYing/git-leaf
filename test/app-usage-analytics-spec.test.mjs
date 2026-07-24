@@ -4,10 +4,10 @@ import test from "node:test";
 
 test("usage analytics spec is the sole metric, privacy, and storage contract", async () => {
   const [spec, agents, architecture, release, summary] = await Promise.all([
-    readFile("docs/app-usage-analytics-spec.md", "utf8"),
+    readFile("docs/app-usage-analytics-spec.zh-CN.md", "utf8"),
     readFile("AGENTS.md", "utf8"),
-    readFile("architecture.md", "utf8"),
-    readFile("release.md", "utf8"),
+    readFile("docs/architecture.zh-CN.md", "utf8"),
+    readFile("docs/release.md", "utf8"),
     readFile("scripts/summarize-telemetry.mjs", "utf8"),
   ]);
 
@@ -38,18 +38,21 @@ test("usage analytics spec is the sole metric, privacy, and storage contract", a
   assert.match(spec, /所有七项关系都按去重状态组计数/);
   assert.match(spec, /`not_configured`[\s\S]*`missing`[\s\S]*`empty`[\s\S]*`present`/);
   assert.match(spec, /下载页请求 → 安装成功[\s\S]*不可计算/);
-  assert.match(agents, /`docs\/app-usage-analytics-spec\.md` 为唯一口径/);
+  assert.match(
+    agents,
+    /sole source of truth[\s\S]*`docs\/app-usage-analytics-spec\.zh-CN\.md`/,
+  );
   assert.match(architecture, /完整事件口径、逻辑关系、隐私、传输、存储和保留边界见[\s\S]*app-usage-analytics-spec/);
   assert.match(
     release,
-    /privacy requirements, storage, and retention rules are defined only by `docs\/app-usage-analytics-spec\.md`/,
+    /privacy requirements, storage, and retention rules are defined only by `docs\/app-usage-analytics-spec\.zh-CN\.md`/,
   );
-  assert.match(summary, /docs\/app-usage-analytics-spec\.md/);
+  assert.match(summary, /docs\/app-usage-analytics-spec\.zh-CN\.md/);
 });
 
 test("Deep Link failure reasons stay aligned across the normative telemetry contract", async () => {
   const sources = await Promise.all([
-    readFile("docs/app-usage-analytics-spec.md", "utf8"),
+    readFile("docs/app-usage-analytics-spec.zh-CN.md", "utf8"),
     readFile("public/telemetry.js", "utf8"),
     readFile("scripts/gitleaf-update-server.py", "utf8"),
     readFile("scripts/summarize-telemetry.mjs", "utf8"),

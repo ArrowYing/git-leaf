@@ -24,6 +24,8 @@ change_log:
 
 # Git Leaf MDX-lite 渲染器参考
 
+[Documentation index](README.md) | 简体中文
+
 本文是 Git Leaf 代码仓库内的渲染器和编辑器参考，用于开发、测试和维护 Git Leaf 的 MDX-lite 能力。
 Git Leaf 打开的目标仓库可以是任意本机 Git 仓库；MDX-lite 的渲染边界由 Git Leaf 自身实现决定。
 
@@ -34,7 +36,7 @@ MDX-lite 是 Git Leaf 的本地展示层能力。它不是 Next.js、Docusaurus 
 ## 文档维护边界
 
 - 本文是 MDX-lite 组件语法、白名单、数据契约和渲染行为的权威参考，由 Git Leaf 仓库维护。
-- [mdx-lite-components-demo.mdx](mdx-lite-components-demo.mdx) 是开发和视觉回归样例，应覆盖 Git Leaf
+- [mdx-lite-components-demo.zh-CN.mdx](mdx-lite-components-demo.zh-CN.mdx) 是开发和视觉回归样例，应覆盖 Git Leaf
   已实现并经过测试的完整能力。
 - 修改组件语法、白名单或渲染行为时，同时更新代码、测试、本文和开发 Demo。目标内容仓库可以维护自己的
   采用规则和精选示例，但不能覆盖 Git Leaf 的实现契约。
@@ -75,13 +77,13 @@ npm run desktop -- --repo /path/to/docs-repo
 
 ```bash
 npm start -- /path/to/docs-repo/docs/repo-structure.md
-npm start -- mdx-lite-components-demo.mdx
+npm start -- docs/mdx-lite-components-demo.zh-CN.mdx
 ```
 
 完整效果示例：
 
 ```bash
-npm start -- mdx-lite-components-demo.mdx
+npm start -- docs/mdx-lite-components-demo.zh-CN.mdx
 ```
 
 在 Source / Live 模式里输入 `/` 可以打开 Slash menu，插入 `DataTable`、`Timeline`、`Chart`、

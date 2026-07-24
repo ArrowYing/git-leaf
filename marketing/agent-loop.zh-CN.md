@@ -4,6 +4,8 @@ last_updated: 2026-07-23
 
 # Agent 推广方向
 
+[Marketing index](README.zh-CN.md) | 简体中文
+
 Git Leaf 希望把项目推广本身也作为一项 AI-native 实践，未来尽可能由 Agent 完成信息收集、内容生产、渠道执行和
 效果反馈。
 

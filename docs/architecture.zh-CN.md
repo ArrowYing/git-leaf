@@ -57,13 +57,16 @@ change_log:
 
 # Git Leaf 系统架构
 
+[Documentation index](README.md) | 简体中文
+
 本文说明 Git Leaf 当前整体系统是什么、由哪些模块组成、哪些行为是架构契约。它不是使用手册，也不是
 MDX-lite 组件语法说明。
 
-- 使用方式、命令和当前能力清单见 [README.md](README.md)。
-- MDX-lite 的写法、数据格式和组件边界见 [mdx-lite-guide.md](mdx-lite-guide.md)。
+- 使用方式、命令和当前能力清单见 [README.zh-CN.md](../README.zh-CN.md)。
+- MDX-lite 的写法、数据格式和组件边界见
+  [mdx-lite-guide.zh-CN.md](mdx-lite-guide.zh-CN.md)。
 - 正式发布操作见 [release.md](release.md)；使用统计与隐私的唯一口径见
-  [docs/app-usage-analytics-spec.md](docs/app-usage-analytics-spec.md)。
+  [app-usage-analytics-spec.zh-CN.md](app-usage-analytics-spec.zh-CN.md)。
 
 ## 系统定位
 
@@ -201,7 +204,7 @@ git-leaf://open-shared?v=1&repo=<owner/repo>&path=<relative.md>&rev=<full-commit
 schema 校验的事件按 UTC 日期追加为 JSONL；JSONL 是唯一事实源，需要时由脚本按 `event_id` 去重，并为同一
 `summary_id` 选择最高 `revision`。每日累计快照用 `summary_date` 表示业务归属日，事件信封的 `local_date` 仍表示进入队列的发生日；
 历史缺字段记录只能通过确定性的 `summary_id` 公式恢复。完整事件口径、逻辑关系、隐私、传输、存储和保留边界见
-`docs/app-usage-analytics-spec.md`。
+`docs/app-usage-analytics-spec.zh-CN.md`。
 
 正式 App 打开即形成当日 DAU；时长或白名单功能动作形成独立的深度活跃口径。启动后约 2 秒尝试上传包含启动计数的最新累计快照，
 运行期间仅在累计值变化时每分钟生成新 revision，正常退出再执行最长 1.5 秒的补传。所有网络操作仍为 best effort；失败或超时保留
@@ -325,7 +328,7 @@ Git Leaf 前端由四个稳定区域组成：
 
 - “内容文件”默认显示 Markdown／MDX、HTML、图片和 PDF；HTML 作为原型、副文本输出和报表，与 PDF 一样属于常驻内容；
 - “全部仓库文件”显示服务端返回的完整文件树；
-- CSV、JSON、YAML、纯文本、代码、配置和未知类型默认隐藏；文件搜索、当前打开文件、当前内容引用的本地依赖和“仅本地改动”可以临时显露这些路径；
+- CSV、JSON、YAML、纯文本、代码、配置和未知类型默认隐藏；文件搜索、当前打开文件和“仅本地改动”可以临时显露这些路径，当前文档的引用关系不改变目录内容；
 - Frontmatter 筛选启用时只保留匹配的 Markdown／MDX 文档；清除筛选后恢复当前目录树内容模式。
 
 目录树内容偏好只改变呈现，不改变 Git 文件发现、状态统计、同步或提交范围，也不在侧边栏增加常驻模式切换器或隐藏文件计数。
@@ -404,7 +407,7 @@ Git Leaf 渲染层需要同时服务人类阅读和 AI Agent 定位：
 - URL hash 使用 GitHub 风格的 `#L34-L42`，打开后应恢复高亮并滚动到目标行。
 
 MDX-lite 在这里是渲染能力，不是任意 MDX runtime。具体组件、属性和数据格式只在
-[mdx-lite-guide.md](mdx-lite-guide.md) 里维护，本文不重复列出。
+[mdx-lite-guide.zh-CN.md](mdx-lite-guide.zh-CN.md) 里维护，本文不重复列出。
 
 ## 编辑交互
 
@@ -523,11 +526,11 @@ Git Leaf 当前不做：
 
 以下约束不能通过局部 UI 改动或普通设置绕过：
 
-- MDX-lite 组件细节只在 [mdx-lite-guide.md](mdx-lite-guide.md) 维护，不复制进本文；
+- MDX-lite 组件细节只在 [mdx-lite-guide.zh-CN.md](mdx-lite-guide.zh-CN.md) 维护，不复制进本文；
 - 不为 Live 引入第二套富文本存储模型；
 - 不重新引入远程分享或 token 权限模型；
 - 不限制正常功能分支的编辑能力；
 - 不允许任何写入口绕过 Detached 保护分支；
 - 不把表格、图片、链接或 MDX-lite 的局部交互做成无法从源文本解释的私有状态。
 
-Agent 的阅读顺序、测试命令、开发配置安全和交付流程只在 [AGENTS.md](AGENTS.md) 维护，本文不复制执行说明。
+Agent 的阅读顺序、测试命令、开发配置安全和交付流程只在 [AGENTS.md](../AGENTS.md) 维护，本文不复制执行说明。

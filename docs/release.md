@@ -28,7 +28,7 @@ The safe default is always `source + source + false`. Build metadata is informat
 
 The analytics default is used only when initializing a new local setting. Once `usageAnalyticsEnabled` exists in userData, an update must preserve it. Release-track selection and telemetry eligibility are separate contracts: an internal official build remains an official stable build even though its update channel is `internal-stable`.
 
-Telemetry event fields, version capability boundaries, privacy requirements, storage, and retention rules are defined only by `docs/app-usage-analytics-spec.md`.
+Telemetry event fields, version capability boundaries, privacy requirements, storage, and retention rules are defined only by `docs/app-usage-analytics-spec.zh-CN.md`.
 
 ## Versioning across tracks
 
@@ -47,7 +47,7 @@ Use:
 
 ## Local release profiles
 
-Company release commands require an absolute JSON profile path. The public shape is illustrated by [docs/release-profile.example.json](docs/release-profile.example.json); authoritative public and internal profiles live in the private operations repository.
+Company release commands require an absolute JSON profile path. The public shape is illustrated by [release-profile.example.json](release-profile.example.json); authoritative public and internal profiles live in the private operations repository.
 
 An official profile must explicitly declare a matching track:
 
@@ -96,19 +96,19 @@ npm run test:ci:mac
 npm run test:ci:win
 ```
 
+`npm run test:ci:win` is a local preflight check only. It cannot replace the Windows GitHub Actions
+release gate described below because the formal gate requires evidence from a real GitHub-hosted Windows
+runner for the exact frozen release commit.
+
 If `src/client/source-editor.mjs` changed, also run:
 
 ```bash
 npm run build:client
 ```
 
-For Settings, About, Help, Preview, Live, or update UI changes on macOS, run the isolated smoke workflow:
-
-```bash
-make smoke-dev-mac
-```
-
-The smoke profile must be temporary and must not write to the production userData directory.
+UI-specific acceptance for UI changes and user-reported UI bugs is governed by `AGENTS.md`. Complete that
+acceptance in the development task before freezing the release commit. The formal release operator does
+not repeat it.
 
 ## Source packages
 
@@ -194,17 +194,62 @@ node scripts/release-worktree.mjs run mac publish-updates --channel candidate
 node scripts/release-worktree.mjs run windows publish-updates --channel candidate
 ```
 
-Inspect the online manifests, download every candidate artifact, compare SHA-256 values, inspect embedded build identity, and verify macOS signature, notarization, and stapling. Then record candidate verification:
+Verify candidate publication end to end before recording candidate verification:
+
+- each online candidate manifest must match its local staged manifest exactly;
+- every artifact must be read in full through its official HTTPS URL while streaming all bytes into a
+  SHA-256 digest and byte count;
+- that streaming check may run on a trusted Gateway C close to the update service and does not require
+  copying the large artifact back to the release workstation;
+- each resulting SHA-256 and size must match the online manifest, the local build artifact, and the exact
+  file stored on Gateway C.
+
+For macOS, verify embedded build identity, `codesign`, `stapler`, and Gatekeeper against the locally
+retained immutable ZIP and DMG whose SHA-256 matches the bytes read through the official HTTPS URL.
+Hash equality binds those local platform checks to the published artifact without a second large-file
+transfer.
+
+Then record candidate verification:
 
 ```bash
 node scripts/release-worktree.mjs mark-candidate-verified
 ```
 
-If `prepare` marked update regression as required, run a real packaged-App update using isolated userData and record it:
+### Windows GitHub Actions release gate
+
+Every formal stable release requires a successful Windows GitHub Actions smoke run. This gate applies to
+every macOS and Windows official stable publication; it is not risk-based, optional, or limited to
+Windows-only changes.
+
+The frozen `RELEASE_COMMIT` must have a `Windows Release Smoke` workflow run with all of the following
+properties:
+
+- the run has reached `completed` status with a `success` conclusion;
+- the run belongs to the `MangoFuture1210/git-leaf` repository;
+- the run uses `.github/workflows/windows-release-smoke.yml`;
+- the run's head SHA exactly equals the frozen `RELEASE_COMMIT`;
+- the run exposes a non-expired, non-empty smoke artifact whose name ends with that exact frozen commit.
+
+Before publishing either platform to stable, record and verify the workflow evidence through the frozen
+release controller:
+
+```bash
+node scripts/release-worktree.mjs verify-windows-release-smoke --run-id <RUN_ID>
+```
+
+The controller rejects stable publication when this evidence is missing, expired, empty, associated with
+the wrong repository or workflow, or built from a different commit. A local `npm run test:ci:win` result
+does not satisfy this gate.
+
+Separately, update-sensitive changes can make the isolated real packaged-App update regression mandatory.
+When `prepare` marks that regression as required, complete it before stable publication and record it:
 
 ```bash
 node scripts/release-worktree.mjs mark-update-regression-verified
 ```
+
+This regression verifies the installed App's upgrade mechanism with isolated userData. It is not a
+general UI acceptance pass and remains an independent risk gate for the update mechanism.
 
 Publish both stable platforms:
 

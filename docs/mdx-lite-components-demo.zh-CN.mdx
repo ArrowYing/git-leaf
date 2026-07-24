@@ -11,8 +11,10 @@ ai_snippet: "[Demo] Git Leaf MDX-lite 六个组件效果预览 | DataTable Timel
 
 # MDX-lite 组件 Demo
 
+[Documentation index](README.md) | 简体中文
+
 本文件展示 Git Leaf 当前支持的 6 个 MDX-lite 组件。这里的数字和流程是演示数据，只用于检查视觉效果，
-不作为业务事实源。组件写法、字段和边界见 [mdx-lite-guide.md](mdx-lite-guide.md)。
+不作为业务事实源。组件写法、字段和边界见 [mdx-lite-guide.zh-CN.md](mdx-lite-guide.zh-CN.md)。
 
 本文件是 Git Leaf 的完整开发和视觉回归样例。目标内容仓库可以维护面向自身读者的精选 Demo，但实现能力、
 组件语法和安全边界始终以本仓库的代码、测试和参考文档为准。
@@ -124,7 +126,7 @@ month,newStudents,completionRate
 
 适合把关键决策放在正文附近，让读者先判断当前结论是否可引用。
 
-<DecisionBox title="Git Leaf 不做独立文档站" status="accepted" owner="maintainer" source="architecture.md">
+<DecisionBox title="Git Leaf 不做独立文档站" status="accepted" owner="maintainer" source="docs/architecture.zh-CN.md">
 ```csv
 label,value
 决策,"Git Leaf 是本地 Git 文档工作台，不是部署到线上长期访问的 docs site。"
@@ -154,7 +156,7 @@ MDX-lite 组件,6,,DataTable Timeline Chart DecisionBox MetricGrid FlowDiagram,g
 
 适合展示 5-12 个节点的主流程或系统链路。复杂泳道图、跨层级架构图和需要精细布局的图继续使用其他工具。
 
-<FlowDiagram title="Git Leaf 本机 worktree 编辑链路" note="Demo 只展示主链路，完整架构边界见 architecture.md。">
+<FlowDiagram title="Git Leaf 本机 worktree 编辑链路" note="Demo 只展示主链路，完整架构边界见 docs/architecture.zh-CN.md。">
 ```json
 {
   "nodes": [
@@ -183,4 +185,4 @@ MDX-lite 组件,6,,DataTable Timeline Chart DecisionBox MetricGrid FlowDiagram,g
 - 6 个组件都应该正常渲染，不能显示 `MDX 组件渲染失败`。
 - `Chart` hover 时应显示同一月份下的多指标 tooltip。
 - `FlowDiagram` 应渲染为静态 SVG。
-- 详细语法和新增组件策略以 [mdx-lite-guide.md](mdx-lite-guide.md) 为准。
+- 详细语法和新增组件策略以 [mdx-lite-guide.zh-CN.md](mdx-lite-guide.zh-CN.md) 为准。
