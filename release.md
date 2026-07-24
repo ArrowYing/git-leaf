@@ -133,6 +133,18 @@ A source build must not query or download from Mango Future's update service and
 
 ## Formal official release
 
+### Authorization boundary
+
+An explicit maintainer request to perform a formal release is standing authorization to execute the complete standard release workflow in this document without pausing for step-by-step confirmation. That authorization expressly includes:
+
+- building and packaging the macOS and Windows artifacts;
+- signing the macOS App and DMG, uploading the unreleased DMG to Apple's notary service, waiting for the result, and stapling the ticket;
+- publishing candidate, stable, and documented migration-bridge artifacts to the configured update server;
+- downloading and verifying published artifacts, and running any isolated update regression required by the release gate;
+- creating and pushing the release tag, then finishing the release controller state.
+
+**Do not ask the maintainer to confirm any of these standard steps again, including the upload to Apple for notarization.** Pause only when the requested target, version, or release profile is materially ambiguous; when an action falls outside this documented workflow; or when recovery would require destructive credential or user-data changes.
+
 Mango Future maintainers use the frozen release worktree controller. Prepare from a clean `main` synchronized with `origin/main`:
 
 ```bash
