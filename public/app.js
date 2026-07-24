@@ -27,6 +27,7 @@ import {
   sidebarWidthFromStorageValue,
 } from "./layout.js";
 import { createOverflowTooltip } from "./overflow-tooltip.js";
+import { attachHorizontalPointerResize } from "./pointer-resize.js";
 import {
   activeOutlineIdForSourceLine,
   createOutlineClickViewportGuard,
@@ -395,6 +396,12 @@ const overflowTooltipController = createOverflowTooltip({
     },
   ],
 });
+attachHorizontalPointerResize({
+  resizer: documentOutlineResizer,
+  classTarget: documentBody,
+  activeClass: "is-outline-resizing",
+  onResize: setDocumentOutlineWidthFromPointer,
+});
 
 if (!canEditCurrentRepo() && isEditingModeName(state.mode)) {
   state.mode = "preview";
@@ -405,7 +412,6 @@ applyShortcutTooltips();
 
 sidebarResizer.addEventListener("pointerdown", startSidebarResize);
 sidebarResizer.addEventListener("keydown", handleSidebarResizeKeydown);
-documentOutlineResizer.addEventListener("pointerdown", startDocumentOutlineResize);
 documentOutlineResizer.addEventListener("keydown", handleDocumentOutlineResizeKeydown);
 sidebarToggle.addEventListener("click", () => runAppShortcut("toggle-sidebar"));
 historyBackButton.addEventListener("click", () => runAppShortcut("history-back"));
@@ -2985,30 +2991,6 @@ function setSidebarWidth(width, { persist = true } = {}) {
     persistAppPreference("sidebarWidth", nextWidth);
   }
   positionFrontmatterFilterPopover();
-}
-
-function startDocumentOutlineResize(event) {
-  event.preventDefault();
-  documentBody.classList.add("is-outline-resizing");
-  documentOutlineResizer.setPointerCapture(event.pointerId);
-  setDocumentOutlineWidthFromPointer(event.clientX);
-
-  const onPointerMove = (moveEvent) => {
-    setDocumentOutlineWidthFromPointer(moveEvent.clientX);
-  };
-  const finishResize = (endEvent) => {
-    if (documentOutlineResizer.hasPointerCapture?.(endEvent.pointerId)) {
-      documentOutlineResizer.releasePointerCapture(endEvent.pointerId);
-    }
-    documentBody.classList.remove("is-outline-resizing");
-    documentOutlineResizer.removeEventListener("pointermove", onPointerMove);
-    documentOutlineResizer.removeEventListener("pointerup", finishResize);
-    documentOutlineResizer.removeEventListener("pointercancel", finishResize);
-  };
-
-  documentOutlineResizer.addEventListener("pointermove", onPointerMove);
-  documentOutlineResizer.addEventListener("pointerup", finishResize);
-  documentOutlineResizer.addEventListener("pointercancel", finishResize);
 }
 
 function handleDocumentOutlineResizeKeydown(event) {
