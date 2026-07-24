@@ -156,7 +156,9 @@ macOS 与 Windows 使用同一套用户可见状态和意图边界：
 `repo=<owner/repo>&path=<relative.md>`。同一台机器上的精确预览可以再附加 `worktree=<id>`。
 静态跳转页只把参数转换为本机深链，不读取仓库内容，也不保存本机路径。
 跳转页不会按固定时间关闭，也不再用浏览器失焦或页面隐藏推断成功。官方服务 为每次打开生成短期有效的一次性 `handoff` ID；Git Leaf 完成目标仓库和文档打开后向固定确认接口提交该 ID，跳转页轮询到 `opened` 后才尝试自行关闭。APP 未启动、找不到仓库或文档打开失败时不会确认，页面继续保留；自动协议调用失败后，用户点击按钮仍复用同一个 handoff。目标仓库尚未出现在 Git Leaf 的本机仓库列表时，桌面端直接允许用户选择本机目录，核对 GitHub origin 和目标工作树后继续原链接，不要求用户退出当前流程再从菜单手工添加。桌面端把 `received`、`opened`、`confirmed`、`failed` 等事件写入用户数据目录的 `deep-link.log`，用于定位跨应用交接问题。浏览器只允许脚本关闭特定来源的标签页，因此确认成功但被 Safari、Chrome 等拦截时，页面保留明确的手动关闭提示。
-浏览器不能直接判断本机是否已安装 Git Leaf，因此跳转页长期展示安装入口：macOS 指向 stable `latest.json` 中的 DMG，Windows 指向对应的 ZIP；发布新版本后链接随清单自动更新，不在页面中写死版本号。
+浏览器不能直接判断本机是否已安装 Git Leaf，因此跳转页长期展示公开安装入口：macOS 指向
+`releaseTrack=public` 的 stable `latest.json` 中的 DMG，Windows 指向对应的 ZIP；发布新版本后链接随清单
+自动更新，不在页面中写死版本号。内部轨道制品即使为兼容旧客户端临时发布到 stable，也不得出现在公开下载页。
 浏览器兼容验收以 macOS Chrome 为主、Safari 为辅；Windows 同时覆盖 Edge 和 Chrome。浏览器层只负责把同一个 `git-leaf://` URL 交给操作系统，文档优先级由 Git Leaf App 统一处理。
 
 ### 文档分享链接

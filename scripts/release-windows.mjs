@@ -22,8 +22,10 @@ import {
   ensureReleaseGitTag,
   packageVersion,
   releaseArtifactFileName,
+  releaseBuildId,
   releaseBuildInfoFromEnv,
   releaseProfileFromEnv,
+  releaseUpdateChannel,
   RELEASE_PACKAGE_IGNORE_PATTERNS,
   withReleaseBuildInfoFile,
 } from "./release-shared.mjs";
@@ -42,6 +44,7 @@ export const DEFAULT_WINDOWS_RELEASE_OPTIONS = {
   updateChannel: "stable",
   updateRemoteHost: "",
   updateRemoteRoot: "",
+  releaseTrack: "source",
 };
 
 export const windowsReleaseSteps = [
@@ -101,6 +104,7 @@ export function windowsReleasePaths({
   rootDir = REPO_ROOT,
   appName = DEFAULT_WINDOWS_RELEASE_OPTIONS.appName,
   version = DEFAULT_WINDOWS_RELEASE_OPTIONS.version,
+  releaseTrack = DEFAULT_WINDOWS_RELEASE_OPTIONS.releaseTrack,
   buildId = DEFAULT_WINDOWS_RELEASE_OPTIONS.buildId,
 } = {}) {
   const distDir = path.join(rootDir, "dist");
@@ -111,7 +115,12 @@ export function windowsReleasePaths({
     exePath: path.join(appRoot, `${appName}.exe`),
     zipPath: path.join(
       distDir,
-      releaseArtifactFileName({ version, platformKey: "win32-x64", extension: "zip" }),
+      releaseArtifactFileName({
+        version,
+        releaseTrack,
+        platformKey: "win32-x64",
+        extension: "zip",
+      }),
     ),
   };
 }
@@ -140,20 +149,22 @@ export function windowsCommandRequiresNewReleaseVersion(command) {
 
 function windowsReleaseOptionsFromEnv() {
   const profile = releaseProfileFromEnv();
+  const buildInfo = releaseBuildInfoFromEnv({
+    rootDir: REPO_ROOT,
+    fallbackVersion: DEFAULT_WINDOWS_RELEASE_OPTIONS.version,
+  });
   return {
     ...DEFAULT_WINDOWS_RELEASE_OPTIONS,
-    ...releaseBuildInfoFromEnv({
-      rootDir: REPO_ROOT,
-      fallbackVersion: DEFAULT_WINDOWS_RELEASE_OPTIONS.version,
-    }),
+    ...buildInfo,
     updateBaseUrl:
       process.env.UPDATE_BASE_URL
       || profile.updateBaseUrl
       || DEFAULT_WINDOWS_RELEASE_OPTIONS.updateBaseUrl,
     updateChannel:
-      process.env.UPDATE_CHANNEL
-      || profile.updateChannel
-      || DEFAULT_WINDOWS_RELEASE_OPTIONS.updateChannel,
+      releaseUpdateChannel({
+        releaseTrack: buildInfo.releaseTrack,
+        override: process.env.UPDATE_CHANNEL,
+      }),
     updateRemoteHost:
       process.env.UPDATE_REMOTE_HOST
       || profile.updateRemoteHost
@@ -162,6 +173,9 @@ function windowsReleaseOptionsFromEnv() {
       process.env.UPDATE_REMOTE_ROOT
       || profile.updateRemoteRoot
       || DEFAULT_WINDOWS_RELEASE_OPTIONS.updateRemoteRoot,
+    formalRelease: ["1", "true", "yes"].includes(
+      String(process.env.GIT_LEAF_FORMAL_RELEASE || "").trim().toLowerCase(),
+    ),
   };
 }
 
@@ -248,12 +262,12 @@ function verifyWindowsPackage(options) {
   requirePath(paths.zipPath);
 }
 
-function stageWindowsUpdateMetadata(options) {
-  const paths = windowsReleasePaths(options);
+export function stageWindowsUpdateMetadata(options, { rootDir = REPO_ROOT } = {}) {
+  const paths = windowsReleasePaths({ ...options, rootDir });
   requirePath(paths.zipPath);
 
   const metadataPaths = windowsUpdateMetadataPaths({
-    rootDir: REPO_ROOT,
+    rootDir,
     channel: options.updateChannel,
     platformKey: "win32-x64",
   });
@@ -264,13 +278,15 @@ function stageWindowsUpdateMetadata(options) {
   copyFileSync(paths.zipPath, stagedZipPath);
 
   const artifact = artifactDescriptor("zip", stagedZipPath);
+  const releaseTrack = options.releaseTrack || "source";
   const manifest = buildUpdateManifest({
     appName: options.appName,
     baseUrl: options.updateBaseUrl,
     channel: options.updateChannel,
+    releaseTrack,
     platformKey: "win32-x64",
     version: options.version,
-    buildId: options.buildId,
+    buildId: releaseBuildId({ buildId: options.buildId, releaseTrack }),
     commit: options.commit,
     builtAt: options.builtAt,
     notes: "Windows 当前通过 unsigned ZIP 分发；运行新版后会自动更新当前用户的固定安装位置。",
@@ -401,7 +417,13 @@ export function runWindowsReleaseCommand(
   command,
   options = windowsReleaseOptionsFromEnv(),
 ) {
-  if (windowsCommandsRequiringOfficialProfile.has(command)) {
+  if (
+    windowsCommandsRequiringOfficialProfile.has(command)
+    || (
+      command === "package"
+      && (options.formalRelease === true || options.distribution === "official")
+    )
+  ) {
     assertOfficialReleaseProfile(options);
   }
   if (windowsCommandRequiresNewReleaseVersion(command)) {

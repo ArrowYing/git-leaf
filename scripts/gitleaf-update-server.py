@@ -1126,6 +1126,8 @@ def latest_download_links(root, channel="stable"):
                 manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
             except (FileNotFoundError, json.JSONDecodeError, OSError):
                 continue
+            if not is_public_download_manifest(manifest):
+                continue
             artifact = (manifest.get("files") or {}).get(artifact_kind) or {}
             url = str(artifact.get("url", "")).strip()
             parsed_url = urlparse(url)
@@ -1166,6 +1168,8 @@ def distribution_download_record(root, request_target):
     manifest_path = Path(root) / "git-leaf" / channel / platform / "latest.json"
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        if not is_public_download_manifest(manifest):
+            return None
         artifact_info = (manifest.get("files") or {}).get(artifact) or {}
         manifest_url = urlparse(str(artifact_info.get("url", "")))
         target = (Path(root) / unquote(parsed.path).lstrip("/")).resolve()
@@ -1191,6 +1195,14 @@ def distribution_download_record(root, request_target):
         "source": "download_page",
         "bytes": size,
     }
+
+
+def is_public_download_manifest(manifest):
+    if not isinstance(manifest, dict):
+        return False
+    if "releaseTrack" not in manifest:
+        return True
+    return manifest.get("releaseTrack") == "public"
 
 
 def normalize_share_preview_text(value, max_length):

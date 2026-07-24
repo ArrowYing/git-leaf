@@ -1,5 +1,5 @@
 ---
-last_updated: 2026-07-20
+last_updated: 2026-07-24
 ---
 
 # Git Leaf
@@ -29,7 +29,8 @@ Git Leaf 不把文档迁移到数据库或云端编辑器。权威内容始终�
 ## 安装与使用
 
 普通用户使用已安装的 Git Leaf 桌面 App。首次打开时选择本机 Git 仓库；之后 App 会恢复已打开仓库和各
-worktree 的工作台状态。当前稳定安装包由 [Git Leaf 打开页](https://gitleaf.mangofuture.com/open) 提供。
+worktree 的工作台状态。官方公开安装包由 [Git Leaf 打开页](https://gitleaf.mangofuture.com/open) 提供；
+公司内部正式包通过公司发布渠道提供，不会出现在公开下载页。
 
 Mango Future 官方 macOS 安装包使用 Developer ID 签名和公证。Windows 当前是明确标记的 unsigned Preview；
 下载后应核对发布版本的 SHA-256，具体见 [Windows Preview](windows-portable-guide.md)。
@@ -53,14 +54,14 @@ npm start -- /path/to/docs-repo/README.md --no-open
 
 ## 构建身份与隐私
 
-| 构建 | 官方更新 | 新安装默认使用统计 |
+| 构建 | 更新轨道 | 新安装默认使用统计 |
 | --- | --- | --- |
 | 社区或本机源码构建 | 关闭 | 关闭 |
-| Mango Future 官方公开包 | 开启 | 关闭 |
-| 公司管理的内部首次安装包 | 开启 | 开启 |
+| Mango Future 官方公开包 | `stable` | 关闭 |
+| Mango Future 官方内部包 | `internal-stable` | 开启 |
 
-Settings 会显示当前是“源码构建”“官方构建”还是“开发构建”，并显示实际使用统计状态。构建包里的默认值只用于
-首次初始化；后续更新不会覆盖 userData 中已经存在的 `usageAnalyticsEnabled`。
+Settings 会显示当前是“源码构建”“官方公开构建”“官方内部构建”还是“开发构建”，并显示实际使用统计状态。
+构建包里的默认值只用于首次初始化；后续更新不会覆盖 userData 中已经存在的 `usageAnalyticsEnabled`。
 
 使用统计只在公司管理的官方构建且本机设置已启用时运行。它不发送仓库名、路径、文件名、搜索词、文档内容或
 Git 身份。完整事件语义与禁止推断项见 [使用统计规范](docs/app-usage-analytics-spec.md)。

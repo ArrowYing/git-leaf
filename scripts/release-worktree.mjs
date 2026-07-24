@@ -1,10 +1,12 @@
 #!/usr/bin/env node
 
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import {
   existsSync,
   mkdirSync,
   readFileSync,
+  realpathSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
@@ -22,6 +24,52 @@ import {
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const REPO_ROOT = path.dirname(path.dirname(SCRIPT_PATH));
 const RELEASE_STATE_FILE = "git-leaf-release-state.json";
+const RELEASE_VERSION_BASELINE = "1.11.2";
+const LEGACY_INTERNAL_MIGRATION_VERSION = "1.11.3";
+const RELEASE_TRACKS = new Set(["public", "internal"]);
+const RELEASE_CHANNELS = {
+  public: {
+    candidate: "candidate",
+    stable: "stable",
+  },
+  internal: {
+    candidate: "internal-candidate",
+    stable: "internal-stable",
+    "legacy-stable": "stable",
+  },
+};
+const DRIFTABLE_RELEASE_ENVIRONMENT_VARIABLES = [
+  "APPLICATIONS_DIR",
+  "BUILD_ID",
+  "BUILT_AT",
+  "DEVELOPER_ID_APPLICATION",
+  "DMG_LOCALE",
+  "ELECTRON_MIRROR",
+  "ELECTRON_ZIP_DIR",
+  "ENTITLEMENTS_PATH",
+  "GIT_COMMIT",
+  "GIT_LEAF_DEV_USER_DATA_DIR",
+  "GIT_LEAF_DISTRIBUTION",
+  "GIT_LEAF_ENABLE_UPDATES",
+  "GIT_LEAF_FORMAL_RELEASE",
+  "GIT_LEAF_PORTABLE",
+  "GIT_LEAF_RELEASE_PROFILE",
+  "GIT_LEAF_SMOKE_FILE",
+  "GIT_LEAF_SMOKE_REPO_ROOT",
+  "GIT_LEAF_SMOKE_USER_DATA_DIR",
+  "GIT_LEAF_TELEMETRY_ENDPOINT",
+  "GIT_LEAF_UPDATE_BASE_URL",
+  "GIT_LEAF_UPDATE_CHANNEL",
+  "GIT_LEAF_USAGE_ANALYTICS_DEFAULT",
+  "ICON_PATH",
+  "NOTARY_PROFILE",
+  "RELEASE_COMMIT",
+  "UPDATE_BASE_URL",
+  "UPDATE_CHANNEL",
+  "UPDATE_REMOTE_HOST",
+  "UPDATE_REMOTE_ROOT",
+  "VERSION",
+];
 const UPDATE_REGRESSION_RISK_PATHS = new Set([
   "assets/entitlements.mac.plist",
   "desktop/update-check-schedule.mjs",
@@ -100,32 +148,124 @@ export function releaseEnvironment(state, { channel } = {}) {
     RELEASE_COMMIT: state.commit,
     BUILT_AT: state.builtAt,
     BUILD_ID: state.buildId,
+    GIT_LEAF_FORMAL_RELEASE: "1",
+    GIT_LEAF_RELEASE_PROFILE: state.releaseProfile.path,
     ...(channel ? { UPDATE_CHANNEL: channel } : {}),
   };
 }
 
 export function sanitizedReleaseProcessEnvironment(baseEnvironment = process.env) {
   const environment = { ...baseEnvironment };
-  for (const variable of [
-    "GIT_LEAF_DEV_USER_DATA_DIR",
-    "GIT_LEAF_ENABLE_UPDATES",
-    "GIT_LEAF_PORTABLE",
-    "GIT_LEAF_TELEMETRY_ENDPOINT",
-    "GIT_LEAF_UPDATE_BASE_URL",
-    "GIT_LEAF_UPDATE_CHANNEL",
-  ]) {
+  for (const variable of DRIFTABLE_RELEASE_ENVIRONMENT_VARIABLES) {
     delete environment[variable];
   }
   return environment;
 }
 
-export function releaseHasCompleted(state, { action, platform, channel } = {}) {
+export function releaseHasCompleted(state, {
+  action,
+  platform,
+  phase,
+  channel,
+  track,
+} = {}) {
   return (state.history || []).some((entry) => (
     entry.outcome === "completed"
     && entry.action === action
     && (!platform || entry.platform === platform)
+    && (!phase || entry.phase === phase)
     && (!channel || entry.channel === channel)
+    && (!track || entry.track === track)
   ));
+}
+
+export function physicalUpdateChannel({ track, phase }) {
+  const channel = RELEASE_CHANNELS[track]?.[phase];
+  if (!channel) {
+    throw new Error(`Unsupported ${track || "missing"} release channel phase: ${phase || "missing"}`);
+  }
+  return channel;
+}
+
+export function freezeReleaseProfile({ profilePath, track }) {
+  if (!RELEASE_TRACKS.has(track)) {
+    throw new Error("prepare requires --track public or --track internal");
+  }
+  if (!profilePath) {
+    throw new Error("prepare requires --profile ABS");
+  }
+  if (!path.isAbsolute(profilePath)) {
+    throw new Error("--profile must be an absolute path");
+  }
+
+  let canonicalPath;
+  let contents;
+  try {
+    canonicalPath = realpathSync(profilePath);
+    contents = readFileSync(canonicalPath);
+  } catch (error) {
+    throw new Error(`Could not read release profile: ${profilePath}`, { cause: error });
+  }
+
+  let profile;
+  try {
+    profile = JSON.parse(contents.toString("utf8"));
+  } catch (error) {
+    throw new Error(`Release profile is not valid JSON: ${canonicalPath}`, { cause: error });
+  }
+  if (!profile || typeof profile !== "object" || Array.isArray(profile)) {
+    throw new Error(`Release profile must contain one JSON object: ${canonicalPath}`);
+  }
+  if (profile.distribution !== "official") {
+    throw new Error(`Release profile distribution must be official: ${canonicalPath}`);
+  }
+  if (profile.releaseTrack !== track) {
+    throw new Error(
+      `Release profile track ${profile.releaseTrack || "missing"} does not match --track ${track}`,
+    );
+  }
+  if (track === "public" && profile.legacyInternalMigrationConfirmed !== true) {
+    throw new Error(
+      "Public release profile requires legacyInternalMigrationConfirmed=true before stable can replace the internal migration bridge.",
+    );
+  }
+
+  return {
+    path: canonicalPath,
+    sha256: createHash("sha256").update(contents).digest("hex"),
+  };
+}
+
+export function assertFrozenReleaseProfile(state) {
+  if (!RELEASE_TRACKS.has(state.track) || !state.releaseProfile?.path || !state.releaseProfile?.sha256) {
+    throw new Error("Release state does not contain a frozen track and profile");
+  }
+  const current = freezeReleaseProfile({
+    profilePath: state.releaseProfile.path,
+    track: state.track,
+  });
+  if (current.path !== state.releaseProfile.path) {
+    throw new Error(
+      `Frozen release profile path changed: expected ${state.releaseProfile.path}, found ${current.path}`,
+    );
+  }
+  if (current.sha256 !== state.releaseProfile.sha256) {
+    throw new Error(
+      `Frozen release profile changed: expected ${state.releaseProfile.sha256}, found ${current.sha256}`,
+    );
+  }
+}
+
+export function assertReleaseVersionAboveBaseline(
+  version,
+  { baseline = RELEASE_VERSION_BASELINE } = {},
+) {
+  if (compareReleaseVersions(version, baseline) <= 0) {
+    throw new Error(
+      `Release version ${version} must be newer than the migration baseline ${baseline}. ` +
+        "Bump package.json before preparing the release.",
+    );
+  }
 }
 
 export function updateRegressionRiskForPath(filePath, { changedLines = "" } = {}) {
@@ -215,38 +355,118 @@ export function assertReleaseRunAllowed({ state, platform, command, channel }) {
   }
 
   const isUpdateCommand = command === "stage-updates" || command === "publish-updates";
-  if (isUpdateCommand && !["candidate", "stable"].includes(channel)) {
-    throw new Error(`${command} requires --channel candidate or --channel stable`);
+  const standardChannel = channel === "candidate" || channel === "stable";
+  const legacyStable = isLegacyInternalMigrationRelease(state) && channel === "legacy-stable";
+  if (channel === "legacy-stable" && !isLegacyInternalMigrationRelease(state)) {
+    throw new Error("--channel legacy-stable is only valid for the internal 1.11.3 migration release");
+  }
+  if (isUpdateCommand && !standardChannel && !legacyStable) {
+    const allowed = isLegacyInternalMigrationRelease(state) && command === "publish-updates"
+      ? "--channel candidate, --channel stable, or --channel legacy-stable"
+      : "--channel candidate or --channel stable";
+    throw new Error(`${command} requires ${allowed}`);
   }
   if (!isUpdateCommand && channel) {
     throw new Error(`--channel is only valid for stage-updates and publish-updates`);
   }
+  if (channel === "legacy-stable" && command !== "publish-updates") {
+    throw new Error("--channel legacy-stable is only valid for publish-updates");
+  }
   if (command === "publish-updates" && channel === "stable") {
     assertCandidateGateComplete(state);
+  }
+  if (command === "publish-updates" && channel === "legacy-stable") {
+    assertPublicDownloadIsolationVerified(state);
+    assertCandidateGateComplete(state);
+    assertStablePublishedForTrack(state);
   }
 }
 
 export function assertCandidateCanBeMarked(state) {
+  const physicalChannel = physicalUpdateChannel({
+    track: state.track,
+    phase: "candidate",
+  });
   for (const platform of ["mac", "windows"]) {
     if (!releaseHasCompleted(state, {
       action: "publish-updates",
       platform,
-      channel: "candidate",
+      phase: "candidate",
+      channel: physicalChannel,
+      track: state.track,
     })) {
-      throw new Error(`Candidate ${platform} artifacts have not been published from this release worktree`);
+      throw new Error(
+        `Candidate ${platform} artifacts for track ${state.track} have not been published from this release worktree`,
+      );
+    }
+  }
+}
+
+function assertStablePublishedForTrack(state) {
+  const physicalChannel = physicalUpdateChannel({
+    track: state.track,
+    phase: "stable",
+  });
+  for (const platform of ["mac", "windows"]) {
+    if (!releaseHasCompleted(state, {
+      action: "publish-updates",
+      platform,
+      phase: "stable",
+      channel: physicalChannel,
+      track: state.track,
+    })) {
+      throw new Error(
+        `Stable ${platform} artifacts for track ${state.track} have not been published from this release worktree`,
+      );
     }
   }
 }
 
 export function assertReleaseCanBeTagged(state) {
   assertCandidateGateComplete(state);
+  assertStablePublishedForTrack(state);
+  if (isLegacyInternalMigrationRelease(state)) {
+    assertLegacyMigrationBridgeComplete(state);
+  }
+}
+
+function isLegacyInternalMigrationRelease(state) {
+  return state.track === "internal" && state.version === LEGACY_INTERNAL_MIGRATION_VERSION;
+}
+
+export function assertPublicDownloadIsolationCanBeMarked(state) {
+  if (!isLegacyInternalMigrationRelease(state)) {
+    throw new Error(
+      "Public download isolation verification is only valid for the internal 1.11.3 migration release",
+    );
+  }
+}
+
+function assertPublicDownloadIsolationVerified(state) {
+  if (!state.publicDownloadIsolationVerifiedAt) {
+    throw new Error(
+      "Public download isolation has not been verified. Run mark-public-download-isolation-verified before publishing legacy-stable.",
+    );
+  }
+}
+
+function assertLegacyMigrationBridgeComplete(state) {
+  assertPublicDownloadIsolationVerified(state);
+  const physicalChannel = physicalUpdateChannel({
+    track: state.track,
+    phase: "legacy-stable",
+  });
   for (const platform of ["mac", "windows"]) {
     if (!releaseHasCompleted(state, {
       action: "publish-updates",
       platform,
-      channel: "stable",
+      phase: "legacy-stable",
+      channel: physicalChannel,
+      track: state.track,
     })) {
-      throw new Error(`Stable ${platform} artifacts have not been published from this release worktree`);
+      throw new Error(
+        `Legacy stable ${platform} artifacts for internal 1.11.3 have not been published from this release worktree`,
+      );
     }
   }
 }
@@ -349,6 +569,7 @@ function assessUpdateRegressionForCommit({ sourceRoot, commit, forcedReason }) {
 }
 
 function validateReleaseState(state, { refreshRemote = false } = {}) {
+  assertFrozenReleaseProfile(state);
   if (!existsSync(state.worktreePath)) {
     throw new Error(`Release worktree is missing: ${state.worktreePath}`);
   }
@@ -395,7 +616,10 @@ function prepareRelease({
   worktreePath,
   skipInstall = false,
   requireUpdateRegressionReason,
+  track,
+  profilePath,
 } = {}) {
+  const releaseProfile = freezeReleaseProfile({ profilePath, track });
   const statePath = releaseStatePath(REPO_ROOT);
   if (existsSync(statePath)) {
     const active = JSON.parse(readFileSync(statePath, "utf8"));
@@ -426,6 +650,7 @@ function prepareRelease({
   }
 
   const version = packageVersion({ rootDir: REPO_ROOT });
+  assertReleaseVersionAboveBaseline(version);
   assertReleaseVersionIsNew({ rootDir: REPO_ROOT, version });
   const identity = releaseIdentity({ version, commit });
   const updateRegression = assessUpdateRegressionForCommit({
@@ -441,15 +666,18 @@ function prepareRelease({
   }
 
   const state = {
-    schemaVersion: 2,
+    schemaVersion: 3,
     status: "active",
     sourceRoot: REPO_ROOT,
     worktreePath: resolvedWorktreePath,
+    track,
+    releaseProfile,
     ...identity,
     preparedAt: new Date().toISOString(),
     updateRegression,
     history: [{
       action: "update-regression-assessment",
+      track,
       outcome: updateRegression.required ? "required" : "not-required",
       completedAt: updateRegression.assessedAt,
       baseTag: updateRegression.baseTag,
@@ -465,11 +693,15 @@ function prepareRelease({
     run("git", ["worktree", "prune"], { cwd: REPO_ROOT });
     run("git", ["worktree", "add", "--detach", resolvedWorktreePath, commit], { cwd: REPO_ROOT });
     if (!skipInstall) {
-      const environment = sanitizedReleaseProcessEnvironment();
+      const environment = {
+        ...sanitizedReleaseProcessEnvironment(),
+        ...releaseEnvironment(state),
+      };
       run("npm", ["ci"], { cwd: resolvedWorktreePath, env: environment });
       run("npm", ["run", "test:all"], { cwd: resolvedWorktreePath, env: environment });
       state.history.push({
         action: "test:all",
+        track: state.track,
         outcome: "completed",
         completedAt: new Date().toISOString(),
       });
@@ -491,6 +723,9 @@ function runReleaseStep({ platform, command, channel }) {
   assertReleaseRunAllowed({ state, platform, command, channel });
   const changesExternalState = command === "publish-updates";
   validateReleaseState(state, { refreshRemote: changesExternalState });
+  const physicalChannel = channel
+    ? physicalUpdateChannel({ track: state.track, phase: channel })
+    : undefined;
 
   const scriptName = platform === "mac" ? "release-mac.mjs" : "release-windows.mjs";
   const scriptPath = path.join(state.worktreePath, "scripts", scriptName);
@@ -498,7 +733,7 @@ function runReleaseStep({ platform, command, channel }) {
     cwd: state.worktreePath,
     env: {
       ...sanitizedReleaseProcessEnvironment(),
-      ...releaseEnvironment(state, { channel }),
+      ...releaseEnvironment(state, { channel: physicalChannel }),
     },
     returnResult: true,
   });
@@ -506,7 +741,8 @@ function runReleaseStep({ platform, command, channel }) {
   state.history.push({
     action: command,
     platform,
-    ...(channel ? { channel } : {}),
+    track: state.track,
+    ...(channel ? { phase: channel, channel: physicalChannel } : {}),
     outcome: result.status === 0 ? "completed" : "failed",
     completedAt: new Date().toISOString(),
   });
@@ -523,11 +759,29 @@ function markCandidateVerified() {
   state.candidateArtifactsVerifiedAt = new Date().toISOString();
   state.history.push({
     action: "candidate-artifacts",
+    track: state.track,
     outcome: "completed",
     completedAt: state.candidateArtifactsVerifiedAt,
   });
   writeReleaseState(statePath, state);
   console.log(`Recorded candidate artifact verification for Git Leaf ${state.version}`);
+}
+
+function markPublicDownloadIsolationVerified() {
+  const { statePath, state } = readReleaseState();
+  validateReleaseState(state, { refreshRemote: true });
+  assertPublicDownloadIsolationCanBeMarked(state);
+  state.publicDownloadIsolationVerifiedAt = new Date().toISOString();
+  state.history.push({
+    action: "public-download-isolation",
+    track: state.track,
+    outcome: "completed",
+    completedAt: state.publicDownloadIsolationVerifiedAt,
+  });
+  writeReleaseState(statePath, state);
+  console.log(
+    `Recorded public download isolation verification for Git Leaf ${state.version} ${state.track}`,
+  );
 }
 
 function markUpdateRegressionVerified() {
@@ -544,6 +798,7 @@ function markUpdateRegressionVerified() {
   state.updateRegression.verifiedAt = new Date().toISOString();
   state.history.push({
     action: "update-regression-smoke",
+    track: state.track,
     outcome: "completed",
     completedAt: state.updateRegression.verifiedAt,
   });
@@ -561,6 +816,7 @@ function createReleaseTag() {
   });
   state.history.push({
     action: "tag",
+    track: state.track,
     outcome: "completed",
     completedAt: new Date().toISOString(),
   });
@@ -578,6 +834,7 @@ function pushReleaseTag() {
   assertRemoteTag(state, tagName);
   state.history.push({
     action: "push-tag",
+    track: state.track,
     outcome: "completed",
     completedAt: new Date().toISOString(),
   });
@@ -603,7 +860,11 @@ function finishRelease() {
 
 function abortRelease() {
   const { statePath, state } = readReleaseState();
-  if (releaseHasCompleted(state, { action: "publish-updates", channel: "stable" })) {
+  if (releaseHasCompleted(state, {
+    action: "publish-updates",
+    phase: "stable",
+    track: state.track,
+  })) {
     throw new Error("Stable artifacts were already published; repair and finish this release instead of aborting it");
   }
   const tagName = releaseTagName({ version: state.version });
@@ -671,10 +932,18 @@ function printEnvironment() {
 function printReleaseSummary(state, heading) {
   console.log(`${heading}:`);
   console.log(`  version:   ${state.version}`);
+  console.log(`  track:     ${state.track}`);
   console.log(`  commit:    ${state.commit}`);
   console.log(`  build id:  ${state.buildId}`);
   console.log(`  worktree:  ${state.worktreePath}`);
+  console.log(`  profile:   ${state.releaseProfile.path}`);
+  console.log(`  profile sha256: ${state.releaseProfile.sha256}`);
   console.log(`  candidate artifacts: ${state.candidateArtifactsVerifiedAt ? "verified" : "pending"}`);
+  if (isLegacyInternalMigrationRelease(state)) {
+    console.log(
+      `  public download isolation: ${state.publicDownloadIsolationVerifiedAt ? "verified" : "pending"}`,
+    );
+  }
   if (state.updateRegression) {
     const base = state.updateRegression.baseTag ? ` since ${state.updateRegression.baseTag}` : "";
     console.log(`  update regression: ${state.updateRegression.required ? state.updateRegression.status : "not required"}${base}`);
@@ -686,6 +955,24 @@ function printReleaseSummary(state, heading) {
 
 function shellQuote(value) {
   return `'${String(value).replace(/'/g, "'\\''")}'`;
+}
+
+function compareReleaseVersions(left, right) {
+  const parse = (value) => {
+    const match = String(value || "").trim().match(/^(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$/);
+    if (!match) {
+      throw new Error(`Unsupported release version: ${value || "missing"}`);
+    }
+    return match.slice(1).map(Number);
+  };
+  const leftParts = parse(left);
+  const rightParts = parse(right);
+  for (let index = 0; index < 3; index += 1) {
+    if (leftParts[index] !== rightParts[index]) {
+      return leftParts[index] - rightParts[index];
+    }
+  }
+  return 0;
 }
 
 function gitOutput(args, { cwd }) {
@@ -733,16 +1020,20 @@ function printHelp() {
   console.log(`Usage: node scripts/release-worktree.mjs <command>
 
 Commands:
-  prepare [--worktree PATH] [--skip-install] [--require-update-regression REASON]
+  prepare --track <public|internal> --profile ABS [--worktree PATH] [--skip-install]
+      [--require-update-regression REASON]
       Freeze origin/main into a detached release worktree, run npm ci and test:all
   status [--remote]
       Validate the frozen commit, clean worktree, version, and main ancestry
   env
       Print shell exports for the frozen release identity
-  run <mac|windows> <command> [--channel candidate|stable]
+  run <mac|windows> <command> [--channel candidate|stable|legacy-stable]
       Run one guarded platform release step inside the release worktree
+      legacy-stable is an internal publish-updates migration bridge only
   mark-candidate-verified
       Record candidate manifests, downloads, signatures, and packages as verified
+  mark-public-download-isolation-verified
+      Record that the public download service hides the internal 1.11.3 stable bridge
   mark-update-regression-verified
       Record the real-App update smoke when prepare marked it as required
   tag
@@ -764,6 +1055,8 @@ function main(args = process.argv.slice(2)) {
         worktreePath: optionValue(args, "--worktree"),
         skipInstall: args.includes("--skip-install"),
         requireUpdateRegressionReason: optionValue(args, "--require-update-regression"),
+        track: optionValue(args, "--track"),
+        profilePath: optionValue(args, "--profile"),
       });
     case "status":
       return printStatus({ refreshRemote: args.includes("--remote") });
@@ -777,6 +1070,8 @@ function main(args = process.argv.slice(2)) {
       });
     case "mark-candidate-verified":
       return markCandidateVerified();
+    case "mark-public-download-isolation-verified":
+      return markPublicDownloadIsolationVerified();
     case "mark-update-regression-verified":
       return markUpdateRegressionVerified();
     case "tag":

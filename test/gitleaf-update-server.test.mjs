@@ -451,7 +451,7 @@ test("gitleaf update server launches the app without binding to a repository", a
   }
 });
 
-test("gitleaf open page always offers the latest macOS and Windows downloads", async () => {
+test("gitleaf open page keeps legacy macOS and Windows manifests downloadable", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "gitleaf-open-downloads-"));
   const macDir = path.join(root, "git-leaf", "stable", "darwin-universal");
   const windowsDir = path.join(root, "git-leaf", "stable", "win32-x64");
@@ -510,7 +510,53 @@ test("gitleaf open page always offers the latest macOS and Windows downloads", a
   }
 });
 
-test("gitleaf update server logs completed download-page artifacts without request identity", async () => {
+test("gitleaf open page rejects every explicit non-public release track", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "gitleaf-open-internal-hidden-"));
+  for (const [platform, releaseTrack, artifact, extension] of [
+    ["darwin-universal", "internal", "dmg", "dmg"],
+    ["darwin-arm64", "invalid", "dmg", "dmg"],
+    ["win32-x64", null, "zip", "zip"],
+  ]) {
+    const platformDir = path.join(root, "git-leaf", "stable", platform);
+    await mkdir(platformDir, { recursive: true });
+    await writeFile(path.join(platformDir, "latest.json"), JSON.stringify({
+      version: "1.11.3",
+      releaseTrack,
+      files: {
+        [artifact]: {
+          url: `https://updates.mangofuture.com/git-leaf/stable/${platform}/GitLeaf-1.11.3-internal-${platform}.${extension}`,
+        },
+      },
+    }));
+  }
+
+  const server = spawn("python3", [
+    "scripts/gitleaf-update-server.py",
+    "--root",
+    root,
+    "--bind",
+    "127.0.0.1",
+    "--port",
+    "0",
+  ], {
+    cwd: path.dirname(import.meta.dirname),
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  try {
+    const port = await waitForServerPort(server);
+    const response = await fetch(`http://127.0.0.1:${port}/open`);
+    const html = await response.text();
+
+    assert.equal(response.status, 200);
+    assert.doesNotMatch(html, /GitLeaf-1\.11\.3-internal/);
+    assert.doesNotMatch(html, />下载 macOS 版 1\.11\.3</);
+    assert.doesNotMatch(html, />下载 Windows 版 1\.11\.3</);
+  } finally {
+    server.kill("SIGTERM");
+  }
+});
+
+test("gitleaf update server logs completed legacy download-page artifacts without request identity", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "gitleaf-download-log-"));
   const telemetryRoot = path.join(root, "telemetry");
   const platformDir = path.join(root, "git-leaf", "stable", "darwin-universal");
@@ -587,6 +633,7 @@ test("gitleaf open page falls back to the last ARM download before the first uni
   await mkdir(macDir, { recursive: true });
   await writeFile(path.join(macDir, "latest.json"), JSON.stringify({
     version: "1.8.1",
+    releaseTrack: "public",
     files: {
       dmg: {
         url: "https://updates.mangofuture.com/git-leaf/stable/darwin-arm64/GitLeaf-1.8.1.dmg",

@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -9,43 +9,69 @@ const DEFAULT_VERSION = "0.0.0";
 const DEFAULT_COMMIT = "dev";
 const DEFAULT_BUILD_ID = "dev";
 export const DEFAULT_DISTRIBUTION = "source";
+export const DEFAULT_RELEASE_TRACK = "source";
 export const DEFAULT_USAGE_ANALYTICS = false;
 const DISTRIBUTIONS = new Set(["source", "official"]);
+const RELEASE_TRACKS = new Set(["source", "public", "internal"]);
 
 export const BUILD_INFO = readBuildInfo();
 
 export function readBuildInfo({ rootDir = APP_ROOT, env = process.env, now = () => new Date() } = {}) {
   const packageJson = readJsonFile(path.join(rootDir, "package.json"));
-  const generated = readJsonFile(path.join(rootDir, BUILD_INFO_FILENAME));
+  const generatedPath = path.join(rootDir, BUILD_INFO_FILENAME);
+  const generated = readJsonFile(generatedPath);
+  const hasGeneratedBuildInfo = existsSync(generatedPath);
   const builtAt = stringValue(generated.builtAt) || stringValue(env.GIT_LEAF_BUILT_AT) || now().toISOString();
+  const distribution =
+    distributionValue(generated.distribution)
+    || (!hasGeneratedBuildInfo ? distributionValue(env.GIT_LEAF_DISTRIBUTION) : "")
+    || DEFAULT_DISTRIBUTION;
 
-  return normalizeBuildInfo({
+  const rawBuildInfo = {
     version: stringValue(generated.version) || stringValue(env.GIT_LEAF_VERSION) || stringValue(packageJson.version) || DEFAULT_VERSION,
     commit: stringValue(generated.commit) || stringValue(env.GIT_LEAF_COMMIT) || DEFAULT_COMMIT,
     builtAt,
     buildId: stringValue(generated.buildId) || stringValue(env.GIT_LEAF_BUILD_ID) || DEFAULT_BUILD_ID,
     dev: booleanValue(generated.dev) ?? booleanValue(env.GIT_LEAF_DEV) ?? false,
-    distribution:
-      distributionValue(generated.distribution)
-      || distributionValue(env.GIT_LEAF_DISTRIBUTION)
-      || DEFAULT_DISTRIBUTION,
-    usageAnalyticsDefault:
-      booleanValue(generated.usageAnalyticsDefault)
-      ?? booleanValue(env.GIT_LEAF_USAGE_ANALYTICS_DEFAULT)
-      ?? DEFAULT_USAGE_ANALYTICS,
-  });
+    distribution,
+    usageAnalyticsDefault: hasGeneratedBuildInfo
+      ? booleanValue(generated.usageAnalyticsDefault) ?? DEFAULT_USAGE_ANALYTICS
+      : booleanValue(env.GIT_LEAF_USAGE_ANALYTICS_DEFAULT) ?? DEFAULT_USAGE_ANALYTICS,
+  };
+  if (hasGeneratedBuildInfo) {
+    if (hasOwn(generated, "releaseTrack")) {
+      rawBuildInfo.releaseTrack = generated.releaseTrack;
+    }
+  } else if (env.GIT_LEAF_RELEASE_TRACK !== undefined) {
+    rawBuildInfo.releaseTrack = env.GIT_LEAF_RELEASE_TRACK;
+  }
+  return normalizeBuildInfo(rawBuildInfo);
 }
 
 export function normalizeBuildInfo(info) {
+  const distribution = distributionValue(info?.distribution) || DEFAULT_DISTRIBUTION;
   return {
     version: stringValue(info?.version) || DEFAULT_VERSION,
     commit: stringValue(info?.commit) || DEFAULT_COMMIT,
     builtAt: stringValue(info?.builtAt) || new Date(0).toISOString(),
     buildId: stringValue(info?.buildId) || DEFAULT_BUILD_ID,
     dev: info?.dev === true,
-    distribution: distributionValue(info?.distribution) || DEFAULT_DISTRIBUTION,
+    distribution,
+    releaseTrack: releaseTrackForDistribution({
+      distribution,
+      releaseTrack: info?.releaseTrack,
+      hasReleaseTrack: hasOwn(info, "releaseTrack"),
+    }),
     usageAnalyticsDefault: info?.usageAnalyticsDefault === true,
   };
+}
+
+export function releaseTrackForBuildInfo(buildInfo) {
+  return releaseTrackForDistribution({
+    distribution: distributionValue(buildInfo?.distribution) || DEFAULT_DISTRIBUTION,
+    releaseTrack: buildInfo?.releaseTrack,
+    hasReleaseTrack: hasOwn(buildInfo, "releaseTrack"),
+  });
 }
 
 export function isOfficialDistribution(buildInfo) {
@@ -56,7 +82,17 @@ export function buildDistributionLabel(buildInfo) {
   if (buildInfo?.dev === true) {
     return "开发构建";
   }
-  return isOfficialDistribution(buildInfo) ? "官方构建" : "源码构建";
+  if (!isOfficialDistribution(buildInfo)) {
+    return "源码构建";
+  }
+  const releaseTrack = releaseTrackForBuildInfo(buildInfo);
+  if (releaseTrack === "internal") {
+    return "官方内部构建";
+  }
+  if (releaseTrack === "public") {
+    return "官方公开构建";
+  }
+  return "官方构建（无更新轨道）";
 }
 
 export function appDisplayName(buildInfo) {
@@ -126,4 +162,26 @@ function booleanValue(value) {
 function distributionValue(value) {
   const normalized = stringValue(value).toLowerCase();
   return DISTRIBUTIONS.has(normalized) ? normalized : "";
+}
+
+function releaseTrackValue(value) {
+  const normalized = stringValue(value).toLowerCase();
+  return RELEASE_TRACKS.has(normalized) ? normalized : "";
+}
+
+function releaseTrackForDistribution({ distribution, releaseTrack, hasReleaseTrack = false }) {
+  if (distribution !== "official") {
+    return DEFAULT_RELEASE_TRACK;
+  }
+  if (!hasReleaseTrack) {
+    return "public";
+  }
+  const normalized = releaseTrackValue(releaseTrack);
+  return ["public", "internal"].includes(normalized)
+    ? normalized
+    : DEFAULT_RELEASE_TRACK;
+}
+
+function hasOwn(value, key) {
+  return Boolean(value && Object.prototype.hasOwnProperty.call(value, key));
 }

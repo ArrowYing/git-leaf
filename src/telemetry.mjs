@@ -61,7 +61,7 @@ export function isTelemetryEnabled({
   isPackaged,
   buildInfo,
   usageAnalyticsEnabled = false,
-  channel = "stable",
+  releaseTier = "stable",
   platform = process.platform,
   arch = process.arch,
   environment = process.env,
@@ -74,7 +74,7 @@ export function isTelemetryEnabled({
     validSemanticVersion(buildInfo?.version) &&
     buildId !== "" &&
     buildId !== "dev" &&
-    channel === "stable" &&
+    releaseTier === "stable" &&
     CLIENT_PLATFORMS.has(platform) &&
     ["arm64", "x64"].includes(arch) &&
     !isCiEnvironment(environment);

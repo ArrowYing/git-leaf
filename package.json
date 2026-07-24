@@ -1,6 +1,6 @@
 {
   "name": "git-leaf",
-  "version": "1.11.2",
+  "version": "1.11.3",
   "private": true,
   "type": "module",
   "main": "desktop/main.mjs",

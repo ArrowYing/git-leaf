@@ -1,5 +1,7 @@
 {
   "distribution": "official",
+  "releaseTrack": "public",
+  "legacyInternalMigrationConfirmed": true,
   "usageAnalyticsDefault": false,
   "developerIdApplication": "Developer ID Application: Example Company (TEAMID1234)",
   "notaryProfile": "local-notary-profile-name",

@@ -27,7 +27,7 @@ function isTelemetryEnabled(options = {}) {
   });
 }
 
-test("telemetry is enabled only for packaged stable non-development builds", () => {
+test("telemetry is enabled only for packaged formal stable non-development builds", () => {
   const releaseBuild = {
     version: "1.10.0",
     dev: false,
@@ -35,43 +35,50 @@ test("telemetry is enabled only for packaged stable non-development builds", () 
     distribution: "official",
   };
   const enabled = { usageAnalyticsEnabled: true };
-  assert.equal(isTelemetryEnabled({ isPackaged: true, buildInfo: releaseBuild, channel: "stable", environment: {}, ...enabled }), true);
-  assert.equal(isTelemetryEnabled({ isPackaged: false, buildInfo: releaseBuild, channel: "stable", environment: {}, ...enabled }), false);
-  assert.equal(isTelemetryEnabled({ isPackaged: true, buildInfo: { ...releaseBuild, dev: true }, channel: "stable", environment: {}, ...enabled }), false);
-  assert.equal(isTelemetryEnabled({ isPackaged: true, buildInfo: releaseBuild, channel: "beta", environment: {}, ...enabled }), false);
-  assert.equal(isTelemetryEnabled({ isPackaged: true, buildInfo: releaseBuild, channel: "stable", environment: {} }), false);
+  assert.equal(isTelemetryEnabled({ isPackaged: true, buildInfo: releaseBuild, releaseTier: "stable", environment: {}, ...enabled }), true);
+  assert.equal(isTelemetryEnabled({ isPackaged: false, buildInfo: releaseBuild, releaseTier: "stable", environment: {}, ...enabled }), false);
+  assert.equal(isTelemetryEnabled({ isPackaged: true, buildInfo: { ...releaseBuild, dev: true }, releaseTier: "stable", environment: {}, ...enabled }), false);
+  assert.equal(isTelemetryEnabled({ isPackaged: true, buildInfo: releaseBuild, releaseTier: "beta", environment: {}, ...enabled }), false);
+  assert.equal(isTelemetryEnabled({ isPackaged: true, buildInfo: releaseBuild, releaseTier: "stable", environment: {} }), false);
+  assert.equal(isTelemetryEnabled({
+    isPackaged: true,
+    buildInfo: { ...releaseBuild, releaseTrack: "internal" },
+    releaseTier: "stable",
+    environment: {},
+    ...enabled,
+  }), true);
   assert.equal(isTelemetryEnabled({
     isPackaged: true,
     buildInfo: { ...releaseBuild, distribution: "source" },
-    channel: "stable",
+    releaseTier: "stable",
     environment: {},
     ...enabled,
   }), false);
   assert.equal(isTelemetryEnabled({
     isPackaged: true,
     buildInfo: { ...releaseBuild, buildId: `release-${"x".repeat(121)}` },
-    channel: "stable",
+    releaseTier: "stable",
     environment: {},
     ...enabled,
   }), false);
   assert.equal(isTelemetryEnabled({
     isPackaged: true,
     buildInfo: { ...releaseBuild, buildId: " release.1" },
-    channel: "stable",
+    releaseTier: "stable",
     environment: {},
     ...enabled,
   }), false);
   assert.equal(isTelemetryEnabled({
     isPackaged: true,
     buildInfo: { ...releaseBuild, buildId: "release.1\nprivate" },
-    channel: "stable",
+    releaseTier: "stable",
     environment: {},
     ...enabled,
   }), false);
   assert.equal(isTelemetryEnabled({
     isPackaged: true,
     buildInfo: releaseBuild,
-    channel: "stable",
+    releaseTier: "stable",
     platform: "darwin",
     arch: "ia32",
     environment: {},
@@ -84,21 +91,21 @@ test("telemetry stays disabled for CI and incomplete packaged builds", () => {
     isPackaged: true,
     buildInfo: { version: "1.10.0", dev: false, buildId: "release.1", distribution: "official" },
     usageAnalyticsEnabled: true,
-    channel: "stable",
+    releaseTier: "stable",
     environment: { CI: "true" },
   }), false);
   assert.equal(isTelemetryEnabled({
     isPackaged: true,
     buildInfo: { version: "1.10.0", dev: false, buildId: "release.1", distribution: "official" },
     usageAnalyticsEnabled: true,
-    channel: "stable",
+    releaseTier: "stable",
     environment: { GITHUB_ACTIONS: "true" },
   }), false);
   assert.equal(isTelemetryEnabled({
     isPackaged: true,
     buildInfo: { version: "1.10.0", dev: false, buildId: "dev", distribution: "official" },
     usageAnalyticsEnabled: true,
-    channel: "stable",
+    releaseTier: "stable",
     environment: {},
   }), false);
 });

@@ -2,48 +2,86 @@
 
 This document defines the public release contract. Mango Future's host names, deployment directories, credentials, and private release profiles are maintained outside this repository.
 
-## Build identities
+## Release tracks and build identities
 
-Every packaged app contains `git-leaf-build-info.json` with two independent fields:
+Every packaged app contains `git-leaf-build-info.json` with three independent fields:
 
 ```json
 {
   "distribution": "source",
+  "releaseTrack": "source",
   "usageAnalyticsDefault": false
 }
 ```
 
-Supported values:
+Supported identities:
 
-| Field | Value | Meaning |
-| --- | --- | --- |
-| `distribution` | `source` | Community or local source build; official updates are disabled |
-| `distribution` | `official` | Mango Future release build; official updates can be enabled |
-| `usageAnalyticsDefault` | `false` | New installations start with usage analytics disabled |
-| `usageAnalyticsDefault` | `true` | Company-managed bootstrap package initializes analytics as enabled |
+| Identity | Update channel | Analytics default | Purpose |
+| --- | --- | --- | --- |
+| `source + source` | none | `false` | Community or local source build |
+| `official + public` | `stable` | `false` | Public Mango Future release |
+| `official + internal` | `internal-stable` | `true` | Company-internal Mango Future release |
 
-The safe default is always `source + false`. Build metadata is informational and can be changed by anyone compiling the source. Official identity is established by the Mango Future code signature, official download channel, SHA-256, release tag, and matching public commit.
+`distribution` identifies the publisher class. `releaseTrack` identifies which official release lane an installed app follows. The two official tracks use separate manifests and artifacts; a packaged app trusts its embedded track and cannot be moved to another track by an environment variable.
 
-The build default is used only when initializing a new local setting. Once `usageAnalyticsEnabled` exists in userData, an update must preserve it.
+The safe default is always `source + source + false`. Build metadata is informational and can be changed by anyone compiling the source. Official identity is established by the Mango Future code signature, official download channel, SHA-256, release tag, and matching public commit.
+
+The analytics default is used only when initializing a new local setting. Once `usageAnalyticsEnabled` exists in userData, an update must preserve it. Release-track selection and telemetry eligibility are separate contracts: an internal official build remains an official stable build even though its update channel is `internal-stable`.
 
 Telemetry event fields, version capability boundaries, privacy requirements, storage, and retention rules are defined only by `docs/app-usage-analytics-spec.md`.
 
-## Local release profile
+## Versioning across tracks
 
-Company release commands read a JSON file selected by an absolute path:
+`package.json` is the user-visible app version. Versions and Git tags are global across both official tracks:
 
-```bash
-export GIT_LEAF_RELEASE_PROFILE="/absolute/path/to/git-leaf-official-public.json"
+- never reuse one version for public and internal builds;
+- every new public or internal release must be newer than all previously published releases;
+- an internal `1.11.3` release means the next public release must be at least `1.11.4`;
+- one tag identifies one track-specific set of signed artifacts.
+
+Use:
+
+- `MAJOR` for incompatible runtime, update, data, or configuration changes;
+- `MINOR` for new user-visible capabilities without breaking existing workflows;
+- `PATCH` for fixes, small UX improvements, packaging corrections, and release-process fixes.
+
+## Local release profiles
+
+Company release commands require an absolute JSON profile path. The public shape is illustrated by [docs/release-profile.example.json](docs/release-profile.example.json); authoritative public and internal profiles live in the private operations repository.
+
+An official profile must explicitly declare a matching track:
+
+```json
+{
+  "distribution": "official",
+  "releaseTrack": "public",
+  "legacyInternalMigrationConfirmed": true,
+  "usageAnalyticsDefault": false,
+  "updateChannel": "stable"
+}
 ```
 
-The public shape is illustrated by [docs/release-profile.example.json](docs/release-profile.example.json). The real profile is not stored in this repository. It may contain non-secret environment parameters, but it must never contain:
+or:
+
+```json
+{
+  "distribution": "official",
+  "releaseTrack": "internal",
+  "usageAnalyticsDefault": true,
+  "updateChannel": "internal-stable"
+}
+```
+
+A release profile may contain non-secret environment parameters, but it must never contain:
 
 - Apple credentials or private keys;
 - SSH private keys or tokens;
 - server passwords;
 - signing certificates in exportable form.
 
-Normal `package:mac`, `package:win`, and `portable:win` commands work without a profile and produce source builds. Signing, publication, stable update staging, and release tagging fail unless an official profile is supplied.
+The public profile's `legacyInternalMigrationConfirmed` flag is a reviewed operations gate, not a build default. It must remain `false` until company devices have completed the `1.11.2` to internal-track migration. Public `prepare` fails unless the frozen profile records `true`, preventing a later public release from replacing the legacy bridge prematurely.
+
+Normal `package:mac`, `package:win`, and `portable:win` commands work without a profile and produce source builds. A formal package, signature, publication, or release tag fails unless the frozen official profile and track are present.
 
 ## Verification
 
@@ -64,7 +102,7 @@ If `src/client/source-editor.mjs` changed, also run:
 npm run build:client
 ```
 
-For Settings, About, Help, Preview, or Live UI changes on macOS, run the isolated smoke workflow:
+For Settings, About, Help, Preview, Live, or update UI changes on macOS, run the isolated smoke workflow:
 
 ```bash
 make smoke-dev-mac
@@ -86,41 +124,123 @@ Verify that packaged `git-leaf-build-info.json` contains:
 ```json
 {
   "distribution": "source",
+  "releaseTrack": "source",
   "usageAnalyticsDefault": false
 }
 ```
 
-A source build must not query or download from Mango Future's stable update service and must not create telemetry state or send telemetry requests.
+A source build must not query or download from Mango Future's update service and must not create telemetry state or send telemetry requests.
 
-## Official packages
+## Formal official release
 
-Mango Future maintainers use the frozen release worktree controller:
+Mango Future maintainers use the frozen release worktree controller. Prepare from a clean `main` synchronized with `origin/main`:
 
 ```bash
-npm run release:prepare
-eval "$(node scripts/release-worktree.mjs env)"
-node "$RELEASE_WORKTREE/scripts/release-worktree.mjs" status --remote
+npm run release:prepare -- \
+  --track internal \
+  --profile /absolute/path/to/official-internal.json \
+  --require-update-regression "first internal track release and legacy migration"
+```
+
+`prepare` records the canonical profile path and SHA-256, clears ambient release overrides, freezes the track, commit, version, build ID, and timestamp, creates a detached release worktree, then runs `npm ci` and `test:all`. Every later command revalidates the frozen state.
+
+Inspect status:
+
+```bash
+node scripts/release-worktree.mjs status --remote
+```
+
+Run the platform build pipelines from the controller:
+
+```bash
+node scripts/release-worktree.mjs run mac check-version
+node scripts/release-worktree.mjs run mac check-prereqs
+node scripts/release-worktree.mjs run mac test
+node scripts/release-worktree.mjs run mac package
+node scripts/release-worktree.mjs run mac sign
+node scripts/release-worktree.mjs run mac dmg
+node scripts/release-worktree.mjs run mac notarize
+node scripts/release-worktree.mjs run mac staple
+node scripts/release-worktree.mjs run mac zip
+node scripts/release-worktree.mjs run mac verify
+node scripts/release-worktree.mjs run mac stage-updates --channel candidate
+
+node scripts/release-worktree.mjs run windows check-version
+node scripts/release-worktree.mjs run windows test
+node scripts/release-worktree.mjs run windows package
+node scripts/release-worktree.mjs run windows zip
+node scripts/release-worktree.mjs run windows verify
+node scripts/release-worktree.mjs run windows stage-updates --channel candidate
+```
+
+For a public release, logical `candidate` and `stable` map to the physical `candidate` and `stable` channels. For an internal release they map to `internal-candidate` and `internal-stable`. Operators always pass the logical channel to the controller.
+
+Publish both candidate platforms:
+
+```bash
+node scripts/release-worktree.mjs run mac publish-updates --channel candidate
+node scripts/release-worktree.mjs run windows publish-updates --channel candidate
+```
+
+Inspect the online manifests, download every candidate artifact, compare SHA-256 values, inspect embedded build identity, and verify macOS signature, notarization, and stapling. Then record candidate verification:
+
+```bash
+node scripts/release-worktree.mjs mark-candidate-verified
+```
+
+If `prepare` marked update regression as required, run a real packaged-App update using isolated userData and record it:
+
+```bash
+node scripts/release-worktree.mjs mark-update-regression-verified
+```
+
+Publish both stable platforms:
+
+```bash
+node scripts/release-worktree.mjs run mac publish-updates --channel stable
+node scripts/release-worktree.mjs run windows publish-updates --channel stable
+```
+
+After online stable verification and any required migration bridge, create and push the tag and close the release:
+
+```bash
+node scripts/release-worktree.mjs tag
+node scripts/release-worktree.mjs push-tag
+node scripts/release-worktree.mjs finish
 ```
 
 All artifacts, manifests, checksums, and tags for one release must originate from the same frozen `RELEASE_COMMIT`. Candidate artifacts are inspected before stable publication. A version tag is created only after macOS and Windows stable artifacts have been verified and published.
 
-The official public profile must produce:
+## Internal 1.11.3 migration bridge
 
-```json
-{
-  "distribution": "official",
-  "usageAnalyticsDefault": false
-}
+The installed official `1.11.2` build predates release tracks and reads only the legacy public `stable` channel. The first internal-track release therefore uses a one-time bridge:
+
+1. Publish and verify both platforms on `internal-candidate`.
+2. Complete the real packaged-App update regression.
+3. Publish and verify both platforms on `internal-stable`.
+4. Deploy and verify the update server version that excludes internal manifests from `/open`, then record the live isolation check:
+
+```bash
+node scripts/release-worktree.mjs mark-public-download-isolation-verified
 ```
 
-The internal bootstrap profile may produce `official + true`, but that artifact is not the public download. Its SHA-256 must be recorded separately. Later public stable updates must preserve the local enabled state of existing internal installations.
+5. Publish the exact same signed internal artifacts to legacy `stable`:
+
+```bash
+node scripts/release-worktree.mjs run mac publish-updates --channel legacy-stable
+node scripts/release-worktree.mjs run windows publish-updates --channel legacy-stable
+```
+
+The controller permits `legacy-stable` only for the internal `1.11.3` migration release, only for `publish-updates`, and only after both internal stable platforms, candidate gates, and the public-download isolation check have completed. It also refuses to tag or finish `1.11.3` until both legacy platform publishes are recorded.
+
+The public `/open` download page must ignore internal manifests even while the bridge occupies `stable`. Do not publish a newer public build to legacy `stable` until the company migration is confirmed; lagging `1.11.2` installations would otherwise miss the bridge. After upgrading, the embedded `internal` track reads only `internal-stable`.
 
 ## Platform status
 
 - macOS official releases use Mango Future's Developer ID signature and notarization.
 - Windows is currently distributed as an unsigned Preview ZIP. Documentation and download surfaces must state this plainly until Authenticode signing is implemented.
-- Official builds may use Mango Future's stable update service.
-- Source builds never join the official stable update channel.
+- Public and internal official builds share the existing application identity and userData location so updates preserve repositories, sessions, and preferences.
+- Source builds never join an official update channel.
 
 ## Package inspection
 
@@ -131,15 +251,7 @@ Before publication:
 3. Build macOS and Windows candidates.
 4. Inspect the DMG, ZIP, and `app.asar` file lists and text content.
 5. Confirm packages exclude `marketing/`, `test/`, `dist/`, `.git/`, release profiles, signing material, and internal operations documents.
-6. Verify source, official public, and internal bootstrap behavior independently.
-7. Confirm manifest, SHA-256, tag, and public commit correspondence.
+6. Verify source, official public, and official internal behavior independently.
+7. Confirm track, channel, manifest, SHA-256, tag, and public commit correspondence.
 
-## Versioning
-
-`package.json` is the user-visible app version. Do not reuse an existing release version or tag for new artifacts.
-
-- `MAJOR`: incompatible runtime, update, data, or configuration changes.
-- `MINOR`: new user-visible capabilities without breaking existing workflows.
-- `PATCH`: fixes, small UX improvements, packaging corrections, and release-process fixes.
-
-The formal release controller is the only supported path for publishing Mango Future stable artifacts.
+The formal release controller is the only supported path for publishing Mango Future official artifacts.

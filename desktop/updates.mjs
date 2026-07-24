@@ -5,9 +5,14 @@ import {
   compareAppVersions,
   isAppVersionNewer,
   macAutoUpdaterFeedUrl,
+  updateChannelForBuildInfo,
+  updateManifestIdentityError,
   updateManifestUrl,
 } from "../src/app-updates.mjs";
-import { isOfficialDistribution } from "../src/build-info.mjs";
+import {
+  isOfficialDistribution,
+  releaseTrackForBuildInfo,
+} from "../src/build-info.mjs";
 
 export function createDesktopUpdateController({
   app,
@@ -19,7 +24,8 @@ export function createDesktopUpdateController({
   platform = process.platform,
   arch = process.arch,
   baseUrl = process.env.GIT_LEAF_UPDATE_BASE_URL || DEFAULT_UPDATE_BASE_URL,
-  channel = process.env.GIT_LEAF_UPDATE_CHANNEL || DEFAULT_UPDATE_CHANNEL,
+  channel: configuredChannel,
+  environment = process.env,
   scheduleTimeout = setTimeout,
   clearTimeout: clearScheduledTimeout = clearTimeout,
   macErrorDialogDelayMs = 20_000,
@@ -43,6 +49,14 @@ export function createDesktopUpdateController({
   let pendingWindowsUpdate = null;
   let installStartedForVersion = "";
   const platformKey = appUpdatePlatformKey({ platform, arch });
+  const releaseTrack = releaseTrackForBuildInfo(buildInfo);
+  const releaseTrackChannel = updateChannelForBuildInfo(buildInfo);
+  const channel = isPackaged
+    ? releaseTrackChannel
+    : configuredChannel
+      || environment.GIT_LEAF_UPDATE_CHANNEL
+      || releaseTrackChannel
+      || DEFAULT_UPDATE_CHANNEL;
 
   if (autoUpdater?.on) {
     autoUpdater.on("update-not-available", () => {
@@ -220,6 +234,12 @@ export function createDesktopUpdateController({
       }
       return "disabled";
     }
+    if (!releaseTrackChannel) {
+      if (manual) {
+        await showInfo(dialog, "当前构建没有可用的正式更新轨道。");
+      }
+      return "disabled";
+    }
     if (!isPackaged && process.env.GIT_LEAF_ENABLE_UPDATES !== "1") {
       if (manual) {
         await showInfo(dialog, "开发模式不会检查自动更新。");
@@ -354,6 +374,30 @@ export function createDesktopUpdateController({
           message: `检查更新失败：${error?.message ?? String(error)}`,
         });
         await showInfo(dialog, `检查更新失败：${error?.message ?? String(error)}`);
+      }
+      return "error";
+    }
+
+    const identityError = updateManifestIdentityError(manifest, {
+      releaseTrack,
+      channel,
+      platformKey,
+    });
+    if (identityError) {
+      notifyUpdateTelemetry(recordUpdateState, {
+        state: "failed",
+        trigger: manual ? "manual" : "automatic",
+        from_version: buildInfo?.version,
+        error_code: "manifest",
+        stage: "check",
+      });
+      if (manual) {
+        await notifyUpdateStatus(showUpdateStatus, {
+          state: "error",
+          manual: true,
+          message: identityError,
+        });
+        await showInfo(dialog, identityError);
       }
       return "error";
     }

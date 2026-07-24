@@ -13,7 +13,7 @@ Because the executable is not Authenticode-signed, Windows can show an unknown p
 ## Install
 
 1. Open `https://gitleaf.mangofuture.com/open`.
-2. Download `GitLeaf-<version>-win32-x64.zip`.
+2. Download `GitLeaf-<version>-public-win32-x64.zip`.
 3. Compare the ZIP's SHA-256 with the checksum published for that release.
 4. Fully exit an older Git Leaf process.
 5. Extract the whole ZIP. Do not run the executable from the archive preview.
@@ -25,7 +25,7 @@ Electron applications require the complete directory. Do not copy only `Git Leaf
 
 ## Updates
 
-Only Mango Future official builds connect to the official stable update service. A source build shows its source identity in Settings and does not query or download from that service.
+Only Mango Future official builds connect to the official update service. Public builds follow `stable`; company-internal builds follow `internal-stable`. A packaged build trusts its embedded track, so an environment variable cannot move it between the two. A source build shows its source identity in Settings and does not query or download from that service.
 
 An official Windows build checks for metadata but does not download an update until the user selects Update. The app verifies the ZIP's file size and SHA-256, prepares the next version in a temporary directory, waits for the current process to exit, then atomically switches the fixed install directory. If the new version cannot start and confirm readiness, the installer attempts to restore the previous version.
 

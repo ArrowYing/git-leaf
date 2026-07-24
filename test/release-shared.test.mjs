@@ -12,7 +12,10 @@ import {
   ensureReleaseGitTag,
   RELEASE_PACKAGE_IGNORE_PATTERNS,
   releaseArtifactFileName,
+  releaseBuildId,
   releaseBuildInfoFromEnv,
+  releaseTrackUpdateChannel,
+  releaseUpdateChannel,
   withReleaseBuildInfoFile,
   releaseTagName,
 } from "../scripts/release-shared.mjs";
@@ -36,14 +39,16 @@ test("releaseArtifactFileName keeps downloadable artifact names short and shell 
   assert.equal(
     releaseArtifactFileName({
       version: "0.1.4",
+      releaseTrack: "internal",
       platformKey: "darwin-arm64",
       extension: ".dmg",
     }),
-    "GitLeaf-0.1.4-darwin-arm64.dmg",
+    "GitLeaf-0.1.4-internal-darwin-arm64.dmg",
   );
   assert.doesNotMatch(
     releaseArtifactFileName({
       version: "0.1.4",
+      releaseTrack: "public",
       platformKey: "win32-x64",
       extension: "zip",
     }),
@@ -80,6 +85,8 @@ test("release build identity defaults to source with analytics disabled", () => 
   });
 
   assert.equal(buildInfo.distribution, "source");
+  assert.equal(buildInfo.releaseTrack, "source");
+  assert.equal(buildInfo.buildId, "abc123.20260723T000000Z.source");
   assert.equal(buildInfo.usageAnalyticsDefault, false);
   assert.throws(
     () => assertOfficialReleaseProfile(buildInfo),
@@ -87,11 +94,13 @@ test("release build identity defaults to source with analytics disabled", () => 
   );
 });
 
-test("release profile selects official public or internal bootstrap defaults", async () => {
+test("release profile selects official public or internal track defaults", async () => {
   const rootDir = await mkdtemp(path.join(tmpdir(), "git-leaf-release-profile-"));
   const publicProfile = path.join(rootDir, "official-public.json");
   await writeFile(publicProfile, JSON.stringify({
     distribution: "official",
+    releaseTrack: "public",
+    legacyInternalMigrationConfirmed: true,
     usageAnalyticsDefault: false,
   }), "utf8");
 
@@ -107,10 +116,113 @@ test("release profile selects official public or internal bootstrap defaults", a
   });
 
   assert.equal(buildInfo.distribution, "official");
+  assert.equal(buildInfo.releaseTrack, "public");
+  assert.equal(buildInfo.buildId, "abc123.20260723T000000Z.public");
   assert.equal(buildInfo.usageAnalyticsDefault, false);
   assert.equal(buildInfo.releaseProfileConfigured, true);
   assert.equal(buildInfo.releaseProfileDistribution, "official");
+  assert.equal(buildInfo.releaseProfileReleaseTrack, "public");
+  assert.equal(buildInfo.legacyInternalMigrationConfirmed, true);
   assert.equal(assertOfficialReleaseProfile(buildInfo), undefined);
+
+  const internalProfile = path.join(rootDir, "official-internal.json");
+  await writeFile(internalProfile, JSON.stringify({
+    distribution: "official",
+    releaseTrack: "internal",
+    usageAnalyticsDefault: true,
+  }), "utf8");
+  const internalBuildInfo = releaseBuildInfoFromEnv({
+    rootDir,
+    env: {
+      GIT_LEAF_RELEASE_PROFILE: internalProfile,
+      VERSION: "1.12.0",
+      GIT_COMMIT: "abc123",
+      BUILT_AT: "2026-07-23T00:00:00.000Z",
+      BUILD_ID: "abc123.20260723T000000Z",
+    },
+  });
+
+  assert.equal(internalBuildInfo.distribution, "official");
+  assert.equal(internalBuildInfo.releaseTrack, "internal");
+  assert.equal(internalBuildInfo.buildId, "abc123.20260723T000000Z.internal");
+  assert.equal(internalBuildInfo.usageAnalyticsDefault, true);
+  assert.equal(assertOfficialReleaseProfile(internalBuildInfo), undefined);
+});
+
+test("official release profiles fail closed on missing track or conflicting analytics", async () => {
+  const rootDir = await mkdtemp(path.join(tmpdir(), "git-leaf-release-profile-invalid-"));
+  const missingTrackProfile = path.join(rootDir, "missing-track.json");
+  const conflictingInternalProfile = path.join(rootDir, "conflicting-internal.json");
+  await writeFile(missingTrackProfile, JSON.stringify({
+    distribution: "official",
+    usageAnalyticsDefault: false,
+  }), "utf8");
+  await writeFile(conflictingInternalProfile, JSON.stringify({
+    distribution: "official",
+    releaseTrack: "internal",
+    usageAnalyticsDefault: false,
+  }), "utf8");
+
+  assert.throws(
+    () => releaseBuildInfoFromEnv({
+      rootDir,
+      env: { GIT_LEAF_RELEASE_PROFILE: missingTrackProfile },
+    }),
+    /explicit releaseTrack of public or internal/,
+  );
+  assert.throws(
+    () => releaseBuildInfoFromEnv({
+      rootDir,
+      env: { GIT_LEAF_RELEASE_PROFILE: conflictingInternalProfile },
+    }),
+    /requires usageAnalyticsDefault=true/,
+  );
+});
+
+test("official public release commands require the reviewed legacy migration confirmation", async () => {
+  const rootDir = await mkdtemp(path.join(tmpdir(), "git-leaf-public-migration-gate-"));
+  const profilePath = path.join(rootDir, "official-public.json");
+  await writeFile(profilePath, JSON.stringify({
+    distribution: "official",
+    releaseTrack: "public",
+    legacyInternalMigrationConfirmed: false,
+    usageAnalyticsDefault: false,
+  }), "utf8");
+
+  const buildInfo = releaseBuildInfoFromEnv({
+    rootDir,
+    env: { GIT_LEAF_RELEASE_PROFILE: profilePath },
+  });
+  assert.equal(buildInfo.legacyInternalMigrationConfirmed, false);
+  assert.throws(
+    () => assertOfficialReleaseProfile(buildInfo),
+    /legacyInternalMigrationConfirmed=true/,
+  );
+});
+
+test("release tracks map to separate stable channels while build IDs remain idempotent", () => {
+  assert.equal(releaseTrackUpdateChannel("public"), "stable");
+  assert.equal(releaseTrackUpdateChannel("internal"), "internal-stable");
+  assert.equal(releaseTrackUpdateChannel("source"), "");
+  assert.equal(
+    releaseUpdateChannel({ releaseTrack: "public", override: "candidate" }),
+    "candidate",
+  );
+  assert.equal(
+    releaseUpdateChannel({ releaseTrack: "internal", override: "stable" }),
+    "stable",
+  );
+  assert.equal(
+    releaseBuildId({ buildId: "abc123.20260723T000000Z", releaseTrack: "internal" }),
+    "abc123.20260723T000000Z.internal",
+  );
+  assert.equal(
+    releaseBuildId({
+      buildId: "abc123.20260723T000000Z.internal",
+      releaseTrack: "internal",
+    }),
+    "abc123.20260723T000000Z.internal",
+  );
 });
 
 test("environment overrides cannot impersonate a configured official release profile", () => {
@@ -188,6 +300,8 @@ test("withReleaseBuildInfoFile writes development build marker", async () => {
 
   assert.equal(payload.dev, true);
   assert.equal(payload.distribution, "source");
+  assert.equal(payload.releaseTrack, "source");
+  assert.equal(payload.buildId, "93458e1.20260705T114700Z.source");
   assert.equal(payload.usageAnalyticsDefault, false);
 });
 

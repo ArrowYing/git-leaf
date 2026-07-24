@@ -6,6 +6,8 @@ import {
   compareAppVersions,
   isAppVersionNewer,
   macAutoUpdaterFeedUrl,
+  updateChannelForBuildInfo,
+  updateManifestIdentityError,
   updateManifestUrl,
 } from "../src/app-updates.mjs";
 
@@ -27,6 +29,54 @@ test("appUpdatePlatformKey maps desktop platforms to release directories", () =>
   assert.equal(appUpdatePlatformKey({ platform: "darwin", arch: "x64" }), "darwin-universal");
   assert.equal(appUpdatePlatformKey({ platform: "win32", arch: "x64" }), "win32-x64");
   assert.equal(appUpdatePlatformKey({ platform: "linux", arch: "arm64" }), "linux-arm64");
+});
+
+test("release tracks map to isolated update channels", () => {
+  assert.equal(updateChannelForBuildInfo({ distribution: "source" }), "");
+  assert.equal(updateChannelForBuildInfo({ distribution: "official" }), "stable");
+  assert.equal(
+    updateChannelForBuildInfo({ distribution: "official", releaseTrack: "public" }),
+    "stable",
+  );
+  assert.equal(
+    updateChannelForBuildInfo({ distribution: "official", releaseTrack: "internal" }),
+    "internal-stable",
+  );
+  assert.equal(
+    updateChannelForBuildInfo({ distribution: "official", releaseTrack: "source" }),
+    "",
+  );
+  assert.equal(
+    updateChannelForBuildInfo({ distribution: "official", releaseTrack: "unknown" }),
+    "",
+  );
+});
+
+test("update manifests must match release track, channel, and platform", () => {
+  const manifest = {
+    releaseTrack: "internal",
+    channel: "internal-stable",
+    platform: "darwin-universal",
+  };
+  const target = {
+    releaseTrack: "internal",
+    channel: "internal-stable",
+    platformKey: "darwin-universal",
+  };
+
+  assert.equal(updateManifestIdentityError(manifest, target), "");
+  assert.match(
+    updateManifestIdentityError({ ...manifest, releaseTrack: "public" }, target),
+    /发行轨道/,
+  );
+  assert.match(
+    updateManifestIdentityError({ ...manifest, channel: "stable" }, target),
+    /更新通道/,
+  );
+  assert.match(
+    updateManifestIdentityError({ ...manifest, platform: "win32-x64" }, target),
+    /平台/,
+  );
 });
 
 test("updateManifestUrl builds stable latest manifest URLs", () => {

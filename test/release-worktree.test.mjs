@@ -18,9 +18,14 @@ import {
   assessUpdateRegression,
   assertCandidateGateComplete,
   assertCandidateCanBeMarked,
+  assertFrozenReleaseProfile,
+  assertPublicDownloadIsolationCanBeMarked,
   assertReleaseCanBeTagged,
   assertReleaseRunAllowed,
+  assertReleaseVersionAboveBaseline,
   defaultReleaseWorktreePath,
+  freezeReleaseProfile,
+  physicalUpdateChannel,
   releaseEnvironment,
   releaseHasCompleted,
   releaseIdentity,
@@ -37,6 +42,11 @@ function releaseState(overrides = {}) {
     commit: "0123456789abcdef0123456789abcdef01234567",
     builtAt: "2026-07-15T08:09:10.000Z",
     buildId: "0123456789ab.20260715T080910Z",
+    track: "public",
+    releaseProfile: {
+      path: "/profiles/git-leaf-official-public.json",
+      sha256: "a".repeat(64),
+    },
     updateRegression: {
       required: false,
       status: "not_required",
@@ -48,11 +58,13 @@ function releaseState(overrides = {}) {
   };
 }
 
-function completedPublish(platform, channel) {
+function completedPublish(platform, phase, track = "public") {
   return {
     action: "publish-updates",
     platform,
-    channel,
+    phase,
+    channel: physicalUpdateChannel({ track, phase }),
+    track,
     outcome: "completed",
     completedAt: "2026-07-15T09:00:00.000Z",
   };
@@ -91,13 +103,31 @@ test("release environment cannot drift away from the frozen state", () => {
     RELEASE_COMMIT: "0123456789abcdef0123456789abcdef01234567",
     BUILT_AT: "2026-07-15T08:09:10.000Z",
     BUILD_ID: "0123456789ab.20260715T080910Z",
+    GIT_LEAF_FORMAL_RELEASE: "1",
+    GIT_LEAF_RELEASE_PROFILE: "/profiles/git-leaf-official-public.json",
     UPDATE_CHANNEL: "candidate",
   });
 });
 
-test("release subprocesses ignore transient desktop smoke overrides", () => {
+test("release subprocesses ignore all ambient identity, profile, destination, and smoke overrides", () => {
   assert.deepEqual(sanitizedReleaseProcessEnvironment({
     HOME: "/Users/release",
+    VERSION: "99.0.0",
+    BUILD_ID: "ambient",
+    BUILT_AT: "2099-01-01T00:00:00.000Z",
+    GIT_COMMIT: "ambient",
+    RELEASE_COMMIT: "ambient",
+    GIT_LEAF_FORMAL_RELEASE: "0",
+    GIT_LEAF_RELEASE_PROFILE: "/tmp/wrong-profile.json",
+    GIT_LEAF_DISTRIBUTION: "source",
+    GIT_LEAF_USAGE_ANALYTICS_DEFAULT: "false",
+    DEVELOPER_ID_APPLICATION: "wrong identity",
+    NOTARY_PROFILE: "wrong notary profile",
+    ELECTRON_MIRROR: "http://localhost:9996",
+    UPDATE_BASE_URL: "http://localhost:9997",
+    UPDATE_REMOTE_HOST: "wrong-host",
+    UPDATE_REMOTE_ROOT: "/tmp/wrong-root",
+    UPDATE_CHANNEL: "stable",
     GIT_LEAF_DEV_USER_DATA_DIR: "/tmp/release-smoke-profile",
     GIT_LEAF_ENABLE_UPDATES: "1",
     GIT_LEAF_PORTABLE: "1",
@@ -107,6 +137,89 @@ test("release subprocesses ignore transient desktop smoke overrides", () => {
   }), {
     HOME: "/Users/release",
   });
+});
+
+test("release profile freezes canonical content and rejects identity or track mismatch", async () => {
+  const rootDir = await mkdtemp(path.join(tmpdir(), "git-leaf-frozen-profile-"));
+  const profilePath = path.join(rootDir, "official-internal.json");
+  const publicProfilePath = path.join(rootDir, "official-public.json");
+  const contents = `${JSON.stringify({
+    distribution: "official",
+    releaseTrack: "internal",
+    usageAnalyticsDefault: true,
+  }, null, 2)}\n`;
+  writeFileSync(profilePath, contents);
+
+  const frozen = freezeReleaseProfile({ profilePath, track: "internal" });
+  assert.equal(frozen.path, realpathSync(profilePath));
+  assert.match(frozen.sha256, /^[a-f0-9]{64}$/);
+  assert.doesNotThrow(() => assertFrozenReleaseProfile({
+    track: "internal",
+    releaseProfile: frozen,
+  }));
+
+  assert.throws(
+    () => freezeReleaseProfile({ profilePath: "relative.json", track: "internal" }),
+    /absolute path/,
+  );
+  assert.throws(
+    () => freezeReleaseProfile({ profilePath, track: "public" }),
+    /does not match --track public/,
+  );
+
+  writeFileSync(profilePath, contents.replace('"official"', '"source"'));
+  assert.throws(
+    () => freezeReleaseProfile({ profilePath, track: "internal" }),
+    /distribution must be official/,
+  );
+  assert.throws(
+    () => assertFrozenReleaseProfile({
+      track: "internal",
+      releaseProfile: frozen,
+    }),
+    /Frozen release profile changed|distribution must be official/,
+  );
+
+  writeFileSync(publicProfilePath, `${JSON.stringify({
+    distribution: "official",
+    releaseTrack: "public",
+    usageAnalyticsDefault: false,
+  }, null, 2)}\n`);
+  assert.throws(
+    () => freezeReleaseProfile({ profilePath: publicProfilePath, track: "public" }),
+    /legacyInternalMigrationConfirmed=true/,
+  );
+  writeFileSync(publicProfilePath, `${JSON.stringify({
+    distribution: "official",
+    releaseTrack: "public",
+    usageAnalyticsDefault: false,
+    legacyInternalMigrationConfirmed: true,
+  }, null, 2)}\n`);
+  assert.doesNotThrow(
+    () => freezeReleaseProfile({ profilePath: publicProfilePath, track: "public" }),
+  );
+});
+
+test("release version must advance beyond the pre-split 1.11.2 baseline even without tags", () => {
+  assert.throws(() => assertReleaseVersionAboveBaseline("1.11.2"), /newer than.*1\.11\.2/);
+  assert.throws(() => assertReleaseVersionAboveBaseline("1.10.99"), /newer than.*1\.11\.2/);
+  assert.doesNotThrow(() => assertReleaseVersionAboveBaseline("1.11.3"));
+  assert.doesNotThrow(() => assertReleaseVersionAboveBaseline("2.0.0"));
+});
+
+test("logical release phases map to isolated physical update channels", () => {
+  assert.equal(physicalUpdateChannel({ track: "public", phase: "candidate" }), "candidate");
+  assert.equal(physicalUpdateChannel({ track: "public", phase: "stable" }), "stable");
+  assert.equal(
+    physicalUpdateChannel({ track: "internal", phase: "candidate" }),
+    "internal-candidate",
+  );
+  assert.equal(physicalUpdateChannel({ track: "internal", phase: "stable" }), "internal-stable");
+  assert.equal(physicalUpdateChannel({ track: "internal", phase: "legacy-stable" }), "stable");
+  assert.throws(
+    () => physicalUpdateChannel({ track: "public", phase: "legacy-stable" }),
+    /Unsupported public release channel phase/,
+  );
 });
 
 test("update regression risk is limited to update, install, packaging, and configuration paths", () => {
@@ -208,6 +321,92 @@ test("formal release runner rejects composite commands and implicit update chann
   );
 });
 
+test("legacy stable is an internal publish-only bridge gated by completed internal stable", () => {
+  const publicState = releaseState();
+  assert.throws(
+    () => assertReleaseRunAllowed({
+      state: publicState,
+      platform: "mac",
+      command: "publish-updates",
+      channel: "legacy-stable",
+    }),
+    /only valid for the internal 1\.11\.3 migration release/,
+  );
+
+  const internalState = releaseState({
+    version: "1.11.3",
+    track: "internal",
+    candidateArtifactsVerifiedAt: "2026-07-15T10:00:00.000Z",
+    publicDownloadIsolationVerifiedAt: "2026-07-15T10:30:00.000Z",
+    history: [
+      completedPublish("mac", "stable", "internal"),
+      completedPublish("windows", "stable", "internal"),
+    ],
+  });
+  assert.throws(
+    () => assertReleaseRunAllowed({
+      state: internalState,
+      platform: "mac",
+      command: "stage-updates",
+      channel: "legacy-stable",
+    }),
+    /only valid for publish-updates/,
+  );
+  assert.doesNotThrow(() => assertReleaseRunAllowed({
+    state: internalState,
+    platform: "mac",
+    command: "publish-updates",
+    channel: "legacy-stable",
+  }));
+
+  assert.throws(
+    () => assertReleaseRunAllowed({
+      state: { ...internalState, history: [completedPublish("mac", "stable", "internal")] },
+      platform: "mac",
+      command: "publish-updates",
+      channel: "legacy-stable",
+    }),
+    /Stable windows artifacts for track internal/,
+  );
+
+  assert.throws(
+    () => assertReleaseRunAllowed({
+      state: { ...internalState, publicDownloadIsolationVerifiedAt: undefined },
+      platform: "mac",
+      command: "publish-updates",
+      channel: "legacy-stable",
+    }),
+    /Public download isolation has not been verified/,
+  );
+  assert.throws(
+    () => assertReleaseRunAllowed({
+      state: { ...internalState, version: "1.11.4" },
+      platform: "mac",
+      command: "publish-updates",
+      channel: "legacy-stable",
+    }),
+    /only valid for the internal 1\.11\.3 migration release/,
+  );
+});
+
+test("public download isolation can be recorded only for the one-time internal migration", () => {
+  assert.throws(
+    () => assertPublicDownloadIsolationCanBeMarked(releaseState()),
+    /only valid for the internal 1\.11\.3 migration release/,
+  );
+  assert.throws(
+    () => assertPublicDownloadIsolationCanBeMarked(releaseState({
+      version: "1.11.4",
+      track: "internal",
+    })),
+    /only valid for the internal 1\.11\.3 migration release/,
+  );
+  assert.doesNotThrow(() => assertPublicDownloadIsolationCanBeMarked(releaseState({
+    version: "1.11.3",
+    track: "internal",
+  })));
+});
+
 test("stable publishing always requires candidate artifact verification", () => {
   assert.throws(
     () => assertReleaseRunAllowed({
@@ -255,6 +454,25 @@ test("candidate verification requires both platform uploads from the active rele
     ],
   });
   assert.doesNotThrow(() => assertCandidateCanBeMarked(both));
+
+  const internalWithPublicUploads = releaseState({
+    track: "internal",
+    history: [
+      completedPublish("mac", "candidate"),
+      completedPublish("windows", "candidate"),
+    ],
+  });
+  assert.throws(
+    () => assertCandidateCanBeMarked(internalWithPublicUploads),
+    /Candidate mac artifacts for track internal/,
+  );
+  assert.doesNotThrow(() => assertCandidateCanBeMarked(releaseState({
+    track: "internal",
+    history: [
+      completedPublish("mac", "candidate", "internal"),
+      completedPublish("windows", "candidate", "internal"),
+    ],
+  })));
 });
 
 test("tagging requires resolved candidate gates and both stable platform uploads", () => {
@@ -279,6 +497,39 @@ test("tagging requires resolved candidate gates and both stable platform uploads
   })));
 });
 
+test("internal 1.11.3 cannot be tagged until both legacy stable bridge publishes complete", () => {
+  const state = releaseState({
+    version: "1.11.3",
+    track: "internal",
+    candidateArtifactsVerifiedAt: "2026-07-15T10:00:00.000Z",
+    publicDownloadIsolationVerifiedAt: "2026-07-15T10:30:00.000Z",
+    history: [
+      completedPublish("mac", "stable", "internal"),
+      completedPublish("windows", "stable", "internal"),
+    ],
+  });
+
+  assert.throws(() => assertReleaseCanBeTagged(state), /Legacy stable mac artifacts/);
+  assert.throws(
+    () => assertReleaseCanBeTagged({
+      ...state,
+      history: [
+        ...state.history,
+        completedPublish("mac", "legacy-stable", "internal"),
+      ],
+    }),
+    /Legacy stable windows artifacts/,
+  );
+  assert.doesNotThrow(() => assertReleaseCanBeTagged({
+    ...state,
+    history: [
+      ...state.history,
+      completedPublish("mac", "legacy-stable", "internal"),
+      completedPublish("windows", "legacy-stable", "internal"),
+    ],
+  }));
+});
+
 test("failed attempts never satisfy release gates", () => {
   const state = releaseState({
     history: [{
@@ -289,7 +540,9 @@ test("failed attempts never satisfy release gates", () => {
   assert.equal(releaseHasCompleted(state, {
     action: "publish-updates",
     platform: "mac",
+    phase: "candidate",
     channel: "candidate",
+    track: "public",
   }), false);
 });
 
@@ -297,12 +550,23 @@ test("release controller prepares, validates, exports, and aborts an isolated wo
   const fixtureRoot = await mkdtemp(path.join(tmpdir(), "git-leaf-release-worktree-"));
   const sourceRoot = path.join(fixtureRoot, "git-leaf");
   const remoteRoot = path.join(fixtureRoot, "origin.git");
+  const profilePath = path.join(fixtureRoot, "official-internal.json");
+  const profileContents = `${JSON.stringify({
+    distribution: "official",
+    releaseTrack: "internal",
+    usageAnalyticsDefault: true,
+  }, null, 2)}\n`;
+  writeFileSync(profilePath, profileContents);
   mkdirSync(path.join(sourceRoot, "scripts"), { recursive: true });
   mkdirSync(path.join(sourceRoot, "src"), { recursive: true });
   cpSync(path.join(REPO_ROOT, "scripts", "release-worktree.mjs"), path.join(sourceRoot, "scripts", "release-worktree.mjs"));
   cpSync(path.join(REPO_ROOT, "scripts", "release-shared.mjs"), path.join(sourceRoot, "scripts", "release-shared.mjs"));
   cpSync(path.join(REPO_ROOT, "src", "build-info.mjs"), path.join(sourceRoot, "src", "build-info.mjs"));
-  writeFileSync(path.join(sourceRoot, "package.json"), `${JSON.stringify({ version: "9.8.6" }, null, 2)}\n`);
+  writeFileSync(
+    path.join(sourceRoot, "scripts", "release-mac.mjs"),
+    "console.log(JSON.stringify({ formal: process.env.GIT_LEAF_FORMAL_RELEASE, profile: process.env.GIT_LEAF_RELEASE_PROFILE, channel: process.env.UPDATE_CHANNEL }));\n",
+  );
+  writeFileSync(path.join(sourceRoot, "package.json"), `${JSON.stringify({ version: "1.11.2" }, null, 2)}\n`);
   writeFileSync(path.join(sourceRoot, ".gitignore"), "node_modules/\ndist/\n");
 
   git(["init", "--bare", remoteRoot], { cwd: fixtureRoot });
@@ -311,8 +575,8 @@ test("release controller prepares, validates, exports, and aborts an isolated wo
   git(["config", "user.email", "release-test@example.com"], { cwd: sourceRoot });
   git(["add", "."], { cwd: sourceRoot });
   git(["commit", "-m", "previous release fixture"], { cwd: sourceRoot });
-  git(["tag", "v9.8.6"], { cwd: sourceRoot });
-  writeFileSync(path.join(sourceRoot, "package.json"), `${JSON.stringify({ version: "9.8.7" }, null, 2)}\n`);
+  git(["tag", "v1.11.2"], { cwd: sourceRoot });
+  writeFileSync(path.join(sourceRoot, "package.json"), `${JSON.stringify({ version: "1.11.3" }, null, 2)}\n`);
   writeFileSync(path.join(sourceRoot, "README.md"), "# Ordinary release change\n");
   git(["add", "."], { cwd: sourceRoot });
   git(["commit", "-m", "release fixture"], { cwd: sourceRoot });
@@ -320,35 +584,108 @@ test("release controller prepares, validates, exports, and aborts an isolated wo
   git(["push", "-u", "origin", "main", "--tags"], { cwd: sourceRoot });
 
   const controller = realpathSync(path.join(sourceRoot, "scripts", "release-worktree.mjs"));
-  const prepared = node([controller, "prepare", "--skip-install"], { cwd: sourceRoot });
+  const prepareArgs = [
+    controller,
+    "prepare",
+    "--track",
+    "internal",
+    "--profile",
+    profilePath,
+    "--skip-install",
+  ];
+  const prepared = node(prepareArgs, { cwd: sourceRoot });
   assert.match(prepared, /Prepared immutable release worktree/);
-  assert.match(prepared, /update regression: not required since v9\.8\.6/);
+  assert.match(prepared, /track:\s+internal/);
+  assert.match(prepared, new RegExp(`profile:\\s+${escapeRegExp(realpathSync(profilePath))}`));
+  assert.match(prepared, /public download isolation: pending/);
+  assert.match(prepared, /update regression: not required since v1\.11\.2/);
   const worktreePath = path.join(
     dirname(realpathSync(sourceRoot)),
     ".release-worktrees",
-    "git-leaf-v9.8.7",
+    "git-leaf-v1.11.3",
   );
   assert.equal(existsSync(worktreePath), true);
 
-  const duplicatePrepare = spawnSync(process.execPath, [controller, "prepare", "--skip-install"], {
+  const duplicatePrepare = spawnSync(process.execPath, prepareArgs, {
     cwd: sourceRoot,
     encoding: "utf8",
   });
   assert.equal(duplicatePrepare.status, 1);
-  assert.match(duplicatePrepare.stderr, /Release 9\.8\.7 is already active/);
+  assert.match(duplicatePrepare.stderr, /Release 1\.11\.3 is already active/);
   assert.equal(existsSync(worktreePath), true);
 
   assert.match(node([controller, "status", "--remote"], { cwd: sourceRoot }), /Release worktree is valid/);
   const releaseEnv = node([controller, "env"], { cwd: sourceRoot });
-  assert.match(releaseEnv, /export VERSION='9\.8\.7'/);
+  assert.match(releaseEnv, /export VERSION='1\.11\.3'/);
+  assert.match(releaseEnv, /export GIT_LEAF_FORMAL_RELEASE='1'/);
+  assert.match(
+    releaseEnv,
+    new RegExp(`export GIT_LEAF_RELEASE_PROFILE='${escapeRegExp(realpathSync(profilePath))}'`),
+  );
   assert.match(releaseEnv, new RegExp(`export RELEASE_WORKTREE='${escapeRegExp(worktreePath)}'`));
 
-  assert.match(node([controller, "abort"], { cwd: sourceRoot }), /Aborted Git Leaf 9\.8\.7/);
-  assert.equal(existsSync(worktreePath), false);
-  assert.equal(
-    existsSync(path.join(sourceRoot, ".git", "git-leaf-release-state.json")),
-    false,
+  const statePath = path.join(sourceRoot, ".git", "git-leaf-release-state.json");
+  let state = JSON.parse(readFileSync(statePath, "utf8"));
+  assert.equal(state.track, "internal");
+  assert.equal(state.releaseProfile.path, realpathSync(profilePath));
+  assert.match(state.releaseProfile.sha256, /^[a-f0-9]{64}$/);
+
+  const isolationOutput = node([
+    controller,
+    "mark-public-download-isolation-verified",
+  ], { cwd: sourceRoot });
+  assert.match(isolationOutput, /Recorded public download isolation verification/);
+  state = JSON.parse(readFileSync(statePath, "utf8"));
+  assert.match(state.publicDownloadIsolationVerifiedAt, /^\d{4}-\d{2}-\d{2}T/);
+  assert.deepEqual(state.history.at(-1), {
+    action: "public-download-isolation",
+    track: "internal",
+    outcome: "completed",
+    completedAt: state.publicDownloadIsolationVerifiedAt,
+  });
+  assert.match(
+    node([controller, "help"], { cwd: sourceRoot }),
+    /mark-public-download-isolation-verified/,
   );
+
+  const stageOutput = node([
+    controller,
+    "run",
+    "mac",
+    "stage-updates",
+    "--channel",
+    "candidate",
+  ], { cwd: sourceRoot });
+  assert.match(stageOutput, /"formal":"1"/);
+  assert.match(stageOutput, new RegExp(`"profile":"${escapeRegExp(realpathSync(profilePath))}"`));
+  assert.match(stageOutput, /"channel":"internal-candidate"/);
+  state = JSON.parse(readFileSync(statePath, "utf8"));
+  assert.deepEqual(
+    state.history.at(-1),
+    {
+      action: "stage-updates",
+      platform: "mac",
+      track: "internal",
+      phase: "candidate",
+      channel: "internal-candidate",
+      outcome: "completed",
+      completedAt: state.history.at(-1).completedAt,
+    },
+  );
+
+  writeFileSync(profilePath, profileContents.replace("true", "false"));
+  const driftedStatus = spawnSync(process.execPath, [controller, "status"], {
+    cwd: sourceRoot,
+    encoding: "utf8",
+  });
+  assert.equal(driftedStatus.status, 1);
+  assert.match(driftedStatus.stderr, /Frozen release profile changed/);
+  writeFileSync(profilePath, profileContents);
+  assert.match(node([controller, "status"], { cwd: sourceRoot }), /Release worktree is valid/);
+
+  assert.match(node([controller, "abort"], { cwd: sourceRoot }), /Aborted Git Leaf 1\.11\.3/);
+  assert.equal(existsSync(worktreePath), false);
+  assert.equal(existsSync(statePath), false);
   assert.doesNotMatch(readFileSync(path.join(sourceRoot, ".git", "config"), "utf8"), /release-worktrees/);
 });
 

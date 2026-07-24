@@ -26,7 +26,8 @@ status: normative
 
 ## 适用范围
 
-- 仅适用于正式打包、`stable` channel、非开发构建的 macOS 与 Windows 桌面 App。
+- 仅适用于正式打包、遥测口径为 `stable`、非开发构建的 macOS 与 Windows 桌面 App。这里的 `stable`
+  表示正式构建资格，与公开／内部更新清单的物理路径无关。
 - 不适用于本地开发版、CI 包、CLI、纯 Web 入口或测试注入事件。
 - 原始事实源是 官方服务 的 `events/` 和 `downloads/` JSONL／JSONL.GZ。
 - 本文只定义产品使用统计，不用于员工绩效、用户画像、广告归因或内容分析。
@@ -64,7 +65,8 @@ frontmatter_key, frontmatter_value, url, email, username, serial_number, mac_add
 
 ### 启用范围、本地队列与传输
 
-- 只有已打包、`stable` channel、非开发构建启用；dev-local、测试、CI、未打包 Electron、CLI 和普通 Web 入口关闭。
+- 只有已打包、遥测口径为 `stable`、非开发构建启用；公开与内部正式轨道都可满足该条件，更新清单位于
+  `stable` 或 `internal-stable` 不改变统计资格；dev-local、测试、CI、未打包 Electron、CLI 和普通 Web 入口关闭。
 - 正式版统一启用本文规定的基础统计，不增加用户开关或设备名称配置；Help 必须固定说明采集范围和禁止采集的信息。
 - 本地 `telemetry-state.json` 保存安装 ID、版本、设备标签、匿名仓库状态和每日累计检查点；待上传队列只包含低频生命周期事件和
   每日汇总快照。已形成持久化队列的每日状态只保留计算最近 30 日所需的窗口，不能无限增长；尚未安全进入队列的状态不得提前删除。

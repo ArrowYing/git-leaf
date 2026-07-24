@@ -24,20 +24,28 @@ function fakeDialog(result = { response: 0, checkboxChecked: false }) {
   };
 }
 
-function fakeMacManifestFetch({ version = "1.2.1" } = {}) {
+function fakeMacManifestFetch({
+  version = "1.2.1",
+  releaseTrack = "public",
+  channel = releaseTrack === "internal" ? "internal-stable" : "stable",
+  platform = "darwin-universal",
+} = {}) {
   const urls = [];
   const fetch = async (url) => {
     urls.push(url);
     return {
       ok: true,
       json: async () => ({
+        releaseTrack,
+        channel,
+        platform,
         version,
         autoUpdater: {
           name: `Git Leaf ${version}`,
         },
         files: {
           zip: {
-            url: `https://updates.mangofuture.com/git-leaf/stable/darwin-universal/GitLeaf-${version}.zip`,
+            url: `https://updates.mangofuture.com/git-leaf/${channel}/${platform}/GitLeaf-${version}.zip`,
           },
         },
       }),
@@ -108,6 +116,65 @@ test("desktop updater configures Squirrel.Mac only after the user starts an upda
   assert.deepEqual(fetch.urls, [
     "https://updates.mangofuture.com/git-leaf/stable/darwin-universal/latest.json",
   ]);
+});
+
+test("packaged internal builds ignore environment channel overrides", async () => {
+  const autoUpdater = fakeAutoUpdater();
+  const fetch = fakeMacManifestFetch({
+    version: "1.11.3",
+    releaseTrack: "internal",
+  });
+  const controller = createDesktopUpdateController({
+    autoUpdater,
+    buildInfo: {
+      version: "1.11.2",
+      releaseTrack: "internal",
+    },
+    fetch,
+    isPackaged: true,
+    platform: "darwin",
+    arch: "arm64",
+    channel: "stable",
+    environment: {
+      GIT_LEAF_UPDATE_CHANNEL: "candidate",
+    },
+  });
+
+  assert.equal(await controller.checkForUpdates({ manual: true }), "available");
+  assert.equal(await controller.handleUpdateAction(), "downloading");
+  assert.deepEqual(fetch.urls, [
+    "https://updates.mangofuture.com/git-leaf/internal-stable/darwin-universal/latest.json",
+  ]);
+  assert.deepEqual(autoUpdater.feedUrls, [
+    "https://updates.mangofuture.com/git-leaf/internal-stable/darwin-universal/releases/1.11.2",
+  ]);
+});
+
+test("desktop updater rejects manifests from another track, channel, or platform", async () => {
+  for (const mismatch of [
+    { releaseTrack: "internal" },
+    { channel: "internal-stable" },
+    { platform: "win32-x64" },
+  ]) {
+    const dialog = fakeDialog();
+    const fetch = fakeMacManifestFetch({
+      version: "1.11.3",
+      ...mismatch,
+    });
+    const controller = createDesktopUpdateController({
+      autoUpdater: fakeAutoUpdater(),
+      buildInfo: { version: "1.11.2", releaseTrack: "public" },
+      dialog,
+      fetch,
+      isPackaged: true,
+      platform: "darwin",
+      arch: "arm64",
+    });
+
+    assert.equal(await controller.checkForUpdates({ manual: true }), "error");
+    assert.equal(dialog.calls.length, 1);
+    assert.match(dialog.calls[0][0].message, /不匹配/);
+  }
 });
 
 test("desktop updater disables stable updates for packaged development builds", async () => {
@@ -483,6 +550,9 @@ test("desktop updater prepares Windows after a click and launches it on quit", a
     fetch: async () => ({
       ok: true,
       json: async () => ({
+        releaseTrack: "public",
+        channel: "stable",
+        platform: "win32-x64",
         version: "0.1.2",
         files: {
           zip: {
@@ -524,6 +594,9 @@ test("desktop updater reports current Windows builds as up to date on manual che
     fetch: async () => ({
       ok: true,
       json: async () => ({
+        releaseTrack: "public",
+        channel: "stable",
+        platform: "win32-x64",
         version: "0.1.2",
         files: {
           zip: {
@@ -705,6 +778,9 @@ test("automatic Windows checks wait for a click before preparing and install on 
     fetch: async () => ({
       ok: true,
       json: async () => ({
+        releaseTrack: "public",
+        channel: "stable",
+        platform: "win32-x64",
         version: "1.9.0",
         files: {
           zip: {
@@ -808,8 +884,20 @@ test("a synchronous macOS updater launch failure keeps a retryable update action
 
 test("invalid manifests and missing Windows artifacts close every started check with a check failure", async () => {
   for (const manifest of [
-    { version: "1.2.0-01", files: { zip: { url: "https://example.test/update.zip" } } },
-    { version: "1.2.0", files: {} },
+    {
+      releaseTrack: "public",
+      channel: "stable",
+      platform: "win32-x64",
+      version: "1.2.0-01",
+      files: { zip: { url: "https://example.test/update.zip" } },
+    },
+    {
+      releaseTrack: "public",
+      channel: "stable",
+      platform: "win32-x64",
+      version: "1.2.0",
+      files: {},
+    },
   ]) {
     const updates = [];
     const controller = createDesktopUpdateController({
@@ -843,6 +931,9 @@ test("install lifecycle is recorded at the real entry and entry failures are exp
     fetch: async () => ({
       ok: true,
       json: async () => ({
+        releaseTrack: "public",
+        channel: "stable",
+        platform: "win32-x64",
         version: "1.2.0",
         files: { zip: { url: "https://example.test/update.zip" } },
       }),

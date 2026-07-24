@@ -24,6 +24,7 @@ export function buildUpdateManifest({
   appName = "Git Leaf",
   baseUrl = DEFAULT_UPDATE_BASE_URL,
   channel = DEFAULT_UPDATE_CHANNEL,
+  releaseTrack,
   platformKey,
   artifactPlatformKey = platformKey,
   version,
@@ -33,6 +34,11 @@ export function buildUpdateManifest({
   notes = "",
   artifacts = [],
 } = {}) {
+  assertPublishableReleaseTrack(releaseTrack);
+  assertUpdateCoordinate("channel", channel);
+  assertUpdateCoordinate("platform", platformKey);
+  assertUpdateCoordinate("artifact platform", artifactPlatformKey);
+
   const files = {};
   for (const artifact of artifacts) {
     files[artifact.kind] = {
@@ -51,6 +57,7 @@ export function buildUpdateManifest({
   const zip = files.zip;
   return {
     app: appName,
+    releaseTrack,
     channel,
     platform: platformKey,
     version,
@@ -85,4 +92,19 @@ export function updateArtifactUrl({
     encodeURIComponent(platformKey),
     encodeURIComponent(fileName),
   ].join("/");
+}
+
+function assertPublishableReleaseTrack(value) {
+  if (!["public", "internal"].includes(value)) {
+    throw new Error("Update manifests require an explicit public or internal releaseTrack.");
+  }
+}
+
+function assertUpdateCoordinate(label, value) {
+  if (
+    typeof value !== "string"
+    || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value)
+  ) {
+    throw new Error(`Update manifest ${label} is invalid: ${value ?? ""}`);
+  }
 }

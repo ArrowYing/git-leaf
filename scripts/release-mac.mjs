@@ -34,8 +34,10 @@ import {
   ensureReleaseGitTag,
   packageVersion,
   releaseArtifactFileName,
+  releaseBuildId,
   releaseBuildInfoFromEnv,
   releaseProfileFromEnv,
+  releaseUpdateChannel,
   RELEASE_PACKAGE_IGNORE_PATTERNS,
   withReleaseBuildInfoFile,
 } from "./release-shared.mjs";
@@ -60,6 +62,7 @@ export const DEFAULT_RELEASE_OPTIONS = {
   updateRemoteHost: "",
   updateRemoteRoot: "",
   dmgLocale: "en",
+  releaseTrack: "source",
 };
 
 const APPLICATIONS_SHORTCUT_NAME = "Applications";
@@ -215,6 +218,7 @@ export function macReleasePaths({
   appName = DEFAULT_RELEASE_OPTIONS.appName,
   arch = DEFAULT_RELEASE_OPTIONS.arch,
   version = DEFAULT_RELEASE_OPTIONS.version,
+  releaseTrack = DEFAULT_RELEASE_OPTIONS.releaseTrack,
   buildId = DEFAULT_RELEASE_OPTIONS.buildId,
 } = {}) {
   const distDir = path.join(rootDir, "dist");
@@ -226,11 +230,11 @@ export function macReleasePaths({
     appDir: path.join(appRoot, `${appName}.app`),
     dmgPath: path.join(
       distDir,
-      releaseArtifactFileName({ version, platformKey, extension: "dmg" }),
+      releaseArtifactFileName({ version, releaseTrack, platformKey, extension: "dmg" }),
     ),
     zipPath: path.join(
       distDir,
-      releaseArtifactFileName({ version, platformKey, extension: "zip" }),
+      releaseArtifactFileName({ version, releaseTrack, platformKey, extension: "zip" }),
     ),
   };
 }
@@ -240,11 +244,12 @@ export function macDevelopmentInstallPaths({
   appName = DEFAULT_RELEASE_OPTIONS.appName,
   arch = DEFAULT_RELEASE_OPTIONS.arch,
   version = DEFAULT_RELEASE_OPTIONS.version,
+  releaseTrack = DEFAULT_RELEASE_OPTIONS.releaseTrack,
   buildId = DEFAULT_RELEASE_OPTIONS.buildId,
   applicationsDir = DEFAULT_RELEASE_OPTIONS.applicationsDir,
 } = {}) {
   return {
-    ...macReleasePaths({ rootDir, appName, arch, version, buildId }),
+    ...macReleasePaths({ rootDir, appName, arch, version, releaseTrack, buildId }),
     applicationsDir,
     installedAppDir: path.join(applicationsDir, `${appName}.app`),
   };
@@ -979,9 +984,10 @@ function releaseOptionsFromEnv() {
       || profile.updateBaseUrl
       || DEFAULT_RELEASE_OPTIONS.updateBaseUrl,
     updateChannel:
-      process.env.UPDATE_CHANNEL
-      || profile.updateChannel
-      || DEFAULT_RELEASE_OPTIONS.updateChannel,
+      releaseUpdateChannel({
+        releaseTrack: buildInfo.releaseTrack,
+        override: process.env.UPDATE_CHANNEL,
+      }),
     updateRemoteHost:
       process.env.UPDATE_REMOTE_HOST
       || profile.updateRemoteHost
@@ -996,6 +1002,9 @@ function releaseOptionsFromEnv() {
     smokeUserDataDir: process.env.GIT_LEAF_SMOKE_USER_DATA_DIR || DEFAULT_SMOKE_USER_DATA_DIR,
     smokeRepoRoot: process.env.GIT_LEAF_SMOKE_REPO_ROOT || "",
     smokeFile: process.env.GIT_LEAF_SMOKE_FILE || "",
+    formalRelease: ["1", "true", "yes"].includes(
+      String(process.env.GIT_LEAF_FORMAL_RELEASE || "").trim().toLowerCase(),
+    ),
   };
 }
 
@@ -1454,13 +1463,16 @@ export function stageMacUpdateMetadata(options, paths, { rootDir = REPO_ROOT } =
     artifactDescriptor("zip", stagedZipPath),
     artifactDescriptor("dmg", stagedDmgPath),
   ];
+  const releaseTrack = options.releaseTrack || "source";
+  const buildId = releaseBuildId({ buildId: options.buildId, releaseTrack });
   const universalManifest = buildUpdateManifest({
     appName: options.appName,
     baseUrl: options.updateBaseUrl,
     channel: options.updateChannel,
+    releaseTrack,
     platformKey: "darwin-universal",
     version: options.version,
-    buildId: options.buildId,
+    buildId,
     commit: options.commit,
     builtAt: options.builtAt,
     notes: `Git Leaf ${options.version}`,
@@ -1485,10 +1497,11 @@ export function stageMacUpdateMetadata(options, paths, { rootDir = REPO_ROOT } =
     appName: options.appName,
     baseUrl: options.updateBaseUrl,
     channel: options.updateChannel,
+    releaseTrack,
     platformKey: "darwin-arm64",
     artifactPlatformKey: "darwin-universal",
     version: options.version,
-    buildId: options.buildId,
+    buildId,
     commit: options.commit,
     builtAt: options.builtAt,
     notes: `Git Leaf ${options.version}`,
@@ -1737,7 +1750,13 @@ export function runDevelopmentSmokeWorkflow({
 
 export function runReleaseCommand(command, options = releaseOptionsFromEnv()) {
   const paths = macDevelopmentInstallPaths(options);
-  if (macCommandsRequiringOfficialProfile.has(command)) {
+  if (
+    macCommandsRequiringOfficialProfile.has(command)
+    || (
+      command === "package"
+      && (options.formalRelease === true || options.distribution === "official")
+    )
+  ) {
     assertOfficialReleaseProfile(options);
   }
   if (macCommandRequiresNewReleaseVersion(command, options)) {

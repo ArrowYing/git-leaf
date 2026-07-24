@@ -1,5 +1,8 @@
+import { releaseTrackForBuildInfo } from "./build-info.mjs";
+
 export const DEFAULT_UPDATE_BASE_URL = "https://updates.mangofuture.com/git-leaf";
 export const DEFAULT_UPDATE_CHANNEL = "stable";
+export const INTERNAL_UPDATE_CHANNEL = "internal-stable";
 
 export function compareAppVersions(left, right) {
   const leftParts = versionCore(left).split(".").map(numericPart);
@@ -30,6 +33,40 @@ export function appUpdatePlatformKey({
     return "darwin-universal";
   }
   return `${platform}-${arch}`;
+}
+
+export function updateChannelForReleaseTrack(releaseTrack) {
+  if (releaseTrack === "public") {
+    return DEFAULT_UPDATE_CHANNEL;
+  }
+  if (releaseTrack === "internal") {
+    return INTERNAL_UPDATE_CHANNEL;
+  }
+  return "";
+}
+
+export function updateChannelForBuildInfo(buildInfo) {
+  return updateChannelForReleaseTrack(releaseTrackForBuildInfo(buildInfo));
+}
+
+export function updateManifestIdentityError(manifest, {
+  releaseTrack,
+  channel,
+  platformKey,
+} = {}) {
+  if (!manifest || typeof manifest !== "object" || Array.isArray(manifest)) {
+    return "更新清单格式无效。";
+  }
+  if (manifest.releaseTrack !== releaseTrack) {
+    return "更新清单的发行轨道与当前构建不匹配。";
+  }
+  if (manifest.channel !== channel) {
+    return "更新清单的更新通道与当前构建不匹配。";
+  }
+  if (manifest.platform !== platformKey) {
+    return "更新清单的平台与当前构建不匹配。";
+  }
+  return "";
 }
 
 export function updateManifestUrl({

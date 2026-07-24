@@ -42,6 +42,7 @@ import {
   prepareDevelopmentUserData,
   selectDevelopmentSmokeSource,
   releaseSteps,
+  runReleaseCommand,
   runDevelopmentSmokeWorkflow,
   stageMacUpdateMetadata,
   universalMachOVerificationCommand,
@@ -206,25 +207,32 @@ test("mac release paths use friendly versioned artifact filenames", () => {
   });
 
   assert.equal(slashPath(paths.appDir), "/repo/dist/Git Leaf-darwin-universal/Git Leaf.app");
-  assert.equal(slashPath(paths.dmgPath), "/repo/dist/GitLeaf-0.1.1-darwin-universal.dmg");
-  assert.equal(slashPath(paths.zipPath), "/repo/dist/GitLeaf-0.1.1-darwin-universal.zip");
+  assert.equal(
+    slashPath(paths.dmgPath),
+    "/repo/dist/GitLeaf-0.1.1-source-darwin-universal.dmg",
+  );
+  assert.equal(
+    slashPath(paths.zipPath),
+    "/repo/dist/GitLeaf-0.1.1-source-darwin-universal.zip",
+  );
 });
 
-test("mac release filenames stay friendly when build id metadata is available", () => {
+test("mac internal release filenames cannot collide with the same public semver", () => {
   const paths = macReleasePaths({
     rootDir: "/repo",
     appName: "Git Leaf",
     version: "0.1.1",
+    releaseTrack: "internal",
     buildId: "93458e1.20260705T114700Z",
   });
 
   assert.equal(
     slashPath(paths.dmgPath),
-    "/repo/dist/GitLeaf-0.1.1-darwin-universal.dmg",
+    "/repo/dist/GitLeaf-0.1.1-internal-darwin-universal.dmg",
   );
   assert.equal(
     slashPath(paths.zipPath),
-    "/repo/dist/GitLeaf-0.1.1-darwin-universal.zip",
+    "/repo/dist/GitLeaf-0.1.1-internal-darwin-universal.zip",
   );
 });
 
@@ -238,11 +246,11 @@ test("mac development install paths reuse friendly release artifact filenames", 
 
   assert.equal(
     slashPath(paths.dmgPath),
-    "/repo/dist/GitLeaf-0.1.2-darwin-universal.dmg",
+    "/repo/dist/GitLeaf-0.1.2-source-darwin-universal.dmg",
   );
   assert.equal(
     slashPath(paths.zipPath),
-    "/repo/dist/GitLeaf-0.1.2-darwin-universal.zip",
+    "/repo/dist/GitLeaf-0.1.2-source-darwin-universal.zip",
   );
 });
 
@@ -262,15 +270,16 @@ test("mac update metadata paths mirror the update service update directory shape
 test("mac update staging keeps artifacts universal and publishes only an ARM migration manifest", async () => {
   const rootDir = await mkdtempPath("git-leaf-universal-update-");
   try {
-    const dmgPath = path.join(rootDir, "GitLeaf-1.9.0-darwin-universal.dmg");
-    const zipPath = path.join(rootDir, "GitLeaf-1.9.0-darwin-universal.zip");
+    const dmgPath = path.join(rootDir, "GitLeaf-1.9.0-internal-darwin-universal.dmg");
+    const zipPath = path.join(rootDir, "GitLeaf-1.9.0-internal-darwin-universal.zip");
     await writeFile(dmgPath, "universal dmg");
     await writeFile(zipPath, "universal zip");
 
     const { universalPaths, arm64MigrationPaths } = stageMacUpdateMetadata({
       appName: "Git Leaf",
       updateBaseUrl: "https://updates.mangofuture.com/git-leaf",
-      updateChannel: "stable",
+      updateChannel: "internal-stable",
+      releaseTrack: "internal",
       version: "1.9.0",
       buildId: "build-1",
       commit: "abc123",
@@ -278,8 +287,8 @@ test("mac update staging keeps artifacts universal and publishes only an ARM mig
     }, { dmgPath, zipPath }, { rootDir });
 
     assert.deepEqual((await readdir(universalPaths.updateDir)).sort(), [
-      "GitLeaf-1.9.0-darwin-universal.dmg",
-      "GitLeaf-1.9.0-darwin-universal.zip",
+      "GitLeaf-1.9.0-internal-darwin-universal.dmg",
+      "GitLeaf-1.9.0-internal-darwin-universal.zip",
       "latest.json",
       "releases.json",
       "sha256sums.txt",
@@ -292,12 +301,31 @@ test("mac update staging keeps artifacts universal and publishes only an ARM mig
     const universalManifest = JSON.parse(await readFile(universalPaths.latestJsonPath, "utf8"));
     const migrationManifest = JSON.parse(await readFile(arm64MigrationPaths.latestJsonPath, "utf8"));
     assert.equal(universalManifest.platform, "darwin-universal");
+    assert.equal(universalManifest.channel, "internal-stable");
+    assert.equal(universalManifest.releaseTrack, "internal");
+    assert.equal(universalManifest.buildId, "build-1.internal");
     assert.equal(migrationManifest.platform, "darwin-arm64");
+    assert.equal(migrationManifest.releaseTrack, "internal");
     assert.equal(migrationManifest.files.zip.url, universalManifest.files.zip.url);
-    assert.match(migrationManifest.files.zip.url, /\/darwin-universal\/GitLeaf-1\.9\.0-darwin-universal\.zip$/);
+    assert.match(
+      migrationManifest.files.zip.url,
+      /\/internal-stable\/darwin-universal\/GitLeaf-1\.9\.0-internal-darwin-universal\.zip$/,
+    );
   } finally {
     await rm(rootDir, { recursive: true, force: true });
   }
+});
+
+test("formal mac package fails closed before packaging when its release profile is absent", () => {
+  assert.throws(
+    () => runReleaseCommand("package", {
+      formalRelease: true,
+      distribution: "source",
+      releaseTrack: "source",
+      usageAnalyticsDefault: false,
+    }),
+    /Official release commands require GIT_LEAF_RELEASE_PROFILE/,
+  );
 });
 
 test("mac bundle icon uses a Git Leaf resource name instead of the Electron default", () => {

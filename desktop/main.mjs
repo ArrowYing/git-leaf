@@ -145,7 +145,10 @@ const DEFAULT_WINDOW_BOUNDS = {
   width: 1280,
   height: 860,
 };
-const TELEMETRY_CHANNEL = process.env.GIT_LEAF_UPDATE_CHANNEL || "stable";
+// Telemetry's stable-release eligibility is independent from the App update feed.
+// Internal builds update from internal-stable but remain formal stable builds.
+const TELEMETRY_RELEASE_TIER = "stable";
+const TELEMETRY_CHANNEL = "stable";
 
 if (windowsBootstrap.status === "current") {
   registerDesktopProtocol();
@@ -337,7 +340,7 @@ async function initializeDesktopTelemetry() {
       isPackaged: app.isPackaged,
       buildInfo: BUILD_INFO,
       usageAnalyticsEnabled,
-      channel: TELEMETRY_CHANNEL,
+      releaseTier: TELEMETRY_RELEASE_TIER,
       platform: process.platform,
       arch: process.arch,
     });

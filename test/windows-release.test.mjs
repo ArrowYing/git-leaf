@@ -1,10 +1,14 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import test from "node:test";
 
 import {
   DEFAULT_ELECTRON_MIRROR,
   DEFAULT_WINDOWS_RELEASE_OPTIONS,
+  runWindowsReleaseCommand,
+  stageWindowsUpdateMetadata,
   windowsCommandRequiresNewReleaseVersion,
   windowsUpdateMetadataPaths,
   windowsElectronPackagerArgs,
@@ -87,20 +91,24 @@ test("windows release paths point to the packaged executable", () => {
 
   assert.equal(slashPath(paths.appRoot), "/repo/dist/Git Leaf-win32-x64");
   assert.equal(slashPath(paths.exePath), "/repo/dist/Git Leaf-win32-x64/Git Leaf.exe");
-  assert.equal(slashPath(paths.zipPath), "/repo/dist/GitLeaf-0.1.1-win32-x64.zip");
+  assert.equal(
+    slashPath(paths.zipPath),
+    "/repo/dist/GitLeaf-0.1.1-source-win32-x64.zip",
+  );
 });
 
-test("windows release filenames stay friendly when build id metadata is available", () => {
+test("windows internal release filenames cannot collide with the same public semver", () => {
   const paths = windowsReleasePaths({
     rootDir: "/repo",
     appName: "Git Leaf",
     version: "0.1.1",
+    releaseTrack: "internal",
     buildId: "93458e1.20260705T114700Z",
   });
 
   assert.equal(
     slashPath(paths.zipPath),
-    "/repo/dist/GitLeaf-0.1.1-win32-x64.zip",
+    "/repo/dist/GitLeaf-0.1.1-internal-win32-x64.zip",
   );
 });
 
@@ -137,6 +145,53 @@ test("windows release sequence creates an unsigned portable package", () => {
   assert.equal(DEFAULT_ELECTRON_MIRROR, "https://npmmirror.com/mirrors/electron/");
 });
 
+test("windows internal update manifest keeps the track and track-qualified build ID", async () => {
+  const rootDir = await mkdtemp(path.join(tmpdir(), "git-leaf-windows-update-"));
+  try {
+    const releasePaths = windowsReleasePaths({
+      rootDir,
+      version: "1.11.3",
+      releaseTrack: "internal",
+    });
+    await mkdir(path.dirname(releasePaths.zipPath), { recursive: true });
+    await writeFile(releasePaths.zipPath, "internal windows zip");
+
+    const metadata = stageWindowsUpdateMetadata({
+      appName: "Git Leaf",
+      updateBaseUrl: "https://updates.mangofuture.com/git-leaf",
+      updateChannel: "internal-stable",
+      version: "1.11.3",
+      releaseTrack: "internal",
+      buildId: "abc123.20260723T000000Z",
+      commit: "abc123",
+      builtAt: "2026-07-23T00:00:00.000Z",
+    }, { rootDir });
+    const manifest = JSON.parse(await readFile(metadata.latestJsonPath, "utf8"));
+
+    assert.equal(manifest.channel, "internal-stable");
+    assert.equal(manifest.releaseTrack, "internal");
+    assert.equal(manifest.buildId, "abc123.20260723T000000Z.internal");
+    assert.match(
+      manifest.files.zip.url,
+      /\/internal-stable\/win32-x64\/GitLeaf-1\.11\.3-internal-win32-x64\.zip$/,
+    );
+  } finally {
+    await rm(rootDir, { recursive: true, force: true });
+  }
+});
+
+test("formal Windows package fails closed before packaging when its release profile is absent", () => {
+  assert.throws(
+    () => runWindowsReleaseCommand("package", {
+      formalRelease: true,
+      distribution: "source",
+      releaseTrack: "source",
+      usageAnalyticsDefault: false,
+    }),
+    /Official release commands require GIT_LEAF_RELEASE_PROFILE/,
+  );
+});
+
 test("windows publish commands require an unpublished version without blocking smoke portable builds", () => {
   for (const command of ["stage-updates", "publish-updates"]) {
     assert.equal(windowsCommandRequiresNewReleaseVersion(command), true, command);
@@ -151,7 +206,7 @@ test("windows zip command uses PowerShell on Windows hosts", () => {
   const command = windowsZipCommand({
     platform: "win32",
     appRoot: "C:\\repo\\dist\\Git Leaf-win32-x64",
-    zipPath: "C:\\repo\\dist\\GitLeaf-0.1.1-win32-x64.zip",
+    zipPath: "C:\\repo\\dist\\GitLeaf-0.1.1-source-win32-x64.zip",
   });
 
   assert.equal(command.command, "powershell.exe");
@@ -161,7 +216,7 @@ test("windows zip command uses PowerShell on Windows hosts", () => {
   assert.match(commandText, /-LiteralPath 'C:\\repo\\dist\\Git Leaf-win32-x64'/);
   assert.match(
     commandText,
-    /-DestinationPath 'C:\\repo\\dist\\GitLeaf-0\.1\.1-win32-x64\.zip'/,
+    /-DestinationPath 'C:\\repo\\dist\\GitLeaf-0\.1\.1-source-win32-x64\.zip'/,
   );
   assert.equal(command.args.includes("C:\\repo\\dist\\Git Leaf-win32-x64"), false);
 });
@@ -170,13 +225,13 @@ test("windows zip command keeps zip on POSIX hosts", () => {
   const command = windowsZipCommand({
     platform: "darwin",
     appRoot: "/repo/dist/Git Leaf-win32-x64",
-    zipPath: "/repo/dist/GitLeaf-0.1.1-win32-x64.zip",
+    zipPath: "/repo/dist/GitLeaf-0.1.1-source-win32-x64.zip",
   });
 
   assert.equal(command.command, "zip");
   assert.deepEqual(command.args, [
     "-qry",
-    "/repo/dist/GitLeaf-0.1.1-win32-x64.zip",
+    "/repo/dist/GitLeaf-0.1.1-source-win32-x64.zip",
     "Git Leaf-win32-x64",
   ]);
   assert.equal(command.cwd, "/repo/dist");
