@@ -101,3 +101,22 @@ test("release documentation verifies published artifacts end to end without dupl
   assert.match(releaseDoc, /locally[\s\S]*retained immutable ZIP and DMG whose SHA-256 matches/);
   assert.match(releaseDoc, /without a second large-file[\s\S]*transfer/);
 });
+
+test("release documentation requires verified local artifact retention before finish cleanup", async () => {
+  const releaseDoc = await readFile("docs/release.md", "utf8");
+
+  assert.match(releaseDoc, /`finish` is also the local artifact-retention gate/);
+  assert.match(releaseDoc, /dist\/releases\/v<version>\//);
+  assert.match(releaseDoc, /macOS universal DMG and ZIP, the Windows x64 ZIP/);
+  assert.match(releaseDoc, /macOS `releases\.json` plus ARM migration manifests/);
+  assert.match(releaseDoc, /public release the physical stable channel is `stable`/);
+  assert.match(releaseDoc, /internal release it is\s+`internal-stable`/);
+  assert.match(releaseDoc, /stable artifact\s+URL coordinates, and the auto-updater ZIP URL/);
+  assert.match(
+    releaseDoc,
+    /compares its SHA-256\s+and size with the stable manifest and checksum file/,
+  );
+  assert.match(releaseDoc, /missing or\s+mismatched file makes `finish` fail without deleting/);
+  assert.match(releaseDoc, /conflicting files are never\s+overwritten/);
+  assert.match(releaseDoc, /`dist\/` remains Git-ignored and local-only/);
+});

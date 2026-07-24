@@ -1,11 +1,13 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import {
   cpSync,
   existsSync,
   mkdirSync,
   readFileSync,
   realpathSync,
+  rmSync,
   writeFileSync,
 } from "node:fs";
 import { mkdtemp } from "node:fs/promises";
@@ -675,6 +677,7 @@ test("release controller prepares, validates, exports, and aborts an isolated wo
   writeFileSync(profilePath, profileContents);
   mkdirSync(path.join(sourceRoot, "scripts"), { recursive: true });
   mkdirSync(path.join(sourceRoot, "src"), { recursive: true });
+  cpSync(path.join(REPO_ROOT, "scripts", "release-archive.mjs"), path.join(sourceRoot, "scripts", "release-archive.mjs"));
   cpSync(path.join(REPO_ROOT, "scripts", "release-worktree.mjs"), path.join(sourceRoot, "scripts", "release-worktree.mjs"));
   cpSync(path.join(REPO_ROOT, "scripts", "release-shared.mjs"), path.join(sourceRoot, "scripts", "release-shared.mjs"));
   cpSync(path.join(REPO_ROOT, "src", "build-info.mjs"), path.join(sourceRoot, "src", "build-info.mjs"));
@@ -812,6 +815,327 @@ test("release controller prepares, validates, exports, and aborts an isolated wo
   assert.equal(existsSync(worktreePath), false);
   assert.equal(existsSync(statePath), false);
   assert.doesNotMatch(readFileSync(path.join(sourceRoot, ".git", "config"), "utf8"), /release-worktrees/);
+});
+
+test("release controller finish preserves verified stable artifacts outside the release worktree", async () => {
+  const fixtureRoot = await mkdtemp(path.join(tmpdir(), "git-leaf-release-finish-"));
+  const sourceRoot = path.join(fixtureRoot, "git-leaf");
+  const remoteRoot = path.join(fixtureRoot, "origin.git");
+  const profilePath = path.join(fixtureRoot, "official-internal.json");
+  const profileContents = `${JSON.stringify({
+    distribution: "official",
+    releaseTrack: "internal",
+    usageAnalyticsDefault: true,
+  }, null, 2)}\n`;
+  writeFileSync(profilePath, profileContents);
+  mkdirSync(path.join(sourceRoot, "scripts"), { recursive: true });
+  mkdirSync(path.join(sourceRoot, "src"), { recursive: true });
+  cpSync(path.join(REPO_ROOT, "scripts", "release-archive.mjs"), path.join(sourceRoot, "scripts", "release-archive.mjs"));
+  cpSync(path.join(REPO_ROOT, "scripts", "release-worktree.mjs"), path.join(sourceRoot, "scripts", "release-worktree.mjs"));
+  cpSync(path.join(REPO_ROOT, "scripts", "release-shared.mjs"), path.join(sourceRoot, "scripts", "release-shared.mjs"));
+  cpSync(path.join(REPO_ROOT, "src", "build-info.mjs"), path.join(sourceRoot, "src", "build-info.mjs"));
+  writeFileSync(path.join(sourceRoot, "package.json"), `${JSON.stringify({ version: "1.11.3" }, null, 2)}\n`);
+  writeFileSync(path.join(sourceRoot, ".gitignore"), "node_modules/\ndist/\n");
+
+  git(["init", "--bare", remoteRoot], { cwd: fixtureRoot });
+  git(["init", "-b", "main"], { cwd: sourceRoot });
+  git(["config", "user.name", "Release Test"], { cwd: sourceRoot });
+  git(["config", "user.email", "release-test@example.com"], { cwd: sourceRoot });
+  git(["add", "."], { cwd: sourceRoot });
+  git(["commit", "-m", "previous release fixture"], { cwd: sourceRoot });
+  git(["tag", "v1.11.3"], { cwd: sourceRoot });
+  writeFileSync(path.join(sourceRoot, "package.json"), `${JSON.stringify({ version: "1.11.4" }, null, 2)}\n`);
+  writeFileSync(path.join(sourceRoot, "README.md"), "# Release artifact archive fixture\n");
+  git(["add", "."], { cwd: sourceRoot });
+  git(["commit", "-m", "release fixture"], { cwd: sourceRoot });
+  git(["remote", "add", "origin", remoteRoot], { cwd: sourceRoot });
+  git(["push", "-u", "origin", "main", "--tags"], { cwd: sourceRoot });
+
+  const controller = realpathSync(path.join(sourceRoot, "scripts", "release-worktree.mjs"));
+  node([
+    controller,
+    "prepare",
+    "--track",
+    "internal",
+    "--profile",
+    profilePath,
+    "--skip-install",
+  ], { cwd: sourceRoot });
+
+  const worktreePath = path.join(
+    dirname(realpathSync(sourceRoot)),
+    ".release-worktrees",
+    "git-leaf-v1.11.4",
+  );
+  const statePath = path.join(sourceRoot, ".git", "git-leaf-release-state.json");
+  const state = JSON.parse(readFileSync(statePath, "utf8"));
+  const releaseBuildId = `${state.buildId}.internal`;
+  const updateRoot = path.join(
+    worktreePath,
+    "dist",
+    "updates",
+    "git-leaf",
+    "internal-stable",
+  );
+  const artifacts = {
+    dmg: {
+      name: "GitLeaf-1.11.4-internal-darwin-universal.dmg",
+      contents: "signed and notarized dmg",
+    },
+    macZip: {
+      name: "GitLeaf-1.11.4-internal-darwin-universal.zip",
+      contents: "signed and notarized mac zip",
+    },
+    windowsZip: {
+      name: "GitLeaf-1.11.4-internal-win32-x64.zip",
+      contents: "verified windows zip",
+    },
+  };
+  mkdirSync(path.join(worktreePath, "dist"), { recursive: true });
+  for (const artifact of Object.values(artifacts)) {
+    writeFileSync(path.join(worktreePath, "dist", artifact.name), artifact.contents);
+    artifact.sha256 = createHash("sha256").update(artifact.contents).digest("hex");
+    artifact.size = Buffer.byteLength(artifact.contents);
+  }
+
+  const manifestFile = (artifact, platform) => ({
+    name: artifact.name,
+    url: `https://updates.example.test/git-leaf/internal-stable/${platform}/${artifact.name}`,
+    sha256: artifact.sha256,
+    size: artifact.size,
+  });
+  const macManifest = {
+    app: "Git Leaf",
+    releaseTrack: "internal",
+    channel: "internal-stable",
+    platform: "darwin-universal",
+    version: "1.11.4",
+    buildId: releaseBuildId,
+    commit: state.commit.slice(0, 12),
+    files: {
+      zip: manifestFile(artifacts.macZip, "darwin-universal"),
+      dmg: manifestFile(artifacts.dmg, "darwin-universal"),
+    },
+    autoUpdater: {
+      url: manifestFile(artifacts.macZip, "darwin-universal").url,
+    },
+  };
+  const armManifest = {
+    ...macManifest,
+    platform: "darwin-arm64",
+  };
+  const windowsManifest = {
+    app: "Git Leaf",
+    releaseTrack: "internal",
+    channel: "internal-stable",
+    platform: "win32-x64",
+    version: "1.11.4",
+    buildId: releaseBuildId,
+    commit: state.commit.slice(0, 12),
+    files: {
+      zip: manifestFile(artifacts.windowsZip, "win32-x64"),
+    },
+    autoUpdater: {
+      url: manifestFile(artifacts.windowsZip, "win32-x64").url,
+    },
+  };
+  for (const [platform, manifest] of [
+    ["darwin-universal", macManifest],
+    ["darwin-arm64", armManifest],
+    ["win32-x64", windowsManifest],
+  ]) {
+    const platformRoot = path.join(updateRoot, platform);
+    mkdirSync(platformRoot, { recursive: true });
+    writeFileSync(path.join(platformRoot, "latest.json"), `${JSON.stringify(manifest, null, 2)}\n`);
+    if (platform.startsWith("darwin-")) {
+      writeFileSync(
+        path.join(platformRoot, "releases.json"),
+        `${JSON.stringify({ current: state.version, releases: [manifest] }, null, 2)}\n`,
+      );
+    }
+  }
+  writeFileSync(
+    path.join(updateRoot, "darwin-universal", "sha256sums.txt"),
+    `${artifacts.macZip.sha256}  ${artifacts.macZip.name}\n${artifacts.dmg.sha256}  ${artifacts.dmg.name}\n`,
+  );
+  writeFileSync(
+    path.join(updateRoot, "win32-x64", "sha256sums.txt"),
+    `${artifacts.windowsZip.sha256}  ${artifacts.windowsZip.name}\n`,
+  );
+
+  state.candidateArtifactsVerifiedAt = "2026-07-24T10:00:00.000Z";
+  state.windowsReleaseSmoke = {
+    status: "verified",
+    repository: "MangoFuture1210/git-leaf",
+    workflowName: "Windows Release Smoke",
+    workflowPath: ".github/workflows/windows-release-smoke.yml",
+    runId: "123456789",
+    runAttempt: 1,
+    url: "https://github.com/MangoFuture1210/git-leaf/actions/runs/123456789",
+    headSha: state.commit,
+    event: "push",
+    runStatus: "completed",
+    conclusion: "success",
+    artifactId: "987654321",
+    artifactName: `git-leaf-windows-release-smoke-1-${state.commit}`,
+    artifactSize: artifacts.windowsZip.size,
+    verifiedAt: "2026-07-24T10:00:00.000Z",
+  };
+  state.history.push(
+    completedPublish("mac", "stable", "internal"),
+    completedPublish("windows", "stable", "internal"),
+  );
+  writeFileSync(statePath, `${JSON.stringify(state, null, 2)}\n`);
+  git(["tag", "v1.11.4", state.commit], { cwd: sourceRoot });
+  git(["push", "origin", "v1.11.4"], { cwd: sourceRoot });
+
+  const universalLatestPath = path.join(
+    updateRoot,
+    "darwin-universal",
+    "latest.json",
+  );
+  writeFileSync(
+    universalLatestPath,
+    `${JSON.stringify({
+      ...macManifest,
+      autoUpdater: {
+        url: macManifest.autoUpdater.url.replace("internal-stable", "internal-candidate"),
+      },
+    }, null, 2)}\n`,
+  );
+  const wrongUpdaterFinish = spawnSync(process.execPath, [controller, "finish"], {
+    cwd: sourceRoot,
+    encoding: "utf8",
+  });
+  assert.equal(wrongUpdaterFinish.status, 1);
+  assert.match(wrongUpdaterFinish.stderr, /auto-updater URL does not match its stable ZIP/);
+  assert.equal(existsSync(worktreePath), true);
+  assert.equal(existsSync(statePath), true);
+  writeFileSync(universalLatestPath, `${JSON.stringify(macManifest, null, 2)}\n`);
+
+  const wrongMacFiles = {
+    ...macManifest.files,
+    dmg: {
+      ...macManifest.files.dmg,
+      url: macManifest.files.dmg.url.replace("internal-stable", "internal-candidate"),
+    },
+  };
+  for (const [platform, manifest] of [
+    ["darwin-universal", { ...macManifest, files: wrongMacFiles }],
+    ["darwin-arm64", { ...armManifest, files: wrongMacFiles }],
+  ]) {
+    const platformRoot = path.join(updateRoot, platform);
+    writeFileSync(
+      path.join(platformRoot, "latest.json"),
+      `${JSON.stringify(manifest, null, 2)}\n`,
+    );
+    writeFileSync(
+      path.join(platformRoot, "releases.json"),
+      `${JSON.stringify({ current: state.version, releases: [manifest] }, null, 2)}\n`,
+    );
+  }
+  const wrongArtifactUrlFinish = spawnSync(process.execPath, [controller, "finish"], {
+    cwd: sourceRoot,
+    encoding: "utf8",
+  });
+  assert.equal(wrongArtifactUrlFinish.status, 1);
+  assert.match(
+    wrongArtifactUrlFinish.stderr,
+    /manifest is missing the expected darwin-universal dmg/,
+  );
+  assert.equal(existsSync(worktreePath), true);
+  assert.equal(existsSync(statePath), true);
+  for (const [platform, manifest] of [
+    ["darwin-universal", macManifest],
+    ["darwin-arm64", armManifest],
+  ]) {
+    const platformRoot = path.join(updateRoot, platform);
+    writeFileSync(
+      path.join(platformRoot, "latest.json"),
+      `${JSON.stringify(manifest, null, 2)}\n`,
+    );
+    writeFileSync(
+      path.join(platformRoot, "releases.json"),
+      `${JSON.stringify({ current: state.version, releases: [manifest] }, null, 2)}\n`,
+    );
+  }
+
+  const windowsChecksumPath = path.join(updateRoot, "win32-x64", "sha256sums.txt");
+  const windowsChecksums = readFileSync(windowsChecksumPath, "utf8");
+  rmSync(windowsChecksumPath);
+  const failedFinish = spawnSync(process.execPath, [controller, "finish"], {
+    cwd: sourceRoot,
+    encoding: "utf8",
+  });
+  assert.equal(failedFinish.status, 1);
+  assert.match(failedFinish.stderr, /Release archive file is missing/);
+  assert.equal(existsSync(worktreePath), true);
+  assert.equal(existsSync(statePath), true);
+  assert.equal(existsSync(path.join(sourceRoot, "dist", "releases", "v1.11.4")), false);
+  assert.equal(
+    existsSync(path.join(sourceRoot, "dist", "release-receipts", "v1.11.4.json")),
+    false,
+  );
+  writeFileSync(windowsChecksumPath, windowsChecksums);
+
+  const archiveRoot = path.join(sourceRoot, "dist", "releases", "v1.11.4");
+  mkdirSync(archiveRoot, { recursive: true });
+  writeFileSync(path.join(archiveRoot, "existing-download.txt"), "do not overwrite");
+  const conflictingFinish = spawnSync(process.execPath, [controller, "finish"], {
+    cwd: sourceRoot,
+    encoding: "utf8",
+  });
+  assert.equal(conflictingFinish.status, 1);
+  assert.match(conflictingFinish.stderr, /unexpected file inventory/);
+  assert.equal(
+    readFileSync(path.join(archiveRoot, "existing-download.txt"), "utf8"),
+    "do not overwrite",
+  );
+  assert.equal(existsSync(worktreePath), true);
+  assert.equal(existsSync(statePath), true);
+  rmSync(archiveRoot, { recursive: true });
+
+  assert.match(node([controller, "finish"], { cwd: sourceRoot }), /Finished v1\.11\.4/);
+  for (const artifact of Object.values(artifacts)) {
+    assert.equal(readFileSync(path.join(archiveRoot, artifact.name), "utf8"), artifact.contents);
+  }
+  assert.equal(
+    readFileSync(path.join(archiveRoot, "SHA256SUMS"), "utf8"),
+    `${Object.values(artifacts)
+      .map((artifact) => `${artifact.sha256}  ${artifact.name}`)
+      .join("\n")}\n`,
+  );
+  assert.equal(
+    existsSync(path.join(
+      archiveRoot,
+      "updates",
+      "git-leaf",
+      "internal-stable",
+      "darwin-universal",
+      "latest.json",
+    )),
+    true,
+  );
+  const receipt = JSON.parse(readFileSync(
+    path.join(sourceRoot, "dist", "release-receipts", "v1.11.4.json"),
+    "utf8",
+  ));
+  assert.equal(receipt.releaseArchive.path, "dist/releases/v1.11.4");
+  assert.equal(receipt.releaseArchive.channel, "internal-stable");
+  assert.deepEqual(
+    receipt.releaseArchive.artifacts.map(({ path: artifactPath, sha256, size }) => ({
+      path: artifactPath,
+      sha256,
+      size,
+    })),
+    Object.values(artifacts).map((artifact) => ({
+      path: `dist/releases/v1.11.4/${artifact.name}`,
+      sha256: artifact.sha256,
+      size: artifact.size,
+    })),
+  );
+  assert.equal(existsSync(worktreePath), false);
+  assert.equal(existsSync(statePath), false);
 });
 
 function git(args, { cwd }) {

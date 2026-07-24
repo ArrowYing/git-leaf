@@ -141,6 +141,7 @@ An explicit maintainer request to perform a formal release is standing authoriza
 - signing the macOS App and DMG, uploading the unreleased DMG to Apple's notary service, waiting for the result, and stapling the ticket;
 - publishing candidate, stable, and documented migration-bridge artifacts to the configured update server;
 - downloading and verifying published artifacts, and running any isolated update regression required by the release gate;
+- retaining the verified final stable packages, manifests, and checksums in the source checkout's local release archive;
 - creating and pushing the release tag, then finishing the release controller state.
 
 **Do not ask the maintainer to confirm any of these standard steps again, including the upload to Apple for notarization.** Pause only when the requested target, version, or release profile is materially ambiguous; when an action falls outside this documented workflow; or when recovery would require destructive credential or user-data changes.
@@ -207,7 +208,8 @@ Verify candidate publication end to end before recording candidate verification:
 For macOS, verify embedded build identity, `codesign`, `stapler`, and Gatekeeper against the locally
 retained immutable ZIP and DMG whose SHA-256 matches the bytes read through the official HTTPS URL.
 Hash equality binds those local platform checks to the published artifact without a second large-file
-transfer.
+transfer. These worktree-local files remain the source for the final local archive; `finish` must not
+download another copy from the network.
 
 Then record candidate verification:
 
@@ -267,6 +269,30 @@ node scripts/release-worktree.mjs finish
 ```
 
 All artifacts, manifests, checksums, and tags for one release must originate from the same frozen `RELEASE_COMMIT`. Candidate artifacts are inspected before stable publication. A version tag is created only after macOS and Windows stable artifacts have been verified and published.
+
+`finish` is also the local artifact-retention gate. Before removing the frozen worktree or release lock,
+it must copy the exact final physical stable set to:
+
+```text
+dist/releases/v<version>/
+```
+
+The retained set contains the macOS universal DMG and ZIP, the Windows x64 ZIP, the stable
+`latest.json` manifests and checksum files, and the macOS `releases.json` plus ARM migration manifests.
+For a public release the physical stable channel is `stable`; for an internal release it is
+`internal-stable`. Candidate files, the internal `1.11.3` legacy bridge, unpacked applications, and
+temporary packaging directories are not part of this archive.
+
+The controller revalidates manifest track, channel, platform, version, build ID, commit, stable artifact
+URL coordinates, and the auto-updater ZIP URL, then reads every package in full and compares its SHA-256
+and size with the stable manifest and checksum file. It verifies the copied bytes again and records
+repository-relative paths, sizes, SHA-256 values, and official URLs in the release receipt. A missing or
+mismatched file makes `finish` fail without deleting the release worktree or lock. A complete existing
+archive may be reused only when every archived byte still matches; conflicting files are never
+overwritten.
+
+`dist/` remains Git-ignored and local-only. The archive is an operational handoff and recovery copy, not
+source material to commit.
 
 ## Internal 1.11.3 migration bridge
 

@@ -20,6 +20,7 @@ import {
   packageVersion,
   releaseTagName,
 } from "./release-shared.mjs";
+import { archiveReleaseOutputs } from "./release-archive.mjs";
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const REPO_ROOT = path.dirname(path.dirname(SCRIPT_PATH));
@@ -1024,15 +1025,37 @@ function finishRelease() {
   assertReleaseCanBeTagged(state);
   const tagName = releaseTagName({ version: state.version });
   assertRemoteTag(state, tagName);
+  const releaseArchive = archiveReleaseOutputs(state, {
+    channel: physicalUpdateChannel({ track: state.track, phase: "stable" }),
+  });
+  const finishedAt = new Date().toISOString();
   const receiptDir = path.join(state.sourceRoot, "dist", "release-receipts");
   mkdirSync(receiptDir, { recursive: true });
   writeFileSync(
     path.join(receiptDir, `${tagName}.json`),
-    `${JSON.stringify({ ...state, status: "completed", finishedAt: new Date().toISOString() }, null, 2)}\n`,
+    `${JSON.stringify({
+      ...state,
+      status: "completed",
+      history: [
+        ...state.history,
+        {
+          action: "release-archive",
+          track: state.track,
+          channel: releaseArchive.channel,
+          outcome: "completed",
+          completedAt: releaseArchive.archivedAt,
+          path: releaseArchive.path,
+        },
+      ],
+      releaseArchive,
+      finishedAt,
+    }, null, 2)}\n`,
     "utf8",
   );
   removeReleaseWorktree(state, { statePath });
-  console.log(`Finished ${tagName}; release worktree and local lock removed`);
+  console.log(
+    `Finished ${tagName}; archived verified artifacts at ${releaseArchive.path}, then removed the release worktree and local lock`,
+  );
 }
 
 function abortRelease() {
@@ -1223,7 +1246,7 @@ Commands:
   push-tag
       Push and verify the version tag
   finish
-      Save a local receipt and remove the release worktree and lock
+      Archive and verify stable artifacts, save a local receipt, then remove the release worktree and lock
   abort
       Remove a pre-stable release worktree and lock
 `);
