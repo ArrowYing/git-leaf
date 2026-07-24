@@ -9,17 +9,24 @@ import {
   saveDesktopPreferences,
 } from "../src/desktop-config.mjs";
 
-test("desktop config keeps document outline visibility across repositories", async () => {
+test("desktop config keeps document outline layout across repositories", async () => {
   const userDataDir = await mkdtemp(path.join(tmpdir(), "git-leaf-outline-toggle-"));
 
   await saveDesktopPreferences({
     userDataDir,
     repoRoot: "/repo/one",
-    preferences: { documentOutlineCollapsed: true },
+    preferences: {
+      documentOutlineCollapsed: true,
+      documentOutlineWidth: 312,
+    },
   });
   assert.equal(
     (await readDesktopConfig({ userDataDir })).preferences.documentOutlineCollapsed,
     true,
+  );
+  assert.equal(
+    (await readDesktopConfig({ userDataDir })).preferences.documentOutlineWidth,
+    312,
   );
 
   await saveDesktopPreferences({
@@ -30,5 +37,9 @@ test("desktop config keeps document outline visibility across repositories", asy
   assert.equal(
     (await readDesktopConfig({ userDataDir })).preferences.documentOutlineCollapsed,
     false,
+  );
+  assert.equal(
+    (await readDesktopConfig({ userDataDir })).preferences.documentOutlineWidth,
+    312,
   );
 });

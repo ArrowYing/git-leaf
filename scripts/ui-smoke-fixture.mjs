@@ -15,8 +15,11 @@ export const TREE_TOOLTIP_SMOKE_RELATIVE_FILE = [
   "2026-07-12-asu-chatgpt-edu-boundary-card-with-an-intentionally-long-title-v01.md",
 ].join("/");
 
+export const DOCUMENT_OUTLINE_SMOKE_HEADING =
+  "这是一个明显超过文档导航最小宽度并且必须通过快速自绘浮层才能完整阅读的二级标题";
+
 export const TREE_TOOLTIP_SMOKE_ACCEPTANCE =
-  "展开侧边栏，将鼠标停在选中的长文件名上；浮窗出现后保持鼠标静止至少 10 秒，期间不得消失、闪动或重建。";
+  "目录树和文档导航中的截断项都应在悬停后快速显示同款浮层；文档导航分隔线可向右拖宽但不能小于初始宽度；浮层出现后保持鼠标静止至少 10 秒，期间不得消失、闪动或重建。";
 
 const SIBLING_FILE_NAMES = [
   "2026-07-12-market-research-interview-evidence-card-with-a-long-title-v01.md",
@@ -45,6 +48,10 @@ export function createTreeTooltipSmokeFixture({
         "## Acceptance",
         "",
         TREE_TOOLTIP_SMOKE_ACCEPTANCE,
+        "",
+        `## ${DOCUMENT_OUTLINE_SMOKE_HEADING}`,
+        "",
+        "The outline item is intentionally long so the isolated app exposes truncation.",
         "",
       ].join("\n"),
       "utf8",

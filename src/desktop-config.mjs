@@ -336,6 +336,7 @@ function normalizeDesktopPreferences(value, { newInstall = false } = {}) {
     "workbenchSessions",
     "sidebarWidth",
     "sidebarCollapsed",
+    "documentOutlineWidth",
     "documentOutlineCollapsed",
     "sourcePreviewRatio",
     "updateAvailableVersion",
@@ -357,6 +358,7 @@ function normalizeDesktopPreferences(value, { newInstall = false } = {}) {
   const treeDirectories = normalizeTreeDirectories(source.treeDirectories);
   const workbenchSessions = normalizeWorkbenchSessions(source.workbenchSessions);
   const sidebarWidth = positiveInteger(source.sidebarWidth);
+  const documentOutlineWidth = positiveInteger(source.documentOutlineWidth);
   const sidebarCollapsed = typeof source.sidebarCollapsed === "boolean"
     ? source.sidebarCollapsed
     : null;
@@ -384,6 +386,9 @@ function normalizeDesktopPreferences(value, { newInstall = false } = {}) {
   }
   if (sidebarWidth) {
     preferences.sidebarWidth = sidebarWidth;
+  }
+  if (documentOutlineWidth) {
+    preferences.documentOutlineWidth = documentOutlineWidth;
   }
   if (sidebarCollapsed !== null) {
     preferences.sidebarCollapsed = sidebarCollapsed;

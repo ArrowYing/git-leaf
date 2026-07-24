@@ -13,6 +13,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 
+import { publishGitLeafShareLink } from "../src/git-share-publish.mjs";
 import { syncSelectedFiles } from "../src/git-sync.mjs";
 
 test("real one-click sync commits and pushes every changed file type", async () => {
@@ -84,6 +85,45 @@ test("real first sync can publish an explicit commit object and establish upstre
     assert.equal((await git(repoRoot, ["rev-parse", "--abbrev-ref", "@{upstream}"])).stdout.trim(), "origin/main");
     assert.equal(await readFile(path.join(repoRoot, "README.md"), "utf8"), "ready to publish\n");
     assert.equal((await git(bare, ["show", "main:README.md"])).stdout, "ready to publish\n");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("real share publication commits a new document, verifies remote main, and returns its link", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "git-leaf-real-share-publish-"));
+  const bare = path.join(root, "remote.git");
+  const repoRoot = path.join(root, "repo");
+  try {
+    await mkdir(bare, { recursive: true });
+    await git(bare, ["init", "--bare", "--initial-branch=main"]);
+    await git(root, ["clone", bare, repoRoot]);
+    await configureIdentity(repoRoot);
+    await writeFile(path.join(repoRoot, "README.md"), "# Initial\n");
+    await git(repoRoot, ["add", "README.md"]);
+    await git(repoRoot, ["commit", "-m", "Initial"]);
+    await git(repoRoot, ["push", "-u", "origin", "main"]);
+    await writeFile(path.join(repoRoot, "share-me.md"), "# Ready to share\n");
+
+    const result = await publishGitLeafShareLink({
+      repo: { id: "fixture", root: repoRoot, branch: "main" },
+      file: "share-me.md",
+      gitRunner: async (cwd, args) => {
+        if (args.join(" ") === "remote get-url origin") {
+          return { stdout: "git@github.com:ExampleOrg/docs-repo.git\n", stderr: "" };
+        }
+        return git(cwd, args);
+      },
+    });
+
+    assert.equal(result.ok, true, result.error);
+    assert.equal(result.published, true);
+    const shareUrl = new URL(result.url);
+    assert.equal(shareUrl.searchParams.get("repo"), "exampleorg/docs-repo");
+    assert.equal(shareUrl.searchParams.get("path"), "share-me.md");
+    const remoteHead = (await git(bare, ["rev-parse", "main"])).stdout.trim();
+    assert.equal(shareUrl.searchParams.get("rev"), remoteHead);
+    assert.equal((await git(bare, ["show", "main:share-me.md"])).stdout, "# Ready to share\n");
   } finally {
     await rm(root, { recursive: true, force: true });
   }

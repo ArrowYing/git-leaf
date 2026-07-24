@@ -256,15 +256,9 @@ export async function syncSelectedFiles({
       });
     }
     const pushRefspec = `${publishHead}:refs/heads/${repo.branch}`;
-    if (hasUpstream) {
-      await runStep(context, "push", gitRunner, ["push", "origin", pushRefspec]);
-    } else {
-      await runStep(context, "push", gitRunner, ["push", "origin", pushRefspec]);
-      await runStep(context, "set upstream", gitRunner, [
-        "update-ref",
-        `refs/remotes/origin/${repo.branch}`,
-        publishHead,
-      ]);
+    await runStep(context, "push", gitRunner, ["push", "origin", pushRefspec]);
+    await verifyRemotePublication(context, publishHead, gitRunner);
+    if (!hasUpstream) {
       await runStep(context, "set upstream", gitRunner, [
         "branch",
         `--set-upstream-to=origin/${repo.branch}`,
@@ -281,6 +275,7 @@ export async function syncSelectedFiles({
       retryCount,
       driftKind,
       remainingChanges: !worktreeClean,
+      publishedHead: publishHead,
     };
   } catch (error) {
     return failurePayload({
@@ -289,6 +284,89 @@ export async function syncSelectedFiles({
       error: commandErrorText(error),
       retryCount,
       driftKind,
+    });
+  }
+}
+
+export async function publishCurrentBranch({
+  repo,
+  files = [],
+  gitRunner = runGitCommand,
+  operationPathExists = gitOperationPathExists,
+}) {
+  const context = {
+    repo,
+    files: normalizeSelectedFiles(files),
+    note: "",
+  };
+
+  try {
+    await preflightGitSync(context, gitRunner, operationPathExists);
+    const status = await runStep(context, "status", gitRunner, [
+      "status",
+      "--porcelain=v1",
+      "-z",
+      "--untracked-files=all",
+    ]);
+    if (String(status.stdout ?? "")) {
+      return failurePayload({
+        ...context,
+        step: "validate",
+        error: "当前仍有未提交的本地改动，请先完成同步后再发布。",
+      });
+    }
+
+    const hasUpstream = await hasUpstreamBranch(context, gitRunner);
+    const publishHead = await readCurrentHead(repo, gitRunner);
+    let shouldPush = true;
+    if (hasUpstream) {
+      await runStep(context, "fetch", gitRunner, ["fetch", "origin", repo.branch]);
+      const comparison = await runStep(context, "compare remote", gitRunner, [
+        "rev-list",
+        "--left-right",
+        "--count",
+        `HEAD...refs/remotes/origin/${repo.branch}`,
+      ]);
+      const remoteCounts = remoteCommitCounts(comparison.stdout);
+      if (remoteCounts.ahead > 0 && remoteCounts.behind > 0) {
+        return failurePayload({
+          ...context,
+          step: "compare remote",
+          error: "当前分支与远端已经分叉。为避免自动改写本地提交，请交给 AI Agent 处理后再发布。",
+        });
+      }
+      shouldPush = remoteCounts.ahead > 0;
+    }
+
+    if (shouldPush) {
+      await runStep(context, "push", gitRunner, [
+        "push",
+        "origin",
+        `${publishHead}:refs/heads/${repo.branch}`,
+      ]);
+    }
+    await verifyRemotePublication(context, publishHead, gitRunner);
+    if (!hasUpstream) {
+      await runStep(context, "set upstream", gitRunner, [
+        "branch",
+        `--set-upstream-to=origin/${repo.branch}`,
+        "--",
+        repo.branch,
+      ]);
+    }
+
+    return {
+      ok: true,
+      repo: repo.id,
+      branch: repo.branch,
+      files: context.files,
+      publishedHead: publishHead,
+    };
+  } catch (error) {
+    return failurePayload({
+      ...context,
+      step: error.step ?? "git",
+      error: commandErrorText(error),
     });
   }
 }
@@ -534,6 +612,31 @@ async function runStep(context, step, gitRunner, args) {
   } catch (error) {
     error.step = step;
     throw error;
+  }
+}
+
+async function verifyRemotePublication(context, revision, gitRunner) {
+  await runStep(context, "verify publication", gitRunner, [
+    "fetch",
+    "origin",
+    context.repo.branch,
+  ]);
+  try {
+    await runStep(context, "verify publication", gitRunner, [
+      "merge-base",
+      "--is-ancestor",
+      revision,
+      `refs/remotes/origin/${context.repo.branch}`,
+    ]);
+  } catch (error) {
+    if (!isExternalCommandExit(error, 1)) {
+      throw error;
+    }
+    const publicationError = new Error(
+      `远端 origin/${context.repo.branch} 尚未包含本次提交。Git Leaf 已保留本地提交，请检查网络或远端权限后重试。`,
+    );
+    publicationError.step = "verify publication";
+    throw publicationError;
   }
 }
 

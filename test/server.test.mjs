@@ -1140,6 +1140,92 @@ test("share-link API returns a main-primary published document link", async () =
   }
 });
 
+test("share-link publish API commits, pushes, verifies origin/main, and returns the link", async () => {
+  const repoRoot = await mkdtemp(path.join(tmpdir(), "git-leaf-share-publish-api-"));
+  await execFileAsync("git", ["init", "-b", "main"], { cwd: repoRoot });
+  await execFileAsync("git", ["config", "user.name", "Git Leaf Tests"], { cwd: repoRoot });
+  await execFileAsync("git", ["config", "user.email", "git-leaf@example.test"], { cwd: repoRoot });
+  await writeFile(path.join(repoRoot, "README.md"), "# Initial\n");
+  await execFileAsync("git", ["add", "README.md"], { cwd: repoRoot });
+  await execFileAsync("git", ["commit", "-m", "Initial"], { cwd: repoRoot });
+  await execFileAsync("git", ["remote", "add", "origin", "git@github.com:ExampleOrg/docs-repo.git"], {
+    cwd: repoRoot,
+  });
+  await writeFile(path.join(repoRoot, "sample.md"), "# Ready to share\n");
+
+  const initialHead = "a".repeat(40);
+  const publishedHead = "b".repeat(40);
+  const calls = [];
+  let committed = false;
+  let pushed = false;
+  const gitRunner = async (_cwd, args) => {
+    calls.push(args);
+    const command = args.join(" ");
+    if (command === "config --get user.name") return { stdout: "Git Leaf Tests\n", stderr: "" };
+    if (command === "config --get user.email") return { stdout: "git-leaf@example.test\n", stderr: "" };
+    if (command === "remote get-url origin") {
+      return { stdout: "git@github.com:ExampleOrg/docs-repo.git\n", stderr: "" };
+    }
+    if (command === "rev-parse --verify HEAD") {
+      return { stdout: `${committed ? publishedHead : initialHead}\n`, stderr: "" };
+    }
+    if (args.includes("@{upstream}")) return { stdout: "origin/main\n", stderr: "" };
+    if (args[0] === "status") {
+      return { stdout: committed ? "" : "?? sample.md\0", stderr: "" };
+    }
+    if (args[0] === "diff" && args[1] === "--cached") {
+      return { stdout: "sample.md\0", stderr: "" };
+    }
+    if (args[0] === "diff") return { stdout: committed ? "" : "sample.md\0", stderr: "" };
+    if (args[0] === "hash-object") return { stdout: `${"c".repeat(40)}\n`, stderr: "" };
+    if (args[0] === "rev-list") return { stdout: "0\t0\n", stderr: "" };
+    if (args[0] === "commit") {
+      committed = true;
+      return { stdout: `[main ${publishedHead.slice(0, 7)}] Sync Git Leaf files\n`, stderr: "" };
+    }
+    if (args[0] === "push") {
+      pushed = true;
+      return { stdout: "", stderr: "" };
+    }
+    if (args[0] === "merge-base") {
+      if (pushed) return { stdout: "", stderr: "" };
+      const error = new Error("not published");
+      error.code = 1;
+      throw error;
+    }
+    if (args[0] === "log") return { stdout: `${publishedHead}\n`, stderr: "" };
+    if (args[0] === "show") return { stdout: "# Ready to share\n", stderr: "" };
+    return { stdout: "", stderr: "" };
+  };
+  const initialFile = await resolvePreviewPath(repoRoot, "sample.md");
+  const repository = await createRepositoryInfo({ repoRoot, initialFile });
+  const server = createPreviewServer({ repoRoot, initialFile, repository, gitRunner });
+  const baseUrl = await listen(server);
+
+  try {
+    const response = await fetch(
+      `${baseUrl}/api/share-link?repo=${repository.id}&file=sample.md`,
+      { method: "POST" },
+    );
+    const payload = await response.json();
+
+    assert.equal(response.status, 200);
+    assert.equal(payload.ok, true);
+    assert.equal(payload.published, true);
+    assert.equal(new URL(payload.url).searchParams.get("rev"), publishedHead);
+    const pushIndex = calls.findIndex((args) => args[0] === "push");
+    assert.ok(pushIndex >= 0);
+    assert.deepEqual(calls.slice(pushIndex, pushIndex + 3), [
+      ["push", "origin", `${publishedHead}:refs/heads/main`],
+      ["fetch", "origin", "main"],
+      ["merge-base", "--is-ancestor", publishedHead, "refs/remotes/origin/main"],
+    ]);
+  } finally {
+    await close(server);
+    await rm(repoRoot, { recursive: true, force: true });
+  }
+});
+
 test("index page exposes edit capability for the current browser", async () => {
   const repoRoot = await mkdtemp(path.join(tmpdir(), "git-leaf-"));
   await writeFile(path.join(repoRoot, "sample.md"), "# Sample\n");
@@ -1432,6 +1518,7 @@ test("public module assets are served for the browser", async () => {
       "line-selection.js",
       "agent-context.js",
       "layout.js",
+      "overflow-tooltip.js",
       "outline.js",
       "tree-refresh.js",
       "document-refresh.js",

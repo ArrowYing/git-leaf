@@ -40,6 +40,7 @@ import {
   syncSelectedFiles,
 } from "./git-sync.mjs";
 import { createGitLeafShareLink } from "./git-leaf-open-link.mjs";
+import { publishGitLeafShareLink } from "./git-share-publish.mjs";
 import { sourceLinesFromMarkdown } from "../public/line-selection.js";
 
 const APP_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
@@ -182,6 +183,7 @@ async function handleRequest(request, response, context) {
     requestUrl.pathname === "/line-selection.js" ||
     requestUrl.pathname === "/agent-context.js" ||
     requestUrl.pathname === "/layout.js" ||
+    requestUrl.pathname === "/overflow-tooltip.js" ||
     requestUrl.pathname === "/outline.js" ||
     requestUrl.pathname === "/tree-refresh.js" ||
     requestUrl.pathname === "/document-refresh.js" ||
@@ -283,6 +285,16 @@ async function handleRequest(request, response, context) {
     const repo = await requestRepository(requestUrl, context);
     const file = documentFileFromRequest(requestUrl, repo);
     try {
+      if (request.method === "POST") {
+        requireEditableRequest(request, context, repo);
+        const payload = await publishGitLeafShareLink({
+          repo,
+          file,
+          gitRunner: context.gitRunner,
+        });
+        sendJson(response, payload.ok ? 200 : 409, payload);
+        return;
+      }
       sendJson(response, 200, {
         url: await createGitLeafShareLink({
           repoRoot: repo.root,

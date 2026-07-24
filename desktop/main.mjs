@@ -64,6 +64,8 @@ import { applyDevelopmentUserDataOverride } from "../src/desktop-user-data.mjs";
 import {
   fastForwardSharedMain,
   inspectSharedMain,
+  inspectSharedMainWithFetchRecovery,
+  sharedFetchFailurePrompt,
   sharedMainWorktree,
 } from "../src/git-share-open.mjs";
 import { syncSelectedFiles } from "../src/git-sync.mjs";
@@ -2109,11 +2111,31 @@ async function openSharedDesktopRequest(options) {
     }
   }
 
-  let state = await inspectSharedMain({
-    repoRoot: primaryRoot,
-    file: options.file,
-    rev: options.rev,
-  });
+  let state;
+  try {
+    state = await inspectSharedMainWithFetchRecovery({
+      inspect: () => inspectSharedMain({
+        repoRoot: primaryRoot,
+        file: options.file,
+        rev: options.rev,
+      }),
+      promptFetchRetry: confirmSharedFetchRetry,
+    });
+  } catch (error) {
+    await failSharedDesktopRequest(
+      options,
+      "无法检查最新 main",
+      error instanceof Error ? error.message : String(error),
+      "main_worktree_check_failed",
+    );
+    return;
+  }
+  if (state.state === "fetch_failed") {
+    recordDeepLinkTelemetry(options, "error", "fetch_failed");
+    void logDesktopHandoff("failed", options, state.error || "git fetch failed");
+    focusMainWindow();
+    return;
+  }
   try {
     if (state.state === "behind_clean") {
       await fastForwardSharedMain(primaryRoot);
@@ -2221,6 +2243,14 @@ async function confirmSharedDesktopAction({ message, detail, confirmText }) {
     cancelId: 1,
     noLink: true,
   };
+  const result = mainWindow && !mainWindow.isDestroyed()
+    ? await dialog.showMessageBox(mainWindow, options)
+    : await dialog.showMessageBox(options);
+  return result.response === 0;
+}
+
+async function confirmSharedFetchRetry(state) {
+  const options = sharedFetchFailurePrompt(state);
   const result = mainWindow && !mainWindow.isDestroyed()
     ? await dialog.showMessageBox(mainWindow, options)
     : await dialog.showMessageBox(options);

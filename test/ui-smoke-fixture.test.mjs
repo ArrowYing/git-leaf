@@ -7,6 +7,7 @@ import path from "node:path";
 import test from "node:test";
 
 import {
+  DOCUMENT_OUTLINE_SMOKE_HEADING,
   TREE_TOOLTIP_SMOKE_RELATIVE_FILE,
   cleanupTreeTooltipSmokeFixture,
   createTreeTooltipSmokeFixture,
@@ -28,7 +29,7 @@ test("tree tooltip smoke fixture creates and cleans a deterministic long filenam
     );
     assert.match(
       readFileSync(path.join(fixture.repoRoot, fixture.file), "utf8"),
-      /Long filename tooltip smoke/,
+      new RegExp(DOCUMENT_OUTLINE_SMOKE_HEADING),
     );
     const siblings = readdirSync(path.dirname(path.join(fixture.repoRoot, fixture.file)));
     assert.ok(siblings.length >= 5);

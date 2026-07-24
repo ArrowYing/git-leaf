@@ -18,10 +18,15 @@ import {
   writeAgentContextItems,
 } from "./agent-context.js";
 import {
+  DOCUMENT_OUTLINE_MAX_WIDTH,
+  DOCUMENT_OUTLINE_MIN_WIDTH,
+  clampDocumentOutlineWidth,
   clampSidebarWidth,
+  documentOutlineWidthFromStorageValue,
   sidebarCollapsedFromStorageValue,
   sidebarWidthFromStorageValue,
 } from "./layout.js";
+import { createOverflowTooltip } from "./overflow-tooltip.js";
 import {
   activeOutlineIdForSourceLine,
   createOutlineClickViewportGuard,
@@ -128,10 +133,12 @@ import {
 const SIDEBAR_WIDTH_STORAGE_KEY = "git-leaf-sidebar-width";
 const SIDEBAR_COLLAPSED_STORAGE_KEY = "git-leaf-sidebar-collapsed";
 const DOCUMENT_OUTLINE_COLLAPSED_STORAGE_KEY = "git-leaf-document-outline-collapsed";
+const DOCUMENT_OUTLINE_WIDTH_STORAGE_KEY = "git-leaf-document-outline-width";
 const SOURCE_SPLIT_STORAGE_KEY = "git-leaf-source-preview-ratio";
 const TREE_DIRECTORY_STORAGE_KEY = "git-leaf-tree-directories";
 const WORKBENCH_SESSION_STORAGE_KEY = "git-leaf-workbench-sessions";
 const SIDEBAR_WIDTH_STEP = 24;
+const DOCUMENT_OUTLINE_WIDTH_STEP = 24;
 const SOURCE_SPLIT_STEP = 5;
 const TREE_REFRESH_INTERVAL_MS = 5000;
 const SOURCE_SYNC_DELAY_MS = 500;
@@ -263,12 +270,6 @@ const state = {
   documentTabTooltipTimer: null,
   documentTabTooltipPendingPath: "",
   documentTabTooltipPath: "",
-  treeItemTooltipTimer: null,
-  treeItemTooltipScrollBlocked: false,
-  treeItemTooltipPointerX: null,
-  treeItemTooltipPointerY: null,
-  treeItemTooltipPendingKey: "",
-  treeItemTooltipKey: "",
   documentSearchQuery: "",
   documentSearchMatches: [],
   documentSearchIndex: -1,
@@ -298,6 +299,7 @@ const emptyNewDocument = document.querySelector("#empty-new-document");
 const fileActionMenu = document.querySelector("#file-action-menu");
 const documentBody = document.querySelector("#document-body");
 const documentOutline = document.querySelector("#document-outline");
+const documentOutlineResizer = document.querySelector("#document-outline-resizer");
 const documentOutlineToggle = document.querySelector("#document-outline-toggle");
 const documentWorkspace = document.querySelector("#document-workspace");
 const documentContent = document.querySelector("#document-content");
@@ -306,7 +308,7 @@ const sourceSplitter = document.querySelector("#source-splitter");
 const sourceEditorPane = document.querySelector("#source-editor-pane");
 const sourceEditorHost = document.querySelector("#source-editor");
 const treeFilter = document.querySelector("#tree-filter");
-const treeItemTooltip = document.querySelector("#tree-item-tooltip");
+const overflowTooltip = document.querySelector("#overflow-tooltip");
 const worktreeSwitcher = document.querySelector("#worktree-switcher");
 const worktreeSwitcherToggle = document.querySelector("#worktree-switcher-toggle");
 const worktreeSwitcherMenu = document.querySelector("#worktree-switcher-menu");
@@ -371,6 +373,28 @@ const modeButtons = [...document.querySelectorAll("[data-mode]")];
 const themeToggle = document.querySelector("#theme-toggle");
 const chartTooltipController = attachChartTooltips(documentContent);
 const sourceChartTooltipController = attachChartTooltips(sourceEditorHost);
+const overflowTooltipController = createOverflowTooltip({
+  tooltip: overflowTooltip,
+  boundsElement: appShell,
+  isBlocked: () => !gitSyncPanel.hidden || !appDialog.hidden,
+  sources: [
+    {
+      name: "file-tree",
+      container: fileTree,
+      itemFromTarget: treeItemFromEventTarget,
+      labelElement: treeItemLabelElement,
+      details: treeItemTooltipDetails,
+      key: treeItemTooltipKey,
+    },
+    {
+      name: "document-outline",
+      container: documentOutline,
+      itemFromTarget: outlineItemFromEventTarget,
+      details: outlineItemTooltipDetails,
+      key: (item) => item.dataset.outlineTarget,
+    },
+  ],
+});
 
 if (!canEditCurrentRepo() && isEditingModeName(state.mode)) {
   state.mode = "preview";
@@ -381,6 +405,8 @@ applyShortcutTooltips();
 
 sidebarResizer.addEventListener("pointerdown", startSidebarResize);
 sidebarResizer.addEventListener("keydown", handleSidebarResizeKeydown);
+documentOutlineResizer.addEventListener("pointerdown", startDocumentOutlineResize);
+documentOutlineResizer.addEventListener("keydown", handleDocumentOutlineResizeKeydown);
 sidebarToggle.addEventListener("click", () => runAppShortcut("toggle-sidebar"));
 historyBackButton.addEventListener("click", () => runAppShortcut("history-back"));
 historyForwardButton.addEventListener("click", () => runAppShortcut("history-forward"));
@@ -388,13 +414,7 @@ sourceSplitter.addEventListener("pointerdown", startSourceSplitResize);
 sourceSplitter.addEventListener("keydown", handleSourceSplitKeydown);
 fileTree.addEventListener("keydown", handleFileTreeKeydown);
 fileTree.addEventListener("focusin", handleFileTreeFocusIn);
-fileTree.addEventListener("focusin", handleTreeItemTooltipFocusIn);
-fileTree.addEventListener("focusout", hideTreeItemTooltip);
-fileTree.addEventListener("pointerover", handleTreeItemTooltipPointerOver);
-fileTree.addEventListener("pointermove", handleTreeItemTooltipPointerMove);
-fileTree.addEventListener("pointerout", handleTreeItemTooltipPointerOut);
 fileTree.addEventListener("scroll", scheduleWorkbenchSessionPersist);
-fileTree.addEventListener("scroll", handleTreeItemTooltipScroll);
 fileTree.addEventListener("contextmenu", handleFileTreeContextMenu);
 documentTabs.addEventListener("wheel", handleDocumentTabsWheel, { passive: false });
 documentTabs.addEventListener("contextmenu", handleDocumentTabContextMenu);
@@ -456,7 +476,6 @@ window.addEventListener("focus", refreshWorktreesOnWindowFocus);
 window.addEventListener("resize", positionFrontmatterFilterPopover);
 window.addEventListener("resize", positionWorktreeSwitcherMenu);
 window.addEventListener("resize", scheduleListSourceLineGutterSync);
-window.addEventListener("resize", hideTreeItemTooltip);
 window.addEventListener("resize", closeFileActionMenu);
 window.addEventListener("pagehide", flushWorkbenchSessionPreference);
 window.addEventListener("pagehide", () => {
@@ -512,6 +531,7 @@ treeFilter.addEventListener("keydown", handleTreeFilterKeydown);
 
 restoreSidebarWidth();
 restoreSidebarCollapsed();
+restoreDocumentOutlineWidth();
 restoreDocumentOutlineCollapsed();
 restoreSourceSplitRatio();
 try {
@@ -872,6 +892,7 @@ function showNoDocumentSelected({ pushState = false } = {}) {
   setMode("preview", { persist: false, focus: false });
   showNoDocumentSurface();
   documentOutline.hidden = true;
+  documentOutlineResizer.hidden = true;
   documentOutlineToggle.hidden = true;
   documentOutline.innerHTML = "";
   state.outlineItems = [];
@@ -908,6 +929,7 @@ function showStartupError(error) {
   hideNoDocumentSurface();
   documentContent.innerHTML = `<p class="error-message">${escapeHtml(message)}</p>`;
   documentOutline.hidden = true;
+  documentOutlineResizer.hidden = true;
   documentOutlineToggle.hidden = true;
   documentOutline.innerHTML = "";
   state.outlineItems = [];
@@ -922,6 +944,7 @@ function showNoDocumentSurface() {
   documentEmptyState.hidden = false;
   documentBody.classList.remove("has-outline");
   documentOutline.hidden = true;
+  documentOutlineResizer.hidden = true;
   documentOutlineToggle.hidden = true;
   documentOutline.innerHTML = "";
   state.outlineItems = [];
@@ -1475,6 +1498,9 @@ function handleDesktopPreferencesEvent(event) {
   const documentOutlineCollapsedChanged =
     typeof preferences.documentOutlineCollapsed === "boolean" &&
     preferences.documentOutlineCollapsed !== state.documentOutlineCollapsed;
+  const documentOutlineWidthChanged =
+    Number.isFinite(Number(preferences.documentOutlineWidth)) &&
+    Number(preferences.documentOutlineWidth) !== currentDocumentOutlineWidth();
   state.desktopPreferences = { ...preferences };
   applyAppearancePreferences(preferences);
   if (shouldRebuildFileTree) {
@@ -1482,6 +1508,9 @@ function handleDesktopPreferencesEvent(event) {
   }
   if (documentOutlineCollapsedChanged) {
     setDocumentOutlineCollapsed(preferences.documentOutlineCollapsed, { persist: false });
+  }
+  if (documentOutlineWidthChanged) {
+    setDocumentOutlineWidth(preferences.documentOutlineWidth, { persist: false });
   }
   event.preventDefault();
 }
@@ -1923,7 +1952,7 @@ window.addEventListener("popstate", (event) => {
 });
 
 function renderTree() {
-  hideTreeItemTooltip();
+  overflowTooltipController.hide();
   const previousTreeFocus = treeFocusSnapshot();
   fileTree.innerHTML = "";
   const list = document.createElement("ul");
@@ -2291,159 +2320,6 @@ function hideDocumentTabTooltip() {
   documentTabTooltip.hidden = true;
 }
 
-function handleTreeItemTooltipPointerOver(event) {
-  const item = treeItemFromEventTarget(event.target);
-  if (!item || item.contains(event.relatedTarget)) {
-    return;
-  }
-  if (!state.treeItemTooltipScrollBlocked) {
-    state.treeItemTooltipPointerX = event.clientX;
-    state.treeItemTooltipPointerY = event.clientY;
-  }
-  scheduleTreeItemTooltip(item);
-}
-
-function handleTreeItemTooltipPointerMove(event) {
-  const item = treeItemFromEventTarget(event.target);
-  if (!item) {
-    return;
-  }
-
-  const pointerMoved = state.treeItemTooltipPointerX === null
-    || state.treeItemTooltipPointerY === null
-    || event.clientX !== state.treeItemTooltipPointerX
-    || event.clientY !== state.treeItemTooltipPointerY;
-  state.treeItemTooltipPointerX = event.clientX;
-  state.treeItemTooltipPointerY = event.clientY;
-  if (state.treeItemTooltipScrollBlocked && !pointerMoved) {
-    return;
-  }
-  state.treeItemTooltipScrollBlocked = false;
-
-  const key = treeItemTooltipKey(item);
-  if (!treeItemTooltip?.hidden && state.treeItemTooltipKey === key) {
-    return;
-  }
-  scheduleTreeItemTooltip(item);
-}
-
-function handleTreeItemTooltipPointerOut(event) {
-  const item = treeItemFromEventTarget(event.target);
-  if (!item || item.contains(event.relatedTarget)) {
-    return;
-  }
-  hideTreeItemTooltip();
-}
-
-function handleTreeItemTooltipFocusIn(event) {
-  const item = treeItemFromEventTarget(event.target);
-  if (item) {
-    state.treeItemTooltipScrollBlocked = false;
-    scheduleTreeItemTooltip(item);
-  }
-}
-
-function handleTreeItemTooltipScroll() {
-  state.treeItemTooltipScrollBlocked = true;
-  hideTreeItemTooltip();
-}
-
-function treeItemTooltipIsBlocked() {
-  return !gitSyncPanel.hidden || !appDialog.hidden;
-}
-
-function scheduleTreeItemTooltip(item) {
-  if (
-    !treeItemTooltip
-    || state.treeItemTooltipScrollBlocked
-    || treeItemTooltipIsBlocked()
-    || !treeItemIsTruncated(item)
-  ) {
-    hideTreeItemTooltip();
-    return;
-  }
-
-  const key = treeItemTooltipKey(item);
-  if (state.treeItemTooltipPendingKey === key && state.treeItemTooltipTimer) {
-    return;
-  }
-
-  window.clearTimeout(state.treeItemTooltipTimer);
-  state.treeItemTooltipPendingKey = key;
-  state.treeItemTooltipTimer = window.setTimeout(() => {
-    state.treeItemTooltipTimer = null;
-    state.treeItemTooltipPendingKey = "";
-    showTreeItemTooltip(item);
-  }, 120);
-}
-
-function showTreeItemTooltip(item) {
-  if (
-    !treeItemTooltip
-    || treeItemTooltipIsBlocked()
-    || !item?.isConnected
-    || !treeItemIsTruncated(item)
-  ) {
-    hideTreeItemTooltip();
-    return;
-  }
-
-  const details = treeItemTooltipDetails(item);
-  if (!details.name) {
-    hideTreeItemTooltip();
-    return;
-  }
-
-  const name = document.createElement("div");
-  name.className = "tree-item-tooltip-name";
-  name.textContent = details.name;
-
-  treeItemTooltip.textContent = "";
-  treeItemTooltip.append(name);
-  if (details.path && details.path !== details.name) {
-    const fullPath = document.createElement("div");
-    fullPath.className = "tree-item-tooltip-path";
-    fullPath.textContent = details.path;
-    treeItemTooltip.append(fullPath);
-  }
-
-  state.treeItemTooltipKey = treeItemTooltipKey(item);
-  treeItemTooltip.style.left = "0px";
-  treeItemTooltip.style.top = "0px";
-  treeItemTooltip.hidden = false;
-  positionTreeItemTooltip(item);
-}
-
-function positionTreeItemTooltip(item) {
-  if (!treeItemTooltip || treeItemTooltip.hidden || !item?.isConnected) {
-    return;
-  }
-
-  const rect = item.getBoundingClientRect();
-  const tooltipRect = treeItemTooltip.getBoundingClientRect();
-  const shellRect = appShell.getBoundingClientRect();
-  const viewportPadding = 8;
-  const idealLeft = rect.right - shellRect.left + 8;
-  const maxLeft = shellRect.width - tooltipRect.width - viewportPadding;
-  const left = Math.max(viewportPadding, Math.min(idealLeft, maxLeft));
-  const idealTop = rect.top - shellRect.top + (rect.height - tooltipRect.height) / 2;
-  const maxTop = shellRect.height - tooltipRect.height - viewportPadding;
-  const top = Math.max(viewportPadding, Math.min(idealTop, maxTop));
-  treeItemTooltip.style.left = `${Math.round(left)}px`;
-  treeItemTooltip.style.top = `${Math.round(top)}px`;
-}
-
-function hideTreeItemTooltip() {
-  window.clearTimeout(state.treeItemTooltipTimer);
-  state.treeItemTooltipTimer = null;
-  state.treeItemTooltipPendingKey = "";
-  state.treeItemTooltipKey = "";
-  if (!treeItemTooltip) {
-    return;
-  }
-  treeItemTooltip.hidden = true;
-}
-
 function treeItemFromEventTarget(target) {
   const item = target?.closest?.("[data-tree-item]");
   return item && fileTree.contains(item) ? item : null;
@@ -2454,11 +2330,6 @@ function treeItemLabelElement(item) {
     return item.querySelector(".tree-file-label") || item;
   }
   return item;
-}
-
-function treeItemIsTruncated(item) {
-  const label = treeItemLabelElement(item);
-  return Boolean(label && label.scrollWidth > label.clientWidth + 1);
 }
 
 function treeItemTooltipDetails(item) {
@@ -2473,6 +2344,18 @@ function treeItemTooltipDetails(item) {
 function treeItemTooltipKey(item) {
   const details = treeItemTooltipDetails(item);
   return `${item?.dataset.treeItem || ""}:${details.path || details.name}`;
+}
+
+function outlineItemFromEventTarget(target) {
+  const item = target?.closest?.("[data-outline-target]");
+  return item && documentOutline.contains(item) ? item : null;
+}
+
+function outlineItemTooltipDetails(item) {
+  return {
+    name: item?.textContent?.trim() || "",
+    path: "",
+  };
 }
 
 function documentTabDisplayPath(filePath) {
@@ -2972,6 +2855,16 @@ function restoreDocumentOutlineCollapsed() {
   setDocumentOutlineCollapsed(collapsed, { persist: false });
 }
 
+function restoreDocumentOutlineWidth() {
+  const stored = documentOutlineWidthFromStorageValue(
+    preferenceValue(
+      "documentOutlineWidth",
+      DOCUMENT_OUTLINE_WIDTH_STORAGE_KEY,
+    ),
+  );
+  setDocumentOutlineWidth(stored, { persist: false });
+}
+
 function toggleDocumentOutline() {
   setDocumentOutlineCollapsed(!state.documentOutlineCollapsed);
 }
@@ -2994,6 +2887,8 @@ function setDocumentOutlineCollapsed(collapsed, { persist = true } = {}) {
     "aria-label",
     shortcutTooltip(label, "Command+Shift+B"),
   );
+  documentOutlineResizer.tabIndex = state.documentOutlineCollapsed ? -1 : 0;
+  overflowTooltipController.hide();
 
   if (persist) {
     try {
@@ -3027,7 +2922,7 @@ function setSidebarCollapsed(collapsed, { persist = true } = {}) {
   if (state.sidebarCollapsed) {
     setAgentContextPopoverOpen(false);
     closeWorktreeSwitcher();
-    hideTreeItemTooltip();
+    overflowTooltipController.hide();
     hideFrontmatterFilterPopover();
     const activeElement = document.activeElement;
     if (sidebar.contains(activeElement) || workspaceSidebarHeader.contains(activeElement)) {
@@ -3084,12 +2979,74 @@ function setSidebarWidth(width, { persist = true } = {}) {
   const nextWidth = clampSidebarWidth(width, window.innerWidth);
   appShell.style.setProperty("--sidebar-width", `${nextWidth}px`);
   sidebarResizer.setAttribute("aria-valuenow", String(nextWidth));
-  hideTreeItemTooltip();
+  overflowTooltipController.hide();
   if (persist) {
     window.localStorage?.setItem(SIDEBAR_WIDTH_STORAGE_KEY, String(nextWidth));
     persistAppPreference("sidebarWidth", nextWidth);
   }
   positionFrontmatterFilterPopover();
+}
+
+function startDocumentOutlineResize(event) {
+  event.preventDefault();
+  documentBody.classList.add("is-outline-resizing");
+  documentOutlineResizer.setPointerCapture(event.pointerId);
+  setDocumentOutlineWidthFromPointer(event.clientX);
+
+  const onPointerMove = (moveEvent) => {
+    setDocumentOutlineWidthFromPointer(moveEvent.clientX);
+  };
+  const finishResize = (endEvent) => {
+    if (documentOutlineResizer.hasPointerCapture?.(endEvent.pointerId)) {
+      documentOutlineResizer.releasePointerCapture(endEvent.pointerId);
+    }
+    documentBody.classList.remove("is-outline-resizing");
+    documentOutlineResizer.removeEventListener("pointermove", onPointerMove);
+    documentOutlineResizer.removeEventListener("pointerup", finishResize);
+    documentOutlineResizer.removeEventListener("pointercancel", finishResize);
+  };
+
+  documentOutlineResizer.addEventListener("pointermove", onPointerMove);
+  documentOutlineResizer.addEventListener("pointerup", finishResize);
+  documentOutlineResizer.addEventListener("pointercancel", finishResize);
+}
+
+function handleDocumentOutlineResizeKeydown(event) {
+  if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") {
+    return;
+  }
+  event.preventDefault();
+  const delta = event.key === "ArrowLeft"
+    ? -DOCUMENT_OUTLINE_WIDTH_STEP
+    : DOCUMENT_OUTLINE_WIDTH_STEP;
+  setDocumentOutlineWidth(currentDocumentOutlineWidth() + delta);
+}
+
+function setDocumentOutlineWidthFromPointer(clientX) {
+  const bodyRect = documentBody.getBoundingClientRect();
+  setDocumentOutlineWidth(clientX - bodyRect.left);
+}
+
+function currentDocumentOutlineWidth() {
+  return Number.parseInt(
+    documentBody.style.getPropertyValue("--document-outline-width")
+      || String(DOCUMENT_OUTLINE_MIN_WIDTH),
+    10,
+  );
+}
+
+function setDocumentOutlineWidth(width, { persist = true } = {}) {
+  const containerWidth = documentBody.getBoundingClientRect().width || window.innerWidth;
+  const nextWidth = clampDocumentOutlineWidth(Number(width), containerWidth);
+  documentBody.style.setProperty("--document-outline-width", `${nextWidth}px`);
+  documentOutlineResizer.setAttribute("aria-valuemin", String(DOCUMENT_OUTLINE_MIN_WIDTH));
+  documentOutlineResizer.setAttribute("aria-valuemax", String(DOCUMENT_OUTLINE_MAX_WIDTH));
+  documentOutlineResizer.setAttribute("aria-valuenow", String(nextWidth));
+  overflowTooltipController.hide();
+  if (persist) {
+    window.localStorage?.setItem(DOCUMENT_OUTLINE_WIDTH_STORAGE_KEY, String(nextWidth));
+    persistAppPreference("documentOutlineWidth", nextWidth);
+  }
 }
 
 function restoreSourceSplitRatio() {
@@ -3163,6 +3120,7 @@ function renderDocumentContent(documentData) {
 
   documentContent.replaceChildren(readonlyPreviewElement(documentData));
   documentOutline.hidden = true;
+  documentOutlineResizer.hidden = true;
   documentOutlineToggle.hidden = true;
   documentOutline.innerHTML = "";
   documentBody.classList.remove("has-outline");
@@ -3451,6 +3409,7 @@ function formatBytes(value) {
 }
 
 function renderDocumentOutline() {
+  overflowTooltipController.hide();
   outlineClickViewportGuard.end();
   const headings = [...documentContent.querySelectorAll("h1, h2, h3")].map((heading) => {
     const sourceLine = Number(heading.closest(".source-block")?.dataset.sourceStart);
@@ -3464,6 +3423,9 @@ function renderDocumentOutline() {
   state.outlineItems = outlineItemsFromHeadings(headings);
   documentOutline.innerHTML = "";
   documentOutline.hidden = state.outlineItems.length === 0;
+  documentOutlineResizer.hidden = state.outlineItems.length === 0;
+  documentOutlineResizer.tabIndex =
+    state.outlineItems.length === 0 || state.documentOutlineCollapsed ? -1 : 0;
   documentOutlineToggle.hidden = state.outlineItems.length === 0;
   documentBody.classList.toggle("has-outline", state.outlineItems.length > 0);
   if (state.outlineItems.length === 0) {
@@ -3485,7 +3447,6 @@ function renderDocumentOutline() {
       button.dataset.sourceLine = String(item.sourceLine);
     }
     button.textContent = item.title;
-    button.title = item.title;
     listItem.append(button);
     list.append(listItem);
   }
@@ -3814,11 +3775,12 @@ async function submitGitSync() {
 }
 
 function showGitSyncFailure(payload) {
-  hideTreeItemTooltip();
+  overflowTooltipController.hide();
   gitSyncPanel.hidden = false;
   gitSyncResult.hidden = false;
-  gitSyncResultTitle.textContent = "同步遇到异常";
-  gitSyncResultHelp.textContent = "点击复制提示词，然后粘贴到你选择的 AI Agent 中继续处理。";
+  gitSyncResultTitle.textContent = payload.resultTitle || "同步遇到异常";
+  gitSyncResultHelp.textContent = payload.resultHelp
+    || "点击复制提示词，然后粘贴到你选择的 AI Agent 中继续处理。";
   gitSyncAgentPrompt.value = payload.agentPrompt || clientGitSyncAgentPrompt(payload);
   gitSyncCopyPrompt.disabled = false;
 }
@@ -3850,7 +3812,7 @@ function showAppDialog({
     closeAppDialog(false);
   }
 
-  hideTreeItemTooltip();
+  overflowTooltipController.hide();
   appDialogTitle.textContent = title || "确认操作";
   appDialogMessage.textContent = message;
   appDialogMessage.hidden = !message;
@@ -4746,7 +4708,7 @@ function focusTreeItem(item, { persist = true } = {}) {
   item.scrollIntoView({ block: "nearest" });
   window.requestAnimationFrame(() => {
     if (item.isConnected && document.activeElement === item) {
-      scheduleTreeItemTooltip(item);
+      overflowTooltipController.showFor("file-tree", item);
     }
   });
   const snapshot = treeFocusSnapshot(item);
@@ -5926,7 +5888,7 @@ async function copyShareLinkForPath(documentPath, { disablePrimary = false } = {
       code: "share_unavailable",
     }));
     if (!response.ok || !payload.url) {
-      await showShareLinkUnavailable(payload);
+      await showShareLinkUnavailable(payload, documentPath);
       return;
     }
     await writeRichLinkClipboard(
@@ -5948,19 +5910,94 @@ async function copyShareLinkForPath(documentPath, { disablePrimary = false } = {
   }
 }
 
-async function showShareLinkUnavailable(payload) {
-  const canSyncDocument = payload?.code === "document_not_committed";
+async function showShareLinkUnavailable(payload, documentPath) {
+  const canPublishDocument = payload?.code === "document_not_committed"
+    || payload?.code === "document_not_published";
+  const needsCommit = payload?.code === "document_not_committed";
   const { confirmed } = await showAppDialog({
-    title: canSyncDocument ? "当前文档尚未同步" : "无法生成分享链接",
+    title: canPublishDocument ? "当前文档尚未发布" : "无法生成分享链接",
     message: payload?.error || "当前文档暂时不能分享。",
-    confirmText: canSyncDocument ? "同步" : "知道了",
-    showCancel: canSyncDocument,
+    confirmText: canPublishDocument
+      ? (needsCommit ? "同步并复制" : "发布并复制")
+      : "知道了",
+    showCancel: canPublishDocument,
   });
-  if (!confirmed || !canSyncDocument) {
+  if (!confirmed || !canPublishDocument) {
     return;
   }
-  await loadGitStatus();
-  await submitGitSync();
+  await publishShareLinkForPath(documentPath);
+}
+
+async function publishShareLinkForPath(documentPath) {
+  for (;;) {
+    let response;
+    let payload;
+    try {
+      response = await fetch(apiUrl("/api/share-link", {
+        file: documentPath,
+      }), {
+        method: "POST",
+      });
+      payload = await response.json().catch(() => ({
+        ok: false,
+        error: "分享发布接口返回了不可解析的结果。",
+        code: "share_publish_failed",
+        retryable: true,
+      }));
+    } catch (error) {
+      payload = {
+        ok: false,
+        error: error instanceof Error ? error.message : "无法连接本机分享发布服务。",
+        code: "share_publish_failed",
+        step: "network",
+        retryable: true,
+      };
+    }
+
+    if (response?.ok && payload?.ok !== false && payload?.url) {
+      await writeRichLinkClipboard(
+        payload.url,
+        shareLinkClipboardTitle(payload.url, documentPath),
+      );
+      showCopyToast(payload.published ? "已发布并复制分享链接" : "已复制分享链接");
+      await loadGitStatus();
+      return;
+    }
+
+    if (payload?.retryable !== true) {
+      await showAppDialog({
+        title: "无法发布分享链接",
+        message: payload?.error || "当前文档暂时不能发布。",
+        showCancel: false,
+        confirmText: "知道了",
+      });
+      return;
+    }
+
+    const { confirmed } = await showAppDialog({
+      title: "分享发布失败",
+      message: [
+        payload?.error || "远端发布没有完成。",
+        "本地修改和已创建的提交均会保留。请检查网络、GitHub 登录或远端分支状态后重试。",
+      ].join("\n\n"),
+      confirmText: "重试发布",
+      cancelText: payload?.agentPrompt ? "交给 AI Agent" : "关闭",
+      showCancel: true,
+    });
+    if (confirmed) {
+      await loadGitStatus();
+      continue;
+    }
+
+    if (payload?.agentPrompt) {
+      showGitSyncFailure({
+        ...payload,
+        resultTitle: "分享发布失败",
+        resultHelp: "复制提示词并交给 AI Agent，完成远端发布后再复制分享链接。",
+      });
+    }
+    return;
+  }
 }
 
 async function openCurrentSource() {

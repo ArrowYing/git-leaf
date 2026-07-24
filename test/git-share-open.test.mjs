@@ -3,6 +3,8 @@ import test from "node:test";
 
 import {
   inspectSharedMain,
+  inspectSharedMainWithFetchRecovery,
+  sharedFetchFailurePrompt,
   sharedMainWorktree,
 } from "../src/git-share-open.mjs";
 
@@ -131,6 +133,95 @@ test("inspectSharedMain does not turn command dependency failures into revision 
     }),
     /spawn git ENOENT/,
   );
+});
+
+test("inspectSharedMain retries one transient fetch before evaluating the shared revision", async () => {
+  const successfulRunner = gitRunner({ head: HEAD, remoteHead: HEAD });
+  const waits = [];
+  let fetchAttempts = 0;
+  const result = await inspectSharedMain({
+    repoRoot: "/repo",
+    file: "docs/shared.md",
+    rev: REV,
+    fetchRetryDelayMs: 500,
+    wait: async (delay) => waits.push(delay),
+    gitRunner: async (cwd, args) => {
+      if (args.join(" ") === "fetch origin main" && ++fetchAttempts === 1) {
+        const error = new Error("fetch failed");
+        error.stderr = "fatal: unable to access remote: Operation timed out";
+        throw error;
+      }
+      return successfulRunner(cwd, args);
+    },
+  });
+
+  assert.equal(result.state, "ready");
+  assert.equal(fetchAttempts, 2);
+  assert.deepEqual(waits, [500]);
+});
+
+test("inspectSharedMain does not automatically retry authentication failures", async () => {
+  let fetchAttempts = 0;
+  const result = await inspectSharedMain({
+    repoRoot: "/repo",
+    file: "docs/shared.md",
+    rev: REV,
+    wait: async () => assert.fail("authentication failures must wait for user action"),
+    gitRunner: async () => {
+      fetchAttempts += 1;
+      const error = new Error("fetch failed");
+      error.stderr = "fatal: Authentication failed for remote";
+      throw error;
+    },
+  });
+
+  assert.equal(result.state, "fetch_failed");
+  assert.equal(result.commandState, "authentication_required");
+  assert.equal(fetchAttempts, 1);
+});
+
+test("shared fetch recovery retries in place and preserves a declined terminal failure", async () => {
+  const prompts = [];
+  const states = [
+    { ok: false, state: "fetch_failed", commandState: "network_unavailable" },
+    { ok: true, state: "ready" },
+  ];
+  const recovered = await inspectSharedMainWithFetchRecovery({
+    inspect: async () => states.shift(),
+    promptFetchRetry: async (state) => {
+      prompts.push(state.commandState);
+      return true;
+    },
+  });
+  assert.equal(recovered.state, "ready");
+  assert.deepEqual(prompts, ["network_unavailable"]);
+
+  const terminal = { ok: false, state: "fetch_failed", commandState: "authentication_required" };
+  const declined = await inspectSharedMainWithFetchRecovery({
+    inspect: async () => terminal,
+    promptFetchRetry: async () => false,
+  });
+  assert.equal(declined, terminal);
+});
+
+test("shared fetch failure prompts distinguish network and authentication recovery", () => {
+  const network = sharedFetchFailurePrompt({
+    state: "fetch_failed",
+    commandState: "network_unavailable",
+    error: "fatal: connection timed out",
+  });
+  assert.equal(network.message, "暂时无法连接 GitHub");
+  assert.match(network.detail, /已自动重试/);
+  assert.match(network.detail, /本地仓库没有被修改/);
+  assert.deepEqual(network.buttons, ["重新尝试", "暂不打开"]);
+
+  const authentication = sharedFetchFailurePrompt({
+    state: "fetch_failed",
+    commandState: "authentication_required",
+  });
+  assert.equal(authentication.message, "Git 凭据需要重新登录");
+  assert.match(authentication.detail, /当前仓库使用的 Git 凭据/);
+  assert.deepEqual(authentication.buttons, ["重新检查", "暂不打开"]);
 });
 
 function gitRunner({

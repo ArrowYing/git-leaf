@@ -305,6 +305,15 @@
           <div id="branch-status" class="branch-status" role="status" aria-live="polite" hidden></div>
           <div id="document-body" class="document-body">
             <aside id="document-outline" class="document-outline" aria-label="文档内导航" hidden></aside>
+            <div
+              id="document-outline-resizer"
+              class="document-outline-resizer"
+              role="separator"
+              aria-label="调整文档导航宽度"
+              aria-orientation="vertical"
+              tabindex="0"
+              hidden
+            ></div>
             <button
               id="document-outline-toggle"
               class="document-outline-toggle"
@@ -368,7 +377,7 @@
           <div id="copy-toast" class="copy-toast" role="status" aria-live="polite" hidden></div>
         </main>
       </div>
-      <div id="tree-item-tooltip" class="tree-item-tooltip" role="tooltip" hidden></div>
+      <div id="overflow-tooltip" class="overflow-tooltip" role="tooltip" hidden></div>
       <div id="file-action-menu" class="file-action-menu" role="menu" aria-label="文件操作" hidden></div>
       <div id="git-sync-panel" class="git-sync-panel" role="dialog" aria-modal="true" aria-labelledby="git-sync-title" hidden>
         <section class="git-sync-dialog">

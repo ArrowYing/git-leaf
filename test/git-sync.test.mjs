@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   createGitSyncGuard,
+  publishCurrentBranch,
   repositoryChangesFromPorcelain,
   syncSelectedFiles as syncSelectedFilesImpl,
   syncStateDriftKind,
@@ -119,6 +120,8 @@ test("syncSelectedFiles fetches first, commits every selected file type, rebases
     ],
     ["rebase", "refs/remotes/origin/main"],
     ["push", "origin", `${TEST_HEAD}:refs/heads/main`],
+    ["fetch", "origin", "main"],
+    ["merge-base", "--is-ancestor", TEST_HEAD, "refs/remotes/origin/main"],
   ]);
   assert.equal(calls.every((call) => call.cwd === REPO.root), true);
 });
@@ -144,7 +147,45 @@ test("syncSelectedFiles skips rebase when the fetched remote is not ahead", asyn
 
   assert.equal(result.ok, true);
   assert.equal(calls.some((args) => args[0] === "rebase"), false);
-  assert.deepEqual(calls.at(-1), ["push", "origin", `${TEST_HEAD}:refs/heads/main`]);
+  assert.deepEqual(calls.slice(-3), [
+    ["push", "origin", `${TEST_HEAD}:refs/heads/main`],
+    ["fetch", "origin", "main"],
+    ["merge-base", "--is-ancestor", TEST_HEAD, "refs/remotes/origin/main"],
+  ]);
+});
+
+test("syncSelectedFiles does not report success until origin contains the published commit", async () => {
+  const calls = [];
+  const result = await syncSelectedFiles({
+    repo: REPO,
+    files: ["docs/changed.md"],
+    gitRunner: async (_cwd, args) => {
+      calls.push(args);
+      const preflight = successfulPreflight(args);
+      if (preflight) return preflight;
+      if (args.includes("@{upstream}")) return { stdout: "origin/main\n", stderr: "" };
+      if (args[0] === "status") {
+        return { stdout: " M docs/changed.md\0", stderr: "" };
+      }
+      if (args[0] === "rev-list") return { stdout: "0\t0\n", stderr: "" };
+      if (args[0] === "diff") return { stdout: "docs/changed.md\0", stderr: "" };
+      if (args[0] === "merge-base") {
+        const error = new Error("published commit is missing from origin/main");
+        error.code = 1;
+        throw error;
+      }
+      return { stdout: "", stderr: "" };
+    },
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.step, "verify publication");
+  assert.match(result.error, /origin\/main/);
+  assert.deepEqual(calls.slice(-3), [
+    ["push", "origin", `${TEST_HEAD}:refs/heads/main`],
+    ["fetch", "origin", "main"],
+    ["merge-base", "--is-ancestor", TEST_HEAD, "refs/remotes/origin/main"],
+  ]);
 });
 
 test("syncSelectedFiles blocks before staging when remote updates meet unselected local changes", async () => {
@@ -290,21 +331,55 @@ test("syncSelectedFiles publishes a branch without an upstream", async () => {
   });
 
   assert.equal(result.ok, true);
-  assert.deepEqual(calls.slice(-3), [[
+  assert.deepEqual(calls.slice(-4), [[
     "push",
     "origin",
     `${TEST_HEAD}:refs/heads/git-leaf/detached-1234567`,
   ], [
-    "update-ref",
-    "refs/remotes/origin/git-leaf/detached-1234567",
+    "fetch",
+    "origin",
+    "git-leaf/detached-1234567",
+  ], [
+    "merge-base",
+    "--is-ancestor",
     TEST_HEAD,
+    "refs/remotes/origin/git-leaf/detached-1234567",
   ], [
     "branch",
     "--set-upstream-to=origin/git-leaf/detached-1234567",
     "--",
     "git-leaf/detached-1234567",
   ]]);
-  assert.equal(calls.some((args) => args[0] === "fetch"), false);
+});
+
+test("publishCurrentBranch retries an already committed main and verifies origin", async () => {
+  const calls = [];
+  const result = await publishCurrentBranch({
+    repo: REPO,
+    files: ["docs/changed.md"],
+    gitRunner: async (_cwd, args) => {
+      calls.push(args);
+      const preflight = successfulPreflight(args);
+      if (preflight) return preflight;
+      if (args.includes("@{upstream}")) return { stdout: "origin/main\n", stderr: "" };
+      if (args[0] === "status") return { stdout: "", stderr: "" };
+      if (args.join(" ") === "rev-parse --verify HEAD") {
+        return { stdout: `${TEST_HEAD}\n`, stderr: "" };
+      }
+      if (args[0] === "rev-list") return { stdout: "1\t0\n", stderr: "" };
+      return { stdout: "", stderr: "" };
+    },
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.publishedHead, TEST_HEAD);
+  assert.deepEqual(calls.slice(-5), [
+    ["fetch", "origin", "main"],
+    ["rev-list", "--left-right", "--count", "HEAD...refs/remotes/origin/main"],
+    ["push", "origin", `${TEST_HEAD}:refs/heads/main`],
+    ["fetch", "origin", "main"],
+    ["merge-base", "--is-ancestor", TEST_HEAD, "refs/remotes/origin/main"],
+  ]);
 });
 
 test("syncSelectedFiles checks Git identity before staging files", async () => {
@@ -469,7 +544,7 @@ test("syncSelectedFiles retries preparation once when content changes during fet
   assert.equal(result.ok, true);
   assert.equal(result.retryCount, 1);
   assert.equal(result.driftKind, "content_changed");
-  assert.equal(calls.filter((args) => args[0] === "fetch").length, 2);
+  assert.equal(calls.filter((args) => args[0] === "fetch").length, 3);
   assert.equal(calls.filter((args) => args[0] === "commit").length, 1);
 });
 

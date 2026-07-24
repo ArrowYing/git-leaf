@@ -3,11 +3,14 @@ title: Git Leaf 系统架构
 domain: ai
 type: architecture
 owner: maintainer
-last_updated: 2026-07-20
+last_updated: 2026-07-24
 source: git-leaf
 canonical: true
 ai_snippet: "[Architecture] Git Leaf | standalone desktop app | Git-native Markdown/MDX workbench | local HTTP server | Git worktrees | Preview Source Live | CodeMirror 6 | realtime sync"
 change_log:
+  - changed: 2026-07-24
+    author: codex
+    summary: 将发送端分享收敛为提交、推送、远端 revision 复核和复制链接的一次发布动作，并为发送失败及接收端 fetch 失败增加原地重试。
   - changed: 2026-07-19
     author: codex
     summary: 将 Git 同步收敛为显式的一键全量动作，增加工作区漂移保护、一次重试、明确 commit 发布与隐私安全统计。
@@ -175,13 +178,16 @@ git-leaf://open-shared?v=1&repo=<owner/repo>&path=<relative.md>&rev=<full-commit
 - 发送端从 `rev` 对应的文档内容读取预览标题，依次回退到 frontmatter `title`、首个一级标题和文件名；新生成的分享 URL 不读取或携带 `ai_snippet`；
 - `title` 只附加在 HTTPS 分享链接中并限制为 100 个字符；转换后的 `git-leaf://open-shared` 不携带它；
 - 接收服务 在 `/share` 首次响应中直接输出 `<title>`、description 和 Open Graph 元数据，让飞书等聊天客户端无需执行 JavaScript 或访问仓库即可生成卡片；新链接的 description 回退到仓库与文档路径，历史 `snippet` 参数仍按旧协议兼容；
-- 发送端当前文档存在未提交或未发布修改时拒绝复制链接，并引导进入 Git 同步；
+- 发送端当前文档存在未提交或未发布修改时先询问用户；确认后执行全文件同步或重试已提交 main 的 push，重新 fetch 并确认目标 revision 已进入 `origin/main` 后才生成和复制链接；
+- 分享发布失败时保留本地修改与已创建提交，明确显示失败原因并提供原地重试；不能把仅完成本地 commit 或仅收到 `git push` 成功退出当作分享完成；
 - 接收端固定解析到主 checkout，不允许回退到当前 linked worktree；
 - 当前位于同仓库 linked worktree 时，先明确询问是否“切换并打开”，取消或 `Esc` 不改变工作区；
 - 本地 `main` 落后且干净时只允许 fast-forward；存在不重叠修改时经用户确认后保留修改并 fast-forward；
 - 存在重叠本地修改时，经用户确认复用一键全文件 Git 同步；同步先 fetch，必要时再 commit、rebase 远端分支、push；
+- 获取 `origin/main` 遇到瞬时网络中断时自动重试一次；仍失败时按网络、Git 凭据、本机 Git 可用性或权限给出
+  可操作提示，并允许在当前对话框中重新尝试。获取失败不得使用可能过期的远端跟踪分支继续打开；
 - 同步覆盖 Git 状态中的全部文件类型，包括图片、附件、代码和删除；不会自动 stash 或缩窄成仅当前 Markdown；
-- 从分享失败提示确认后直接执行“同步”，不再进入文件选择或提交说明面板；
+- 从分享失败提示确认后直接执行“同步并复制”或“发布并复制”，不再进入文件选择或提交说明面板；动作成功时分享链接已经写入剪贴板；
 - 只有正确工作区、`main`、revision 和目标文档全部打开后才确认 handoff。
 
 以下情况必须停止并解释原因，不得静默改动 Git 状态：目标仓库当前未打开、主 checkout 不在
@@ -423,6 +429,7 @@ Git Leaf 可以帮助非技术同事把本地仓库改动交给 Git 流程，但
 - fetch 前记录 HEAD 和本次全部改动的内容指纹，暂存前再次检查；发生变化时重新准备一次，连续变化则不提交并请用户稍后重试；
 - `git add` 后从 index 创建 commit，不再让 commit 命令重新读取活动 worktree；提交后如果出现新改动，允许在远端未领先时只推送已冻结的 commit，但禁止在脏 worktree 上自动 rebase；
 - push 使用已经校验的 commit OID，而不是执行时再次解析可变化的 `HEAD`；首次发布分支后再显式建立 upstream；
+- push 后重新 fetch 目标分支，并以 ancestry 检查确认远端分支实际包含已提交 revision；远端复核失败时同步和分享都不得报告成功；
 - 仓库已有冲突、merge、rebase、cherry-pick 或 revert 时不开始同步；自动 rebase 失败后先尝试 `rebase --abort`，避免把仓库留在中间状态；
 - 遇到冲突、检查失败或推送失败时，界面生成可复制的 AI Agent 提示词；
 - 复杂判断交给用户选择的 AI Agent，而不是让 Git Leaf 在 UI 里自由决策。
@@ -487,6 +494,7 @@ macOS 使用 `Settings…`／`Command+,` 进入外观，Help 菜单使用 `Git L
 | `src/external-command.mjs` | 外部命令执行、调用目录校验、状态分类、预期退出码与成功输出异常 |
 | `src/git-worktrees.mjs` | worktree 列表解析、稳定 ID 和 Detached 保护分支 |
 | `src/git-leaf-open-link.mjs` | 本机打开链接与发送端分享资格检查、链接生成 |
+| `src/git-share-publish.mjs` | 发送端分享的全文件同步、已提交 main 重试发布与链接生成编排 |
 | `src/git-share-open.mjs` | 接收端主 checkout 解析、revision 与本地 Git 状态判断 |
 | `src/desktop-deep-link.mjs` | 本机 Deep Link 和跨设备 Share Link 协议解析 |
 | `src/markdown.mjs` | Markdown 渲染、链接和图片路径处理、源行号绑定 |
