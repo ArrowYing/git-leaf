@@ -2,9 +2,18 @@ export function treeDirectoryPath(parentPath, name) {
   return [parentPath, name].filter(Boolean).join("/");
 }
 
-export function treeDirectoryStateScope({ repoId, showOnlyGitChanges = false }) {
+export function treeDirectoryStateScope({
+  repoId,
+  view = "all",
+  showOnlyGitChanges = false,
+}) {
   const repo = typeof repoId === "string" && repoId.trim() ? repoId.trim() : "default";
-  return `${repo}:${showOnlyGitChanges ? "git-changes" : "all"}`;
+  const normalizedView = showOnlyGitChanges || view === "sync"
+    ? "git-changes"
+    : view === "favorites"
+      ? "favorites"
+      : "all";
+  return `${repo}:${normalizedView}`;
 }
 
 export function normalizeTreeDirectoryState(value) {

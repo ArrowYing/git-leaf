@@ -114,6 +114,27 @@ test("local changes keep directory memory separate from the default tree", () =>
   );
 });
 
+test("favorites keep directory memory separate from all files and sync", () => {
+  assert.equal(
+    treeDirectoryStateScope({
+      repoId: "docs-repo",
+      view: "favorites",
+    }),
+    "docs-repo:favorites",
+  );
+  assert.equal(
+    treeDirectoryStateScope({
+      repoId: "docs-repo",
+      view: "sync",
+    }),
+    "docs-repo:git-changes",
+  );
+  assert.notEqual(
+    treeDirectoryStateScope({ repoId: "docs-repo", view: "favorites" }),
+    treeDirectoryStateScope({ repoId: "docs-repo" }),
+  );
+});
+
 test("tree directory states serialize stable expanded and collapsed paths", () => {
   assert.deepEqual(
     serializeTreeDirectoryState({

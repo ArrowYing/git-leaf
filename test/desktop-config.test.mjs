@@ -8,6 +8,7 @@ import {
   closeDesktopRepository,
   desktopConfigBackupPath,
   desktopConfigPath,
+  mutateDesktopRepositoryFavorites,
   queueDesktopConfigMutation,
   readDesktopConfig,
   saveDesktopPreferences,
@@ -670,6 +671,66 @@ test("desktop config mutations do not overwrite malformed config without a valid
     (error) => error?.code === "DESKTOP_CONFIG_INVALID",
   );
   assert.equal(await readFile(configPath, "utf8"), malformedConfig);
+});
+
+test("repository favorites persist safely beside unrelated desktop preferences", async () => {
+  const userDataDir = await mkdtemp(path.join(tmpdir(), "git-leaf-user-data-"));
+  const repoRoot = path.join(tmpdir(), "docs-repo");
+
+  await saveDesktopRepository({ userDataDir, repoRoot });
+  await Promise.all([
+    mutateDesktopRepositoryFavorites({
+      userDataDir,
+      repositoryRoot: repoRoot,
+      repoRoot,
+      operation: { action: "add", type: "directory", path: "docs" },
+    }),
+    mutateDesktopRepositoryFavorites({
+      userDataDir,
+      repositoryRoot: repoRoot,
+      repoRoot,
+      operation: { action: "add", type: "document", path: "README.md" },
+    }),
+    saveDesktopPreferences({
+      userDataDir,
+      repoRoot,
+      preferences: { colorMode: "dark" },
+    }),
+  ]);
+
+  assert.deepEqual(await readDesktopConfig({ userDataDir }), {
+    repoRoot,
+    openRepoRoots: [repoRoot],
+    preferences: {
+      ...NEW_INSTALL_PREFERENCES,
+      colorMode: "dark",
+    },
+    repositoryFavorites: {
+      [repoRoot]: [
+        { type: "directory", path: "docs" },
+        { type: "document", path: "README.md" },
+      ],
+    },
+  });
+});
+
+test("repository favorite normalization drops unsafe entries without losing valid ones", async () => {
+  const userDataDir = await mkdtemp(path.join(tmpdir(), "git-leaf-user-data-"));
+  const repoRoot = path.join(tmpdir(), "docs-repo");
+  await writeFile(desktopConfigPath(userDataDir), JSON.stringify({
+    openRepoRoots: [repoRoot],
+    repositoryFavorites: {
+      [repoRoot]: [
+        { type: "document", path: "README.md" },
+        { type: "document", path: "../outside.md" },
+        { type: "directory", path: "/absolute" },
+      ],
+    },
+  }), "utf8");
+
+  assert.deepEqual((await readDesktopConfig({ userDataDir })).repositoryFavorites, {
+    [repoRoot]: [{ type: "document", path: "README.md" }],
+  });
 });
 
 test("desktop config keeps the previous valid version as a recoverable backup", async () => {

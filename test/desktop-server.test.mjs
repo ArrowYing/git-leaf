@@ -135,6 +135,55 @@ test("desktop server opens a repository workbench with no document when restored
   }
 });
 
+test("desktop server forwards repository-scoped favorite operations", async () => {
+  const rootDir = await mkdtemp(path.join(tmpdir(), "git-leaf-desktop-favorites-"));
+  const repoRoot = await createGitRepo(rootDir, "docs-repo", {
+    "README.md": "# Docs\n",
+  });
+  let favorites = [{ type: "document", path: "README.md" }];
+  let receivedOperation = null;
+  const desktopServer = await startDesktopGitLeafServer({
+    repoRoot,
+    port: 0,
+    getRepositoryFavorites: async (repositoryRoot) => {
+      assert.equal(repositoryRoot, await realpath(repoRoot));
+      return favorites;
+    },
+    mutateRepositoryFavorite: async ({ repositoryRoot, operation }) => {
+      assert.equal(repositoryRoot, await realpath(repoRoot));
+      receivedOperation = operation;
+      favorites = [];
+      return favorites;
+    },
+  });
+
+  try {
+    const endpoint = `http://${desktopServer.host}:${desktopServer.port}/api/favorites`;
+    assert.deepEqual(await (await fetch(endpoint)).json(), {
+      available: true,
+      favorites: [{ type: "document", path: "README.md" }],
+    });
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "remove",
+        type: "document",
+        path: "README.md",
+      }),
+    });
+    assert.equal(response.ok, true);
+    assert.deepEqual(receivedOperation, {
+      action: "remove",
+      type: "document",
+      path: "README.md",
+    });
+    assert.deepEqual((await response.json()).favorites, []);
+  } finally {
+    await desktopServer.close();
+  }
+});
+
 test("desktop server does not switch repositories inside one server instance", async () => {
   const rootDir = await mkdtemp(path.join(tmpdir(), "git-leaf-desktop-repos-"));
   const docsRoot = await createGitRepo(rootDir, "docs-repo", {

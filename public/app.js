@@ -65,6 +65,21 @@ import {
 } from "./settings-preferences.js";
 import { filterWorkbenchFileTree } from "./file-tree-visibility.js";
 import {
+  applySidebarFavoriteOperation,
+  createSidebarFavoriteToggleQueue,
+  isSidebarFavoriteEntry,
+  normalizeSidebarFavoriteScopes,
+  normalizeSidebarFavorites,
+  replaceSidebarFavoritePath,
+  sidebarFavoritesForScope,
+} from "./sidebar-favorites.js";
+import {
+  normalizeSidebarTab,
+  sidebarEmptyStateKind,
+  sidebarTabFromKey,
+  sidebarTreeForView,
+} from "./sidebar-navigation.js";
+import {
   closeDocumentTab,
   closeDocumentTabsToRight,
   closeOtherDocumentTabs,
@@ -143,6 +158,7 @@ const DOCUMENT_OUTLINE_WIDTH_STORAGE_KEY = "git-leaf-document-outline-width";
 const SOURCE_SPLIT_STORAGE_KEY = "git-leaf-source-preview-ratio";
 const TREE_DIRECTORY_STORAGE_KEY = "git-leaf-tree-directories";
 const WORKBENCH_SESSION_STORAGE_KEY = "git-leaf-workbench-sessions";
+const SIDEBAR_FAVORITES_STORAGE_KEY = "git-leaf-sidebar-favorites";
 const SIDEBAR_WIDTH_STEP = 24;
 const DOCUMENT_OUTLINE_WIDTH_STEP = 24;
 const SOURCE_SPLIT_STEP = 5;
@@ -236,6 +252,9 @@ const state = {
   documentFont: initialUserPreferences.documentFont,
   documentFontSize: initialUserPreferences.documentFontSize,
   fileTreeMode: initialUserPreferences.fileTreeMode,
+  sidebarTab: "all",
+  sidebarFavorites: [],
+  sidebarFavoritesAvailable: false,
   locale: initialLocale,
   sidebarCollapsed: false,
   documentOutlineCollapsed: false,
@@ -271,7 +290,6 @@ const state = {
   frontmatterActiveKey: "domain",
   frontmatterFacetsLoading: false,
   gitChanges: [],
-  showOnlyGitChanges: false,
   gitStatusTimer: null,
   lastToolStatusCheckAt: 0,
   toolRestartInFlight: false,
@@ -291,9 +309,15 @@ const state = {
   documentSearchIndex: -1,
   documentSearchReturnFocus: null,
   fileActionTarget: null,
+  fileActionReturnFocus: null,
   documentTabPointerDrag: null,
   activeDialog: null,
 };
+
+const queueSidebarFavoriteToggle = createSidebarFavoriteToggleQueue({
+  isActive: ({ type, path }) => isFavoriteItem(type, path),
+  setActive: setSidebarFavorite,
+});
 
 const appShell = document.querySelector("#app-shell");
 const workbenchLoading = document.querySelector("#workbench-loading");
@@ -301,6 +325,9 @@ const previewPane = document.querySelector(".preview-pane");
 const sidebar = document.querySelector(".sidebar");
 const workspaceSidebarHeader = document.querySelector("#workspace-sidebar-header");
 const fileTree = document.querySelector("#file-tree");
+const sidebarTreeTabs = document.querySelector("#sidebar-tree-tabs");
+const sidebarTabButtons = [...document.querySelectorAll("[data-sidebar-tab]")];
+const sidebarSyncCount = document.querySelector("#sidebar-sync-count");
 const repositoryTitle = document.querySelector("#repository-title");
 const sidebarToggle = document.querySelector("#sidebar-toggle");
 const historyBackButton = document.querySelector("#history-back");
@@ -309,6 +336,7 @@ const documentTabs = document.querySelector("#document-tabs");
 const documentNewButton = document.querySelector("#document-new");
 const documentTabTooltip = document.querySelector("#document-tab-tooltip");
 const floatingDocumentActions = document.querySelector("#floating-document-actions");
+const documentFavoriteToggle = document.querySelector("#document-favorite-toggle");
 const copyShareLinkButton = document.querySelector("#copy-share-link");
 const documentActionsMore = document.querySelector("#document-actions-more");
 const emptyNewDocument = document.querySelector("#empty-new-document");
@@ -335,7 +363,6 @@ const frontmatterFilterToggle = document.querySelector("#frontmatter-filter-togg
 const frontmatterActiveFilters = document.querySelector("#frontmatter-active-filters");
 const frontmatterFilterPopover = document.querySelector("#frontmatter-filter-popover");
 const gitChangeToolbar = document.querySelector("#git-change-toolbar");
-const gitChangesToggle = document.querySelector("#git-changes-toggle");
 const gitChangeCount = document.querySelector("#git-change-count");
 const gitSyncOpen = document.querySelector("#git-sync-open");
 const gitSyncPanel = document.querySelector("#git-sync-panel");
@@ -437,12 +464,16 @@ fileTree.addEventListener("keydown", handleFileTreeKeydown);
 fileTree.addEventListener("focusin", handleFileTreeFocusIn);
 fileTree.addEventListener("scroll", scheduleWorkbenchSessionPersist);
 fileTree.addEventListener("contextmenu", handleFileTreeContextMenu);
+sidebarTreeTabs.addEventListener("click", handleSidebarTabClick);
+sidebarTreeTabs.addEventListener("keydown", handleSidebarTabKeydown);
 documentTabs.addEventListener("wheel", handleDocumentTabsWheel, { passive: false });
 documentTabs.addEventListener("contextmenu", handleDocumentTabContextMenu);
 documentNewButton.addEventListener("click", () => promptNewDocument(newDocumentLocationFromCurrent()));
 emptyNewDocument.addEventListener("click", () => promptNewDocument({ directoryPath: "" }));
+documentFavoriteToggle.addEventListener("click", toggleCurrentDocumentFavorite);
 documentActionsMore.addEventListener("click", showCurrentDocumentActionsMenu);
 fileActionMenu.addEventListener("click", handleFileActionMenuClick);
+fileActionMenu.addEventListener("keydown", handleFileActionMenuKeydown);
 worktreeSwitcherToggle.addEventListener("click", toggleWorktreeSwitcher);
 worktreeSwitcherMenu.addEventListener("click", handleWorktreeSelection);
 documentOutline.addEventListener("click", handleOutlineClick);
@@ -460,7 +491,6 @@ frontmatterFieldPopover.addEventListener("change", handleFrontmatterFieldPopover
 frontmatterFilterToggle.addEventListener("click", toggleFrontmatterFilterPopover);
 frontmatterActiveFilters.addEventListener("click", handleActiveFrontmatterFilterClick);
 frontmatterFilterPopover.addEventListener("click", handleFrontmatterFilterPopoverClick);
-gitChangesToggle.addEventListener("click", toggleGitChangesFilter);
 gitSyncOpen.addEventListener("click", submitGitSync);
 gitSyncClose.addEventListener("click", closeGitSyncPanel);
 gitSyncPanel.addEventListener("click", handleGitSyncPanelBackdropClick);
@@ -497,7 +527,7 @@ window.addEventListener("focus", refreshWorktreesOnWindowFocus);
 window.addEventListener("resize", positionFrontmatterFilterPopover);
 window.addEventListener("resize", positionWorktreeSwitcherMenu);
 window.addEventListener("resize", scheduleListSourceLineGutterSync);
-window.addEventListener("resize", closeFileActionMenu);
+window.addEventListener("resize", () => closeFileActionMenu({ restoreFocus: false }));
 window.addEventListener("pagehide", flushWorkbenchSessionPreference);
 window.addEventListener("pagehide", () => {
   void flushRendererTelemetry();
@@ -558,6 +588,7 @@ restoreSourceSplitRatio();
 try {
   await loadRepositories();
   await loadWorktrees();
+  await loadSidebarFavorites();
   restoreAgentContextItems();
   renderAgentContext();
   restoreWorkbenchSessionForCurrentRepo({ requestedFile: requestedInitialFile });
@@ -627,6 +658,154 @@ async function loadWorktrees() {
     state.currentRepoCanEdit = true;
   }
   renderWorktreeSwitcher();
+}
+
+async function loadSidebarFavorites() {
+  try {
+    const response = await fetch(apiUrl("/api/favorites"), { cache: "no-store" });
+    if (!response.ok) {
+      throw new Error("Favorites are unavailable");
+    }
+    const payload = await response.json();
+    state.sidebarFavoritesAvailable = payload.available === true;
+    state.sidebarFavorites = state.sidebarFavoritesAvailable
+      ? normalizeSidebarFavorites(payload.favorites)
+      : localSidebarFavorites();
+  } catch {
+    state.sidebarFavoritesAvailable = false;
+    state.sidebarFavorites = localSidebarFavorites();
+  }
+  updateDocumentFavoriteToggle();
+}
+
+function localSidebarFavoriteScope() {
+  return state.currentWorktreeId || state.currentRepo || "default";
+}
+
+function readLocalSidebarFavoriteScopes() {
+  try {
+    return normalizeSidebarFavoriteScopes(
+      JSON.parse(window.localStorage?.getItem(SIDEBAR_FAVORITES_STORAGE_KEY) || "{}"),
+    );
+  } catch {
+    return {};
+  }
+}
+
+function localSidebarFavorites() {
+  return sidebarFavoritesForScope(
+    readLocalSidebarFavoriteScopes(),
+    localSidebarFavoriteScope(),
+  );
+}
+
+function writeLocalSidebarFavoriteScopes(scopes) {
+  try {
+    window.localStorage?.setItem(
+      SIDEBAR_FAVORITES_STORAGE_KEY,
+      JSON.stringify(normalizeSidebarFavoriteScopes(scopes)),
+    );
+  } catch {
+    // Browser-only favorites remain best-effort when storage is unavailable.
+  }
+}
+
+function isFavoriteItem(type, path) {
+  return isSidebarFavoriteEntry(state.sidebarFavorites, { type, path });
+}
+
+async function setSidebarFavorite({ type, path, active }) {
+  const action = active ? "add" : "remove";
+  try {
+    if (state.sidebarFavoritesAvailable) {
+      const response = await fetch(apiUrl("/api/favorites"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, type, path }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload.error || t("error.favoriteSave"));
+      }
+      state.sidebarFavorites = normalizeSidebarFavorites(payload.favorites);
+    } else {
+      const result = applySidebarFavoriteOperation(readLocalSidebarFavoriteScopes(), {
+        scope: localSidebarFavoriteScope(),
+        action,
+        type,
+        path,
+      });
+      state.sidebarFavorites = sidebarFavoritesForScope(
+        result.scopes,
+        localSidebarFavoriteScope(),
+      );
+      writeLocalSidebarFavoriteScopes(result.scopes);
+    }
+    const savedActive = isFavoriteItem(type, path);
+    if (savedActive !== active) {
+      throw new Error(t("error.favoriteSave"));
+    }
+    updateDocumentFavoriteToggle();
+    if (state.sidebarTab === "favorites") {
+      renderTree();
+    }
+    showCopyToast(savedActive ? t("toast.favoriteAdded") : t("toast.favoriteRemoved"));
+    return true;
+  } catch (error) {
+    showCopyToast(error instanceof Error ? error.message : t("error.favoriteSave"));
+    return false;
+  }
+}
+
+function toggleFavoriteItem({ type, path }) {
+  return queueSidebarFavoriteToggle({ type, path });
+}
+
+async function toggleCurrentDocumentFavorite() {
+  if (!state.currentDocument?.path || !isMarkdownDocument()) {
+    return;
+  }
+  await toggleFavoriteItem({
+    type: "document",
+    path: state.currentDocument.path,
+  });
+}
+
+async function replaceFavoriteDocumentPath(fromPath, toPath) {
+  if (!isFavoriteItem("document", fromPath)) {
+    return;
+  }
+  try {
+    if (state.sidebarFavoritesAvailable) {
+      const response = await fetch(apiUrl("/api/favorites"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "replace",
+          type: "document",
+          path: fromPath,
+          toPath,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload.error || t("error.favoriteSave"));
+      }
+      state.sidebarFavorites = normalizeSidebarFavorites(payload.favorites);
+    } else {
+      const scope = localSidebarFavoriteScope();
+      const scopes = replaceSidebarFavoritePath(readLocalSidebarFavoriteScopes(), {
+        scope,
+        type: "document",
+        fromPath,
+        toPath,
+      });
+      state.sidebarFavorites = sidebarFavoritesForScope(scopes, scope);
+      writeLocalSidebarFavoriteScopes(scopes);
+    }
+  } catch {
+    // A document rename remains successful even if its convenience bookmark cannot migrate.
+  }
 }
 
 function refreshWorktreesOnWindowFocus() {
@@ -807,7 +986,6 @@ async function refreshTreeAndGitStatus() {
 
 async function loadGitStatus() {
   const previousGitChanges = state.gitChanges;
-  const previousShowOnlyGitChanges = state.showOnlyGitChanges;
 
   if (!state.canEdit) {
     state.gitChanges = [];
@@ -826,16 +1004,9 @@ async function loadGitStatus() {
     }
   }
 
-  if (state.gitChanges.length === 0) {
-    state.showOnlyGitChanges = false;
-  }
   const gitChangesChanged = hasGitChangesChanged(previousGitChanges, state.gitChanges);
-  const gitChangesFilterChanged = previousShowOnlyGitChanges !== state.showOnlyGitChanges;
-  if (gitChangesFilterChanged) {
-    restoreTreeDirectoryState();
-  }
   renderGitChangeToolbar();
-  if (gitChangesChanged || gitChangesFilterChanged) {
+  if (gitChangesChanged) {
     renderTree();
   }
 }
@@ -1227,7 +1398,7 @@ function restoreWorkbenchSessionForCurrentRepo({ requestedFile = "" } = {}) {
 function currentTreeDirectoryStateScope() {
   return treeDirectoryStateScope({
     repoId: state.currentWorktreeId,
-    showOnlyGitChanges: state.showOnlyGitChanges,
+    view: state.sidebarTab,
   });
 }
 
@@ -1433,6 +1604,7 @@ function apiUrl(pathname, params = {}) {
 function updateDocumentActions(hasDocument) {
   const canUseEditor = hasDocument && canEditCurrentDocument();
   floatingDocumentActions.hidden = !hasDocument;
+  documentFavoriteToggle.hidden = !hasDocument || !isMarkdownDocument();
   copyShareLinkButton.hidden = !hasDocument || !isMarkdownDocument();
   copyShareLinkButton.disabled = !hasDocument || !isMarkdownDocument();
   documentActionsMore.disabled = !hasDocument;
@@ -1440,6 +1612,16 @@ function updateDocumentActions(hasDocument) {
   emptyNewDocument.disabled = !canEditCurrentRepo();
   document.querySelector("#mode-source").disabled = !canUseEditor;
   document.querySelector("#mode-live").disabled = !canUseEditor;
+  updateDocumentFavoriteToggle();
+}
+
+function updateDocumentFavoriteToggle() {
+  const path = state.currentDocument?.path || "";
+  const active = Boolean(path) && isMarkdownDocument() && isFavoriteItem("document", path);
+  const label = active ? t("action.removeFavorite") : t("action.addFavorite");
+  documentFavoriteToggle.setAttribute("aria-pressed", String(active));
+  documentFavoriteToggle.setAttribute("aria-label", label);
+  documentFavoriteToggle.title = label;
 }
 
 function ensureSourceEditor() {
@@ -1583,6 +1765,7 @@ function applyShortcutTooltips() {
   copyShareLinkButton.title = t("share.tooltip", {
     shortcut: shortcutTooltip(t("action.copyShareLink"), "Command+Shift+L"),
   });
+  updateDocumentFavoriteToggle();
   documentActionsMore.title = t("action.moreFileActions");
   setShortcutButtonLabel(document.querySelector("#mode-preview"), "Preview", "Command+P");
   setShortcutButtonLabel(document.querySelector("#mode-source"), "Source", "Command+S");
@@ -1706,6 +1889,7 @@ async function ensureSlashCommandAllowed(command) {
       throw new Error(payload.error || t("error.rename"));
     }
     await applyBranchProtectionPayload(payload);
+    await replaceFavoriteDocumentPath(currentPath, payload.path);
 
     replaceDocumentTabPath(currentPath, payload.path);
     state.currentFile = payload.path;
@@ -2010,25 +2194,132 @@ window.addEventListener("popstate", (event) => {
   showNoDocumentSelected();
 });
 
+function handleSidebarTabClick(event) {
+  const button = event.target.closest?.("[data-sidebar-tab]");
+  if (!button || !sidebarTreeTabs.contains(button)) {
+    return;
+  }
+  setSidebarTab(button.dataset.sidebarTab);
+}
+
+function handleSidebarTabKeydown(event) {
+  const button = event.target.closest?.("[data-sidebar-tab]");
+  if (!button || !sidebarTreeTabs.contains(button)) {
+    return;
+  }
+  const nextTab = sidebarTabFromKey(button.dataset.sidebarTab, event.key);
+  if (!nextTab) {
+    return;
+  }
+  event.preventDefault();
+  setSidebarTab(nextTab);
+  sidebarTabButtons.find((candidate) => candidate.dataset.sidebarTab === nextTab)?.focus();
+}
+
+function setSidebarTab(value) {
+  const nextTab = normalizeSidebarTab(value);
+  if (state.sidebarTab === nextTab) {
+    return;
+  }
+  state.sidebarTab = nextTab;
+  fileTree.scrollTop = 0;
+  hideFrontmatterFilterPopover();
+  closeFileActionMenu({ restoreFocus: false });
+  restoreTreeDirectoryState();
+  renderFrontmatterFilterAvailability();
+  renderActiveFrontmatterFilters();
+  renderGitChangeToolbar();
+  renderTree();
+}
+
+function renderSidebarTabs() {
+  for (const button of sidebarTabButtons) {
+    const active = button.dataset.sidebarTab === state.sidebarTab;
+    button.classList.toggle("is-active", active);
+    button.setAttribute("aria-selected", String(active));
+    button.tabIndex = active ? 0 : -1;
+  }
+  const activeButton = sidebarTabButtons.find(
+    (button) => button.dataset.sidebarTab === state.sidebarTab,
+  );
+  if (activeButton) {
+    fileTree.setAttribute("aria-labelledby", activeButton.id);
+  }
+  fileTree.dataset.sidebarTab = state.sidebarTab;
+}
+
 function renderTree() {
   overflowTooltipController.hide();
+  renderSidebarTabs();
   const previousTreeFocus = treeFocusSnapshot();
   fileTree.innerHTML = "";
-  const list = document.createElement("ul");
-  list.className = "tree-list";
-  const visibleTree = filterWorkbenchFileTree(state.tree, {
+  const favoriteRevealPaths = state.sidebarTab === "favorites"
+    ? state.sidebarFavorites.map((favorite) => favorite.path)
+    : [];
+  let visibleTree = filterWorkbenchFileTree(state.tree, {
     mode: state.fileTreeMode,
     currentDocument: state.currentDocument,
     currentFile: state.currentFile,
-    searchMatchedPaths: treeSearchMatchedPaths(),
-    gitChangedPaths: state.showOnlyGitChanges ? gitChangedPaths() : [],
+    searchMatchedPaths: [...treeSearchMatchedPaths(), ...favoriteRevealPaths],
+    gitChangedPaths: state.sidebarTab === "sync" ? gitChangedPaths() : [],
   });
-  for (const node of filterNodes(filterNodesByFrontmatter(filterNodesByGitChanges(visibleTree)))) {
+  let filteredTree = sidebarTreeForView(visibleTree, {
+    view: state.sidebarTab,
+    favorites: state.sidebarFavorites,
+    changedPaths: gitChangedPaths(),
+    gitChanges: state.gitChanges,
+  });
+  if (state.sidebarTab !== "sync") {
+    filteredTree = filterNodesByFrontmatter(filteredTree);
+  }
+  filteredTree = filterNodes(filteredTree);
+
+  if (filteredTree.length === 0) {
+    renderSidebarTreeEmpty();
+    if (previousTreeFocus) {
+      sidebarTabButtons
+        .find((button) => button.dataset.sidebarTab === state.sidebarTab)
+        ?.focus({ preventScroll: true });
+    }
+    restoreWorkbenchTreeViewportIfPending();
+    return;
+  }
+
+  const list = document.createElement("ul");
+  list.className = "tree-list";
+  for (const node of filteredTree) {
     list.append(renderNode(node, ""));
   }
   fileTree.append(list);
   restoreTreeFocus(previousTreeFocus);
   restoreWorkbenchTreeViewportIfPending();
+}
+
+function renderSidebarTreeEmpty() {
+  const empty = document.createElement("div");
+  empty.className = "sidebar-tree-empty";
+  const title = document.createElement("strong");
+  const detail = document.createElement("span");
+  const emptyState = sidebarEmptyStateKind({
+    view: state.sidebarTab,
+    search: state.filter,
+    frontmatterFilterCount: state.frontmatterFilters.length,
+  });
+  if (emptyState === "filtered") {
+    title.textContent = t("tree.emptyTitle");
+    detail.textContent = t("tree.emptyDetail");
+  } else if (emptyState === "favorites") {
+    title.textContent = t("favorites.emptyTitle");
+    detail.textContent = t("favorites.emptyDetail");
+  } else if (emptyState === "sync") {
+    title.textContent = t("sync.emptyTitle");
+    detail.textContent = t("sync.emptyDetail");
+  } else {
+    title.textContent = t("tree.emptyTitle");
+    detail.textContent = t("tree.emptyDetail");
+  }
+  empty.append(title, detail);
+  fileTree.append(empty);
 }
 
 function treeSearchMatchedPaths() {
@@ -2190,7 +2481,7 @@ function handleDocumentTabPointerMove(event) {
     drag.element.setPointerCapture?.(event.pointerId);
     documentTabs.querySelector(`[data-document-tab-path="${cssEscape(drag.path)}"]`)?.classList.add("is-dragging");
     hideDocumentTabTooltip();
-    closeFileActionMenu();
+    closeFileActionMenu({ restoreFocus: false });
   }
   event.preventDefault();
   updateDocumentTabDropTarget(event.clientX, drag.path);
@@ -2469,7 +2760,7 @@ function handleDocumentTabContextMenu(event) {
     { id: "reveal-tree", label: t("menu.revealTree") },
     { id: "reveal-finder", label: revealInFileManagerLabel(), shortcut: "Command+Shift+R", disabled: !canEditCurrentRepo() },
     { id: "open-system", label: t("menu.openSystem"), shortcut: "Command+Shift+O", disabled: !canEditCurrentRepo() },
-  ], { x: event.clientX, y: event.clientY });
+  ], { x: event.clientX, y: event.clientY, returnFocus: tab });
 }
 
 function handleFileTreeContextMenu(event) {
@@ -2480,24 +2771,56 @@ function handleFileTreeContextMenu(event) {
   event.preventDefault();
   const path = item.dataset.treePath || "";
   const isDirectory = item.dataset.treeItem === "directory";
+  const isMissing = item.dataset.treeMissing === "true";
+  const favoriteCandidate = isDirectory ? "directory" : isMarkdownPath(path) ? "document" : "";
+  const favoriteActive = favoriteCandidate
+    ? isFavoriteItem(favoriteCandidate, path)
+    : false;
+  const favoriteType = !isMissing || favoriteActive ? favoriteCandidate : "";
   state.fileActionTarget = isDirectory
-    ? { source: "tree-directory", path, directoryPath: path }
-    : { source: "tree-file", path, directoryPath: parentDirectoryPath(path), referencePath: path };
+    ? { source: "tree-directory", path, directoryPath: path, favoriteType }
+    : {
+        source: "tree-file",
+        path,
+        directoryPath: parentDirectoryPath(path),
+        referencePath: path,
+        favoriteType,
+      };
+  const favoriteItem = favoriteType
+    ? {
+        id: "toggle-favorite",
+        label: t(favoriteActive ? "action.removeFavorite" : "action.addFavorite"),
+        checked: favoriteActive,
+      }
+    : null;
   const items = isDirectory
-    ? [
+    ? isMissing
+      ? [
+          ...(favoriteItem ? [favoriteItem, null] : []),
+          { id: "copy-path", label: t("menu.copyDirectoryPath"), shortcut: "Command+Shift+C" },
+        ]
+      : [
+        favoriteItem,
+        null,
         { id: "new-document", label: t("menu.newDocumentHere"), disabled: !canEditCurrentRepo() },
         null,
         { id: "reveal-finder", label: revealInFileManagerLabel(), shortcut: "Command+Shift+R", disabled: !canEditCurrentRepo() },
         { id: "copy-path", label: t("menu.copyDirectoryPath"), shortcut: "Command+Shift+C" },
       ]
-    : [
+    : isMissing
+      ? [
+          ...(favoriteItem ? [favoriteItem, null] : []),
+          { id: "copy-path", label: t("menu.copyPath"), shortcut: "Command+Shift+C" },
+        ]
+      : [
+        ...(favoriteItem ? [favoriteItem, null] : []),
         { id: "new-document", label: t("menu.newDocumentSameLocation"), disabled: !canEditCurrentRepo() },
         { id: "open-new-tab", label: t("menu.openNewTab"), shortcut: "Shift+Enter" },
         null,
         ...(isMarkdownPath(path) ? [{ id: "copy-share", label: t("action.copyShareLink"), shortcut: "Command+Shift+L" }] : []),
         { id: "reveal-finder", label: revealInFileManagerLabel(), shortcut: "Command+Shift+R", disabled: !canEditCurrentRepo() },
       ];
-  showFileActionMenu(items, { x: event.clientX, y: event.clientY });
+  showFileActionMenu(items, { x: event.clientX, y: event.clientY, returnFocus: item });
 }
 
 function showCurrentDocumentActionsMenu() {
@@ -2513,12 +2836,28 @@ function showCurrentDocumentActionsMenu() {
     { id: "open-github", label: t("menu.openGitHub"), shortcut: "Command+Shift+G", disabled: !state.currentDocument.githubUrl },
     { id: "copy-path", label: t("menu.copyPath"), shortcut: "Command+Shift+C" },
     { id: "open-system", label: t("menu.openSystem"), shortcut: "Command+Shift+O", disabled: !canEditCurrentRepo() },
-  ], { x: rect.right, y: rect.bottom + 4, alignRight: true });
+  ], {
+    x: rect.right,
+    y: rect.bottom + 4,
+    alignRight: true,
+    returnFocus: documentActionsMore,
+  });
   documentActionsMore.setAttribute("aria-expanded", "true");
 }
 
-function showFileActionMenu(items, { x, y, alignRight = false }) {
-  closeFileActionMenu();
+function showFileActionMenu(items, {
+  x,
+  y,
+  alignRight = false,
+  returnFocus = null,
+}) {
+  closeFileActionMenu({ restoreFocus: false });
+  state.fileActionReturnFocus =
+    returnFocus instanceof HTMLElement
+      ? returnFocus
+      : document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
   fileActionMenu.replaceChildren(...items.map((item) => {
     if (!item) {
       const separator = document.createElement("div");
@@ -2530,11 +2869,24 @@ function showFileActionMenu(items, { x, y, alignRight = false }) {
     button.type = "button";
     button.dataset.fileAction = item.id;
     button.disabled = item.disabled === true;
-    button.setAttribute("role", "menuitem");
+    button.setAttribute("role", Object.hasOwn(item, "checked") ? "menuitemcheckbox" : "menuitem");
+    if (Object.hasOwn(item, "checked")) {
+      button.setAttribute("aria-checked", String(item.checked === true));
+    }
+    const leading = document.createElement("span");
+    leading.className = "file-action-menu-leading";
+    if (Object.hasOwn(item, "checked")) {
+      const check = document.createElement("span");
+      check.className = "file-action-menu-check";
+      check.setAttribute("aria-hidden", "true");
+      check.textContent = item.checked ? "✓" : "";
+      leading.append(check);
+    }
     const label = document.createElement("span");
     label.className = "file-action-menu-label";
     label.textContent = item.label;
-    button.append(label);
+    leading.append(label);
+    button.append(leading);
     if (item.shortcut) {
       const shortcut = document.createElement("span");
       shortcut.className = "file-action-menu-shortcut";
@@ -2556,13 +2908,38 @@ function showFileActionMenu(items, { x, y, alignRight = false }) {
   fileActionMenu.querySelector("button:not(:disabled)")?.focus({ preventScroll: true });
 }
 
-function closeFileActionMenu() {
+function closeFileActionMenu({ restoreFocus = true } = {}) {
   if (fileActionMenu.hidden) {
     return;
   }
+  const returnFocus = state.fileActionReturnFocus;
+  state.fileActionReturnFocus = null;
   fileActionMenu.hidden = true;
   fileActionMenu.replaceChildren();
   documentActionsMore.setAttribute("aria-expanded", "false");
+  if (restoreFocus && returnFocus?.isConnected) {
+    returnFocus.focus({ preventScroll: true });
+  }
+}
+
+function handleFileActionMenuKeydown(event) {
+  if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
+    return;
+  }
+  const items = [...fileActionMenu.querySelectorAll("button:not(:disabled)")];
+  if (items.length === 0) {
+    return;
+  }
+  event.preventDefault();
+  const currentIndex = items.indexOf(document.activeElement);
+  const nextIndex = event.key === "Home"
+    ? 0
+    : event.key === "End"
+      ? items.length - 1
+      : event.key === "ArrowDown"
+        ? (Math.max(currentIndex, -1) + 1) % items.length
+        : (currentIndex <= 0 ? items.length : currentIndex) - 1;
+  items[nextIndex].focus({ preventScroll: true });
 }
 
 function fileActionMenuShortcutTarget(actionId) {
@@ -2595,6 +2972,11 @@ async function handleFileActionMenuClick(event) {
     await applyDocumentTabClosure({ tabs: [], activePath: "" });
   } else if (action === "copy-share") {
     await copyShareLinkForPath(target.path);
+  } else if (action === "toggle-favorite" && target.favoriteType) {
+    await toggleFavoriteItem({
+      type: target.favoriteType,
+      path: target.path,
+    });
   } else if (action === "reveal-tree") {
     revealFileInTree(target.path);
   } else if (action === "new-document") {
@@ -2630,6 +3012,9 @@ async function openFileInForegroundTab(path) {
 function revealFileInTree(path) {
   if (state.sidebarCollapsed) {
     setSidebarCollapsed(false);
+  }
+  if (state.sidebarTab !== "all") {
+    setSidebarTab("all");
   }
   for (const directoryPath of treeAncestorDirectories(path)) {
     state.collapsedTreeDirectories.delete(directoryPath);
@@ -2788,12 +3173,17 @@ function renderNode(node, parentPath) {
   const item = document.createElement("li");
   if (node.type === "file") {
     const button = document.createElement("button");
-    const capability = treeFileCapability(node.kind);
+    const capability = treeFileCapability(node.kind, { missing: node.missing === true });
     button.type = "button";
     button.className = node.path === state.currentFile ? "tree-file is-active" : "tree-file";
+    button.classList.toggle("is-missing", node.missing === true);
     button.dataset.treeItem = "file";
     button.dataset.treePath = node.path;
     button.dataset.treeKind = node.kind || "unknown";
+    if (node.missing === true) {
+      button.dataset.treeMissing = "true";
+      button.setAttribute("aria-disabled", "true");
+    }
     button.dataset.fileCapability = capability.name;
     button.setAttribute("aria-label", `${node.path}，${capability.label}`);
     button.title = capability.label;
@@ -2816,19 +3206,21 @@ function renderNode(node, parentPath) {
       badge.title = gitChangeStatusLabel(change.status);
       button.append(badge);
     }
-    button.addEventListener("click", (event) => openFileFromTree(node.path, event));
+    if (node.missing !== true) {
+      button.addEventListener("click", (event) => openFileFromTree(node.path, event));
+    }
     item.append(button);
     return item;
   }
 
-  const directoryPath = treeDirectoryPath(parentPath, node.name);
+  const directoryPath = node.path || treeDirectoryPath(parentPath, node.name);
   const details = document.createElement("details");
   details.open = shouldOpenTreeDirectory({
     directoryPath,
     hasBroadTreeFilter:
       state.filter.length > 0 ||
-      state.frontmatterFilters.length > 0 ||
-      state.showOnlyGitChanges,
+      (state.sidebarTab !== "sync" && state.frontmatterFilters.length > 0) ||
+      state.sidebarTab === "sync",
     expandedDirectories: state.expandedTreeDirectories,
     collapsedDirectories: state.collapsedTreeDirectories,
   });
@@ -2837,6 +3229,14 @@ function renderNode(node, parentPath) {
   summary.dataset.treeItem = "directory";
   summary.dataset.treePath = directoryPath;
   summary.tabIndex = 0;
+  summary.classList.toggle("is-missing", node.missing === true);
+  if (node.missing === true) {
+    summary.dataset.treeMissing = "true";
+    summary.setAttribute("aria-disabled", "true");
+    summary.setAttribute("aria-label", `${directoryPath}，${t("file.missing")}`);
+    summary.title = t("file.missing");
+    summary.addEventListener("click", (event) => event.preventDefault());
+  }
   summary.setAttribute("aria-expanded", String(details.open));
   summary.textContent = node.name;
   details.append(summary);
@@ -2867,7 +3267,10 @@ function renderNode(node, parentPath) {
   return item;
 }
 
-function treeFileCapability(kind) {
+function treeFileCapability(kind, { missing = false } = {}) {
+  if (missing) {
+    return { name: "missing", label: t("file.missing"), badge: t("badge.missing") };
+  }
   if (kind === "markdown") {
     return { name: "editable", label: t("file.editable"), badge: "" };
   }
@@ -3635,47 +4038,17 @@ function filterNodesByFrontmatter(nodes) {
   return filtered;
 }
 
-function filterNodesByGitChanges(nodes) {
-  if (!state.showOnlyGitChanges) {
-    return nodes;
-  }
-
-  const changedPaths = gitChangedPaths();
-  const filtered = [];
-  for (const node of nodes) {
-    if (node.type === "file") {
-      if (changedPaths.has(node.path)) {
-        filtered.push(node);
-      }
-      continue;
-    }
-
-    const children = filterNodesByGitChanges(node.children);
-    if (children.length > 0) {
-      filtered.push({ ...node, children });
-    }
-  }
-  return filtered;
-}
-
 function renderGitChangeToolbar() {
   const hasChanges = state.gitChanges.length > 0;
   const canUseGitSync = canEditCurrentRepo() && hasChanges;
-  gitChangeToolbar.hidden = !canUseGitSync;
+  gitChangeToolbar.hidden = state.sidebarTab !== "sync";
   gitChangeCount.textContent = String(state.gitChanges.length);
-  gitChangesToggle.classList.toggle("is-active", state.showOnlyGitChanges);
-  gitChangesToggle.setAttribute("aria-pressed", String(state.showOnlyGitChanges));
+  sidebarSyncCount.textContent = String(state.gitChanges.length);
+  sidebarSyncCount.hidden = !hasChanges;
   gitSyncOpen.disabled = !canUseGitSync;
   if (!canUseGitSync) {
     closeGitSyncPanel();
   }
-}
-
-function toggleGitChangesFilter() {
-  state.showOnlyGitChanges = !state.showOnlyGitChanges;
-  restoreTreeDirectoryState();
-  renderGitChangeToolbar();
-  renderTree();
 }
 
 function gitChangedPaths() {
@@ -4772,6 +5145,9 @@ function focusTreeItem(item, { persist = true } = {}) {
 }
 
 function activateTreeItem(item) {
+  if (item.getAttribute("aria-disabled") === "true") {
+    return;
+  }
   if (item.dataset.treeItem === "file") {
     void openFileFromTree(item.dataset.treePath);
     return;
@@ -4783,6 +5159,9 @@ function activateTreeItem(item) {
 }
 
 function expandOrEnterTreeDirectory(item) {
+  if (item.getAttribute("aria-disabled") === "true") {
+    return;
+  }
   const details = treeDirectoryDetails(item);
   if (!details) {
     return;
@@ -5022,10 +5401,11 @@ function positionFrontmatterFilterPopover() {
 }
 
 function renderFrontmatterFilterAvailability() {
-  const enabled = state.frontmatterAllowedKeys.length > 0;
-  frontmatterFilterToggle.hidden = !enabled;
-  frontmatterFilterToggle.disabled = !enabled;
-  if (enabled) {
+  const supported = state.frontmatterAllowedKeys.length > 0;
+  const visible = supported && state.sidebarTab !== "sync";
+  frontmatterFilterToggle.hidden = !visible;
+  frontmatterFilterToggle.disabled = !visible;
+  if (supported) {
     return;
   }
 
@@ -5095,7 +5475,7 @@ function handleDocumentChromeClick(event) {
     !closestElement(event.target, ".file-action-menu") &&
     !closestElement(event.target, "#document-actions-more")
   ) {
-    closeFileActionMenu();
+    closeFileActionMenu({ restoreFocus: false });
   }
   if (!worktreeSwitcherMenu.hidden && !closestElement(event.target, ".worktree-switcher")) {
     closeWorktreeSwitcher();
@@ -5287,7 +5667,9 @@ function handleActiveFrontmatterFilterClick(event) {
 }
 
 function renderActiveFrontmatterFilters() {
-  frontmatterActiveFilters.hidden = state.frontmatterFilters.length === 0;
+  frontmatterActiveFilters.hidden =
+    state.sidebarTab === "sync" ||
+    state.frontmatterFilters.length === 0;
   if (state.frontmatterFilters.length === 0) {
     frontmatterActiveFilters.innerHTML = "";
     return;

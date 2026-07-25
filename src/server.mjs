@@ -42,6 +42,7 @@ import {
 import { createGitLeafShareLink } from "./git-leaf-open-link.mjs";
 import { publishGitLeafShareLink } from "./git-share-publish.mjs";
 import { sourceLinesFromMarkdown } from "../public/line-selection.js";
+import { normalizeSidebarFavorites } from "../public/sidebar-favorites.js";
 
 const APP_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const PUBLIC_ROOT = path.join(APP_ROOT, "public");
@@ -83,6 +84,8 @@ export function createPreviewServer({
   repository = createRepository({ repoRoot, initialFile }),
   desktopPreferences = null,
   saveDesktopPreferences = null,
+  getRepositoryFavorites = null,
+  mutateRepositoryFavorite = null,
   recordTelemetryActions = null,
 }) {
   const assetVersion = String(Date.now());
@@ -96,6 +99,8 @@ export function createPreviewServer({
     repository,
     desktopPreferences,
     saveDesktopPreferences,
+    getRepositoryFavorites,
+    mutateRepositoryFavorite,
     recordTelemetryActions,
   };
   const server = http.createServer(async (request, response) => {
@@ -194,6 +199,8 @@ async function handleRequest(request, response, context) {
     requestUrl.pathname === "/mode-preference.js" ||
     requestUrl.pathname === "/theme-preference.js" ||
     requestUrl.pathname === "/settings-preferences.js" ||
+    requestUrl.pathname === "/sidebar-favorites.js" ||
+    requestUrl.pathname === "/sidebar-navigation.js" ||
     requestUrl.pathname === "/i18n.js" ||
     requestUrl.pathname === "/workbench-locales.js" ||
     requestUrl.pathname === "/file-tree-visibility.js" ||
@@ -377,6 +384,45 @@ async function handleRequest(request, response, context) {
     sendJson(response, 200, {
       available: true,
       preferences,
+    });
+    return;
+  }
+
+  if (requestUrl.pathname === "/api/favorites") {
+    const repo = await localRequestRepository(request, requestUrl, context);
+    const available =
+      typeof context.getRepositoryFavorites === "function" &&
+      typeof context.mutateRepositoryFavorite === "function";
+    if (request.method === "GET") {
+      const favorites = available
+        ? await context.getRepositoryFavorites(repo.repositoryRoot)
+        : [];
+      sendJson(response, 200, {
+        available,
+        favorites: normalizeSidebarFavorites(favorites),
+      });
+      return;
+    }
+    if (request.method !== "POST") {
+      sendText(response, 405, "Method Not Allowed");
+      return;
+    }
+    if (!available) {
+      sendJson(response, 503, { available: false, favorites: [] });
+      return;
+    }
+    const operation = repositoryFavoriteOperation(await readJsonRequest(request));
+    if (!operation) {
+      sendJson(response, 400, { error: "Invalid favorite operation" });
+      return;
+    }
+    const favorites = await context.mutateRepositoryFavorite({
+      repositoryRoot: repo.repositoryRoot,
+      operation,
+    });
+    sendJson(response, 200, {
+      available: true,
+      favorites: normalizeSidebarFavorites(favorites),
     });
     return;
   }
@@ -1386,6 +1432,39 @@ function exactObjectKeys(value, expectedKeys) {
   }
   const expected = new Set(expectedKeys);
   return Object.keys(value).length === expected.size && Object.keys(value).every((key) => expected.has(key));
+}
+
+function repositoryFavoriteOperation(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  const action = value.action;
+  const expectedKeys = action === "replace"
+    ? ["action", "type", "path", "toPath"]
+    : ["action", "type", "path"];
+  if (
+    !["add", "remove", "replace"].includes(action) ||
+    !exactObjectKeys(value, expectedKeys)
+  ) {
+    return null;
+  }
+  const [favorite] = normalizeSidebarFavorites([{
+    type: value.type,
+    path: value.path,
+  }]);
+  if (!favorite) {
+    return null;
+  }
+  if (action !== "replace") {
+    return { action, ...favorite };
+  }
+  const [replacement] = normalizeSidebarFavorites([{
+    type: value.type,
+    path: value.toPath,
+  }]);
+  return replacement
+    ? { action, ...favorite, toPath: replacement.path }
+    : null;
 }
 
 function hashSource(source) {

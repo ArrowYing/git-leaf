@@ -320,6 +320,79 @@ test("preferences API reads and updates desktop app preferences", async () => {
   }
 });
 
+test("favorites API scopes finite mutations to the current repository", async () => {
+  const repoRoot = await mkdtemp(path.join(tmpdir(), "git-leaf-"));
+  await writeFile(path.join(repoRoot, "README.md"), "# Sample\n");
+  const operations = [];
+  let favorites = [];
+  const server = createPreviewServer({
+    repoRoot,
+    initialFile: null,
+    getRepositoryFavorites: async (repositoryRoot) => {
+      assert.equal(repositoryRoot, repoRoot);
+      return favorites;
+    },
+    mutateRepositoryFavorite: async ({ repositoryRoot, operation }) => {
+      assert.equal(repositoryRoot, repoRoot);
+      operations.push(operation);
+      favorites = operation.action === "add"
+        ? [...favorites, { type: operation.type, path: operation.path }]
+        : favorites.filter((item) => (
+            item.type !== operation.type || item.path !== operation.path
+          ));
+      return favorites;
+    },
+  });
+  const baseUrl = await listen(server);
+
+  try {
+    assert.deepEqual(await getJson(`${baseUrl}/api/favorites`), {
+      available: true,
+      favorites: [],
+    });
+
+    const add = await fetch(`${baseUrl}/api/favorites`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "add",
+        type: "document",
+        path: "README.md",
+      }),
+    });
+    assert.equal(add.status, 200);
+    assert.deepEqual(await add.json(), {
+      available: true,
+      favorites: [{ type: "document", path: "README.md" }],
+    });
+    assert.deepEqual(operations, [{
+      action: "add",
+      type: "document",
+      path: "README.md",
+    }]);
+
+    const unsafe = await fetch(`${baseUrl}/api/favorites`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "add",
+        type: "document",
+        path: "../outside.md",
+      }),
+    });
+    assert.equal(unsafe.status, 400);
+    assert.deepEqual(operations.length, 1);
+
+    const unsupported = await fetch(`${baseUrl}/api/favorites`, {
+      method: "PUT",
+    });
+    assert.equal(unsupported.status, 405);
+    assert.deepEqual(operations.length, 1);
+  } finally {
+    await close(server);
+  }
+});
+
 test("document API returns file metadata for auto refresh and actions", async () => {
   const repoRoot = await mkdtemp(path.join(tmpdir(), "git-leaf-"));
   await writeFile(path.join(repoRoot, "sample.md"), "# Sample\n\nBody\n");
@@ -1601,6 +1674,8 @@ test("public module assets are served for the browser", async () => {
       "mode-preference.js",
       "theme-preference.js",
       "settings-preferences.js",
+      "sidebar-favorites.js",
+      "sidebar-navigation.js",
       "i18n.js",
       "workbench-locales.js",
       "file-tree-visibility.js",

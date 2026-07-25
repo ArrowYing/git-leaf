@@ -44,12 +44,14 @@ import {
 } from "../src/build-info.mjs";
 import {
   closeDesktopRepository,
+  mutateDesktopRepositoryFavorites,
   readDesktopConfig,
   saveDesktopPreferences,
   saveDesktopRepository,
   saveDesktopUsageAnalyticsEnabled,
   saveDesktopWindowState,
 } from "../src/desktop-config.mjs";
+import { sidebarFavoritesForScope } from "../public/sidebar-favorites.js";
 import {
   desktopHomeHtml,
   desktopPageBackgroundColor,
@@ -518,6 +520,23 @@ async function saveDesktopPreferenceValuesFromRenderer(preferences) {
   return preferencesForRenderer(
     await saveDesktopPreferenceValues(preferences, { notifyRenderer: false }),
   );
+}
+
+function repositoryFavoritesForRenderer(repositoryRoot) {
+  return sidebarFavoritesForScope(
+    desktopRepositoryState.repositoryFavorites,
+    repositoryRoot,
+  );
+}
+
+async function mutateRepositoryFavoriteForRenderer({ repositoryRoot, operation }) {
+  desktopRepositoryState = await mutateDesktopRepositoryFavorites({
+    userDataDir: userDataDir(),
+    repositoryRoot,
+    operation,
+    repoRoot: activeServer?.repoRoot ?? "",
+  });
+  return repositoryFavoritesForRenderer(repositoryRoot);
 }
 
 async function loadDesktopRepositoryState() {
@@ -1670,6 +1689,8 @@ async function openRepository(
     initialFilePath,
     desktopPreferences: preferencesForRenderer(),
     saveDesktopPreferences: saveDesktopPreferenceValuesFromRenderer,
+    getRepositoryFavorites: repositoryFavoritesForRenderer,
+    mutateRepositoryFavorite: mutateRepositoryFavoriteForRenderer,
     recordTelemetryActions: telemetryClient?.enabled ? recordDesktopTelemetryActions : null,
   });
   activeServer = nextServer;

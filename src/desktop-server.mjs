@@ -27,6 +27,8 @@ export async function startDesktopGitLeafServer({
   port = DEFAULT_DESKTOP_PORT,
   desktopPreferences = null,
   saveDesktopPreferences = null,
+  getRepositoryFavorites = null,
+  mutateRepositoryFavorite = null,
   recordTelemetryActions = null,
 } = {}) {
   if (!repoRoot) {
@@ -51,6 +53,8 @@ export async function startDesktopGitLeafServer({
     repository,
     desktopPreferences,
     saveDesktopPreferences,
+    getRepositoryFavorites,
+    mutateRepositoryFavorite,
     recordTelemetryActions,
   });
   const { port: actualPort } = await listenWithFallback(server, {

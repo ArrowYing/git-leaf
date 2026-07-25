@@ -3,7 +3,7 @@ title: Git Leaf 系统架构
 domain: ai
 type: architecture
 owner: maintainer
-last_updated: 2026-07-24
+last_updated: 2026-07-25
 source: git-leaf
 canonical: true
 ai_snippet: "[Architecture] Git Leaf | standalone desktop app | Git-native Markdown/MDX workbench | local HTTP server | Git worktrees | Preview Source Live | CodeMirror 6 | realtime sync"
@@ -290,8 +290,8 @@ File 菜单和仓库快捷键共享该顺序，`Command+Option+1..9` 直达对�
 - 只有主工作目录时隐藏 worktree 选择器，不向普通用户暴露多余的 Git 概念；
 - 下拉列表显示同一仓库的全部可用 worktree、分支和规范路径；
 - Detached worktree 显示短 commit，并在首次写入后刷新为自动创建的保护分支；
-- 每个 worktree 以规范路径派生的稳定 ID 保存独立 Tab、目录展开、滚动和焦点状态；默认目录树与“本地改动”
-  视图分别保存目录展开状态，首次进入“本地改动”时自动展开全部匹配目录，之后只恢复该视图内的手动展开或折叠。
+- 每个 worktree 以规范路径派生的稳定 ID 保存独立 Tab、滚动和焦点状态；All、Favorites、Sync 三个视图
+  分别保存目录展开状态。首次进入 Sync 时自动展开全部匹配目录，之后只恢复该 worktree、该视图内的手动展开或折叠。
 
 Tab 和目录树遵循稳定视野约束：切换 Tab 只更新当前文档和目录树中的活动标记，不自动展开目录、滚动目录树或抢占目录树焦点。
 只有用户明确执行“在左侧目录中显示”时，才展开目标文件的父目录，并用 `nearest` 的最小位移让目标进入可视区域。Tab 右键菜单
@@ -304,7 +304,8 @@ Git Leaf 不提供分享 token、远程只读页面、SSO、账号系统或公�
 Git Leaf 前端由四个稳定区域组成：
 
 - 顶部栏：稳定显示当前仓库、文档 Tab、模式切换和文档动作；
-- 左侧文件树：顶部切换 worktree，下面列出当前工作目录内文件并支持搜索和 frontmatter 筛选，底部固定“Agent 上下文”入口；
+- 左侧文件树：顶部切换 worktree，目录区用 All、Favorites、Sync 三个视图组织普通目录、收藏和本地改动，
+  支持搜索；All 和 Favorites 支持 frontmatter 筛选，底部固定“Agent 上下文”入口；
 - 文档内导航：根据当前文档标题生成 outline，和正文滚动位置联动；
 - 正文区域：根据模式显示 Preview、Source 或 Live。
 
@@ -312,6 +313,15 @@ Git Leaf 前端由四个稳定区域组成：
 
 左侧文件树、文档内导航和正文区域各自滚动，避免刷新或局部滚动时造成整页抖动。
 文档内导航可以通过界面按钮或 `Command/Ctrl+Shift+B` 整体收起，状态作为自动恢复的布局偏好保存；它不是设置中心中的配置项。
+
+All 显示普通目录树并遵循目录树内容偏好；Favorites 显示收藏的目录和 Markdown／MDX 文档，收藏目录时保留其
+完整子树；Sync 显示全部文件类型的本地 Git 改动，并在目录树上方显示改动数量和仓库级“同步”入口。目录或
+Markdown／MDX 文档可以从文件树右键菜单添加或移除收藏，当前 Markdown／MDX 文档也可以通过正文操作区的星标切换收藏。
+
+桌面版收藏写入 Git Leaf 的 userData 配置，以主仓库规范路径作为作用域，同一仓库的 worktree 共享；收藏不会写入
+目标仓库，也不产生 Git 改动。收藏路径在当前分支或 worktree 中不存在时保留为“缺失”占位，允许用户取消收藏，
+不因一次分支差异自动删除。没有桌面持久化接口的 CLI／浏览器开发入口使用当前 repo／worktree 作用域的
+`localStorage` 作为尽力而为的本机回退。
 
 “Agent 上下文”点击后在目录树位置向上展开临时浮窗，不改变正文宽度，也不占用新的右侧栏。焦点移出浮窗、点击浮窗外或按 `Esc`
 时立即收起，只保留侧边栏底部入口和片段数量。浮窗中的 Basket 按当前仓库和 worktree 隔离，仅在当前窗口会话中保存；它记录
@@ -328,10 +338,11 @@ Git Leaf 前端由四个稳定区域组成：
 
 - “内容文件”默认显示 Markdown／MDX、HTML、图片和 PDF；HTML 作为原型、副文本输出和报表，与 PDF 一样属于常驻内容；
 - “全部仓库文件”显示服务端返回的完整文件树；
-- CSV、JSON、YAML、纯文本、代码、配置和未知类型默认隐藏；文件搜索、当前打开文件和“仅本地改动”可以临时显露这些路径，当前文档的引用关系不改变目录内容；
+- CSV、JSON、YAML、纯文本、代码、配置和未知类型默认隐藏；文件搜索、当前打开文件、收藏目录和 Sync 视图可以按需显露这些路径，当前文档的引用关系不改变目录内容；
 - Frontmatter 筛选启用时只保留匹配的 Markdown／MDX 文档；清除筛选后恢复当前目录树内容模式。
 
-目录树内容偏好只改变呈现，不改变 Git 文件发现、状态统计、同步或提交范围，也不在侧边栏增加常驻模式切换器或隐藏文件计数。
+All、Favorites、Sync 只改变目录树呈现，不改变 Git 文件发现、状态统计、同步或提交范围；目录树内容偏好仍是
+全局个人偏好，视图切换不会修改它。
 
 - `.md` / `.mdx`：Preview、Source、Live，可编辑；
 - 图片（AVIF、BMP、PNG、JPEG、GIF、WebP、SVG）、PDF、CSV、JSON、YAML、HTML 和纯文本：按现有查看器只读预览；
@@ -424,8 +435,8 @@ Git Leaf 的编辑交互遵循“源文本仍可解释”的原则：
 
 Git Leaf 可以帮助非技术同事把本地仓库改动交给 Git 流程，但不替代 Git。
 
-- 文件树显示全部文件类型的本地改动状态；
-- 工具栏只提供显式的“同步”：一次处理 Git 状态中的全部改动，包括图片、附件、代码、重命名和删除；不要求用户选择文件或填写 commit message；
+- All 和 Favorites 在文件项上显示本地改动状态；Sync 视图集中列出全部文件类型的本地改动；
+- Sync 视图的本地改动工具栏只提供显式的“同步”：一次处理 Git 状态中的全部改动，包括图片、附件、代码、重命名和删除；不要求用户选择文件或填写 commit message；
 - 点击后只显示“正在同步…”进度；成功只提示“同步完成”，内部 fetch、重试和 commit 状态不作为需要用户理解的常驻状态；
 - 有 upstream 时先 fetch 并比较本地与远端；远端未领先时提交后直接 push，仅落后时提交后 rebase 远端再 push；
 - 本地和远端同时存在独有提交时视为分叉，在暂存前停止并交给 AI Agent，不自动改写本地提交；

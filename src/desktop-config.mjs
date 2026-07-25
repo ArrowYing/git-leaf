@@ -7,6 +7,10 @@ import {
   LEGACY_USER_PREFERENCES,
   normalizeUserPreferences,
 } from "../public/settings-preferences.js";
+import {
+  applySidebarFavoriteOperation,
+  normalizeSidebarFavoriteScopes,
+} from "../public/sidebar-favorites.js";
 import { normalizeWorkbenchSessions } from "../public/workbench-session.js";
 
 const CONFIG_FILENAME = "desktop-config.json";
@@ -89,6 +93,34 @@ export async function saveDesktopPreferences({ userDataDir, preferences, repoRoo
       const next = normalizeDesktopConfig({
         ...withRuntimeRepository(current, repoRoot),
         preferences: nextPreferences,
+      });
+
+      await writeDesktopConfig({ userDataDir, config: next });
+      return next;
+    },
+  });
+}
+
+export async function mutateDesktopRepositoryFavorites({
+  userDataDir,
+  repositoryRoot,
+  operation,
+  repoRoot = "",
+}) {
+  if (typeof repositoryRoot !== "string" || !repositoryRoot.trim()) {
+    throw new TypeError("repositoryRoot is required to update favorites");
+  }
+  return queueDesktopConfigMutation({
+    userDataDir,
+    mutation: async () => {
+      const current = await readDesktopConfig({ userDataDir });
+      const result = applySidebarFavoriteOperation(current.repositoryFavorites, {
+        ...operation,
+        scope: repositoryRoot,
+      });
+      const next = normalizeDesktopConfig({
+        ...withRuntimeRepository(current, repoRoot),
+        repositoryFavorites: result.scopes,
       });
 
       await writeDesktopConfig({ userDataDir, config: next });
@@ -259,6 +291,7 @@ function normalizeDesktopConfig(payload, { newInstall = false } = {}) {
     "openRepoRoots",
     "windowState",
     "preferences",
+    "repositoryFavorites",
     "usageAnalyticsEnabled",
   ]) {
     delete unknownFields[key];
@@ -270,6 +303,7 @@ function normalizeDesktopConfig(payload, { newInstall = false } = {}) {
   const openRepoRoots = uniqueRepoRoots(arrayOfStrings(source.openRepoRoots));
   const windowState = normalizeDesktopWindowState(source.windowState);
   const preferences = normalizeDesktopPreferences(source.preferences, { newInstall });
+  const repositoryFavorites = normalizeSidebarFavoriteScopes(source.repositoryFavorites);
   const usageAnalyticsEnabled = typeof source.usageAnalyticsEnabled === "boolean"
     ? source.usageAnalyticsEnabled
     : null;
@@ -280,6 +314,7 @@ function normalizeDesktopConfig(payload, { newInstall = false } = {}) {
     openRepoRoots,
     ...(windowState ? { windowState } : {}),
     ...(Object.keys(preferences).length > 0 ? { preferences } : {}),
+    ...(Object.keys(repositoryFavorites).length > 0 ? { repositoryFavorites } : {}),
     ...(usageAnalyticsEnabled === null ? {} : { usageAnalyticsEnabled }),
   };
 }
