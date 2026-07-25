@@ -10,7 +10,7 @@ import {
 test("expansion tooltips appear only when a navigation label is visually truncated", () => {
   assert.equal(elementIsOverflowing({ scrollWidth: 220, clientWidth: 120 }), true);
   assert.equal(elementIsOverflowing({ scrollWidth: 120, clientWidth: 120 }), false);
-  assert.equal(elementIsOverflowing({ scrollWidth: 121, clientWidth: 120 }), false);
+  assert.equal(elementIsOverflowing({ scrollWidth: 121, clientWidth: 120 }), true);
 });
 
 test("expansion tooltips begin at the text instead of beyond the navigation column", () => {

@@ -2089,6 +2089,13 @@ summary.is-missing {
   padding-left: 32px;
 }
 
+.outline-link-label {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .document-content {
   flex: 1 1 auto;
   width: 100%;

@@ -464,8 +464,9 @@ const uiTooltipController = createUiTooltip({
       itemFromTarget: outlineItemFromEventTarget,
       details: outlineItemTooltipDetails,
       key: (item) => item.dataset.outlineTarget,
-      shouldShow: elementIsOverflowing,
-      anchorElement: (item) => item,
+      shouldShow: (item) => elementIsOverflowing(outlineItemLabelElement(item)),
+      anchorElement: outlineItemLabelElement,
+      describedElement: (item) => item,
       placement: "expansion",
       variant: "expansion",
       delay: 250,
@@ -1655,7 +1656,6 @@ function updateDocumentFavoriteToggle() {
   const label = active ? t("action.removeFavorite") : t("action.addFavorite");
   documentFavoriteToggle.setAttribute("aria-pressed", String(active));
   documentFavoriteToggle.setAttribute("aria-label", label);
-  setUiTooltip(documentFavoriteToggle, label);
 }
 
 function ensureSourceEditor() {
@@ -1799,7 +1799,6 @@ function applyShortcutTooltips() {
   setUiTooltip(documentNewButton, t("action.newDocument"));
   setShortcutButtonLabel(copyShareLinkButton, t("action.copyShareLink"), "Command+Shift+L");
   updateDocumentFavoriteToggle();
-  setUiTooltip(documentActionsMore, t("action.moreFileActions"));
   setShortcutButtonLabel(document.querySelector("#mode-preview"), "Preview", "Command+P");
   setShortcutButtonLabel(document.querySelector("#mode-source"), "Source", "Command+S");
   setShortcutButtonLabel(document.querySelector("#mode-live"), "Live", "Command+L");
@@ -1827,7 +1826,6 @@ function setShortcutButtonLabel(element, label, shortcut) {
 
   element.textContent = "";
   element.append(labelText, shortcutText);
-  setShortcutTooltip(element, label, shortcut);
   element.setAttribute("aria-label", shortcutTooltip(label, shortcut));
 }
 
@@ -2713,13 +2711,13 @@ function treeItemTooltipDetails(item) {
   const name = label?.textContent?.trim() || "";
   return {
     name,
-    path: item?.dataset.treePath || "",
+    path: "",
   };
 }
 
 function treeItemTooltipKey(item) {
   const details = treeItemTooltipDetails(item);
-  return `${item?.dataset.treeItem || ""}:${details.path || details.name}`;
+  return `${item?.dataset.treeItem || ""}:${item?.dataset.treePath || details.name}`;
 }
 
 function outlineItemFromEventTarget(target) {
@@ -2732,6 +2730,10 @@ function outlineItemTooltipDetails(item) {
     name: item?.textContent?.trim() || "",
     path: "",
   };
+}
+
+function outlineItemLabelElement(item) {
+  return item?.querySelector?.(".outline-link-label") || item;
 }
 
 function documentTabDisplayPath(filePath) {
@@ -3933,7 +3935,10 @@ function renderDocumentOutline() {
     if (Number.isInteger(item.sourceLine)) {
       button.dataset.sourceLine = String(item.sourceLine);
     }
-    button.textContent = item.title;
+    const label = document.createElement("span");
+    label.className = "outline-link-label";
+    label.textContent = item.title;
+    button.append(label);
     listItem.append(button);
     list.append(listItem);
   }

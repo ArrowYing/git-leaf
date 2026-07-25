@@ -335,7 +335,7 @@ export function createUiTooltip({
 }
 
 export function elementIsOverflowing(element) {
-  return Boolean(element && element.scrollWidth > element.clientWidth + 1);
+  return Boolean(element && element.scrollWidth > element.clientWidth);
 }
 
 export function uiTooltipPosition({
