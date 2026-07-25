@@ -22,3 +22,23 @@ export function completeWorkbenchStartup({
     });
   });
 }
+
+export function restoreDocumentTabsForStartup({
+  session,
+  normalizeTabs,
+  resolveActiveTabId,
+  applyTabState,
+} = {}) {
+  if (!session) {
+    return false;
+  }
+
+  const tabs = normalizeTabs(session.tabs);
+  const activeTabId = resolveActiveTabId({
+    tabs,
+    activeTabId: session.activeTabId,
+    activePath: session.activeTabPath,
+  });
+  applyTabState({ tabs, activeTabId }, { render: true });
+  return true;
+}

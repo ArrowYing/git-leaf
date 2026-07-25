@@ -1,124 +1,379 @@
+export const MAX_DOCUMENT_TAB_HISTORY_ENTRIES = 50;
+
 export function tabTitleFromPath(filePath) {
   const normalized = String(filePath || "").replace(/\\/g, "/");
   return normalized.split("/").filter(Boolean).at(-1) || normalized || "Untitled";
 }
 
-export function openDocumentTab({ tabs = [], activePath = "", targetPath, behavior = "current" }) {
-  const path = String(targetPath || "");
-  if (!path) {
-    return { tabs: normalizeTabs(tabs), activePath: "" };
-  }
-
-  const normalizedTabs = normalizeTabs(tabs);
-  const existingIndex = normalizedTabs.findIndex((tab) => tab.path === path);
-  if (existingIndex >= 0) {
-    return {
-      tabs: normalizedTabs,
-      activePath: behavior === "background" ? activePath || normalizedTabs[existingIndex].path : path,
-    };
-  }
-
-  if (normalizedTabs.length === 0) {
-    return { tabs: [{ path }], activePath: path };
-  }
-
-  if (behavior === "current") {
-    const activeIndex = normalizedTabs.findIndex((tab) => tab.path === activePath);
-    const replaceIndex = activeIndex >= 0 ? activeIndex : 0;
-    const nextTabs = normalizedTabs.map((tab, index) => index === replaceIndex ? { path } : tab);
-    return { tabs: nextTabs, activePath: path };
-  }
-
-  return {
-    tabs: [...normalizedTabs, { path }],
-    activePath: behavior === "background" ? activePath || normalizedTabs[0]?.path || path : path,
-  };
-}
-
-export function shouldSkipTreeDocumentLoad({
-  behavior = "current",
-  previousActivePath = "",
-  nextActivePath = "",
-  currentDocumentPath = "",
-  targetPath = "",
+export function documentTabBehaviorFromModifiers({
+  metaKey = false,
+  ctrlKey = false,
+  shiftKey = false,
 } = {}) {
-  if (behavior === "background" && previousActivePath && nextActivePath === previousActivePath) {
-    return true;
+  const opensSeparateTab = metaKey || ctrlKey;
+  if (opensSeparateTab && shiftKey) {
+    return "foreground";
   }
-  return Boolean(
-    targetPath &&
-      currentDocumentPath === targetPath &&
-      previousActivePath === targetPath &&
-      nextActivePath === targetPath,
-  );
+  return opensSeparateTab ? "background" : "current";
 }
 
-export function closeDocumentTab({ tabs = [], activePath = "", targetPath }) {
-  const normalizedTabs = normalizeTabs(tabs);
-  const closeIndex = normalizedTabs.findIndex((tab) => tab.path === targetPath);
-  if (closeIndex < 0) {
-    return { tabs: normalizedTabs, activePath };
+export function normalizeDocumentTabs(tabs = []) {
+  if (!Array.isArray(tabs)) {
+    return [];
   }
 
-  const nextTabs = normalizedTabs.filter((_, index) => index !== closeIndex);
-  if (nextTabs.length === 0) {
-    return { tabs: [], activePath: "" };
-  }
-  if (targetPath !== activePath) {
-    return { tabs: nextTabs, activePath };
-  }
-
-  const nextActiveIndex = Math.min(closeIndex, nextTabs.length - 1);
-  return { tabs: nextTabs, activePath: nextTabs[nextActiveIndex].path };
-}
-
-export function closeOtherDocumentTabs({ tabs = [], targetPath }) {
-  const normalizedTabs = normalizeTabs(tabs);
-  const target = normalizedTabs.find((tab) => tab.path === targetPath);
-  return target
-    ? { tabs: [target], activePath: target.path }
-    : { tabs: normalizedTabs, activePath: normalizedTabs[0]?.path || "" };
-}
-
-export function closeDocumentTabsToRight({ tabs = [], activePath = "", targetPath }) {
-  const normalizedTabs = normalizeTabs(tabs);
-  const targetIndex = normalizedTabs.findIndex((tab) => tab.path === targetPath);
-  if (targetIndex < 0 || targetIndex === normalizedTabs.length - 1) {
-    return { tabs: normalizedTabs, activePath };
-  }
-
-  const nextTabs = normalizedTabs.slice(0, targetIndex + 1);
-  return {
-    tabs: nextTabs,
-    activePath: nextTabs.some((tab) => tab.path === activePath) ? activePath : targetPath,
+  const usedIds = new Set();
+  let generatedId = 1;
+  const nextId = () => {
+    while (usedIds.has(`tab-${generatedId}`)) {
+      generatedId += 1;
+    }
+    const id = `tab-${generatedId}`;
+    generatedId += 1;
+    return id;
   };
-}
 
-export function reorderDocumentTabs({ tabs = [], sourcePath, targetPath, placement = "before" }) {
-  const normalizedTabs = normalizeTabs(tabs);
-  const sourceIndex = normalizedTabs.findIndex((tab) => tab.path === sourcePath);
-  const targetIndex = normalizedTabs.findIndex((tab) => tab.path === targetPath);
-  if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex) {
-    return normalizedTabs;
-  }
-
-  const nextTabs = normalizedTabs.filter((tab) => tab.path !== sourcePath);
-  const nextTargetIndex = nextTabs.findIndex((tab) => tab.path === targetPath);
-  const insertIndex = placement === "after" ? nextTargetIndex + 1 : nextTargetIndex;
-  nextTabs.splice(insertIndex, 0, { path: sourcePath });
-  return nextTabs;
-}
-
-function normalizeTabs(tabs) {
-  const seen = new Set();
-  const result = [];
-  for (const tab of tabs) {
-    const path = String(tab?.path || "");
-    if (!path || seen.has(path)) {
+  const normalized = [];
+  for (const rawTab of tabs) {
+    const fallbackPath = normalizePath(rawTab?.path);
+    const history = normalizeHistory(rawTab?.history, fallbackPath);
+    if (!history) {
       continue;
     }
-    seen.add(path);
-    result.push({ path });
+
+    const requestedId = normalizeTabId(rawTab?.id);
+    const id = requestedId && !usedIds.has(requestedId) ? requestedId : nextId();
+    usedIds.add(id);
+    const current = history.entries[history.index];
+    normalized.push({ id, path: current.path, history });
   }
-  return result;
+  return normalized;
+}
+
+export function resolveActiveDocumentTabId({ tabs = [], activeTabId = "", activePath = "" } = {}) {
+  const normalized = normalizeDocumentTabs(tabs);
+  const requestedId = normalizeTabId(activeTabId);
+  if (requestedId && normalized.some((tab) => tab.id === requestedId)) {
+    return requestedId;
+  }
+
+  const requestedPath = normalizePath(activePath);
+  return normalized.find((tab) => tab.path === requestedPath)?.id || normalized[0]?.id || "";
+}
+
+export function activeDocumentTab({ tabs = [], activeTabId = "" } = {}) {
+  const normalized = normalizeDocumentTabs(tabs);
+  const id = resolveActiveDocumentTabId({ tabs: normalized, activeTabId });
+  return normalized.find((tab) => tab.id === id) || null;
+}
+
+export function activeDocumentPath({ tabs = [], activeTabId = "" } = {}) {
+  return activeDocumentTab({ tabs, activeTabId })?.path || "";
+}
+
+export function activeDocumentLocation({ tabs = [], activeTabId = "" } = {}) {
+  const tab = activeDocumentTab({ tabs, activeTabId });
+  return tab ? { ...tab.history.entries[tab.history.index] } : null;
+}
+
+export function navigateDocumentTab({
+  tabs = [],
+  activeTabId = "",
+  location,
+  behavior = "current",
+} = {}) {
+  const normalized = normalizeDocumentTabs(tabs);
+  const activeId = resolveActiveDocumentTabId({ tabs: normalized, activeTabId });
+  const target = normalizeLocation(location);
+  if (!target) {
+    return navigationResult(normalized, activeId);
+  }
+
+  if (behavior === "background" || behavior === "foreground") {
+    const nextTab = createDocumentTab(normalized, target);
+    const nextTabs = [...normalized, nextTab];
+    return navigationResult(nextTabs, behavior === "foreground" ? nextTab.id : activeId, nextTab.id);
+  }
+
+  const activeIndex = normalized.findIndex((tab) => tab.id === activeId);
+  if (activeIndex < 0) {
+    const nextTab = createDocumentTab(normalized, target);
+    return navigationResult([nextTab], nextTab.id, nextTab.id);
+  }
+
+  const activeTab = normalized[activeIndex];
+  const current = activeTab.history.entries[activeTab.history.index];
+  if (sameAddress(current, target)) {
+    return navigationResult(normalized, activeId);
+  }
+
+  const entries = [...activeTab.history.entries.slice(0, activeTab.history.index + 1), target];
+  const trimmedEntries = entries.slice(-MAX_DOCUMENT_TAB_HISTORY_ENTRIES);
+  const nextTab = {
+    ...activeTab,
+    path: target.path,
+    history: {
+      entries: trimmedEntries,
+      index: trimmedEntries.length - 1,
+    },
+  };
+  const nextTabs = normalized.map((tab, index) => index === activeIndex ? nextTab : tab);
+  return navigationResult(nextTabs, activeId);
+}
+
+export function activateDocumentTab({ tabs = [], activeTabId = "", targetTabId = "" } = {}) {
+  const normalized = normalizeDocumentTabs(tabs);
+  const activeId = resolveActiveDocumentTabId({ tabs: normalized, activeTabId });
+  const requestedId = normalizeTabId(targetTabId);
+  const nextId = normalized.some((tab) => tab.id === requestedId) ? requestedId : activeId;
+  return navigationResult(normalized, nextId);
+}
+
+export function moveDocumentTabHistory({ tabs = [], activeTabId = "", direction = 0 } = {}) {
+  const normalized = normalizeDocumentTabs(tabs);
+  const activeId = resolveActiveDocumentTabId({ tabs: normalized, activeTabId });
+  const activeIndex = normalized.findIndex((tab) => tab.id === activeId);
+  const step = Number(direction) < 0 ? -1 : Number(direction) > 0 ? 1 : 0;
+  if (activeIndex < 0 || step === 0) {
+    return navigationResult(normalized, activeId);
+  }
+
+  const activeTab = normalized[activeIndex];
+  const historyIndex = Math.max(0, Math.min(
+    activeTab.history.entries.length - 1,
+    activeTab.history.index + step,
+  ));
+  if (historyIndex === activeTab.history.index) {
+    return navigationResult(normalized, activeId);
+  }
+
+  const location = activeTab.history.entries[historyIndex];
+  const nextTab = {
+    ...activeTab,
+    path: location.path,
+    history: { ...activeTab.history, index: historyIndex },
+  };
+  const nextTabs = normalized.map((tab, index) => index === activeIndex ? nextTab : tab);
+  return navigationResult(nextTabs, activeId);
+}
+
+export function documentTabHistoryAvailability({ tabs = [], activeTabId = "" } = {}) {
+  const activeTab = activeDocumentTab({ tabs, activeTabId });
+  if (!activeTab) {
+    return { canGoBack: false, canGoForward: false };
+  }
+  return {
+    canGoBack: activeTab.history.index > 0,
+    canGoForward: activeTab.history.index < activeTab.history.entries.length - 1,
+  };
+}
+
+export function updateActiveDocumentTabLocation({ tabs = [], activeTabId = "", location = {} } = {}) {
+  const normalized = normalizeDocumentTabs(tabs);
+  const activeId = resolveActiveDocumentTabId({ tabs: normalized, activeTabId });
+  const activeIndex = normalized.findIndex((tab) => tab.id === activeId);
+  if (activeIndex < 0) {
+    return navigationResult(normalized, activeId);
+  }
+
+  const activeTab = normalized[activeIndex];
+  const current = activeTab.history.entries[activeTab.history.index];
+  const nextLocation = normalizeLocation({
+    path: location.path ?? current.path,
+    hash: location.hash ?? current.hash,
+    scrollTop: location.scrollTop ?? current.scrollTop,
+  });
+  if (!nextLocation || sameLocation(current, nextLocation)) {
+    return navigationResult(normalized, activeId);
+  }
+
+  const entries = activeTab.history.entries.map((entry, index) =>
+    index === activeTab.history.index ? nextLocation : entry,
+  );
+  const nextTab = {
+    ...activeTab,
+    path: nextLocation.path,
+    history: { ...activeTab.history, entries },
+  };
+  const nextTabs = normalized.map((tab, index) => index === activeIndex ? nextTab : tab);
+  return navigationResult(nextTabs, activeId);
+}
+
+export function closeDocumentTab({ tabs = [], activeTabId = "", targetTabId = "" } = {}) {
+  const normalized = normalizeDocumentTabs(tabs);
+  const activeId = resolveActiveDocumentTabId({ tabs: normalized, activeTabId });
+  const targetId = normalizeTabId(targetTabId);
+  const closeIndex = normalized.findIndex((tab) => tab.id === targetId);
+  if (closeIndex < 0) {
+    return navigationResult(normalized, activeId);
+  }
+
+  const nextTabs = normalized.filter((_, index) => index !== closeIndex);
+  if (nextTabs.length === 0) {
+    return navigationResult([], "");
+  }
+  if (targetId !== activeId) {
+    return navigationResult(nextTabs, activeId);
+  }
+
+  return navigationResult(nextTabs, nextTabs[Math.min(closeIndex, nextTabs.length - 1)].id);
+}
+
+export function closeOtherDocumentTabs({ tabs = [], targetTabId = "" } = {}) {
+  const normalized = normalizeDocumentTabs(tabs);
+  const targetId = normalizeTabId(targetTabId);
+  const target = normalized.find((tab) => tab.id === targetId);
+  return target ? navigationResult([target], target.id) : navigationResult(normalized, normalized[0]?.id || "");
+}
+
+export function closeDocumentTabsToRight({ tabs = [], activeTabId = "", targetTabId = "" } = {}) {
+  const normalized = normalizeDocumentTabs(tabs);
+  const activeId = resolveActiveDocumentTabId({ tabs: normalized, activeTabId });
+  const targetId = normalizeTabId(targetTabId);
+  const targetIndex = normalized.findIndex((tab) => tab.id === targetId);
+  if (targetIndex < 0 || targetIndex === normalized.length - 1) {
+    return navigationResult(normalized, activeId);
+  }
+
+  const nextTabs = normalized.slice(0, targetIndex + 1);
+  const nextActiveId = nextTabs.some((tab) => tab.id === activeId) ? activeId : targetId;
+  return navigationResult(nextTabs, nextActiveId);
+}
+
+export function reorderDocumentTabs({ tabs = [], sourceTabId = "", targetTabId = "", placement = "before" } = {}) {
+  const normalized = normalizeDocumentTabs(tabs);
+  const sourceId = normalizeTabId(sourceTabId);
+  const targetId = normalizeTabId(targetTabId);
+  const sourceIndex = normalized.findIndex((tab) => tab.id === sourceId);
+  const targetIndex = normalized.findIndex((tab) => tab.id === targetId);
+  if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex) {
+    return normalized;
+  }
+
+  const [source] = normalized.splice(sourceIndex, 1);
+  const nextTargetIndex = normalized.findIndex((tab) => tab.id === targetId);
+  normalized.splice(placement === "after" ? nextTargetIndex + 1 : nextTargetIndex, 0, source);
+  return normalized;
+}
+
+export function replaceDocumentTabPath({ tabs = [], fromPath, toPath } = {}) {
+  const from = normalizePath(fromPath);
+  const to = normalizePath(toPath);
+  const normalized = normalizeDocumentTabs(tabs);
+  if (!from || !to || from === to) {
+    return normalized;
+  }
+
+  return normalized.map((tab) => {
+    const entries = tab.history.entries.map((entry) => entry.path === from ? { ...entry, path: to } : entry);
+    const current = entries[tab.history.index];
+    return {
+      ...tab,
+      path: current.path,
+      history: { ...tab.history, entries },
+    };
+  });
+}
+
+function navigationResult(tabs, activeTabId, openedTabId = "") {
+  const normalized = normalizeDocumentTabs(tabs);
+  const resolvedId = resolveActiveDocumentTabId({ tabs: normalized, activeTabId });
+  return {
+    tabs: normalized,
+    activeTabId: resolvedId,
+    openedTabId,
+    location: activeDocumentLocation({ tabs: normalized, activeTabId: resolvedId }),
+  };
+}
+
+function createDocumentTab(tabs, location) {
+  const id = nextDocumentTabId(tabs);
+  return {
+    id,
+    path: location.path,
+    history: { entries: [location], index: 0 },
+  };
+}
+
+function nextDocumentTabId(tabs) {
+  const usedIds = new Set(tabs.map((tab) => tab.id));
+  let index = 1;
+  while (usedIds.has(`tab-${index}`)) {
+    index += 1;
+  }
+  return `tab-${index}`;
+}
+
+function normalizeHistory(value, fallbackPath) {
+  const rawEntries = Array.isArray(value?.entries) ? value.entries : [];
+  const entries = rawEntries.map(normalizeLocation).filter(Boolean);
+  if (entries.length === 0) {
+    const initial = normalizeLocation({ path: fallbackPath });
+    return initial ? { entries: [initial], index: 0 } : null;
+  }
+
+  const requestedIndex = Number.isInteger(value?.index) ? value.index : entries.length - 1;
+  const boundedIndex = Math.max(0, Math.min(entries.length - 1, requestedIndex));
+  const start = entries.length > MAX_DOCUMENT_TAB_HISTORY_ENTRIES
+    ? Math.min(
+      Math.max(0, boundedIndex - (MAX_DOCUMENT_TAB_HISTORY_ENTRIES - 1)),
+      entries.length - MAX_DOCUMENT_TAB_HISTORY_ENTRIES,
+    )
+    : 0;
+  const trimmedEntries = entries.slice(start, start + MAX_DOCUMENT_TAB_HISTORY_ENTRIES);
+  return {
+    entries: trimmedEntries,
+    index: Math.max(0, Math.min(trimmedEntries.length - 1, boundedIndex - start)),
+  };
+}
+
+function normalizeLocation(value) {
+  const path = normalizePath(value?.path);
+  if (!path) {
+    return null;
+  }
+  return {
+    path,
+    hash: normalizeHash(value?.hash),
+    scrollTop: normalizeScrollTop(value?.scrollTop),
+  };
+}
+
+function normalizePath(value) {
+  const rawPath = String(value || "").replace(/\\/g, "/").trim();
+  if (
+    !rawPath ||
+    rawPath.startsWith("/") ||
+    /^[a-zA-Z]:/.test(rawPath) ||
+    rawPath.split("/").some((segment) => segment === "..")
+  ) {
+    return "";
+  }
+  return rawPath.split("/").filter((segment) => segment && segment !== ".").join("/");
+}
+
+function normalizeHash(value) {
+  const hash = String(value || "").trim();
+  if (!hash) {
+    return "";
+  }
+  return hash.startsWith("#") ? hash.slice(0, 512) : `#${hash.slice(0, 511)}`;
+}
+
+function normalizeScrollTop(value) {
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? Math.min(Math.round(number), 10_000_000) : 0;
+}
+
+function normalizeTabId(value) {
+  const id = String(value || "").trim();
+  return id && id.length <= 128 ? id : "";
+}
+
+function sameLocation(left, right) {
+  return left.path === right.path && left.hash === right.hash && left.scrollTop === right.scrollTop;
+}
+
+function sameAddress(left, right) {
+  return left.path === right.path && left.hash === right.hash;
 }

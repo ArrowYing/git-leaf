@@ -122,3 +122,116 @@ test("an explicitly requested existing tab becomes active without duplication", 
     },
   );
 });
+
+test("a requested path retains the active duplicate tab identity", () => {
+  const sessions = normalizeWorkbenchSessions({
+    "company-docs": {
+      tabs: [
+        { id: "tab-a", path: "README.md" },
+        { id: "tab-b", path: "README.md" },
+      ],
+      activeTabId: "tab-b",
+      activeTabPath: "README.md",
+    },
+  });
+
+  assert.deepEqual(
+    workbenchSessionForLaunch(sessions, "company-docs", "README.md"),
+    {
+      tabs: [
+        { id: "tab-a", path: "README.md" },
+        { id: "tab-b", path: "README.md" },
+      ],
+      activeTabId: "tab-b",
+      activeTabPath: "README.md",
+    },
+  );
+});
+
+test("workbench sessions preserve stable tab identities and bounded per-tab history", () => {
+  const sessions = normalizeWorkbenchSessions({
+    "company-docs": {
+      tabs: [
+        {
+          id: "tab-a",
+          path: "README.md",
+          history: {
+            entries: [
+              { path: "AGENTS.md", hash: "#L2", scrollTop: 80 },
+              { path: "README.md", hash: "", scrollTop: 240 },
+            ],
+            index: 1,
+          },
+        },
+      ],
+      activeTabId: "tab-a",
+      activeTabPath: "README.md",
+    },
+  });
+
+  assert.deepEqual(sessions, {
+    "company-docs": {
+      tabs: [
+        {
+          id: "tab-a",
+          path: "README.md",
+          history: {
+            entries: [
+              { path: "AGENTS.md", hash: "#L2", scrollTop: 80 },
+              { path: "README.md", hash: "", scrollTop: 240 },
+            ],
+            index: 1,
+          },
+        },
+      ],
+      activeTabId: "tab-a",
+      activeTabPath: "README.md",
+    },
+  });
+});
+
+test("a requested launch document never reuses another tab's active identity", () => {
+  const sessions = normalizeWorkbenchSessions({
+    "company-docs": {
+      tabs: [{ id: "tab-a", path: "README.md" }],
+      activeTabId: "tab-a",
+      activeTabPath: "README.md",
+    },
+  });
+
+  assert.deepEqual(
+    workbenchSessionForLaunch(sessions, "company-docs", "AGENTS.md"),
+    {
+      tabs: [
+        { id: "tab-a", path: "README.md" },
+        { path: "AGENTS.md" },
+      ],
+      activeTabPath: "AGENTS.md",
+    },
+  );
+});
+
+test("repository-keyed workbench sessions keep per-tab histories separate", () => {
+  const sessions = normalizeWorkbenchSessions({
+    "repo-a": {
+      tabs: [{
+        id: "tab-a",
+        path: "README.md",
+        history: { entries: [{ path: "AGENTS.md" }, { path: "README.md" }], index: 1 },
+      }],
+      activeTabId: "tab-a",
+      activeTabPath: "README.md",
+    },
+    "repo-b": {
+      tabs: [{ id: "tab-b", path: "CONTRIBUTING.md" }],
+      activeTabId: "tab-b",
+      activeTabPath: "CONTRIBUTING.md",
+    },
+  });
+
+  assert.deepEqual(
+    workbenchSessionForRepo(sessions, "repo-a")?.tabs[0].history.entries.map((entry) => entry.path),
+    ["AGENTS.md", "README.md"],
+  );
+  assert.equal(workbenchSessionForRepo(sessions, "repo-b")?.tabs[0].path, "CONTRIBUTING.md");
+});

@@ -1,183 +1,259 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+
 import {
+  activateDocumentTab,
+  activeDocumentLocation,
   closeDocumentTab,
   closeDocumentTabsToRight,
   closeOtherDocumentTabs,
-  openDocumentTab,
+  documentTabBehaviorFromModifiers,
+  documentTabHistoryAvailability,
+  moveDocumentTabHistory,
+  navigateDocumentTab,
+  normalizeDocumentTabs,
   reorderDocumentTabs,
-  shouldSkipTreeDocumentLoad,
+  replaceDocumentTabPath,
   tabTitleFromPath,
+  updateActiveDocumentTabLocation,
 } from "../public/document-tabs.js";
+
+function tab(id, path, entries = [{ path }], index = entries.length - 1) {
+  return {
+    id,
+    path,
+    history: { entries, index },
+  };
+}
+
+function location(path, { hash = "", scrollTop = 0 } = {}) {
+  return { path, hash, scrollTop };
+}
 
 test("tabTitleFromPath shows the file name", () => {
   assert.equal(tabTitleFromPath("docs/guides/github-apps-management.md"), "github-apps-management.md");
 });
 
-test("plain click replaces the current active tab", () => {
-  const result = openDocumentTab({
-    tabs: [{ path: "AGENTS.md" }, { path: "README.md" }],
-    activePath: "AGENTS.md",
-    targetPath: "release.md",
-    behavior: "current",
-  });
-
-  assert.deepEqual(result.tabs.map((tab) => tab.path), ["release.md", "README.md"]);
-  assert.equal(result.activePath, "release.md");
+test("link modifiers select current, background, and foreground tab intents", () => {
+  assert.equal(documentTabBehaviorFromModifiers(), "current");
+  assert.equal(documentTabBehaviorFromModifiers({ shiftKey: true }), "current");
+  assert.equal(documentTabBehaviorFromModifiers({ metaKey: true }), "background");
+  assert.equal(documentTabBehaviorFromModifiers({ ctrlKey: true }), "background");
+  assert.equal(documentTabBehaviorFromModifiers({ metaKey: true, shiftKey: true }), "foreground");
 });
 
-test("plain click activates an already-open target without duplicating it", () => {
-  const result = openDocumentTab({
-    tabs: [{ path: "AGENTS.md" }, { path: "README.md" }],
-    activePath: "AGENTS.md",
-    targetPath: "README.md",
-    behavior: "current",
+test("normal document navigation replaces the active third tab and records its own history", () => {
+  const result = navigateDocumentTab({
+    tabs: [tab("tab-1", "AGENTS.md"), tab("tab-2", "CONTRIBUTING.md"), tab("tab-3", "README.md")],
+    activeTabId: "tab-3",
+    location: location("docs/architecture.md"),
   });
 
-  assert.deepEqual(result.tabs.map((tab) => tab.path), ["AGENTS.md", "README.md"]);
-  assert.equal(result.activePath, "README.md");
+  assert.deepEqual(result.tabs.map((item) => item.path), [
+    "AGENTS.md",
+    "CONTRIBUTING.md",
+    "docs/architecture.md",
+  ]);
+  assert.equal(result.activeTabId, "tab-3");
+  assert.deepEqual(result.tabs[2].history.entries.map((entry) => entry.path), [
+    "README.md",
+    "docs/architecture.md",
+  ]);
 });
 
-test("Command click opens a background tab and keeps the current active document", () => {
-  const result = openDocumentTab({
-    tabs: [{ path: "AGENTS.md" }],
-    activePath: "AGENTS.md",
-    targetPath: "README.md",
+test("back and forward stay in the active tab instead of activating a sibling tab", () => {
+  const tabs = [
+    tab("tab-1", "README.md"),
+    tab("tab-2", "CONTRIBUTING.md"),
+    tab("tab-3", "docs/architecture.md", [location("README.zh-CN.md"), location("docs/architecture.md")]),
+  ];
+
+  const back = moveDocumentTabHistory({ tabs, activeTabId: "tab-3", direction: -1 });
+  assert.equal(back.activeTabId, "tab-3");
+  assert.deepEqual(activeDocumentLocation(back), location("README.zh-CN.md"));
+  assert.deepEqual(back.tabs.map((item) => item.path), ["README.md", "CONTRIBUTING.md", "README.zh-CN.md"]);
+
+  const forward = moveDocumentTabHistory({
+    tabs: back.tabs,
+    activeTabId: back.activeTabId,
+    direction: 1,
+  });
+  assert.equal(forward.activeTabId, "tab-3");
+  assert.deepEqual(activeDocumentLocation(forward), location("docs/architecture.md"));
+});
+
+test("histories remain independent when two tabs visit the same document", () => {
+  const tabs = [
+    tab("tab-1", "README.md", [location("AGENTS.md"), location("README.md")]),
+    tab("tab-2", "README.md", [location("CONTRIBUTING.md"), location("README.md")]),
+  ];
+
+  const result = moveDocumentTabHistory({ tabs, activeTabId: "tab-2", direction: -1 });
+  assert.equal(result.activeTabId, "tab-2");
+  assert.equal(result.tabs[0].path, "README.md");
+  assert.equal(result.tabs[1].path, "CONTRIBUTING.md");
+  assert.equal(result.tabs[0].history.index, 1);
+  assert.equal(result.tabs[1].history.index, 0);
+});
+
+test("new navigation after Back clears only that tab's forward branch", () => {
+  const tabs = [
+    tab("tab-1", "README.md", [
+      location("AGENTS.md"),
+      location("README.md"),
+      location("release.md"),
+    ], 1),
+    tab("tab-2", "CONTRIBUTING.md", [location("CONTRIBUTING.md"), location("SECURITY.md")]),
+  ];
+
+  const result = navigateDocumentTab({
+    tabs,
+    activeTabId: "tab-1",
+    location: location("docs/architecture.md"),
+  });
+  assert.deepEqual(result.tabs[0].history.entries.map((entry) => entry.path), [
+    "AGENTS.md",
+    "README.md",
+    "docs/architecture.md",
+  ]);
+  assert.equal(result.tabs[1].history.entries.at(-1).path, "SECURITY.md");
+  assert.deepEqual(documentTabHistoryAvailability(result), { canGoBack: true, canGoForward: false });
+});
+
+test("Command-style background navigation creates an independent background tab", () => {
+  const result = navigateDocumentTab({
+    tabs: [tab("tab-1", "README.md", [location("AGENTS.md"), location("README.md")])],
+    activeTabId: "tab-1",
+    location: location("docs/architecture.md", { hash: "#L12" }),
     behavior: "background",
   });
 
-  assert.deepEqual(result.tabs.map((tab) => tab.path), ["AGENTS.md", "README.md"]);
-  assert.equal(result.activePath, "AGENTS.md");
-});
-
-test("Command click on an already-open target keeps the current active document", () => {
-  const result = openDocumentTab({
-    tabs: [{ path: "AGENTS.md" }, { path: "README.md" }],
-    activePath: "AGENTS.md",
-    targetPath: "README.md",
-    behavior: "background",
+  assert.equal(result.activeTabId, "tab-1");
+  assert.deepEqual(result.tabs.map((item) => item.path), ["README.md", "docs/architecture.md"]);
+  assert.deepEqual(result.tabs[0].history.entries.map((entry) => entry.path), ["AGENTS.md", "README.md"]);
+  assert.deepEqual(result.tabs[1].history, {
+    entries: [location("docs/architecture.md", { hash: "#L12" })],
+    index: 0,
   });
-
-  assert.deepEqual(result.tabs.map((tab) => tab.path), ["AGENTS.md", "README.md"]);
-  assert.equal(result.activePath, "AGENTS.md");
 });
 
-test("tree click skips loading the already active document", () => {
-  assert.equal(
-    shouldSkipTreeDocumentLoad({
-      behavior: "current",
-      previousActivePath: "docs/repo-structure.md",
-      nextActivePath: "docs/repo-structure.md",
-      currentDocumentPath: "docs/repo-structure.md",
-      targetPath: "docs/repo-structure.md",
-    }),
-    true,
-  );
-});
-
-test("tree click still loads an inactive already-open document", () => {
-  assert.equal(
-    shouldSkipTreeDocumentLoad({
-      behavior: "current",
-      previousActivePath: "AGENTS.md",
-      nextActivePath: "README.md",
-      currentDocumentPath: "AGENTS.md",
-      targetPath: "README.md",
-    }),
-    false,
-  );
-});
-
-test("Command tree click opens background tabs without loading them", () => {
-  assert.equal(
-    shouldSkipTreeDocumentLoad({
-      behavior: "background",
-      previousActivePath: "AGENTS.md",
-      nextActivePath: "AGENTS.md",
-      currentDocumentPath: "AGENTS.md",
-      targetPath: "README.md",
-    }),
-    true,
-  );
-});
-
-test("Shift click opens a foreground tab and activates it", () => {
-  const result = openDocumentTab({
-    tabs: [{ path: "AGENTS.md" }],
-    activePath: "AGENTS.md",
-    targetPath: "README.md",
+test("Command-Shift-style foreground navigation activates the new tab", () => {
+  const result = navigateDocumentTab({
+    tabs: [tab("tab-1", "README.md")],
+    activeTabId: "tab-1",
+    location: location("docs/architecture.md"),
     behavior: "foreground",
   });
 
-  assert.deepEqual(result.tabs.map((tab) => tab.path), ["AGENTS.md", "README.md"]);
-  assert.equal(result.activePath, "README.md");
+  assert.notEqual(result.activeTabId, "tab-1");
+  assert.equal(result.tabs.find((item) => item.id === result.activeTabId)?.path, "docs/architecture.md");
 });
 
-test("closing an inactive tab preserves the current active document", () => {
-  const result = closeDocumentTab({
-    tabs: [{ path: "AGENTS.md" }, { path: "README.md" }, { path: "release.md" }],
-    activePath: "release.md",
-    targetPath: "README.md",
+test("tab activation does not add a document-history entry", () => {
+  const result = activateDocumentTab({
+    tabs: [
+      tab("tab-1", "README.md", [location("AGENTS.md"), location("README.md")]),
+      tab("tab-2", "CONTRIBUTING.md"),
+    ],
+    activeTabId: "tab-1",
+    targetTabId: "tab-2",
   });
 
-  assert.deepEqual(result.tabs.map((tab) => tab.path), ["AGENTS.md", "release.md"]);
-  assert.equal(result.activePath, "release.md");
+  assert.equal(result.activeTabId, "tab-2");
+  assert.deepEqual(result.tabs[0].history.entries.map((entry) => entry.path), ["AGENTS.md", "README.md"]);
 });
 
-test("closing the active tab activates the nearest adjacent tab", () => {
-  const result = closeDocumentTab({
-    tabs: [{ path: "AGENTS.md" }, { path: "README.md" }, { path: "release.md" }],
-    activePath: "README.md",
-    targetPath: "README.md",
+test("scroll state is kept on the current history entry before leaving a document", () => {
+  const updated = updateActiveDocumentTabLocation({
+    tabs: [tab("tab-1", "README.md")],
+    activeTabId: "tab-1",
+    location: { scrollTop: 360 },
+  });
+  const result = navigateDocumentTab({
+    tabs: updated.tabs,
+    activeTabId: updated.activeTabId,
+    location: location("docs/architecture.md"),
   });
 
-  assert.deepEqual(result.tabs.map((tab) => tab.path), ["AGENTS.md", "release.md"]);
-  assert.equal(result.activePath, "release.md");
+  const back = moveDocumentTabHistory({
+    tabs: result.tabs,
+    activeTabId: result.activeTabId,
+    direction: -1,
+  });
+  assert.equal(activeDocumentLocation(back).scrollTop, 360);
 });
 
-test("closing the final tab leaves no active document", () => {
-  const result = closeDocumentTab({
-    tabs: [{ path: "AGENTS.md" }],
-    activePath: "AGENTS.md",
-    targetPath: "AGENTS.md",
+test("close and reorder use stable tab IDs, even when document paths repeat", () => {
+  const tabs = [tab("tab-1", "README.md"), tab("tab-2", "README.md"), tab("tab-3", "CONTRIBUTING.md")];
+  const reordered = reorderDocumentTabs({
+    tabs,
+    sourceTabId: "tab-3",
+    targetTabId: "tab-1",
+    placement: "before",
+  });
+  assert.deepEqual(reordered.map((item) => item.id), ["tab-3", "tab-1", "tab-2"]);
+
+  const closed = closeDocumentTab({
+    tabs: reordered,
+    activeTabId: "tab-2",
+    targetTabId: "tab-1",
+  });
+  assert.equal(closed.activeTabId, "tab-2");
+  assert.deepEqual(closed.tabs.map((item) => item.id), ["tab-3", "tab-2"]);
+});
+
+test("close other and close right retain the correct active tab identity", () => {
+  const tabs = [tab("tab-1", "AGENTS.md"), tab("tab-2", "README.md"), tab("tab-3", "release.md")];
+  const others = closeOtherDocumentTabs({ tabs, targetTabId: "tab-2" });
+  assert.deepEqual(others.tabs.map((item) => item.id), ["tab-2"]);
+  assert.equal(others.activeTabId, "tab-2");
+
+  const right = closeDocumentTabsToRight({
+    tabs,
+    activeTabId: "tab-3",
+    targetTabId: "tab-2",
+  });
+  assert.deepEqual(right.tabs.map((item) => item.id), ["tab-1", "tab-2"]);
+  assert.equal(right.activeTabId, "tab-2");
+});
+
+test("renaming a document updates every current and historical entry", () => {
+  const result = replaceDocumentTabPath({
+    tabs: [
+      tab("tab-1", "README.md", [location("old.md"), location("README.md")]),
+      tab("tab-2", "old.md", [location("old.md")]),
+    ],
+    fromPath: "old.md",
+    toPath: "new.md",
   });
 
-  assert.deepEqual(result.tabs, []);
-  assert.equal(result.activePath, "");
+  assert.equal(result[1].path, "new.md");
+  assert.deepEqual(result[0].history.entries.map((entry) => entry.path), ["new.md", "README.md"]);
+  assert.equal(result[1].history.entries[0].path, "new.md");
 });
 
-test("closing other tabs keeps and activates the context-menu target", () => {
-  const result = closeOtherDocumentTabs({
-    tabs: [{ path: "AGENTS.md" }, { path: "README.md" }, { path: "release.md" }],
-    targetPath: "README.md",
+test("legacy path-only tabs hydrate into stable identities and one-entry histories", () => {
+  const tabs = normalizeDocumentTabs([{ path: "README.md" }, { path: "README.md" }, { path: "AGENTS.md" }]);
+  assert.deepEqual(tabs.map((item) => item.path), ["README.md", "README.md", "AGENTS.md"]);
+  assert.equal(new Set(tabs.map((item) => item.id)).size, 3);
+  assert.deepEqual(tabs[0].history, { entries: [location("README.md")], index: 0 });
+});
+
+test("tab history accepts only repository-relative document paths", () => {
+  const tabs = normalizeDocumentTabs([
+    { path: "../another-repository/README.md" },
+    { path: "/absolute/README.md" },
+    { path: "docs/./guide.md" },
+  ]);
+
+  assert.deepEqual(tabs.map((item) => item.path), ["docs/guide.md"]);
+
+  const result = navigateDocumentTab({
+    tabs,
+    activeTabId: tabs[0].id,
+    location: location("../../outside.md"),
+    behavior: "background",
   });
-
-  assert.deepEqual(result.tabs, [{ path: "README.md" }]);
-  assert.equal(result.activePath, "README.md");
-});
-
-test("closing tabs to the right follows the current visual order", () => {
-  const result = closeDocumentTabsToRight({
-    tabs: [{ path: "release.md" }, { path: "AGENTS.md" }, { path: "README.md" }],
-    activePath: "README.md",
-    targetPath: "AGENTS.md",
-  });
-
-  assert.deepEqual(result.tabs.map((tab) => tab.path), ["release.md", "AGENTS.md"]);
-  assert.equal(result.activePath, "AGENTS.md");
-});
-
-test("drag reorder moves a tab before or after its drop target", () => {
-  const tabs = [{ path: "AGENTS.md" }, { path: "README.md" }, { path: "release.md" }];
-
-  assert.deepEqual(
-    reorderDocumentTabs({ tabs, sourcePath: "release.md", targetPath: "AGENTS.md", placement: "before" })
-      .map((tab) => tab.path),
-    ["release.md", "AGENTS.md", "README.md"],
-  );
-  assert.deepEqual(
-    reorderDocumentTabs({ tabs, sourcePath: "AGENTS.md", targetPath: "README.md", placement: "after" })
-      .map((tab) => tab.path),
-    ["README.md", "AGENTS.md", "release.md"],
-  );
+  assert.equal(result.openedTabId, "");
+  assert.deepEqual(result.tabs.map((item) => item.path), ["docs/guide.md"]);
 });

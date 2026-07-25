@@ -27,6 +27,8 @@ open remain the source of truth.
 - Previews images, PDFs, CSV, JSON, YAML, HTML, code, and other attachments according to file capability.
 - Restores document tabs, scroll positions, and focus independently for each worktree, with separate folder
   expansion state for the All, Favorites, and Sync views.
+- Keeps Back and Forward history inside the active tab: a normal internal document link replaces that tab,
+  while Command/Ctrl-click opens a separate tab without changing the current one.
 - Preserves source line numbers in Preview and copies selections with repository-relative paths and line ranges.
 - Collects selected lines from Preview, Source, or Live into portable Markdown context for any AI agent.
 - Uses one CodeMirror source model for Source and Live, so Live never creates a second rich-text data model.

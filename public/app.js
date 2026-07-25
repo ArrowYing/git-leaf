@@ -81,13 +81,22 @@ import {
   sidebarTreeForView,
 } from "./sidebar-navigation.js";
 import {
+  activateDocumentTab,
+  activeDocumentLocation,
+  activeDocumentPath,
   closeDocumentTab,
   closeDocumentTabsToRight,
   closeOtherDocumentTabs,
-  openDocumentTab,
+  documentTabBehaviorFromModifiers,
+  documentTabHistoryAvailability,
+  moveDocumentTabHistory,
+  navigateDocumentTab,
+  normalizeDocumentTabs,
   reorderDocumentTabs,
-  shouldSkipTreeDocumentLoad,
+  replaceDocumentTabPath,
+  resolveActiveDocumentTabId,
   tabTitleFromPath,
+  updateActiveDocumentTabLocation,
 } from "./document-tabs.js";
 import {
   normalizeWorkbenchSessions,
@@ -110,7 +119,10 @@ import {
   resolveLocalePreference,
 } from "./i18n.js";
 import { WORKBENCH_MESSAGES } from "./workbench-locales.js";
-import { completeWorkbenchStartup } from "./workbench-startup.js";
+import {
+  completeWorkbenchStartup,
+  restoreDocumentTabsForStartup,
+} from "./workbench-startup.js";
 import {
   fileMatchesTextFilter,
   fileMatchesFrontmatterFilters,
@@ -219,12 +231,18 @@ const initialWorkbenchSession = workbenchSessionForLaunch(
   initialWorktreeId,
   requestedInitialFile,
 );
-const initialFile = initialWorkbenchSession?.activeTabPath || requestedInitialFile;
-const initialDocumentTabs = initialWorkbenchSession
-  ? initialWorkbenchSession.tabs
-  : initialFile
-    ? [{ path: initialFile }]
-    : [];
+const initialDocumentTabs = normalizeDocumentTabs(
+  initialWorkbenchSession?.tabs ?? (requestedInitialFile ? [{ path: requestedInitialFile }] : []),
+);
+const initialActiveTabId = resolveActiveDocumentTabId({
+  tabs: initialDocumentTabs,
+  activeTabId: initialWorkbenchSession?.activeTabId,
+  activePath: initialWorkbenchSession?.activeTabPath || requestedInitialFile,
+});
+const initialFile = activeDocumentPath({
+  tabs: initialDocumentTabs,
+  activeTabId: initialActiveTabId,
+});
 let fileSearchTelemetryActive = false;
 let documentSearchTelemetryActive = false;
 let lastEditingTelemetryAt = 0;
@@ -239,7 +257,9 @@ const state = {
   currentFile: initialFile,
   currentDocument: null,
   documentTabs: initialDocumentTabs,
+  activeTabId: initialActiveTabId,
   activeTabPath: initialFile || "",
+  documentNavigationRequestId: 0,
   canEdit: window.GIT_LEAF_CAN_EDIT !== false,
   currentRepoBranch: "main",
   currentRepoDetached: false,
@@ -439,7 +459,7 @@ const uiTooltipController = createUiTooltip({
       container: documentTabs,
       itemFromTarget: documentTabItemFromEventTarget,
       details: documentTabTooltipDetails,
-      key: (item) => item.dataset.documentTabPath,
+      key: (item) => item.dataset.documentTabId || item.dataset.documentTabPath,
       describedElement: (item) => item.querySelector(".document-tab-title") || item,
       placement: "bottom-start",
       variant: "content",
@@ -627,12 +647,13 @@ try {
   restoreAgentContextItems();
   renderAgentContext();
   restoreWorkbenchSessionForCurrentRepo({ requestedFile: requestedInitialFile });
+  ensureDocumentTabForCurrentFile();
   restoreTreeDirectoryState();
   seedInitialTreeDirectoryExpansion();
   await loadTree();
   await loadGitStatus();
   if (state.currentFile) {
-    await openFile(state.currentFile);
+    await loadDocumentLocation(state.currentFile, { applySavedMode: true });
   } else {
     showNoDocumentSelected();
   }
@@ -1051,17 +1072,9 @@ function scheduleGitStatusRefresh() {
   state.gitStatusTimer = window.setTimeout(loadGitStatus, GIT_STATUS_REFRESH_DELAY_MS);
 }
 
-async function openFile(
-  filePath,
-  pushState = true,
-  {
-    repoId = state.currentRepo,
-    hash = "",
-  } = {},
-) {
+async function fetchDocumentData(filePath, { repoId = state.currentRepo } = {}) {
   if (!filePath) {
-    showNoDocumentSelected({ pushState });
-    return;
+    return null;
   }
 
   const hadDocument = Boolean(state.currentDocument);
@@ -1078,33 +1091,69 @@ async function openFile(
     } else {
       showStartupError(new Error(message));
     }
-    return false;
+    return null;
   }
 
-  const documentData = await response.json();
-  const nextRepoId = documentData.repo || repoId;
-  const repoChanged = nextRepoId !== state.currentRepo;
-  if (repoChanged) {
-    state.documentTabs = [];
-    state.activeTabPath = "";
+  return response.json();
+}
+
+function belongsToCurrentDocumentRepository(documentData, repoId = state.currentRepo) {
+  const targetRepoId = documentData?.repo || repoId;
+  return targetRepoId === repoId && targetRepoId === state.currentRepo;
+}
+
+function currentDocumentRequest() {
+  if (!state.currentDocument?.path) {
+    return null;
+  }
+  return {
+    path: state.currentDocument.path,
+    repoId: state.currentRepo,
+    navigationRequestId: state.documentNavigationRequestId,
+  };
+}
+
+function isCurrentDocumentRequest(request, documentData = null) {
+  if (
+    !request ||
+    state.currentDocument?.path !== request.path ||
+    state.currentRepo !== request.repoId ||
+    state.documentNavigationRequestId !== request.navigationRequestId
+  ) {
+    return false;
+  }
+  return !documentData || (
+    documentData.path === request.path &&
+    belongsToCurrentDocumentRepository(documentData, request.repoId)
+  );
+}
+
+function applyLoadedDocumentData(
+  documentData,
+  {
+    hash = "",
+    preserveScroll = false,
+    forceReplace = false,
+    applySavedMode = false,
+    restoreScrollTop = null,
+  } = {},
+) {
+  const nextRepoId = documentData.repo || state.currentRepo;
+  if (nextRepoId !== state.currentRepo) {
+    return false;
   }
   const repo = repositoryById(nextRepoId);
-  state.currentRepo = nextRepoId;
-  if (repoChanged) {
-    restoreAgentContextItemsForScopeChange();
-  }
-  if (repoChanged) {
-    restoreTreeDirectoryState();
-  }
   if (repo) {
     renderRepositoryHeader(repo);
     applyRepositoryStatus(repo);
   }
   applyDocumentData(documentData, {
-    pushState,
     resetSelectionFromHash: true,
-    applySavedMode: true,
+    applySavedMode,
     initialHash: hash,
+    preserveScroll,
+    forceReplace,
+    restoreScrollTop,
   });
   renderTree();
   resetStatusPolling();
@@ -1112,11 +1161,177 @@ async function openFile(
   return true;
 }
 
+async function loadDocumentLocation(
+  filePath,
+  {
+    repoId = state.currentRepo,
+    hash = "",
+    preserveScroll = false,
+    forceReplace = false,
+    applySavedMode = false,
+    restoreScrollTop = null,
+  } = {},
+) {
+  if (repoId !== state.currentRepo) {
+    return false;
+  }
+  const requestId = ++state.documentNavigationRequestId;
+  const documentData = await fetchDocumentData(filePath, { repoId });
+  if (
+    !documentData ||
+    requestId !== state.documentNavigationRequestId ||
+    !belongsToCurrentDocumentRepository(documentData, repoId)
+  ) {
+    return false;
+  }
+  return applyLoadedDocumentData(documentData, {
+    hash,
+    preserveScroll,
+    forceReplace,
+    applySavedMode,
+    restoreScrollTop,
+  });
+}
+
+async function navigateDocumentLocation(
+  location,
+  {
+    behavior = "current",
+    applySavedMode = false,
+  } = {},
+) {
+  const filePath = String(location?.file || location?.path || "");
+  const repoId = location?.repo || state.currentRepo;
+  const hash = location?.hash || "";
+  if (!filePath) {
+    return false;
+  }
+  // A workbench owns one repository. Repository switches are explicit desktop
+  // transitions, never a side effect of a document link or tab history.
+  if (repoId !== state.currentRepo) {
+    return false;
+  }
+
+  if (behavior === "background") {
+    const nextTabs = navigateDocumentTab({
+      tabs: state.documentTabs,
+      activeTabId: state.activeTabId,
+      location: { path: filePath, hash },
+      behavior,
+    });
+    if (!nextTabs.openedTabId) {
+      return false;
+    }
+    applyDocumentTabState(nextTabs, { render: true, persist: true });
+    return true;
+  }
+
+  captureActiveDocumentLocation();
+  const requestId = ++state.documentNavigationRequestId;
+  const documentData = await fetchDocumentData(filePath, { repoId });
+  if (!documentData || requestId !== state.documentNavigationRequestId) {
+    return false;
+  }
+
+  if (!belongsToCurrentDocumentRepository(documentData, repoId)) {
+    return false;
+  }
+  const nextTabs = navigateDocumentTab({
+    tabs: state.documentTabs,
+    activeTabId: state.activeTabId,
+    location: { path: filePath, hash },
+    behavior,
+  });
+  applyDocumentTabState(nextTabs, { render: true, persist: true });
+  applyLoadedDocumentData(documentData, {
+    hash,
+    applySavedMode,
+    restoreScrollTop: nextTabs.location?.scrollTop ?? 0,
+  });
+  return true;
+}
+
+async function moveActiveDocumentTabHistory(direction) {
+  captureActiveDocumentLocation();
+  const nextTabs = moveDocumentTabHistory({
+    tabs: state.documentTabs,
+    activeTabId: state.activeTabId,
+    direction,
+  });
+  const location = nextTabs.location;
+  if (!location || (location.path === state.currentFile && direction === 0)) {
+    updateDocumentHistoryControls();
+    return false;
+  }
+
+  const current = activeDocumentLocation({ tabs: state.documentTabs, activeTabId: state.activeTabId });
+  if (sameDocumentLocation(current, location)) {
+    updateDocumentHistoryControls();
+    return false;
+  }
+
+  const requestId = ++state.documentNavigationRequestId;
+  const documentData = await fetchDocumentData(location.path, { repoId: state.currentRepo });
+  if (!documentData || requestId !== state.documentNavigationRequestId) {
+    return false;
+  }
+  if (!belongsToCurrentDocumentRepository(documentData)) {
+    return false;
+  }
+  applyDocumentTabState(nextTabs, { render: true, persist: true });
+  applyLoadedDocumentData(documentData, {
+    hash: location.hash,
+    restoreScrollTop: location.scrollTop,
+  });
+  return true;
+}
+
+function sameDocumentLocation(left, right) {
+  return Boolean(left && right) &&
+    left.path === right.path &&
+    left.hash === right.hash &&
+    left.scrollTop === right.scrollTop;
+}
+
+async function activateDocumentTabAndLoad(targetTabId) {
+  const nextTabs = activateDocumentTab({
+    tabs: state.documentTabs,
+    activeTabId: state.activeTabId,
+    targetTabId,
+  });
+  const location = nextTabs.location;
+  if (!location) {
+    return false;
+  }
+  if (nextTabs.activeTabId === state.activeTabId && location.path === state.currentFile) {
+    focusActiveDocumentSurface();
+    return true;
+  }
+
+  captureActiveDocumentLocation();
+  const requestId = ++state.documentNavigationRequestId;
+  const documentData = await fetchDocumentData(location.path, { repoId: state.currentRepo });
+  if (!documentData || requestId !== state.documentNavigationRequestId) {
+    return false;
+  }
+  if (!belongsToCurrentDocumentRepository(documentData)) {
+    return false;
+  }
+  applyDocumentTabState(nextTabs, { render: true, persist: true });
+  applyLoadedDocumentData(documentData, {
+    hash: location.hash,
+    restoreScrollTop: location.scrollTop,
+  });
+  focusActiveDocumentSurface();
+  return true;
+}
+
 function showNoDocumentSelected({ pushState = false } = {}) {
+  state.documentNavigationRequestId += 1;
   closeDocumentSearch({ restoreFocus: false });
   state.currentFile = "";
   state.currentDocument = null;
-  state.activeTabPath = "";
+  applyDocumentTabState({ tabs: [], activeTabId: "" });
   state.selectedLines = new Set();
   state.selectionAnchor = null;
   clearActiveImage();
@@ -1139,16 +1354,7 @@ function showNoDocumentSelected({ pushState = false } = {}) {
     state.sourceEditor.setMode(state.mode);
   }
   if (pushState) {
-    const nextUrl = new URL("/", window.location.origin);
-    nextUrl.searchParams.set("repo", state.currentRepo);
-    window.history.pushState(
-      {
-        repo: state.currentRepo,
-        file: "",
-      },
-      "",
-      `${nextUrl.pathname}${nextUrl.search}`,
-    );
+    replaceCurrentDocumentUrl();
   }
   persistWorkbenchSession();
 }
@@ -1195,19 +1401,18 @@ function hideNoDocumentSurface() {
 function applyDocumentData(
   documentData,
   {
-    pushState = false,
     resetSelectionFromHash = false,
     preserveScroll = false,
     forceReplace = false,
     applySavedMode = false,
     initialHash = "",
+    restoreScrollTop = null,
   } = {},
 ) {
   const scrollTop = preserveScroll ? documentContent.scrollTop : 0;
   const shouldReplace = forceReplace || shouldReplaceDocumentHtml(state.currentDocument, documentData);
   state.currentDocument = documentData;
   state.currentFile = documentData.path;
-  state.activeTabPath = documentData.path;
   hideNoDocumentSurface();
   state.lastWrittenHash = documentData.sourceHash ?? state.lastWrittenHash;
   updateDocumentActions(true);
@@ -1223,7 +1428,6 @@ function applyDocumentData(
     state.selectionAnchor = state.selectedLines.size > 0 ? [...state.selectedLines].at(-1) : null;
   }
 
-  ensureActiveDocumentTab(documentData.path);
   renderBranchStatus();
   applyEditCapability();
   if (applySavedMode) {
@@ -1235,22 +1439,6 @@ function applyDocumentData(
     setMode("preview", { persist: false, focus: false });
   }
 
-  if (pushState) {
-    const initialHash = hashFromLines(state.selectedLines);
-    const nextUrl = new URL("/", window.location.origin);
-    nextUrl.searchParams.set("repo", state.currentRepo);
-    nextUrl.searchParams.set("file", documentData.path);
-    nextUrl.hash = initialHash;
-    window.history.pushState(
-      {
-        repo: state.currentRepo,
-        file: documentData.path,
-      },
-      "",
-      `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`,
-    );
-  }
-
   if (shouldReplace) {
     clearActiveImage();
     clearActiveLink();
@@ -1260,6 +1448,10 @@ function applyDocumentData(
     renderDocumentContent(documentData);
     if (preserveScroll) {
       documentContent.scrollTop = Math.min(scrollTop, documentContent.scrollHeight);
+    } else if (!state.selectedLines.size && Number.isFinite(restoreScrollTop)) {
+      window.requestAnimationFrame(() => {
+        documentContent.scrollTop = Math.min(Math.max(0, restoreScrollTop), documentContent.scrollHeight);
+      });
     }
   }
 
@@ -1272,6 +1464,8 @@ function applyDocumentData(
   if (resetSelectionFromHash) {
     scrollToHashSelectedLine();
   }
+  replaceCurrentDocumentUrl();
+  updateDocumentHistoryControls();
   refreshDocumentSearch({ preserveIndex: true, reveal: false });
   persistWorkbenchSession();
 }
@@ -1423,11 +1617,28 @@ function restoreWorkbenchSessionForCurrentRepo({ requestedFile = "" } = {}) {
     return;
   }
 
-  state.documentTabs = session.tabs;
-  state.activeTabPath = session.activeTabPath;
-  state.currentFile = session.activeTabPath;
+  restoreDocumentTabsForStartup({
+    session,
+    normalizeTabs: normalizeDocumentTabs,
+    resolveActiveTabId: resolveActiveDocumentTabId,
+    applyTabState: applyDocumentTabState,
+  });
+  state.currentFile = state.activeTabPath;
   state.lastTreeFocus = session.treeFocus ?? null;
   state.pendingWorkbenchTreeViewportRestore = true;
+}
+
+function ensureDocumentTabForCurrentFile() {
+  if (!state.currentFile || state.activeTabId) {
+    return;
+  }
+  const nextTabs = navigateDocumentTab({
+    tabs: state.documentTabs,
+    activeTabId: state.activeTabId,
+    location: { path: state.currentFile },
+    behavior: "foreground",
+  });
+  applyDocumentTabState(nextTabs, { render: true });
 }
 
 function currentTreeDirectoryStateScope() {
@@ -1507,10 +1718,72 @@ function flushWorkbenchSessionPreference() {
 function serializeCurrentWorkbenchSession() {
   return serializeWorkbenchSession({
     tabs: state.documentTabs,
+    activeTabId: state.activeTabId,
     activeTabPath: state.activeTabPath,
     treeScrollTop: fileTree.scrollTop,
     treeFocus: state.lastTreeFocus,
   });
+}
+
+function applyDocumentTabState(result, { render = false, persist = false } = {}) {
+  const tabs = normalizeDocumentTabs(result?.tabs);
+  const activeTabId = resolveActiveDocumentTabId({
+    tabs,
+    activeTabId: result?.activeTabId,
+    activePath: result?.activeTabPath,
+  });
+  state.documentTabs = tabs;
+  state.activeTabId = activeTabId;
+  state.activeTabPath = activeDocumentPath({ tabs, activeTabId });
+  updateDocumentHistoryControls();
+  if (render) {
+    renderDocumentTabs();
+  }
+  if (persist) {
+    persistWorkbenchSession();
+  }
+}
+
+function captureActiveDocumentLocation() {
+  if (!state.currentDocument || !state.activeTabId) {
+    return;
+  }
+  const nextTabs = updateActiveDocumentTabLocation({
+    tabs: state.documentTabs,
+    activeTabId: state.activeTabId,
+    location: {
+      path: state.currentDocument.path,
+      hash: hashFromLines(state.selectedLines),
+      scrollTop: documentContent.scrollTop,
+    },
+  });
+  applyDocumentTabState(nextTabs);
+}
+
+function updateDocumentHistoryControls() {
+  const { canGoBack, canGoForward } = documentTabHistoryAvailability({
+    tabs: state.documentTabs,
+    activeTabId: state.activeTabId,
+  });
+  historyBackButton.disabled = !canGoBack;
+  historyForwardButton.disabled = !canGoForward;
+}
+
+function replaceCurrentDocumentUrl() {
+  const nextUrl = new URL("/", window.location.origin);
+  nextUrl.searchParams.set("repo", state.currentRepo);
+  if (state.currentDocument?.path) {
+    nextUrl.searchParams.set("file", state.currentDocument.path);
+    nextUrl.hash = hashFromLines(state.selectedLines);
+  }
+  window.history.replaceState(
+    {
+      repo: state.currentRepo,
+      file: state.currentDocument?.path || "",
+    },
+    "",
+    `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`,
+  );
 }
 
 function preferenceValue(preferenceKey, storageKey) {
@@ -1955,11 +2228,10 @@ async function ensureSlashCommandAllowed(command) {
     await applyBranchProtectionPayload(payload);
     await replaceFavoriteDocumentPath(currentPath, payload.path);
 
-    replaceDocumentTabPath(currentPath, payload.path);
+    replaceOpenDocumentTabPath(currentPath, payload.path);
     state.currentFile = payload.path;
     state.currentRepo = payload.repo || state.currentRepo;
     applyDocumentData(payload, {
-      pushState: true,
       preserveScroll: true,
       forceReplace: true,
     });
@@ -2068,13 +2340,17 @@ async function syncSourceToDisk() {
     return true;
   }
 
+  const request = currentDocumentRequest();
+  if (!request) {
+    return true;
+  }
   window.clearTimeout(state.sourceSyncTimer);
   state.sourceSyncTimer = null;
   state.sourceWriteInFlight = true;
   const source = state.sourceEditor.getValue();
   try {
     const response = await fetch(
-      apiUrl("/api/document", { file: state.currentDocument.path }),
+      apiUrl("/api/document", { repo: request.repoId, file: request.path }),
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -2086,6 +2362,10 @@ async function syncSourceToDisk() {
     }
     const payload = await response.json();
     await applyBranchProtectionPayload(payload);
+    if (!isCurrentDocumentRequest(request)) {
+      scheduleGitStatusRefresh();
+      return true;
+    }
     state.currentDocument = {
       ...state.currentDocument,
       source,
@@ -2110,7 +2390,9 @@ async function syncSourceToDisk() {
     }
     return true;
   } catch (error) {
-    updateSourceSyncStatus("error");
+    if (isCurrentDocumentRequest(request)) {
+      updateSourceSyncStatus("error");
+    }
     return false;
   } finally {
     state.sourceWriteInFlight = false;
@@ -2243,19 +2525,10 @@ function updateSourceSyncStatus(nextState) {
 }
 
 window.addEventListener("popstate", (event) => {
-  const params = new URLSearchParams(window.location.search);
-  const repo = event.state?.repo || params.get("repo") || state.currentRepo;
-  const file = event.state?.file || params.get("file");
-  if (file) {
-    openFile(file, false, { repoId: repo });
-    return;
-  }
-  const repoChanged = repo !== state.currentRepo;
-  state.currentRepo = repo;
-  if (repoChanged) {
-    restoreAgentContextItemsForScopeChange();
-  }
-  showNoDocumentSelected();
+  // Browser history is not document navigation. Keeping the URL as a projection of
+  // the active tab prevents stale browser entries from reopening another repository.
+  event.preventDefault?.();
+  replaceCurrentDocumentUrl();
 });
 
 function handleSidebarTabClick(event) {
@@ -2424,74 +2697,34 @@ function collectTreeSearchMatchedPaths(nodes, parentPath, matched) {
 }
 
 function tabBehaviorFromClick(event) {
-  if (event?.metaKey || (!isMacPlatform() && event?.ctrlKey)) {
-    return "background";
-  }
-  if (event?.shiftKey) {
-    return "foreground";
-  }
-  return "current";
+  return documentTabBehaviorFromModifiers(event);
 }
 
 async function openFileFromTree(filePath, event) {
-  const behavior = tabBehaviorFromClick(event);
-  const previousActivePath = state.activeTabPath;
-  const nextTabs = openDocumentTab({
-    tabs: state.documentTabs,
-    activePath: state.activeTabPath,
-    targetPath: filePath,
-    behavior,
-  });
-  state.documentTabs = nextTabs.tabs;
-  state.activeTabPath = nextTabs.activePath;
-  renderDocumentTabs();
-  persistWorkbenchSession();
-
-  if (shouldSkipTreeDocumentLoad({
-    behavior,
-    previousActivePath,
-    nextActivePath: nextTabs.activePath,
-    currentDocumentPath: state.currentDocument?.path,
-    targetPath: filePath,
-  })) {
-    if (filePath === state.currentDocument?.path) {
-      focusActiveDocumentSurface();
-    }
-    return;
-  }
-  await openFile(nextTabs.activePath || filePath);
+  await navigateDocumentLocation({ path: filePath }, { behavior: tabBehaviorFromClick(event) });
 }
 
-function ensureActiveDocumentTab(filePath) {
-  const nextTabs = openDocumentTab({
-    tabs: state.documentTabs,
-    activePath: state.activeTabPath,
-    targetPath: filePath,
-    behavior: state.activeTabPath ? "current" : "foreground",
-  });
-  state.documentTabs = nextTabs.tabs;
-  state.activeTabPath = nextTabs.activePath;
-  renderDocumentTabs();
-}
-
-function replaceDocumentTabPath(fromPath, toPath) {
-  state.documentTabs = state.documentTabs.map((tab) => tab.path === fromPath ? { path: toPath } : tab);
-  if (state.activeTabPath === fromPath) {
-    state.activeTabPath = toPath;
-  }
-  renderDocumentTabs();
-  persistWorkbenchSession();
+function replaceOpenDocumentTabPath(fromPath, toPath) {
+  applyDocumentTabState({
+    tabs: replaceDocumentTabPath({
+      tabs: state.documentTabs,
+      fromPath,
+      toPath,
+    }),
+    activeTabId: state.activeTabId,
+  }, { render: true, persist: true });
 }
 
 function renderDocumentTabs() {
   uiTooltipController.hide();
   documentTabs.innerHTML = "";
-  for (const { path } of state.documentTabs) {
-    const isActive = path === state.activeTabPath;
+  for (const { id, path } of state.documentTabs) {
+    const isActive = id === state.activeTabId;
     const tab = document.createElement("div");
     tab.className = isActive ? "document-tab is-active" : "document-tab";
+    tab.dataset.documentTabId = id;
     tab.dataset.documentTabPath = path;
-    tab.addEventListener("pointerdown", (event) => startDocumentTabPointerDrag(event, path));
+    tab.addEventListener("pointerdown", (event) => startDocumentTabPointerDrag(event, id));
     tab.addEventListener("pointermove", handleDocumentTabPointerMove);
     tab.addEventListener("pointerup", finishDocumentTabPointerDrag);
     tab.addEventListener("pointercancel", cancelDocumentTabPointerDrag);
@@ -2500,7 +2733,7 @@ function renderDocumentTabs() {
     title.type = "button";
     title.className = "document-tab-title";
     title.textContent = tabTitleFromPath(path);
-    title.addEventListener("click", () => openFileFromTab(path));
+    title.addEventListener("click", () => openFileFromTab(id));
     tab.append(title);
 
     const close = document.createElement("button");
@@ -2513,7 +2746,7 @@ function renderDocumentTabs() {
     close.textContent = "×";
     close.addEventListener("click", (event) => {
       event.stopPropagation();
-      closeTab(path);
+      closeTab(id);
     });
     tab.append(close);
     documentTabs.append(tab);
@@ -2522,16 +2755,16 @@ function renderDocumentTabs() {
 
 function revealActiveDocumentTab() {
   documentTabs
-    .querySelector(`[data-document-tab-path="${cssEscape(state.activeTabPath)}"]`)
+    .querySelector(`[data-document-tab-id="${cssEscape(state.activeTabId)}"]`)
     ?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "instant" });
 }
 
-function startDocumentTabPointerDrag(event, path) {
+function startDocumentTabPointerDrag(event, tabId) {
   if (event.button !== 0 || event.target.closest?.(".document-tab-close")) {
     return;
   }
   state.documentTabPointerDrag = {
-    path,
+    tabId,
     pointerId: event.pointerId,
     startX: event.clientX,
     element: event.currentTarget,
@@ -2550,21 +2783,21 @@ function handleDocumentTabPointerMove(event) {
   if (!drag.active) {
     drag.active = true;
     drag.element.setPointerCapture?.(event.pointerId);
-    documentTabs.querySelector(`[data-document-tab-path="${cssEscape(drag.path)}"]`)?.classList.add("is-dragging");
+    documentTabs.querySelector(`[data-document-tab-id="${cssEscape(drag.tabId)}"]`)?.classList.add("is-dragging");
     uiTooltipController.hide();
     closeFileActionMenu({ restoreFocus: false });
   }
   event.preventDefault();
-  updateDocumentTabDropTarget(event.clientX, drag.path);
+  updateDocumentTabDropTarget(event.clientX, drag.tabId);
 }
 
-function updateDocumentTabDropTarget(clientX, draggedPath) {
-  const tabs = [...documentTabs.querySelectorAll("[data-document-tab-path]")];
+function updateDocumentTabDropTarget(clientX, draggedTabId) {
+  const tabs = [...documentTabs.querySelectorAll("[data-document-tab-id]")];
   const target = tabs.find((tab) => {
     const rect = tab.getBoundingClientRect();
     return clientX >= rect.left && clientX <= rect.right;
   });
-  if (!target || target.dataset.documentTabPath === draggedPath) {
+  if (!target || target.dataset.documentTabId === draggedTabId) {
     clearDocumentTabDropMarkers();
   } else {
     const rect = target.getBoundingClientRect();
@@ -2594,12 +2827,14 @@ function finishDocumentTabPointerDrag(event) {
     if (target) {
       state.documentTabs = reorderDocumentTabs({
         tabs: state.documentTabs,
-        sourcePath: drag.path,
-        targetPath: target.dataset.documentTabPath,
+        sourceTabId: drag.tabId,
+        targetTabId: target.dataset.documentTabId,
         placement: target.dataset.dropPlacement || "before",
       });
-      renderDocumentTabs();
-      persistWorkbenchSession();
+      applyDocumentTabState({
+        tabs: state.documentTabs,
+        activeTabId: state.activeTabId,
+      }, { render: true, persist: true });
     }
   }
   state.documentTabPointerDrag = null;
@@ -2654,13 +2889,8 @@ function handleDocumentTabsWheel(event) {
   uiTooltipController.hide();
 }
 
-async function openFileFromTab(filePath) {
-  if (filePath === state.activeTabPath && filePath === state.currentFile) {
-    focusActiveDocumentSurface();
-    return;
-  }
-  await openFile(filePath);
-  focusActiveDocumentSurface();
+async function openFileFromTab(tabId) {
+  await activateDocumentTabAndLoad(tabId);
 }
 
 function actionTooltipItemFromEventTarget(target) {
@@ -2682,7 +2912,7 @@ function actionTooltipKey(item) {
 }
 
 function documentTabItemFromEventTarget(target) {
-  const item = target?.closest?.("[data-document-tab-path]");
+  const item = target?.closest?.("[data-document-tab-id], [data-document-tab-path]");
   return item && documentTabs.contains(item) ? item : null;
 }
 
@@ -2740,48 +2970,54 @@ function documentTabDisplayPath(filePath) {
   return String(filePath || "").replace(/^[/\\]+/, "");
 }
 
-async function closeTab(filePath) {
+async function closeTab(tabId) {
+  const previousActiveTabId = state.activeTabId;
+  captureActiveDocumentLocation();
   const nextTabs = closeDocumentTab({
     tabs: state.documentTabs,
-    activePath: state.activeTabPath,
-    targetPath: filePath,
+    activeTabId: state.activeTabId,
+    targetTabId: tabId,
   });
-  const nextActivePath = nextTabs.activePath;
-  state.documentTabs = nextTabs.tabs;
-  state.activeTabPath = nextActivePath;
-  renderDocumentTabs();
-  persistWorkbenchSession();
+  const nextLocation = nextTabs.location;
+  applyDocumentTabState(nextTabs, { render: true, persist: true });
 
-  if (!nextActivePath) {
+  if (!nextLocation) {
     showNoDocumentSelected({ pushState: true });
     return;
   }
-  if (nextActivePath !== state.currentFile) {
-    await openFile(nextActivePath);
+  if (nextTabs.activeTabId !== previousActiveTabId || nextLocation.path !== state.currentFile) {
+    await loadDocumentLocation(nextLocation.path, {
+      hash: nextLocation.hash,
+      restoreScrollTop: nextLocation.scrollTop,
+    });
   }
 }
 
-async function applyDocumentTabClosure(result) {
-  state.documentTabs = result.tabs;
-  state.activeTabPath = result.activePath;
-  renderDocumentTabs();
-  persistWorkbenchSession();
-  if (!result.activePath) {
+async function applyDocumentTabClosure(createResult) {
+  const previousActiveTabId = state.activeTabId;
+  captureActiveDocumentLocation();
+  const result = typeof createResult === "function" ? createResult() : createResult;
+  applyDocumentTabState(result, { render: true, persist: true });
+  if (!result.location) {
     showNoDocumentSelected({ pushState: true });
-  } else if (result.activePath !== state.currentFile) {
-    await openFile(result.activePath);
+  } else if (result.activeTabId !== previousActiveTabId || result.location.path !== state.currentFile) {
+    await loadDocumentLocation(result.location.path, {
+      hash: result.location.hash,
+      restoreScrollTop: result.location.scrollTop,
+    });
   }
 }
 
 function handleDocumentTabContextMenu(event) {
-  const tab = event.target.closest?.("[data-document-tab-path]");
+  const tab = event.target.closest?.("[data-document-tab-id]");
   if (!tab) {
     return;
   }
   event.preventDefault();
+  const tabId = tab.dataset.documentTabId;
   const path = tab.dataset.documentTabPath;
-  const targetIndex = state.documentTabs.findIndex((item) => item.path === path);
-  state.fileActionTarget = { source: "tab", path };
+  const targetIndex = state.documentTabs.findIndex((item) => item.id === tabId);
+  state.fileActionTarget = { source: "tab", path, tabId };
   showFileActionMenu([
     { id: "close-tab", label: t("menu.close"), shortcut: "Command+W" },
     { id: "close-others", label: t("menu.closeOthers"), disabled: state.documentTabs.length < 2 },
@@ -2993,17 +3229,20 @@ async function handleFileActionMenuClick(event) {
   const target = state.fileActionTarget;
   closeFileActionMenu();
   if (action === "close-tab") {
-    await closeTab(target.path);
+    await closeTab(target.tabId);
   } else if (action === "close-others") {
-    await applyDocumentTabClosure(closeOtherDocumentTabs({ tabs: state.documentTabs, targetPath: target.path }));
-  } else if (action === "close-right") {
-    await applyDocumentTabClosure(closeDocumentTabsToRight({
+    await applyDocumentTabClosure(() => closeOtherDocumentTabs({
       tabs: state.documentTabs,
-      activePath: state.activeTabPath,
-      targetPath: target.path,
+      targetTabId: target.tabId,
+    }));
+  } else if (action === "close-right") {
+    await applyDocumentTabClosure(() => closeDocumentTabsToRight({
+      tabs: state.documentTabs,
+      activeTabId: state.activeTabId,
+      targetTabId: target.tabId,
     }));
   } else if (action === "close-all") {
-    await applyDocumentTabClosure({ tabs: [], activePath: "" });
+    await applyDocumentTabClosure({ tabs: [], activeTabId: "" });
   } else if (action === "copy-share") {
     await copyShareLinkForPath(target.path);
   } else if (action === "toggle-favorite" && target.favoriteType) {
@@ -3029,18 +3268,10 @@ async function handleFileActionMenuClick(event) {
 }
 
 async function openFileInForegroundTab(path) {
-  const nextTabs = openDocumentTab({
-    tabs: state.documentTabs,
-    activePath: state.activeTabPath,
-    targetPath: path,
-    behavior: "foreground",
-  });
-  state.documentTabs = nextTabs.tabs;
-  state.activeTabPath = nextTabs.activePath;
-  renderDocumentTabs();
-  revealActiveDocumentTab();
-  persistWorkbenchSession();
-  await openFile(path);
+  const opened = await navigateDocumentLocation({ path }, { behavior: "foreground" });
+  if (opened) {
+    revealActiveDocumentTab();
+  }
 }
 
 function revealFileInTree(path) {
@@ -4580,10 +4811,10 @@ async function runAppShortcut(action) {
       await switchToAdjacentDocumentTab(1);
       return;
     case "history-back":
-      window.history.back();
+      await moveActiveDocumentTabHistory(-1);
       return;
     case "history-forward":
-      window.history.forward();
+      await moveActiveDocumentTabHistory(1);
       return;
     case "toggle-sidebar":
       toggleSidebar();
@@ -4601,7 +4832,7 @@ async function runAppShortcut(action) {
       const target = fileActionMenuShortcutTarget("close-tab");
       if (target) {
         closeFileActionMenu();
-        await closeTab(target.path);
+        await closeTab(target.tabId);
         return;
       }
       closeActiveDocumentTab();
@@ -4931,10 +5162,10 @@ function isPrimaryShortcut(event) {
 }
 
 function closeActiveDocumentTab() {
-  if (!state.activeTabPath) {
+  if (!state.activeTabId) {
     return;
   }
-  void closeTab(state.activeTabPath);
+  void closeTab(state.activeTabId);
 }
 
 async function switchToDocumentTabAtIndex(index) {
@@ -4942,19 +5173,14 @@ async function switchToDocumentTabAtIndex(index) {
   if (!tab) {
     return;
   }
-  if (tab.path === state.activeTabPath) {
-    focusActiveDocumentSurface();
-    return;
-  }
-  await openFile(tab.path);
-  focusActiveDocumentSurface();
+  await activateDocumentTabAndLoad(tab.id);
 }
 
 async function switchToAdjacentDocumentTab(direction) {
   if (state.documentTabs.length < 2) {
     return;
   }
-  const activeIndex = state.documentTabs.findIndex((tab) => tab.path === state.activeTabPath);
+  const activeIndex = state.documentTabs.findIndex((tab) => tab.id === state.activeTabId);
   const currentIndex = activeIndex >= 0 ? activeIndex : 0;
   const nextIndex = (currentIndex + direction + state.documentTabs.length) % state.documentTabs.length;
   await switchToDocumentTabAtIndex(nextIndex);
@@ -5769,10 +5995,7 @@ function handleDocumentClick(event) {
   const openableLink = gitLeafOpenableLinkFromClick(event);
   if (openableLink) {
     event.preventDefault();
-    openFile(openableLink.file, true, {
-      repoId: openableLink.repo,
-      hash: openableLink.hash,
-    });
+    void navigateDocumentLocation(openableLink, { behavior: tabBehaviorFromClick(event) });
     return;
   }
 
@@ -5838,7 +6061,7 @@ function handlePreviewContentKeydown(event) {
 }
 
 function gitLeafOpenableLinkFromClick(event) {
-  if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.defaultPrevented) {
+  if (event.altKey || event.defaultPrevented) {
     return null;
   }
 
@@ -5954,21 +6177,14 @@ function replaceLineHash(hash) {
   if (!state.currentDocument) {
     return;
   }
-
-  const url = new URL(window.location.href);
-  if (hash) {
-    url.hash = hash;
-  } else {
-    url.hash = "";
-  }
-  window.history.replaceState(
-    {
-      repo: state.currentRepo,
-      file: state.currentDocument.path,
-    },
-    "",
-    url,
-  );
+  const nextTabs = updateActiveDocumentTabLocation({
+    tabs: state.documentTabs,
+    activeTabId: state.activeTabId,
+    location: { hash },
+  });
+  applyDocumentTabState(nextTabs);
+  replaceCurrentDocumentUrl();
+  scheduleWorkbenchSessionPersist();
 }
 
 async function copyCurrentLineReference() {
@@ -6195,7 +6411,7 @@ async function handleAgentContextListClick(event) {
 
   state.activeAgentContextItemId = item.id;
   renderAgentContext();
-  const opened = await openFile(item.path, true);
+  const opened = await navigateDocumentLocation({ path: item.path });
   if (!opened) {
     showCopyToast(t("toast.sourceNotFound"));
     return;
@@ -6248,23 +6464,29 @@ function resetDocumentWatch() {
     state.watchStream.close();
     state.watchStream = null;
   }
-  if (!state.currentDocument || !window.EventSource) {
+  const request = currentDocumentRequest();
+  if (!request || !window.EventSource) {
     return;
   }
 
   const stream = new EventSource(
-    apiUrl("/api/watch", { file: state.currentDocument.path }),
+    apiUrl("/api/watch", { repo: request.repoId, file: request.path }),
   );
-  stream.addEventListener("change", handleWatchedDocumentChange);
+  stream.addEventListener("change", (event) => {
+    void handleWatchedDocumentChange(event, request);
+  });
   state.watchStream = stream;
 }
 
-async function handleWatchedDocumentChange(event) {
-  if (!state.currentDocument) {
+async function handleWatchedDocumentChange(event, request = currentDocumentRequest()) {
+  if (!isCurrentDocumentRequest(request)) {
     return;
   }
 
   const payload = JSON.parse(event.data);
+  if (!isCurrentDocumentRequest(request)) {
+    return;
+  }
   applyRepositoryStatus(payload);
   enforceCurrentRepoEditCapability();
   if (state.sourceWriteInFlight) {
@@ -6287,14 +6509,15 @@ async function handleWatchedDocumentChange(event) {
 }
 
 async function checkDocumentStatus() {
-  if (!state.currentDocument) {
+  const request = currentDocumentRequest();
+  if (!request) {
     return;
   }
 
   let response;
   try {
     response = await fetch(
-      apiUrl("/api/document-status", { file: state.currentDocument.path }),
+      apiUrl("/api/document-status", { repo: request.repoId, file: request.path }),
     );
   } catch {
     return;
@@ -6304,6 +6527,9 @@ async function checkDocumentStatus() {
   }
 
   const status = await response.json();
+  if (!isCurrentDocumentRequest(request)) {
+    return;
+  }
   applyRepositoryStatus(status);
   enforceCurrentRepoEditCapability();
   if (state.sourceWriteInFlight) {
@@ -6324,13 +6550,15 @@ async function checkDocumentStatus() {
 }
 
 async function refreshCurrentDocument({ external = false } = {}) {
-  if (!state.currentDocument) {
+  const request = currentDocumentRequest();
+  if (!request) {
     return;
   }
 
   const response = await fetch(
     apiUrl("/api/document", {
-      file: state.currentDocument.path,
+      repo: request.repoId,
+      file: request.path,
       locale: state.locale,
     }),
   );
@@ -6338,7 +6566,11 @@ async function refreshCurrentDocument({ external = false } = {}) {
     return;
   }
 
-  applyDocumentData(await response.json(), { preserveScroll: true });
+  const documentData = await response.json();
+  if (!isCurrentDocumentRequest(request, documentData)) {
+    return;
+  }
+  applyDocumentData(documentData, { preserveScroll: true });
   if (external && isEditorMode()) {
     updateSourceSyncStatus("external");
   }
@@ -7387,14 +7619,8 @@ async function openActiveLiveLink({ newTab = false } = {}) {
 
   const documentTarget = await liveDocumentTargetFromHref(href);
   if (documentTarget) {
-    if (newTab) {
-      window.open(gitLeafAppHref(documentTarget), "_blank", "noopener");
-      return;
-    }
-
-    await openFile(documentTarget.file, true, {
-      repoId: documentTarget.repo,
-      hash: documentTarget.hash,
+    await navigateDocumentLocation(documentTarget, {
+      behavior: newTab ? "foreground" : "current",
     });
     return;
   }
@@ -7483,14 +7709,6 @@ function looksLikeMarkdownDocumentHref(href) {
     return false;
   }
   return /\.mdx?(?:[?#].*)?$/i.test(value.split(/[?#]/)[0]);
-}
-
-function gitLeafAppHref({ repo, file, hash = "" }) {
-  const url = new URL("/", window.location.origin);
-  url.searchParams.set("repo", repo || state.currentRepo);
-  url.searchParams.set("file", file);
-  url.hash = hash || "";
-  return `${url.pathname}${url.search}${url.hash}`;
 }
 
 function browserHrefFromLink(href) {
