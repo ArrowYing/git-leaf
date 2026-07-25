@@ -546,20 +546,24 @@ input {
 
 .sidebar-tree-tabs {
   flex: 0 0 auto;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  display: flex;
+  align-items: stretch;
+  justify-content: space-evenly;
+  gap: 2px;
   min-height: 40px;
-  padding: 0 12px;
+  padding: 0 6px;
   border-bottom: 1px solid var(--panel-border);
   background: var(--sidebar-bg);
 }
 
 .sidebar-tree-tab {
   position: relative;
+  flex: 0 1 auto;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 4px;
+  max-width: 100%;
   min-width: 0;
   border: 0;
   background: transparent;
@@ -567,15 +571,22 @@ input {
   cursor: pointer;
   font-size: 13px;
   font-weight: 700;
-  padding: 0 8px;
+  padding: 0 6px;
+}
+
+.sidebar-tree-tab-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .sidebar-tree-tab::after {
   content: "";
   position: absolute;
-  right: 8px;
+  right: 4px;
   bottom: -1px;
-  left: 8px;
+  left: 4px;
   height: 2px;
   border-radius: 2px 2px 0 0;
   background: transparent;
@@ -600,6 +611,7 @@ input {
 }
 
 .sidebar-tab-count {
+  flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -611,7 +623,7 @@ input {
   font-size: 10px;
   font-variant-numeric: tabular-nums;
   line-height: 1;
-  padding: 0 5px;
+  padding: 0 4px;
 }
 
 .sidebar-tab-count[hidden] {
@@ -729,6 +741,11 @@ input {
   position: relative;
   padding: 12px 16px;
   border-bottom: 1px solid var(--panel-border);
+}
+
+.tree-controls[hidden],
+.tree-search-row[hidden] {
+  display: none;
 }
 
 .worktree-switcher {

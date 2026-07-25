@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  sidebarControlsForView,
   sidebarEmptyStateKind,
   normalizeSidebarTab,
   sidebarTabFromKey,
@@ -29,17 +30,36 @@ test("sidebar navigation defaults to all and supports tablist arrow keys", () =>
   assert.equal(sidebarTabFromKey("favorites", "Enter"), "");
 });
 
-test("sidebar empty states distinguish no data from filtered results", () => {
+test("only the all view exposes search and frontmatter filters", () => {
+  assert.equal(sidebarControlsForView("all"), "search-and-filter");
+  assert.equal(sidebarControlsForView("favorites"), "none");
+  assert.equal(sidebarControlsForView("sync"), "sync");
+  assert.equal(sidebarControlsForView("invalid"), "search-and-filter");
+});
+
+test("search and filters affect only the all view empty state", () => {
+  assert.equal(sidebarEmptyStateKind({
+    view: "all",
+    search: "missing",
+  }), "filtered");
+  assert.equal(sidebarEmptyStateKind({
+    view: "all",
+    frontmatterFilterCount: 1,
+  }), "filtered");
   assert.equal(sidebarEmptyStateKind({ view: "favorites" }), "favorites");
   assert.equal(sidebarEmptyStateKind({ view: "sync" }), "sync");
   assert.equal(sidebarEmptyStateKind({
     view: "favorites",
     search: "missing",
-  }), "filtered");
+  }), "favorites");
   assert.equal(sidebarEmptyStateKind({
     view: "favorites",
     frontmatterFilterCount: 1,
-  }), "filtered");
+  }), "favorites");
+  assert.equal(sidebarEmptyStateKind({
+    view: "sync",
+    search: "missing",
+  }), "sync");
   assert.equal(sidebarEmptyStateKind({
     view: "sync",
     frontmatterFilterCount: 1,

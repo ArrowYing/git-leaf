@@ -255,15 +255,19 @@
             aria-label="目录视图"
             data-i18n-aria-label="aria.sidebarViews"
           >
-            <button id="sidebar-tab-all" class="sidebar-tree-tab is-active" type="button" role="tab" aria-selected="true" aria-controls="file-tree" data-sidebar-tab="all" data-i18n="sidebar.all">全部</button>
-            <button id="sidebar-tab-favorites" class="sidebar-tree-tab" type="button" role="tab" aria-selected="false" aria-controls="file-tree" data-sidebar-tab="favorites" data-i18n="sidebar.favorites">收藏</button>
+            <button id="sidebar-tab-all" class="sidebar-tree-tab is-active" type="button" role="tab" aria-selected="true" aria-controls="file-tree" data-sidebar-tab="all">
+              <span class="sidebar-tree-tab-label" data-i18n="sidebar.all">全部</span>
+            </button>
+            <button id="sidebar-tab-favorites" class="sidebar-tree-tab" type="button" role="tab" aria-selected="false" aria-controls="file-tree" data-sidebar-tab="favorites">
+              <span class="sidebar-tree-tab-label" data-i18n="sidebar.favorites">收藏</span>
+            </button>
             <button id="sidebar-tab-sync" class="sidebar-tree-tab" type="button" role="tab" aria-selected="false" aria-controls="file-tree" data-sidebar-tab="sync">
-              <span data-i18n="sidebar.sync">同步</span>
+              <span class="sidebar-tree-tab-label" data-i18n="sidebar.sync">同步</span>
               <span id="sidebar-sync-count" class="sidebar-tab-count" hidden>0</span>
             </button>
           </div>
-          <div class="tree-controls">
-            <div class="tree-search-row">
+          <div id="tree-controls" class="tree-controls">
+            <div id="tree-search-row" class="tree-search-row">
               <label class="search-box">
                 <input id="tree-filter" type="search" placeholder="搜索路径、文件名或 AI snippet" data-i18n-placeholder="search.files">
               </label>

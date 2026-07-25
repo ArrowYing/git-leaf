@@ -23,14 +23,27 @@ export function sidebarTabFromKey(currentTab, key) {
   return "";
 }
 
+export function sidebarControlsForView(view) {
+  const normalizedView = normalizeSidebarTab(view);
+  if (normalizedView === "all") {
+    return "search-and-filter";
+  }
+  if (normalizedView === "sync") {
+    return "sync";
+  }
+  return "none";
+}
+
 export function sidebarEmptyStateKind({
   view = "all",
   search = "",
   frontmatterFilterCount = 0,
 } = {}) {
   const normalizedView = normalizeSidebarTab(view);
-  const filtering = String(search).trim().length > 0 ||
-    (normalizedView !== "sync" && Number(frontmatterFilterCount) > 0);
+  const filtering = normalizedView === "all" && (
+    String(search).trim().length > 0 ||
+    Number(frontmatterFilterCount) > 0
+  );
   return filtering ? "filtered" : normalizedView;
 }
 

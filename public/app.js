@@ -75,6 +75,7 @@ import {
 } from "./sidebar-favorites.js";
 import {
   normalizeSidebarTab,
+  sidebarControlsForView,
   sidebarEmptyStateKind,
   sidebarTabFromKey,
   sidebarTreeForView,
@@ -328,6 +329,8 @@ const fileTree = document.querySelector("#file-tree");
 const sidebarTreeTabs = document.querySelector("#sidebar-tree-tabs");
 const sidebarTabButtons = [...document.querySelectorAll("[data-sidebar-tab]")];
 const sidebarSyncCount = document.querySelector("#sidebar-sync-count");
+const treeControls = document.querySelector("#tree-controls");
+const treeSearchRow = document.querySelector("#tree-search-row");
 const repositoryTitle = document.querySelector("#repository-title");
 const sidebarToggle = document.querySelector("#sidebar-toggle");
 const historyBackButton = document.querySelector("#history-back");
@@ -2246,6 +2249,13 @@ function renderSidebarTabs() {
     fileTree.setAttribute("aria-labelledby", activeButton.id);
   }
   fileTree.dataset.sidebarTab = state.sidebarTab;
+  renderSidebarControls();
+}
+
+function renderSidebarControls() {
+  const controls = sidebarControlsForView(state.sidebarTab);
+  treeControls.hidden = controls === "none";
+  treeSearchRow.hidden = controls !== "search-and-filter";
 }
 
 function renderTree() {
@@ -2253,6 +2263,8 @@ function renderTree() {
   renderSidebarTabs();
   const previousTreeFocus = treeFocusSnapshot();
   fileTree.innerHTML = "";
+  const searchAndFiltersEnabled =
+    sidebarControlsForView(state.sidebarTab) === "search-and-filter";
   const favoriteRevealPaths = state.sidebarTab === "favorites"
     ? state.sidebarFavorites.map((favorite) => favorite.path)
     : [];
@@ -2260,7 +2272,10 @@ function renderTree() {
     mode: state.fileTreeMode,
     currentDocument: state.currentDocument,
     currentFile: state.currentFile,
-    searchMatchedPaths: [...treeSearchMatchedPaths(), ...favoriteRevealPaths],
+    searchMatchedPaths: [
+      ...(searchAndFiltersEnabled ? treeSearchMatchedPaths() : []),
+      ...favoriteRevealPaths,
+    ],
     gitChangedPaths: state.sidebarTab === "sync" ? gitChangedPaths() : [],
   });
   let filteredTree = sidebarTreeForView(visibleTree, {
@@ -2269,10 +2284,10 @@ function renderTree() {
     changedPaths: gitChangedPaths(),
     gitChanges: state.gitChanges,
   });
-  if (state.sidebarTab !== "sync") {
+  if (searchAndFiltersEnabled) {
     filteredTree = filterNodesByFrontmatter(filteredTree);
+    filteredTree = filterNodes(filteredTree);
   }
-  filteredTree = filterNodes(filteredTree);
 
   if (filteredTree.length === 0) {
     renderSidebarTreeEmpty();
@@ -3218,8 +3233,13 @@ function renderNode(node, parentPath) {
   details.open = shouldOpenTreeDirectory({
     directoryPath,
     hasBroadTreeFilter:
-      state.filter.length > 0 ||
-      (state.sidebarTab !== "sync" && state.frontmatterFilters.length > 0) ||
+      (
+        state.sidebarTab === "all" &&
+        (
+          state.filter.length > 0 ||
+          state.frontmatterFilters.length > 0
+        )
+      ) ||
       state.sidebarTab === "sync",
     expandedDirectories: state.expandedTreeDirectories,
     collapsedDirectories: state.collapsedTreeDirectories,
@@ -4924,6 +4944,7 @@ function focusFileSearch() {
   if (state.sidebarCollapsed) {
     setSidebarCollapsed(false);
   }
+  setSidebarTab("all");
   treeFilter.focus({ preventScroll: true });
   treeFilter.select();
 }
@@ -5402,14 +5423,18 @@ function positionFrontmatterFilterPopover() {
 
 function renderFrontmatterFilterAvailability() {
   const supported = state.frontmatterAllowedKeys.length > 0;
-  const visible = supported && state.sidebarTab !== "sync";
+  const visible = supported &&
+    sidebarControlsForView(state.sidebarTab) === "search-and-filter";
   frontmatterFilterToggle.hidden = !visible;
   frontmatterFilterToggle.disabled = !visible;
-  if (supported) {
+  if (visible) {
     return;
   }
 
   hideFrontmatterFilterPopover();
+  if (supported) {
+    return;
+  }
   state.frontmatterFilters = [];
   frontmatterActiveFilters.hidden = true;
   frontmatterActiveFilters.innerHTML = "";
@@ -5668,7 +5693,7 @@ function handleActiveFrontmatterFilterClick(event) {
 
 function renderActiveFrontmatterFilters() {
   frontmatterActiveFilters.hidden =
-    state.sidebarTab === "sync" ||
+    sidebarControlsForView(state.sidebarTab) !== "search-and-filter" ||
     state.frontmatterFilters.length === 0;
   if (state.frontmatterFilters.length === 0) {
     frontmatterActiveFilters.innerHTML = "";
