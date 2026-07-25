@@ -22,6 +22,12 @@ test("releaseDateLabel formats the build timestamp as a user-facing release date
       buildId: "93458e1.20260705T114700Z",
       commit: "93458e1",
     }),
+    "Released 2026-07-05",
+  );
+  assert.equal(
+    releaseDateLabel({
+      builtAt: "2026-07-05T11:47:00.000Z",
+    }, { language: "zh-CN" }),
     "发布于 2026-07-05",
   );
 });
@@ -52,7 +58,8 @@ test("build identity defaults to source with usage analytics disabled", async ()
   assert.equal(buildInfo.releaseTrack, "source");
   assert.equal(buildInfo.usageAnalyticsDefault, false);
   assert.equal(isOfficialDistribution(buildInfo), false);
-  assert.equal(buildDistributionLabel(buildInfo), "源码构建");
+  assert.equal(buildDistributionLabel(buildInfo), "Source build");
+  assert.equal(buildDistributionLabel(buildInfo, { language: "zh-CN" }), "源码构建");
 });
 
 test("official legacy build identity without a release track remains on the public track", async () => {
@@ -82,7 +89,7 @@ test("official legacy build identity without a release track remains on the publ
   assert.equal(buildInfo.distribution, "official");
   assert.equal(buildInfo.releaseTrack, "public");
   assert.equal(releaseTrackForBuildInfo(buildInfo), "public");
-  assert.equal(buildDistributionLabel(buildInfo), "官方公开构建");
+  assert.equal(buildDistributionLabel(buildInfo), "Official public build");
 });
 
 test("packaged build identity keeps its embedded internal track despite environment overrides", async () => {
@@ -112,7 +119,7 @@ test("packaged build identity keeps its embedded internal track despite environm
 
   assert.equal(buildInfo.distribution, "official");
   assert.equal(buildInfo.releaseTrack, "internal");
-  assert.equal(buildDistributionLabel(buildInfo), "官方内部构建");
+  assert.equal(buildDistributionLabel(buildInfo), "Official internal build");
 });
 
 test("official builds with an explicit invalid release track fail closed", async () => {
@@ -136,7 +143,7 @@ test("official builds with an explicit invalid release track fail closed", async
     const buildInfo = readBuildInfo({ rootDir });
     assert.equal(buildInfo.releaseTrack, "source", String(releaseTrack));
     assert.equal(releaseTrackForBuildInfo(buildInfo), "source", String(releaseTrack));
-    assert.equal(buildDistributionLabel(buildInfo), "官方构建（无更新轨道）");
+    assert.equal(buildDistributionLabel(buildInfo), "Official build (no update track)");
   }
 });
 
@@ -196,7 +203,7 @@ test("aboutPanelCopyright includes the commit for development builds only", () =
       commit: "93458e1",
       dev: true,
     }),
-    "发布于 2026-07-05\nCommit 93458e1",
+    "Released 2026-07-05\nCommit 93458e1",
   );
 
   assert.equal(
@@ -205,7 +212,7 @@ test("aboutPanelCopyright includes the commit for development builds only", () =
       commit: "93458e1",
       dev: false,
     }),
-    "发布于 2026-07-05",
+    "Released 2026-07-05",
   );
 });
 
@@ -235,5 +242,5 @@ test("readBuildInfo preserves development build marker", async () => {
   assert.equal(buildInfo.distribution, "official");
   assert.equal(buildInfo.releaseTrack, "public");
   assert.equal(buildInfo.usageAnalyticsDefault, true);
-  assert.equal(buildDistributionLabel(buildInfo), "开发构建");
+  assert.equal(buildDistributionLabel(buildInfo), "Development build");
 });

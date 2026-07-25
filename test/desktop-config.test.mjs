@@ -17,6 +17,7 @@ import {
 } from "../src/desktop-config.mjs";
 
 const NEW_INSTALL_PREFERENCES = {
+  language: "system",
   colorMode: "system",
   documentFont: "system-sans",
   documentFontSize: 16,
@@ -24,6 +25,7 @@ const NEW_INSTALL_PREFERENCES = {
 };
 
 const LEGACY_PREFERENCES = {
+  language: "system",
   colorMode: "light",
   documentFont: "system-sans",
   documentFontSize: 16,
@@ -194,6 +196,7 @@ test("readDesktopConfig normalizes an invalid document font size", async () => {
   assert.deepEqual(await readDesktopConfig({ userDataDir }), {
     openRepoRoots: [],
     preferences: {
+      language: "system",
       colorMode: "system",
       documentFont: "reading-serif",
       documentFontSize: 16,
@@ -375,6 +378,7 @@ test("saveDesktopPreferences persists normalized app preferences across reposito
     userDataDir,
     preferences: {
       mode: "live",
+      language: "zh-CN",
       colorMode: "dark",
       documentFont: "reading-serif",
       documentFontSize: 18,
@@ -428,6 +432,7 @@ test("saveDesktopPreferences persists normalized app preferences across reposito
     repoRoot: mangoContent,
     openRepoRoots: [mangoOs, mangoContent],
     preferences: {
+      language: "zh-CN",
       colorMode: "dark",
       documentFont: "reading-serif",
       documentFontSize: 18,
@@ -549,6 +554,7 @@ test("concurrent preference patches merge without dropping independent fields", 
   assert.deepEqual(await readDesktopConfig({ userDataDir }), {
     openRepoRoots: [],
     preferences: {
+      language: "system",
       colorMode: "dark",
       documentFont: "reading-serif",
       documentFontSize: 20,

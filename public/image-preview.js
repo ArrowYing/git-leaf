@@ -1,19 +1,23 @@
-export function imageLoadFailureMessage({ src = "", alt = "" } = {}) {
+import { createTranslator } from "./i18n.js";
+import { WORKBENCH_MESSAGES } from "./workbench-locales.js";
+
+export function imageLoadFailureMessage({ src = "", alt = "" } = {}, locale = "zh-CN") {
+  const t = createTranslator(WORKBENCH_MESSAGES, locale);
   const source = String(src ?? "").trim();
-  const label = imageSourceLabel(source, alt);
+  const label = imageSourceLabel(source, alt, t);
   const reason = isRemoteImageSource(source)
-    ? "网络不可用、访问受限或链接已经失效"
-    : "文件不存在、路径错误或图片格式无法解码";
-  return `图片加载失败：${label}（${reason}）`;
+    ? t("image.remoteFailure")
+    : t("image.localFailure");
+  return t("image.failure", { label, reason });
 }
 
-export function enhanceImageLoadStates(root) {
+export function enhanceImageLoadStates(root, { locale = "zh-CN" } = {}) {
   for (const image of root?.querySelectorAll?.("img") ?? []) {
-    attachImageLoadState(image);
+    attachImageLoadState(image, { locale });
   }
 }
 
-export function attachImageLoadState(image) {
+export function attachImageLoadState(image, { locale = "zh-CN" } = {}) {
   if (!image || image.dataset.gitLeafLoadStateAttached === "true") {
     return;
   }
@@ -38,7 +42,7 @@ export function attachImageLoadState(image) {
     message.textContent = imageLoadFailureMessage({
       src: image.getAttribute("src") || image.currentSrc || image.src,
       alt: image.alt,
-    });
+    }, locale);
     frame.append(message);
   };
 
@@ -49,7 +53,7 @@ export function attachImageLoadState(image) {
   }
 }
 
-function imageSourceLabel(source, alt) {
+function imageSourceLabel(source, alt, t) {
   try {
     const url = new URL(source, "http://git-leaf.local");
     const repositoryPath = url.pathname === "/raw" ? url.searchParams.get("file") : "";
@@ -60,12 +64,12 @@ function imageSourceLabel(source, alt) {
       return url.href;
     }
     if (url.protocol === "data:") {
-      return String(alt ?? "").trim() || "内嵌图片";
+      return String(alt ?? "").trim() || t("image.inline");
     }
   } catch {
     // Fall through to the source string shown in the document.
   }
-  return source || String(alt ?? "").trim() || "未知图片";
+  return source || String(alt ?? "").trim() || t("image.unknown");
 }
 
 function isRemoteImageSource(source) {

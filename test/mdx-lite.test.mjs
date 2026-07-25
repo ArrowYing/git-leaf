@@ -77,9 +77,9 @@ month,revenue,expense
   assert.match(html, /<svg viewBox="0 0 880 360" role="img" aria-label="收支趋势"/);
   assert.match(html, /<polyline/);
   assert.match(html, /<circle/);
-  assert.match(html, /单位：万元/);
+  assert.match(html, /Unit: 万元/);
   assert.match(html, /class="mdx-chart-legend-label"[^>]*>revenue<\/text>/);
-  assert.match(html, /class="mdx-chart-unit-label"[^>]*>单位：万元<\/text>/);
+  assert.match(html, /class="mdx-chart-unit-label"[^>]*>Unit: 万元<\/text>/);
   assert.match(html, /class="mdx-chart-y-label"/);
   assert.match(html, /class="mdx-chart-x-label mdx-chart-highlight-label"[^>]*>2026-06<\/text>/);
   assert.match(html, /class="mdx-chart-value-label"[^>]*>127<\/text>/);
@@ -187,8 +187,8 @@ month,newStudents,conversionRate
 
   assert.match(html, /data-mdx-component="Chart"/);
   assert.match(html, /mdx-chart-right-y-label/);
-  assert.match(html, /class="mdx-chart-unit-label"[^>]*>单位：人<\/text>/);
-  assert.match(html, /class="mdx-chart-unit-label mdx-chart-right-unit-label"[^>]*>单位：%<\/text>/);
+  assert.match(html, /class="mdx-chart-unit-label"[^>]*>Unit: 人<\/text>/);
+  assert.match(html, /class="mdx-chart-unit-label mdx-chart-right-unit-label"[^>]*>Unit: %<\/text>/);
   assert.match(html, /<rect x="[^"]+" y="[^"]+" width="[^"]+" height="[^"]+" rx="3" fill="#2563eb"/);
   assert.match(html, /<polyline points="[^"]+" fill="none" stroke="#dc2626"/);
   assert.match(html, /data-chart-tooltip="2026-05\\n新增学生数: 548 人\\n转化率: 12\.3%"/);
@@ -271,4 +271,44 @@ test("renderMarkdown does not execute or render arbitrary MDX tags", () => {
   assert.doesNotMatch(html, /<script>/);
   assert.match(html, /&lt;UnknownWidget dangerous=&quot;true&quot; \/&gt;/);
   assert.match(html, /&lt;script&gt;alert\(&quot;x&quot;\)&lt;\/script&gt;/);
+});
+
+test("renderMarkdown localizes MDX chrome while preserving user content and technical errors", () => {
+  const decisionSource = `<DecisionBox title="保留原文">
+\`\`\`csv
+label,value
+Decision,Use Git
+\`\`\`
+</DecisionBox>`;
+  const flowSource = `<FlowDiagram>
+\`\`\`json
+{"nodes":[{"id":"start","label":"用户节点","type":"start"}],"edges":[]}
+\`\`\`
+</FlowDiagram>`;
+  const invalidChart = `<Chart>
+</Chart>`;
+
+  const englishDecision = renderMarkdown(decisionSource);
+  const chineseDecision = renderMarkdown(decisionSource, { locale: "zh-CN" });
+  const englishFlow = renderMarkdown(flowSource);
+  const chineseFlow = renderMarkdown(flowSource, { locale: "zh-CN" });
+  const englishError = renderMarkdown(invalidChart);
+  const chineseError = renderMarkdown(invalidChart, { locale: "zh-CN" });
+
+  assert.match(englishDecision, /<span class="mdx-component-kicker">Decision<\/span>/);
+  assert.match(chineseDecision, /<span class="mdx-component-kicker">决策<\/span>/);
+  assert.match(englishDecision, /<h3 class="mdx-component-title">保留原文<\/h3>/);
+  assert.match(chineseDecision, /<h3 class="mdx-component-title">保留原文<\/h3>/);
+  assert.match(englishFlow, /aria-label="Flow diagram"/);
+  assert.match(chineseFlow, /aria-label="流程图"/);
+  assert.match(englishFlow, />用户节点<\/tspan>/);
+  assert.match(chineseFlow, />用户节点<\/tspan>/);
+  assert.match(
+    englishError,
+    /Failed to render MDX component: Chart requires CSV or JSON rows\./,
+  );
+  assert.match(
+    chineseError,
+    /MDX 组件渲染失败：Chart requires CSV or JSON rows\./,
+  );
 });

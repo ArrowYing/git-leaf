@@ -325,11 +325,16 @@ test("Windows bootstrap reports visible progress before relaunching", async () =
     ["progress", "complete"],
     ["wait", 2_000],
   ]);
+  assert.equal(events[0][1].title, "Updating Git Leaf 1.4.0");
+  assert.equal(events[0][1].message, "Copying the new version…");
+  assert.equal(events[0][1].stage, "Copying files");
+  assert.equal(events[1][1].message, "Files copied. Switching to the new version…");
+  assert.equal(events[2][1].message, "Starting the new version from its fixed location…");
   assert.equal(events[4][1].percent, 100);
-  assert.equal(events[4][1].title, "版本更新已完成");
-  assert.match(events[4][1].message, /已启动更新后的 Git Leaf 1\.4\.0/);
-  assert.match(events[4][1].detail, /以后请从开始菜单启动 Git Leaf/);
-  assert.match(events[4][1].detail, /当前和旧版解压目录均可删除/);
+  assert.equal(events[4][1].title, "Git Leaf update complete");
+  assert.equal(events[4][1].message, "Updated Git Leaf 1.4.0 has started.");
+  assert.match(events[4][1].detail, /Continue to start Git Leaf from the Start menu/);
+  assert.match(events[4][1].detail, /delete this and older extracted folders/);
   assert.equal(process.noAsar, originalNoAsar, "ASAR interception state must be restored after copying");
 });
 
@@ -507,6 +512,7 @@ test("same-version packages redirect to the stable app without copying", async (
 
   const result = await bootstrapWindowsApp({
     plan,
+    language: "zh-CN",
     async copyDirectory() {
       assert.fail("same-version redirect must not copy files");
     },
@@ -562,10 +568,10 @@ test("older packages refuse to overwrite and launch the newer stable app", async
   assert.equal(plan.status, "outdated");
   assert.equal(result.status, "relaunch");
   assert.equal(progress[0].phase, "outdated");
-  assert.match(progress[0].title, /这是旧版本的 Git Leaf 1\.3\.0/);
-  assert.match(progress[0].message, /已安装更新的 Git Leaf 1\.4\.0/);
-  assert.match(progress[0].message, /不会使用旧版本覆盖/);
-  assert.match(progress[0].detail, /旧版解压目录可以删除/);
-  assert.match(progress[0].detail, /从开始菜单启动 Git Leaf/);
+  assert.match(progress[0].title, /older version of Git Leaf 1\.3\.0/);
+  assert.match(progress[0].message, /newer Git Leaf 1\.4\.0 is already installed/);
+  assert.match(progress[0].message, /older package will not overwrite it/);
+  assert.match(progress[0].detail, /delete this older extracted folder/);
+  assert.match(progress[0].detail, /Start Git Leaf from the Start menu/);
   assert.equal(launches[0].executable, plan.executable);
 });

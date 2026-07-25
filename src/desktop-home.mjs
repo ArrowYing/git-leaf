@@ -1,5 +1,9 @@
-import { appDisplayName, BUILD_INFO, releaseDateLabel } from "./build-info.mjs";
+import { appDisplayName, BUILD_INFO } from "./build-info.mjs";
 import { normalizeColorMode } from "../public/settings-preferences.js";
+import {
+  createDesktopTranslator,
+  resolveDesktopLanguage,
+} from "../desktop/localization.mjs";
 
 export const DESKTOP_OPEN_REPOSITORY_URL = "git-leaf://open-repository";
 export const DESKTOP_OPEN_WORKTREE_URL = "git-leaf://open-worktree";
@@ -18,12 +22,18 @@ export function desktopHomeHtml({
   errorMessage = "",
   buildInfo = BUILD_INFO,
   preferences = {},
+  systemLanguages = [],
 } = {}) {
-  const readiness = desktopReadiness(checks);
+  const resolvedLanguage = resolveDesktopLanguage(preferences, { systemLanguages });
+  const translate = createDesktopTranslator({
+    ...preferences,
+    language: resolvedLanguage,
+  });
+  const readiness = desktopReadiness(checks, translate);
   const displayName = appDisplayName(buildInfo);
   const colorMode = normalizeColorMode(preferences?.colorMode);
   return `<!doctype html>
-<html lang="zh-CN" data-color-mode="${colorMode}">
+<html lang="${resolvedLanguage}" data-color-mode="${colorMode}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -277,69 +287,78 @@ export function desktopHomeHtml({
 <body>
   <main>
     <h1>${escapeHtml(displayName)}</h1>
-    <p class="subtitle">Git based docs workbench</p>
-    <p>选择一个本地 Git 仓库后，Git Leaf 会在桌面窗口中打开 Markdown / MDX 文档工作台。</p>
+    <p class="subtitle">${escapeHtml(translate("home.subtitle"))}</p>
+    <p>${escapeHtml(translate("home.introduction"))}</p>
     <div class="readiness-panel" data-next-action="${readiness.canOpenRepository ? "allowed" : "blocked"}">
       <p class="readiness-status ${readiness.canOpenRepository ? "ok" : "error"}">${escapeHtml(readiness.title)}</p>
       <p>${escapeHtml(readiness.message)}</p>
       ${readiness.canOpenRepository ? "" : `<p class="next-action-help">${escapeHtml(readiness.nextAction)}</p>`}
     </div>
     <div class="actions">
-      ${repositoryActionHtml(readiness)}
+      ${repositoryActionHtml(readiness, translate)}
     </div>
     ${errorMessage ? `<div class="error-message">${escapeHtml(errorMessage)}</div>` : ""}
     <section aria-labelledby="environment-heading">
-      <h2 id="environment-heading">环境检查</h2>
+      <h2 id="environment-heading">${escapeHtml(translate("home.environment"))}</h2>
       <div class="check-list">
-        ${checks.map(checkRowHtml).join("") || emptyCheckRowHtml()}
+        ${checks.map((check) => checkRowHtml(check, translate)).join("") || emptyCheckRowHtml(translate)}
       </div>
     </section>
-    ${buildInfoHtml(buildInfo)}
+    ${buildInfoHtml(buildInfo, translate)}
   </main>
   ${desktopPreferenceBridgeScript()}
 </body>
 </html>`;
 }
 
-function desktopReadiness(checks) {
+function desktopReadiness(checks, translate) {
   const gitCommand = checks.find((check) => check.id === "git-command");
   if (gitCommand?.status === "ok") {
     return {
       canOpenRepository: true,
-      title: "环境已就绪",
-      message: "可以打开本地 Git 仓库。",
+      title: translate("home.readyTitle"),
+      message: translate("home.readyMessage"),
       nextAction: "",
     };
   }
 
   return {
     canOpenRepository: false,
-    title: "环境未就绪",
-    message: "Git Leaf 需要先检测到 Git 命令，才能打开本地仓库。",
-    nextAction: "请先处理 Git 命令，然后重新打开 Git Leaf 或回到此页面再试。",
+    title: translate("home.blockedTitle"),
+    message: translate("home.blockedMessage"),
+    nextAction: translate("home.blockedAction"),
   };
 }
 
-function repositoryActionHtml(readiness) {
+function repositoryActionHtml(readiness, translate) {
+  const label = escapeHtml(translate("home.chooseRepository"));
   if (readiness.canOpenRepository) {
-    return `<a class="primary-action" href="${DESKTOP_OPEN_REPOSITORY_URL}">选择 Git 仓库</a>`;
+    return `<a class="primary-action" href="${DESKTOP_OPEN_REPOSITORY_URL}">${label}</a>`;
   }
 
-  return `<span class="primary-action is-disabled" role="button" aria-disabled="true">选择 Git 仓库</span>`;
+  return `<span class="primary-action is-disabled" role="button" aria-disabled="true">${label}</span>`;
 }
 
 export function desktopProgressHtml({
-  title = "正在处理",
-  message = "请稍候。",
+  title,
+  message,
   preferences = {},
+  systemLanguages = [],
 } = {}) {
+  const resolvedLanguage = resolveDesktopLanguage(preferences, { systemLanguages });
+  const translate = createDesktopTranslator({
+    ...preferences,
+    language: resolvedLanguage,
+  });
+  const renderedTitle = title ?? translate("home.progressTitle");
+  const renderedMessage = message ?? translate("home.progressMessage");
   const colorMode = normalizeColorMode(preferences?.colorMode);
   return `<!doctype html>
-<html lang="zh-CN" data-color-mode="${colorMode}">
+<html lang="${resolvedLanguage}" data-color-mode="${colorMode}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>${escapeHtml(title)} - Git Leaf</title>
+  <title>${escapeHtml(renderedTitle)} - Git Leaf</title>
   <style>
     :root {
       color-scheme: light dark;
@@ -425,8 +444,8 @@ export function desktopProgressHtml({
 <body>
   <main aria-busy="true">
     <div class="progress-indicator" aria-hidden="true"></div>
-    <h1>${escapeHtml(title)}</h1>
-    <p>${escapeHtml(message)}</p>
+    <h1>${escapeHtml(renderedTitle)}</h1>
+    <p>${escapeHtml(renderedMessage)}</p>
   </main>
   ${desktopPreferenceBridgeScript()}
 </body>
@@ -445,33 +464,42 @@ function desktopPreferenceBridgeScript() {
   </script>`;
 }
 
-function buildInfoHtml(buildInfo) {
+function buildInfoHtml(buildInfo, translate) {
   const version = String(buildInfo?.version ?? "").trim();
-  const releaseDate = releaseDateLabel(buildInfo);
+  const releaseDate = buildReleaseDate(buildInfo);
   if (!version && !releaseDate) {
     return "";
   }
 
   return `<p class="build-info">${[
-    version ? `版本 ${escapeHtml(version)}` : "",
-    releaseDate ? escapeHtml(releaseDate) : "",
+    version ? escapeHtml(translate("home.version", { version })) : "",
+    releaseDate ? escapeHtml(translate("home.released", { date: releaseDate })) : "",
   ].filter(Boolean).join(" · ")}</p>`;
 }
 
-function checkRowHtml(check) {
+function buildReleaseDate(buildInfo) {
+  const builtAt = String(buildInfo?.builtAt ?? "").trim();
+  if (!builtAt) {
+    return "";
+  }
+  const date = new Date(builtAt);
+  return Number.isNaN(date.getTime()) ? "" : date.toISOString().slice(0, 10);
+}
+
+function checkRowHtml(check, translate) {
   const status = normalizeStatus(check.status);
   return `<div class="check-row">
     <div class="check-label">${escapeHtml(check.label)}</div>
-    <div class="check-status ${status}">${statusLabel(status)}</div>
+    <div class="check-status ${status}">${escapeHtml(statusLabel(status, translate))}</div>
     <div class="check-message">${escapeHtml(check.message)}</div>
   </div>`;
 }
 
-function emptyCheckRowHtml() {
+function emptyCheckRowHtml(translate) {
   return `<div class="check-row">
-    <div class="check-label">环境检查</div>
-    <div class="check-status warn">待检查</div>
-    <div class="check-message">正在准备检查结果。</div>
+    <div class="check-label">${escapeHtml(translate("home.environment"))}</div>
+    <div class="check-status warn">${escapeHtml(translate("home.pending"))}</div>
+    <div class="check-message">${escapeHtml(translate("home.preparingChecks"))}</div>
   </div>`;
 }
 
@@ -479,12 +507,8 @@ function normalizeStatus(status) {
   return new Set(["ok", "warn", "error"]).has(status) ? status : "warn";
 }
 
-function statusLabel(status) {
-  return {
-    ok: "正常",
-    warn: "需处理",
-    error: "错误",
-  }[status];
+function statusLabel(status, translate) {
+  return translate(`home.status.${status}`);
 }
 
 function escapeHtml(value) {

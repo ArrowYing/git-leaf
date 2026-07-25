@@ -173,6 +173,16 @@ Paragraph line two
   assert.match(html, /data-source-start="3"/);
   assert.match(html, /data-source-end="4"/);
   assert.match(html, /data-source-line="4"/);
+  assert.match(html, /title="Select line 1" aria-label="Select line 1"/);
+  assert.match(html, /aria-label="Source line numbers"/);
+});
+
+test("renderMarkdown localizes source line controls without changing document content", () => {
+  const html = renderMarkdown("# 用户标题\n", { locale: "zh-CN" });
+
+  assert.match(html, />用户标题<\/h1>/);
+  assert.match(html, /title="选择第 1 行" aria-label="选择第 1 行"/);
+  assert.match(html, /aria-label="源文件行号"/);
 });
 
 test("renderMarkdown carries repository context through relative links and raw assets", () => {

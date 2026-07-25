@@ -204,24 +204,63 @@ test("shared fetch recovery retries in place and preserves a declined terminal f
   assert.equal(declined, terminal);
 });
 
-test("shared fetch failure prompts distinguish network and authentication recovery", () => {
+test("shared fetch failure prompts default to English and preserve technical errors", () => {
   const network = sharedFetchFailurePrompt({
     state: "fetch_failed",
     commandState: "network_unavailable",
     error: "fatal: connection timed out",
   });
-  assert.equal(network.message, "暂时无法连接 GitHub");
-  assert.match(network.detail, /已自动重试/);
-  assert.match(network.detail, /本地仓库没有被修改/);
-  assert.deepEqual(network.buttons, ["重新尝试", "暂不打开"]);
+  assert.equal(network.message, "GitHub is temporarily unavailable");
+  assert.match(network.detail, /retried automatically/);
+  assert.match(network.detail, /The local repository was not modified/);
+  assert.match(network.detail, /Technical information: fatal: connection timed out/);
+  assert.deepEqual(network.buttons, ["Try again", "Don't open now"]);
+});
 
+test("shared fetch failure prompts accept the Chinese language option", () => {
   const authentication = sharedFetchFailurePrompt({
     state: "fetch_failed",
     commandState: "authentication_required",
+    error: "fatal: Authentication failed for remote",
+  }, {
+    language: "zh-CN",
   });
   assert.equal(authentication.message, "Git 凭据需要重新登录");
   assert.match(authentication.detail, /当前仓库使用的 Git 凭据/);
+  assert.match(authentication.detail, /本地仓库没有被修改/);
+  assert.match(authentication.detail, /技术信息：fatal: Authentication failed for remote/);
   assert.deepEqual(authentication.buttons, ["重新检查", "暂不打开"]);
+});
+
+test("shared fetch failure prompts localize every recovery category", () => {
+  const expected = new Map([
+    ["network_unavailable", "GitHub is temporarily unavailable"],
+    ["authentication_required", "Git credentials require sign-in"],
+    ["unavailable", "Git is unavailable on this computer"],
+    ["permission_denied", "Git access was denied by the system"],
+    ["invalid_context", "The main worktree is no longer available"],
+    ["interrupted", "Fetching the latest main was interrupted"],
+    ["failed", "Could not fetch the latest main"],
+  ]);
+
+  for (const [commandState, message] of expected) {
+    const prompt = sharedFetchFailurePrompt({ commandState });
+    assert.equal(prompt.message, message);
+    assert.match(prompt.detail, /The local repository was not modified/);
+    assert.equal(
+      prompt.buttons[0],
+      commandState === "authentication_required" ? "Check again" : "Try again",
+    );
+  }
+
+  const chineseFallback = sharedFetchFailurePrompt({
+    commandState: "unexpected_failure",
+  }, {
+    locale: "zh-CN",
+  });
+  assert.equal(chineseFallback.message, "无法获取最新 main");
+  assert.match(chineseFallback.detail, /请检查远端地址和技术信息/);
+  assert.deepEqual(chineseFallback.buttons, ["重新尝试", "暂不打开"]);
 });
 
 function gitRunner({

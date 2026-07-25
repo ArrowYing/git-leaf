@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   KEYBOARD_SHORTCUT_GROUPS,
+  getKeyboardShortcutGroups,
   keyboardShortcutsPlainText,
 } from "../public/keyboard-shortcuts.js";
 
@@ -41,6 +42,19 @@ test("keyboard shortcut help keeps the agreed Git Leaf shortcuts", () => {
   assert.match(text, /Enter\s+Open Selected File/);
   assert.match(text, /Command\+,\s+Open Settings/);
   assert.match(text, /Command\+\/\s+Open Keyboard Shortcuts/);
+});
+
+test("keyboard shortcut help localizes labels without changing key bindings", () => {
+  const english = getKeyboardShortcutGroups("en");
+  const chinese = getKeyboardShortcutGroups("zh-CN");
+
+  assert.deepEqual(
+    english.flatMap((group) => group.shortcuts.map((shortcut) => shortcut.keys)),
+    chinese.flatMap((group) => group.shortcuts.map((shortcut) => shortcut.keys)),
+  );
+  assert.equal(chinese[0].title, "仓库");
+  assert.match(keyboardShortcutsPlainText("zh-CN"), /键盘快捷键/);
+  assert.match(keyboardShortcutsPlainText("zh-CN"), /打开 Git 仓库/);
 });
 
 test("keyboard shortcut help does not assign a shortcut to closing the repository", () => {

@@ -6,6 +6,7 @@ import {
   effectiveColorScheme,
   normalizeUserPreferences,
   preferencePatch,
+  resolveLanguagePreference,
 } from "../public/settings-preferences.js";
 
 export const SETTINGS_CENTER_SECTIONS = Object.freeze([
@@ -26,6 +27,7 @@ export const SETTINGS_CENTER_CHANNELS = Object.freeze({
 export const SETTINGS_CENTER_DEFAULT_PREFERENCES = DEFAULT_USER_PREFERENCES;
 
 const USER_PREFERENCE_KEYS = new Set([
+  "language",
   "colorMode",
   "documentFont",
   "documentFontSize",
@@ -98,6 +100,7 @@ export function createSettingsCenterController({
   getStatus = async () => ({}),
   getContent = async () => ({}),
   getSystemDark = () => false,
+  getSystemLanguages = () => [],
   checkForUpdates = async () => ({}),
 } = {}) {
   requireControllerDependency(mainWindow, "mainWindow");
@@ -114,6 +117,7 @@ export function createSettingsCenterController({
   let destroyed = false;
   let activeSection = "appearance";
   let showGeneration = 0;
+  let statusHydrationGeneration = 0;
 
   installIpcHandlers();
 
@@ -143,7 +147,8 @@ export function createSettingsCenterController({
     }
     resize();
     currentView.webContents.focus();
-    void sendStatusWhenReady(generation);
+    const hydrationGeneration = ++statusHydrationGeneration;
+    void sendStatusWhenReady(generation, hydrationGeneration, model.resolvedLanguage);
     return { shown: true, section: activeSection, model };
   }
 
@@ -152,6 +157,7 @@ export function createSettingsCenterController({
       return false;
     }
     showGeneration += 1;
+    statusHydrationGeneration += 1;
     visible = false;
     if (view && attached) {
       try {
@@ -187,9 +193,17 @@ export function createSettingsCenterController({
       return false;
     }
     const generation = showGeneration;
+    const hydrationGeneration = ++statusHydrationGeneration;
     await loadPromise;
-    const status = await getStatus();
-    if (!view || !visible || destroyed || generation !== showGeneration) {
+    const { resolvedLanguage } = await buildLanguageContext();
+    const status = await getStatus(resolvedLanguage);
+    if (
+      !view
+      || !visible
+      || destroyed
+      || generation !== showGeneration
+      || hydrationGeneration !== statusHydrationGeneration
+    ) {
       return false;
     }
     view.webContents.send(SETTINGS_CENTER_CHANNELS.show, {
@@ -237,27 +251,40 @@ export function createSettingsCenterController({
     return view;
   }
 
-  async function buildModel() {
-    const [initialModel, status] = await Promise.all([
-      buildInitialModel(),
-      getStatus(),
-    ]);
+  async function buildModel({ preferences: preferencesOverride } = {}) {
+    const initialModel = await buildInitialModel({ preferences: preferencesOverride });
+    const status = await getStatus(initialModel.resolvedLanguage);
     return {
       ...initialModel,
       status: isRecord(status) ? status : {},
     };
   }
 
-  async function buildInitialModel() {
-    const [preferences, content] = await Promise.all([
-      getPreferences(),
-      getContent(),
-    ]);
+  async function buildInitialModel({ preferences: preferencesOverride } = {}) {
+    const languageContext = await buildLanguageContext({
+      preferences: preferencesOverride,
+    });
+    const content = await getContent(languageContext.resolvedLanguage);
     return {
-      preferences: normalizeSettingsPreferences(preferences),
+      preferences: languageContext.preferences,
+      resolvedLanguage: languageContext.resolvedLanguage,
       status: {},
       helpSections: Array.isArray(content?.helpSections) ? content.helpSections : [],
       shortcutGroups: Array.isArray(content?.shortcutGroups) ? content.shortcutGroups : [],
+    };
+  }
+
+  async function buildLanguageContext({ preferences: preferencesOverride } = {}) {
+    const [preferencesValue, systemLanguages] = await Promise.all([
+      preferencesOverride ?? getPreferences(),
+      getSystemLanguages(),
+    ]);
+    const preferences = normalizeSettingsPreferences(preferencesValue);
+    return {
+      preferences,
+      resolvedLanguage: resolveLanguagePreference(preferences.language, {
+        systemLanguages,
+      }),
     };
   }
 
@@ -273,10 +300,16 @@ export function createSettingsCenterController({
     await Promise.resolve(currentView.webContents.executeJavaScript?.(script)).catch(() => {});
   }
 
-  async function sendStatusWhenReady(generation) {
+  async function sendStatusWhenReady(generation, hydrationGeneration, resolvedLanguage) {
     try {
-      const status = await getStatus();
-      if (!view || !visible || destroyed || generation !== showGeneration) {
+      const status = await getStatus(resolvedLanguage);
+      if (
+        !view
+        || !visible
+        || destroyed
+        || generation !== showGeneration
+        || hydrationGeneration !== statusHydrationGeneration
+      ) {
         return false;
       }
       view.webContents.send(SETTINGS_CENTER_CHANNELS.show, {
@@ -303,10 +336,21 @@ export function createSettingsCenterController({
         };
       }
 
+      if (Object.hasOwn(patch, "language")) {
+        statusHydrationGeneration += 1;
+      }
       const saved = await savePreferences(patch);
       const preferences = normalizeSettingsPreferences(
         saved ?? { ...await getPreferences(), ...patch },
       );
+      if (Object.hasOwn(patch, "language")) {
+        const model = await buildModel({ preferences });
+        return {
+          ok: true,
+          preferences: model.preferences,
+          model,
+        };
+      }
       return { ok: true, preferences };
     });
     ipcMain.handle(SETTINGS_CENTER_CHANNELS.action, async (event, value) => {

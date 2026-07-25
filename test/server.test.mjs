@@ -158,7 +158,7 @@ test("resolveNewDocumentPath normalizes extensions and rejects invalid names", a
     assert.equal(resolved.relativePath, "Brief.mdx");
     await assert.rejects(
       resolveNewDocumentPath(repoRoot, { name: "bad/name", format: "md" }),
-      /系统不支持的字符/,
+      /characters that are not supported/,
     );
   } finally {
     await rm(repoRoot, { recursive: true, force: true });
@@ -340,6 +340,15 @@ test("document API returns file metadata for auto refresh and actions", async ()
       { number: 2, text: "" },
       { number: 3, text: "Body" },
     ]);
+    assert.match(payload.html, /title="Select line 1" aria-label="Select line 1"/);
+    assert.match(payload.html, /aria-label="Source line numbers"/);
+
+    const chinese = await getJson(`${baseUrl}/api/document?file=sample.md&locale=zh-CN`);
+    assert.match(chinese.html, /title="选择第 1 行" aria-label="选择第 1 行"/);
+    assert.match(chinese.html, /aria-label="源文件行号"/);
+
+    const unsupported = await getJson(`${baseUrl}/api/document?file=sample.md&locale=zh`);
+    assert.match(unsupported.html, /title="Select line 1" aria-label="Select line 1"/);
   } finally {
     await close(server);
   }
@@ -381,6 +390,7 @@ test("document API returns readonly payloads for previewable, code, and unsuppor
   const repoRoot = await mkdtemp(path.join(tmpdir(), "git-leaf-"));
   await writeFile(path.join(repoRoot, "sample.md"), "# Sample\n");
   await writeFile(path.join(repoRoot, "data.json"), "{\"ok\":true,\"items\":[1,2]}\n");
+  await writeFile(path.join(repoRoot, "invalid.json"), "{\"broken\":\n");
   await writeFile(path.join(repoRoot, "page.html"), '<link rel="stylesheet" href="./page.css"><h1>Page</h1>');
   await writeFile(path.join(repoRoot, "script.js"), "export const ok = true;\n");
   await writeFile(path.join(repoRoot, "slides.pptx"), Buffer.from([0x50, 0x4b, 0x03, 0x04, 0x00]));
@@ -396,6 +406,13 @@ test("document API returns readonly payloads for previewable, code, and unsuppor
     assert.match(jsonPayload.text, /"items"/);
     assert.equal(Object.hasOwn(jsonPayload, "source"), false);
     assert.equal(Object.hasOwn(jsonPayload, "html"), false);
+
+    const invalidJson = await getJson(`${baseUrl}/api/document?file=invalid.json`);
+    assert.equal(invalidJson.parseError, "JSON parsing failed. The original text is shown.");
+    const chineseInvalidJson = await getJson(
+      `${baseUrl}/api/document?file=invalid.json&locale=zh-CN`,
+    );
+    assert.equal(chineseInvalidJson.parseError, "JSON 解析失败，已按原始文本显示。");
 
     const htmlPayload = await getJson(`${baseUrl}/api/document?file=page.html`);
     assert.equal(htmlPayload.kind, "html");
@@ -594,6 +611,38 @@ test("image asset API accepts pasted AVIF images", async () => {
   }
 });
 
+test("image asset API localizes unsupported image types", async () => {
+  const repoRoot = await mkdtemp(path.join(tmpdir(), "git-leaf-"));
+  await mkdir(path.join(repoRoot, "docs"), { recursive: true });
+  await writeFile(path.join(repoRoot, "docs", "sample.md"), "# Sample\n");
+  const initialFile = await resolvePreviewPath(repoRoot, "docs/sample.md");
+  const server = createPreviewServer({ repoRoot, initialFile });
+  const baseUrl = await listen(server);
+  const imageData = Buffer.from("tiff-image").toString("base64");
+
+  try {
+    for (const [locale, expected] of [
+      ["en", "Unsupported image type: image/tiff"],
+      ["zh-CN", "不支持的图片类型：image/tiff"],
+    ]) {
+      const response = await fetch(
+        `${baseUrl}/api/image-assets?file=docs/sample.md&locale=${encodeURIComponent(locale)}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ dataUrl: `data:image/tiff;base64,${imageData}` }),
+        },
+      );
+      const payload = await response.json();
+
+      assert.equal(response.status, 400);
+      assert.equal(payload.error, expected);
+    }
+  } finally {
+    await close(server);
+  }
+});
+
 test("link target API returns titled safe repository document links", async () => {
   const repoRoot = await mkdtemp(path.join(tmpdir(), "git-leaf-"));
   await mkdir(path.join(repoRoot, "docs", "guides", "deep"), { recursive: true });
@@ -644,9 +693,21 @@ test("link target API rejects Git Leaf URLs for another repository", async () =>
     const target = encodeURIComponent("http://127.0.0.1:4317/?repo=content-repo&file=AGENTS.md");
     const response = await fetch(`${baseUrl}/api/link-target?file=docs/source.md&target=${target}`);
     const payload = await response.json();
+    const chineseResponse = await fetch(
+      `${baseUrl}/api/link-target?file=docs/source.md&target=${target}&locale=zh-CN`,
+    );
+    const chinesePayload = await chineseResponse.json();
+    const missingResponse = await fetch(
+      `${baseUrl}/api/link-target?file=docs/source.md&target=missing.md&locale=zh-CN`,
+    );
+    const missingPayload = await missingResponse.json();
 
     assert.equal(response.status, 404);
-    assert.match(payload.error, /Repository is not available: content-repo/);
+    assert.equal(payload.error, "Repository is not available: content-repo");
+    assert.equal(chineseResponse.status, 404);
+    assert.equal(chinesePayload.error, "仓库不可用：content-repo");
+    assert.equal(missingResponse.status, 404);
+    assert.equal(missingPayload.error, "目标文档不可用。");
   } finally {
     await close(server);
   }
@@ -725,9 +786,20 @@ test("document rename API rejects an MDX target that already exists", async () =
       body: JSON.stringify({ extension: ".mdx" }),
     });
     const payload = await response.json();
+    const chineseResponse = await fetch(
+      `${baseUrl}/api/rename-document?file=sample.md&locale=zh-CN`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ extension: ".mdx" }),
+      },
+    );
+    const chinesePayload = await chineseResponse.json();
 
     assert.equal(response.status, 409);
-    assert.match(payload.error, /already exists/);
+    assert.equal(payload.error, "Target document already exists: sample.mdx");
+    assert.equal(chineseResponse.status, 409);
+    assert.equal(chinesePayload.error, "目标文档已存在：sample.mdx");
     assert.equal(await readFile(markdownPath, "utf8"), "# Sample\n");
     assert.equal(await readFile(mdxPath, "utf8"), "# Existing\n");
   } finally {
@@ -1081,7 +1153,7 @@ test("git sync API returns an Agent prompt when the fixed Git flow fails", async
   const baseUrl = await listen(server);
 
   try {
-    const response = await fetch(`${baseUrl}/api/git-sync`, {
+    const response = await fetch(`${baseUrl}/api/git-sync?locale=zh-CN`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ files: ["sample.md"], note: "同步文档" }),
@@ -1529,6 +1601,8 @@ test("public module assets are served for the browser", async () => {
       "mode-preference.js",
       "theme-preference.js",
       "settings-preferences.js",
+      "i18n.js",
+      "workbench-locales.js",
       "file-tree-visibility.js",
       "document-tabs.js",
       "document-search.js",

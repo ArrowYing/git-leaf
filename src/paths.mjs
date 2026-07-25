@@ -16,6 +16,32 @@ import {
   GitRepositoryNotFoundError,
 } from "./git-errors.mjs";
 
+const NEW_DOCUMENT_MESSAGES = Object.freeze({
+  en: Object.freeze({
+    location: "The document location must be an existing directory.",
+    format: "Document format must be Markdown or MDX.",
+    nameRequired: "Enter a document name.",
+    nameInvalid: "The document name contains characters that are not supported by the system.",
+    locationOutside: "The document location must be inside the current repository.",
+    pathOutside: "The document path must be inside the current repository: {path}",
+  }),
+  "zh-CN": Object.freeze({
+    location: "创建位置必须是已有目录。",
+    format: "文档格式只支持 Markdown 或 MDX。",
+    nameRequired: "请输入文档名称。",
+    nameInvalid: "文档名称包含系统不支持的字符。",
+    locationOutside: "创建位置必须位于当前仓库内。",
+    pathOutside: "路径必须位于当前仓库内：{path}",
+  }),
+});
+const NEW_DOCUMENT_ERROR_CODES = Object.freeze({
+  location: "new_document_directory_invalid",
+  format: "new_document_format_invalid",
+  nameRequired: "new_document_name_required",
+  nameInvalid: "new_document_name_invalid",
+  outside: "new_document_path_outside_repository",
+});
+
 export function toPosixPath(value) {
   return value.split(path.sep).join("/");
 }
@@ -131,24 +157,34 @@ export async function resolveExistingRepoPath(repoRoot, inputPath = "") {
 
 export async function resolveNewDocumentPath(
   repoRoot,
-  { directory = "", name = "", format = "md" } = {},
+  {
+    directory = "",
+    name = "",
+    format = "md",
+    language = "en",
+    locale,
+  } = {},
 ) {
+  const translate = createNewDocumentTranslator(locale ?? language);
   const root = await realpath(repoRoot);
-  const normalizedDirectory = normalizeRelativeDirectory(directory);
+  const normalizedDirectory = normalizeRelativeDirectory(directory, translate);
   const absoluteDirectory = path.resolve(root, normalizedDirectory || ".");
-  assertInsideRoot(root, absoluteDirectory, directory);
+  assertNewDocumentInsideRoot(root, absoluteDirectory, directory, translate);
   const realDirectory = await realpath(absoluteDirectory);
-  assertInsideRoot(root, realDirectory, directory);
+  assertNewDocumentInsideRoot(root, realDirectory, directory, translate);
   const directoryStat = await stat(realDirectory);
   if (!directoryStat.isDirectory()) {
-    throw invalidNewDocumentError("创建位置必须是已有目录。");
+    throw invalidNewDocumentError(
+      translate("location"),
+      NEW_DOCUMENT_ERROR_CODES.location,
+    );
   }
 
-  const extension = normalizeDocumentFormat(format);
-  const title = normalizeDocumentName(name);
+  const extension = normalizeDocumentFormat(format, translate);
+  const title = normalizeDocumentName(name, translate);
   const filename = `${title}.${extension}`;
   const absolutePath = path.join(realDirectory, filename);
-  assertInsideRoot(root, absolutePath, filename);
+  assertNewDocumentInsideRoot(root, absolutePath, filename, translate);
   return {
     root,
     absolutePath,
@@ -185,7 +221,7 @@ async function resolveRepositoryEntry(repoRoot, inputPath) {
   };
 }
 
-function normalizeRelativeDirectory(value) {
+function normalizeRelativeDirectory(value, translate) {
   const directory = String(value ?? "").trim().replaceAll("\\", "/");
   if (!directory || directory === ".") {
     return "";
@@ -195,23 +231,32 @@ function normalizeRelativeDirectory(value) {
     path.win32.isAbsolute(directory) ||
     directory.split("/").some((part) => !part || part === "." || part === "..")
   ) {
-    throw invalidNewDocumentError("创建位置必须位于当前仓库内。");
+    throw invalidNewDocumentError(
+      translate("locationOutside"),
+      NEW_DOCUMENT_ERROR_CODES.outside,
+    );
   }
   return directory;
 }
 
-function normalizeDocumentFormat(value) {
+function normalizeDocumentFormat(value, translate) {
   const format = String(value ?? "md").trim().toLowerCase().replace(/^\./, "");
   if (format !== "md" && format !== "mdx") {
-    throw invalidNewDocumentError("文档格式只支持 Markdown 或 MDX。");
+    throw invalidNewDocumentError(
+      translate("format"),
+      NEW_DOCUMENT_ERROR_CODES.format,
+    );
   }
   return format;
 }
 
-function normalizeDocumentName(value) {
+function normalizeDocumentName(value, translate) {
   const raw = String(value ?? "").trim().replace(/\.(?:md|mdx)$/i, "").trim();
   if (!raw) {
-    throw invalidNewDocumentError("请输入文档名称。");
+    throw invalidNewDocumentError(
+      translate("nameRequired"),
+      NEW_DOCUMENT_ERROR_CODES.nameRequired,
+    );
   }
   if (
     /[\u0000-\u001f<>:\"/\\|?*]/.test(raw) ||
@@ -220,9 +265,21 @@ function normalizeDocumentName(value) {
     raw === ".." ||
     /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])$/i.test(raw)
   ) {
-    throw invalidNewDocumentError("文档名称包含系统不支持的字符。");
+    throw invalidNewDocumentError(
+      translate("nameInvalid"),
+      NEW_DOCUMENT_ERROR_CODES.nameInvalid,
+    );
   }
   return raw;
+}
+
+function assertNewDocumentInsideRoot(root, absolutePath, inputPath, translate) {
+  if (absolutePath !== root && !absolutePath.startsWith(root + path.sep)) {
+    throw invalidNewDocumentError(
+      translate("pathOutside", { path: inputPath }),
+      NEW_DOCUMENT_ERROR_CODES.outside,
+    );
+  }
 }
 
 function assertInsideRoot(root, absolutePath, inputPath) {
@@ -231,10 +288,27 @@ function assertInsideRoot(root, absolutePath, inputPath) {
   }
 }
 
-function invalidNewDocumentError(message) {
+function invalidNewDocumentError(message, code) {
   const error = new Error(message);
+  if (code) {
+    error.code = code;
+  }
   error.statusCode = 400;
   return error;
+}
+
+function createNewDocumentTranslator(locale) {
+  const messages = NEW_DOCUMENT_MESSAGES[resolveNewDocumentLocale(locale)];
+  return (key, replacements = {}) => {
+    const template = messages[key] ?? NEW_DOCUMENT_MESSAGES.en[key] ?? key;
+    return template.replace(/\{([a-zA-Z]+)\}/g, (_match, name) => (
+      replacements[name] == null ? "" : String(replacements[name])
+    ));
+  };
+}
+
+function resolveNewDocumentLocale(locale) {
+  return String(locale || "").toLowerCase().startsWith("zh") ? "zh-CN" : "en";
 }
 
 export async function resolveRawAssetPath(repoRoot, inputPath) {

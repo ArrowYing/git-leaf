@@ -326,6 +326,7 @@ function normalizeDesktopPreferences(value, { newInstall = false } = {}) {
   const preferences = { ...source };
   for (const key of [
     "theme",
+    "language",
     "colorMode",
     "documentFont",
     "documentFontSize",

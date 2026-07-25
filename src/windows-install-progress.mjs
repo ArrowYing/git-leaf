@@ -1,17 +1,47 @@
-export function windowsInstallProgressHtml({ version = "", mode = "update" } = {}) {
-  const action = mode === "update"
-    ? "更新"
+const WINDOWS_INSTALL_PROGRESS_MESSAGES = Object.freeze({
+  en: Object.freeze({
+    "action.update": "Update",
+    "action.start": "Start",
+    "action.install": "Setup",
+    "heading.update": "Updating Git Leaf{version}",
+    "heading.start": "Starting Git Leaf{version}",
+    "heading.install": "Preparing Git Leaf{version}",
+    message: "Please wait. Git Leaf will finish automatically and reopen.",
+    stage: "Starting…",
+  }),
+  "zh-CN": Object.freeze({
+    "action.update": "更新",
+    "action.start": "启动",
+    "action.install": "准备",
+    "heading.update": "正在更新 Git Leaf{version}",
+    "heading.start": "正在启动 Git Leaf{version}",
+    "heading.install": "正在准备 Git Leaf{version}",
+    message: "请稍候，Git Leaf 会自动完成并重新打开。",
+    stage: "正在开始…",
+  }),
+});
+
+export function windowsInstallProgressHtml({
+  version = "",
+  mode = "update",
+  language = "en",
+  locale,
+} = {}) {
+  const resolvedLocale = resolveWindowsInstallProgressLocale(locale ?? language);
+  const translate = createWindowsInstallProgressTranslator(resolvedLocale);
+  const actionKey = mode === "update"
+    ? "update"
     : ["redirect", "outdated"].includes(mode)
-      ? "启动"
-      : "准备";
+      ? "start"
+      : "install";
   const versionLabel = version ? ` ${escapeHtml(version)}` : "";
   return `<!doctype html>
-<html lang="zh-CN">
+<html lang="${resolvedLocale}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
-  <title>Git Leaf ${action}</title>
+  <title>Git Leaf ${translate(`action.${actionKey}`)}</title>
   <style>
     :root { color-scheme: light; font-family: "Segoe UI", system-ui, sans-serif; }
     * { box-sizing: border-box; }
@@ -63,13 +93,13 @@ export function windowsInstallProgressHtml({ version = "", mode = "update" } = {
 <body data-phase="starting">
   <main>
     <div class="brand"><div class="leaf">L</div><div class="name">Git Leaf</div></div>
-    <h1 id="title">正在${action} Git Leaf${versionLabel}</h1>
-    <p class="message" id="message">请稍候，Git Leaf 会自动完成并重新打开。</p>
+    <h1 id="title">${translate(`heading.${actionKey}`, { version: versionLabel })}</h1>
+    <p class="message" id="message">${translate("message")}</p>
     <p class="detail" id="detail" hidden></p>
     <div class="track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="3">
       <div class="bar" id="bar"></div>
     </div>
-    <div class="meta"><span id="stage">正在开始…</span><span id="percent">3%</span></div>
+    <div class="meta"><span id="stage">${translate("stage")}</span><span id="percent">3%</span></div>
   </main>
   <script>
     window.updateInstallProgress = (state) => {
@@ -88,6 +118,20 @@ export function windowsInstallProgressHtml({ version = "", mode = "update" } = {
   </script>
 </body>
 </html>`;
+}
+
+function createWindowsInstallProgressTranslator(locale) {
+  const messages = WINDOWS_INSTALL_PROGRESS_MESSAGES[locale];
+  return (key, replacements = {}) => {
+    const template = messages[key] ?? WINDOWS_INSTALL_PROGRESS_MESSAGES.en[key] ?? key;
+    return template.replace(/\{([a-zA-Z]+)\}/g, (_match, name) => (
+      replacements[name] == null ? "" : String(replacements[name])
+    ));
+  };
+}
+
+function resolveWindowsInstallProgressLocale(locale) {
+  return String(locale || "").toLowerCase().startsWith("zh") ? "zh-CN" : "en";
 }
 
 function escapeHtml(value) {

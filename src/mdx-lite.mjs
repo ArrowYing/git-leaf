@@ -8,6 +8,7 @@ import {
   tableLayoutAttributes,
   tableScrollAttributeString,
 } from "./table-layout.mjs";
+import { createTranslator } from "../public/i18n.js";
 
 const COMPONENT_NAMES = new Set([
   "DataTable",
@@ -18,6 +19,20 @@ const COMPONENT_NAMES = new Set([
   "FlowDiagram",
 ]);
 const CHART_COLORS = ["#2563eb", "#dc2626", "#16a34a", "#d97706", "#7c3aed", "#0891b2"];
+const MDX_MESSAGES = Object.freeze({
+  en: Object.freeze({
+    "component.error": "Failed to render MDX component: {message}",
+    "decision.kicker": "Decision",
+    "flow.ariaLabel": "Flow diagram",
+    "chart.unit": "Unit: {unit}",
+  }),
+  "zh-CN": Object.freeze({
+    "component.error": "MDX 组件渲染失败：{message}",
+    "decision.kicker": "决策",
+    "flow.ariaLabel": "流程图",
+    "chart.unit": "单位：{unit}",
+  }),
+});
 
 export function mdxLiteBlockRule(state, startLine, endLine, silent) {
   const line = sourceLine(state, startLine).trim();
@@ -56,41 +71,46 @@ export function mdxLiteBlockRule(state, startLine, endLine, silent) {
   return true;
 }
 
-export function renderMdxLiteComponent(token) {
+export function renderMdxLiteComponent(token, { locale = "en" } = {}) {
   const name = token.meta?.name;
   const attributes = token.meta?.attributes ?? {};
+  const translate = createTranslator(MDX_MESSAGES, locale);
 
   try {
     if (name === "DataTable") {
-      return renderDataTable(token.content, attributes);
+      return renderDataTable(token.content, attributes, translate);
     }
     if (name === "Timeline") {
-      return renderTimeline(token.content, attributes);
+      return renderTimeline(token.content, attributes, translate);
     }
     if (name === "Chart") {
-      return renderChart(token.content, attributes);
+      return renderChart(token.content, attributes, translate);
     }
     if (name === "DecisionBox") {
-      return renderDecisionBox(token.content, attributes);
+      return renderDecisionBox(token.content, attributes, translate);
     }
     if (name === "MetricGrid") {
-      return renderMetricGrid(token.content, attributes);
+      return renderMetricGrid(token.content, attributes, translate);
     }
     if (name === "FlowDiagram") {
-      return renderFlowDiagram(token.content, attributes);
+      return renderFlowDiagram(token.content, attributes, translate);
     }
   } catch (error) {
-    return componentError(name, error);
+    return componentError(name, error, translate);
   }
 
-  return componentError(name, new Error("Unsupported MDX-lite component."));
+  return componentError(name, new Error("Unsupported MDX-lite component."), translate);
 }
 
-function renderDataTable(content, attributes) {
+function renderDataTable(content, attributes, translate) {
   const rows = extractRows(content);
   const columns = columnsForRows(rows, attributes.columns);
   if (rows.length === 0 || columns.length === 0) {
-    return componentError("DataTable", new Error("DataTable requires CSV, JSON, or a Markdown table."));
+    return componentError(
+      "DataTable",
+      new Error("DataTable requires CSV, JSON, or a Markdown table."),
+      translate,
+    );
   }
   const tableAttributes = tableComplexityAttributes({
     rows,
@@ -106,7 +126,7 @@ function renderDataTable(content, attributes) {
   return [
     '<div class="mdx-component mdx-data-table" data-mdx-component="DataTable">',
     `<div ${tableCardAttributeString(tableAttributes, tableLayout)}>`,
-    renderTableToolbar(tableAttributes),
+    renderTableToolbar(tableAttributes, { locale: translate.locale }),
     `<div ${tableScrollAttributeString(tableLayout)}><table>`,
     renderTableColgroup(tableLayout),
     attributes.title ? `<caption>${escapeHtml(attributes.title)}</caption>` : "",
@@ -118,10 +138,10 @@ function renderDataTable(content, attributes) {
   ].join("");
 }
 
-function renderTimeline(content, attributes) {
+function renderTimeline(content, attributes, translate) {
   const rows = extractRows(content);
   if (rows.length === 0) {
-    return componentError("Timeline", new Error("Timeline requires CSV or JSON rows."));
+    return componentError("Timeline", new Error("Timeline requires CSV or JSON rows."), translate);
   }
 
   return [
@@ -152,7 +172,7 @@ function renderTimelineItem(row) {
   ].join("");
 }
 
-function renderDecisionBox(content, attributes) {
+function renderDecisionBox(content, attributes, translate) {
   const rows = extractRows(content);
   const items = rows.map((row) => ({
     label: row.label ?? row.key ?? row.name ?? row.item ?? "",
@@ -168,7 +188,7 @@ function renderDecisionBox(content, attributes) {
   return [
     `<section class="mdx-component mdx-decision-box is-${status || "default"}" data-mdx-component="DecisionBox">`,
     '<div class="mdx-decision-header">',
-    '<span class="mdx-component-kicker">Decision</span>',
+    `<span class="mdx-component-kicker">${escapeHtml(translate("decision.kicker"))}</span>`,
     attributes.title ? `<h3 class="mdx-component-title">${escapeHtml(attributes.title)}</h3>` : "",
     badges ? `<div class="mdx-decision-badges">${badges}</div>` : "",
     "</div>",
@@ -188,10 +208,14 @@ function renderDecisionItem(item) {
   ].join("");
 }
 
-function renderMetricGrid(content, attributes) {
+function renderMetricGrid(content, attributes, translate) {
   const rows = extractRows(content);
   if (rows.length === 0) {
-    return componentError("MetricGrid", new Error("MetricGrid requires CSV, JSON, or a Markdown table."));
+    return componentError(
+      "MetricGrid",
+      new Error("MetricGrid requires CSV, JSON, or a Markdown table."),
+      translate,
+    );
   }
   const items = rows.map((row) => ({
     label: row.label ?? row.metric ?? row.name ?? row.title ?? "",
@@ -221,10 +245,10 @@ function renderMetricItem(item) {
   ].join("");
 }
 
-function renderFlowDiagram(content, attributes) {
+function renderFlowDiagram(content, attributes, translate) {
   const model = extractFlowDiagram(content);
   if (model.nodes.length === 0) {
-    return componentError("FlowDiagram", new Error("FlowDiagram requires nodes."));
+    return componentError("FlowDiagram", new Error("FlowDiagram requires nodes."), translate);
   }
 
   const layout = layoutFlowDiagram(model.nodes, model.edges);
@@ -232,7 +256,7 @@ function renderFlowDiagram(content, attributes) {
     '<figure class="mdx-component mdx-flow-diagram" data-mdx-component="FlowDiagram">',
     attributes.title ? `<figcaption>${escapeHtml(attributes.title)}</figcaption>` : "",
     '<div class="mdx-flow-scroll">',
-    `<svg viewBox="0 0 ${layout.width} ${layout.height}" role="img" aria-label="${escapeHtml(attributes.title || "Flow diagram")}">`,
+    `<svg viewBox="0 0 ${layout.width} ${layout.height}" role="img" aria-label="${escapeHtml(attributes.title || translate("flow.ariaLabel"))}">`,
     '<defs><marker id="mdx-flow-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z"></path></marker></defs>',
     layout.edges.map((edge) => renderFlowEdge(edge, layout)).join(""),
     layout.nodes.map((node) => renderFlowNode(node, layout)).join(""),
@@ -242,10 +266,10 @@ function renderFlowDiagram(content, attributes) {
   ].join("");
 }
 
-function renderChart(content, attributes) {
+function renderChart(content, attributes, translate) {
   const rows = extractRows(content);
   if (rows.length === 0) {
-    return componentError("Chart", new Error("Chart requires CSV or JSON rows."));
+    return componentError("Chart", new Error("Chart requires CSV or JSON rows."), translate);
   }
 
   const xKey = attributes.x || Object.keys(rows[0] ?? {})[0];
@@ -253,15 +277,20 @@ function renderChart(content, attributes) {
   const seriesKeys = chartSeriesKeys(attributes)
     .filter((key) => key !== xKey && rows.some((row) => Number.isFinite(toNumber(row[key]))));
   if (!xKey || seriesKeys.length === 0) {
-    return componentError("Chart", new Error("Chart requires x and numeric series fields."));
+    return componentError(
+      "Chart",
+      new Error("Chart requires x and numeric series fields."),
+      translate,
+    );
   }
 
   const chartType = type || (seriesKeys.length > 1 ? "line" : "bar");
   const model = buildChartModel({ rows, xKey, seriesKeys, attributes, type: chartType });
+  model.translate = translate;
   configureChartSeries(model, chartType);
   const chartError = chartModelError(model, chartType);
   if (chartError) {
-    return componentError("Chart", chartError);
+    return componentError("Chart", chartError, translate);
   }
   const svg = chartType === "bar"
     ? renderBarSvg(model)
@@ -624,8 +653,8 @@ function chartSvg(model, { min, max, x, y, body, rightAxis = null }) {
     renderGrid(model, min, max, y),
     rightAxis ? renderRightAxis(model, rightAxis) : "",
     `<line class="mdx-chart-axis-line" x1="${model.pad.left}" y1="${axisY.toFixed(1)}" x2="${model.width - model.pad.right}" y2="${axisY.toFixed(1)}"></line>`,
-    model.unit ? `<text class="mdx-chart-unit-label" x="18" y="${model.pad.top + model.plotH / 2}" transform="rotate(-90 18 ${model.pad.top + model.plotH / 2})" text-anchor="middle" font-size="12" font-weight="700">单位：${escapeHtml(model.unit)}</text>` : "",
-    rightAxis && model.rightUnit ? `<text class="mdx-chart-unit-label mdx-chart-right-unit-label" x="${model.width - 18}" y="${model.pad.top + model.plotH / 2}" transform="rotate(90 ${model.width - 18} ${model.pad.top + model.plotH / 2})" text-anchor="middle" font-size="12" font-weight="700">单位：${escapeHtml(model.rightUnit)}</text>` : "",
+    model.unit ? `<text class="mdx-chart-unit-label" x="18" y="${model.pad.top + model.plotH / 2}" transform="rotate(-90 18 ${model.pad.top + model.plotH / 2})" text-anchor="middle" font-size="12" font-weight="700">${escapeHtml(model.translate("chart.unit", { unit: model.unit }))}</text>` : "",
+    rightAxis && model.rightUnit ? `<text class="mdx-chart-unit-label mdx-chart-right-unit-label" x="${model.width - 18}" y="${model.pad.top + model.plotH / 2}" transform="rotate(90 ${model.width - 18} ${model.pad.top + model.plotH / 2})" text-anchor="middle" font-size="12" font-weight="700">${escapeHtml(model.translate("chart.unit", { unit: model.rightUnit }))}</text>` : "",
     body,
     renderXAxis(model, x, axisY),
     "</svg>",
@@ -1150,8 +1179,8 @@ function normalizeFlowType(value) {
   return "action";
 }
 
-function componentError(name, error) {
-  return `<div class="mdx-component-error" data-mdx-component="${escapeHtml(name || "Unknown")}">MDX 组件渲染失败：${escapeHtml(error.message)}</div>`;
+function componentError(name, error, translate = createTranslator(MDX_MESSAGES, "en")) {
+  return `<div class="mdx-component-error" data-mdx-component="${escapeHtml(name || "Unknown")}">${escapeHtml(translate("component.error", { message: error.message }))}</div>`;
 }
 
 function findClosingLine(state, startLine, endLine, name) {

@@ -1,5 +1,6 @@
 import MarkdownIt from "markdown-it";
 
+import { createTranslator } from "../public/i18n.js";
 import { mdxLiteBlockRule, renderMdxLiteComponent } from "./mdx-lite.mjs";
 import {
   renderTableToolbar,
@@ -13,11 +14,25 @@ import {
 } from "./table-layout.mjs";
 
 const FRONT_MATTER_RE = /^---[ \t]*\r?\n[\s\S]*?\r?\n---[ \t]*\r?\n?/;
+const MARKDOWN_MESSAGES = Object.freeze({
+  en: Object.freeze({
+    "sourceLine.select": "Select line {line}",
+    "sourceLine.gutter": "Source line numbers",
+  }),
+  "zh-CN": Object.freeze({
+    "sourceLine.select": "选择第 {line} 行",
+    "sourceLine.gutter": "源文件行号",
+  }),
+});
 
 export function renderMarkdown(markdown, options = {}) {
   const { source, lineOffset } = stripFrontmatter(markdown);
-  const renderer = createRenderer(options);
-  return renderer.render(source, { lineOffset });
+  const translate = createTranslator(MARKDOWN_MESSAGES, options.locale);
+  const renderer = createRenderer({
+    ...options,
+    locale: translate.locale,
+  });
+  return renderer.render(source, { lineOffset, translate });
 }
 
 export function extractTitle(markdown, fallbackPath) {
@@ -108,7 +123,7 @@ function createRenderer(options) {
 
   renderer.renderer.rules.mdx_lite_component = (tokens, index, rendererOptions, env) =>
     sourceBlockOpen(tokens[index], env) +
-    renderMdxLiteComponent(tokens[index]) +
+    renderMdxLiteComponent(tokens[index], { locale: options.locale }) +
     sourceBlockClose();
 
   renderer.renderer.rules.safe_image_html = (tokens, index, rendererOptions, env) =>
@@ -240,7 +255,7 @@ function createRenderer(options) {
     return [
       sourceBlockOpen(tokens[index], env),
       `<div ${tableCardAttributeString(attributes, layout)}>`,
-      renderTableToolbar(attributes),
+      renderTableToolbar(attributes, { locale: options.locale }),
       `<div ${tableScrollAttributeString(layout)}><table>`,
       renderTableColgroup(layout),
     ].join("");
@@ -420,9 +435,13 @@ function sourceBlockOpen(token, env, { lineLayout = "", lines = null } = {}) {
   const start = lineNumbers[0] ?? fallbackStart;
   const end = lineNumbers.at(-1) ?? fallbackEnd;
   const buttons = [];
+  const translate = typeof env.translate === "function"
+    ? env.translate
+    : createTranslator(MARKDOWN_MESSAGES, "en");
   for (const line of lineNumbers) {
+    const lineLabel = escapeAttribute(translate("sourceLine.select", { line }));
     buttons.push(
-      `<button type="button" class="source-line-button" data-source-line="${line}" title="选择第 ${line} 行">${line}</button>`,
+      `<button type="button" class="source-line-button" data-source-line="${line}" title="${lineLabel}" aria-label="${lineLabel}">${line}</button>`,
     );
   }
 
@@ -430,7 +449,7 @@ function sourceBlockOpen(token, env, { lineLayout = "", lines = null } = {}) {
 
   return [
     `<div class="source-block" data-source-start="${start}" data-source-end="${end}">`,
-    `<div class="source-line-gutter"${lineLayoutAttribute} aria-label="源文件行号">`,
+    `<div class="source-line-gutter"${lineLayoutAttribute} aria-label="${escapeAttribute(translate("sourceLine.gutter"))}">`,
     buttons.join(""),
     "</div>",
     '<div class="source-block-content">',

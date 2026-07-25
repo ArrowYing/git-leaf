@@ -369,7 +369,7 @@ input {
 }
 
 .document-tabs:empty::before {
-  content: "未打开文档";
+  content: attr(data-empty-label);
   color: var(--muted);
   font-size: 13px;
   padding: 0 14px;

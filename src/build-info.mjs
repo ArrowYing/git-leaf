@@ -78,28 +78,29 @@ export function isOfficialDistribution(buildInfo) {
   return buildInfo?.distribution === "official" && buildInfo?.dev !== true;
 }
 
-export function buildDistributionLabel(buildInfo) {
+export function buildDistributionLabel(buildInfo, { language = "en" } = {}) {
+  const isChinese = chineseLanguage(language);
   if (buildInfo?.dev === true) {
-    return "开发构建";
+    return isChinese ? "开发构建" : "Development build";
   }
   if (!isOfficialDistribution(buildInfo)) {
-    return "源码构建";
+    return isChinese ? "源码构建" : "Source build";
   }
   const releaseTrack = releaseTrackForBuildInfo(buildInfo);
   if (releaseTrack === "internal") {
-    return "官方内部构建";
+    return isChinese ? "官方内部构建" : "Official internal build";
   }
   if (releaseTrack === "public") {
-    return "官方公开构建";
+    return isChinese ? "官方公开构建" : "Official public build";
   }
-  return "官方构建（无更新轨道）";
+  return isChinese ? "官方构建（无更新轨道）" : "Official build (no update track)";
 }
 
 export function appDisplayName(buildInfo) {
   return buildInfo?.dev === true ? "Git Leaf dev" : "Git Leaf";
 }
 
-export function releaseDateLabel(buildInfo) {
+export function releaseDateLabel(buildInfo, { language = "en" } = {}) {
   const builtAt = stringValue(buildInfo?.builtAt);
   if (!builtAt) {
     return "";
@@ -110,12 +111,13 @@ export function releaseDateLabel(buildInfo) {
     return "";
   }
 
-  return `发布于 ${builtAtDate.toISOString().slice(0, 10)}`;
+  const date = builtAtDate.toISOString().slice(0, 10);
+  return chineseLanguage(language) ? `发布于 ${date}` : `Released ${date}`;
 }
 
-export function aboutPanelCopyright(buildInfo) {
+export function aboutPanelCopyright(buildInfo, { language = "en" } = {}) {
   const lines = [];
-  const releaseDate = releaseDateLabel(buildInfo);
+  const releaseDate = releaseDateLabel(buildInfo, { language });
   const commit = stringValue(buildInfo?.commit);
   if (releaseDate) {
     lines.push(releaseDate);
@@ -124,6 +126,11 @@ export function aboutPanelCopyright(buildInfo) {
     lines.push(`Commit ${commit}`);
   }
   return lines.join("\n");
+}
+
+function chineseLanguage(value) {
+  const normalized = String(value ?? "").trim().replaceAll("_", "-").toLowerCase();
+  return normalized === "zh" || normalized.startsWith("zh-");
 }
 
 function readJsonFile(filePath) {

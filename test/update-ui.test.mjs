@@ -32,3 +32,13 @@ test("sidebar update view shows background preparation and ready actions", () =>
     actionDisabled: false,
   });
 });
+
+test("sidebar update view supports English UI copy", () => {
+  assert.deepEqual(sidebarUpdateView({ state: "available", version: "1.7.0" }, "en"), {
+    hidden: false,
+    title: "Git Leaf 1.7.0",
+    detail: "New version available. Click to download.",
+    actionLabel: "Update",
+    actionDisabled: false,
+  });
+});

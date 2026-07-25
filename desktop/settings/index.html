@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="en" data-settings-ready="false">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -7,96 +7,148 @@
       http-equiv="Content-Security-Policy"
       content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"
     >
-    <title>Git Leaf 设置与帮助</title>
+    <title>Git Leaf Settings &amp; Help</title>
     <link rel="stylesheet" href="./styles.css">
   </head>
   <body>
     <div class="settings-shell">
       <header class="settings-titlebar">
-        <button id="settings-back" class="back-button" type="button" aria-label="返回 Git Leaf">
+        <button
+          id="settings-back"
+          class="back-button"
+          type="button"
+          aria-label="Back to Git Leaf"
+          data-i18n-aria-label="backAria"
+        >
           <svg viewBox="0 0 20 20" aria-hidden="true">
             <path d="m12.5 4.5-5 5.5 5 5.5"></path>
           </svg>
-          <span>返回</span>
+          <span data-i18n="back">Back</span>
         </button>
         <span class="escape-hint" aria-hidden="true">Esc</span>
         <div class="titlebar-title">Git Leaf</div>
       </header>
 
       <div class="settings-layout">
-        <aside class="settings-sidebar" aria-label="设置与帮助栏目">
+        <aside
+          class="settings-sidebar"
+          aria-label="Settings and help sections"
+          data-i18n-aria-label="sidebarAria"
+        >
           <div class="settings-heading">
             <span class="app-mark" aria-hidden="true">GL</span>
             <div>
-              <strong>设置与帮助</strong>
+              <strong data-i18n="settingsAndHelp">Settings &amp; Help</strong>
               <span>Git Leaf</span>
             </div>
           </div>
           <nav id="settings-navigation" class="settings-navigation">
-            <button type="button" data-section="appearance" aria-current="page">外观</button>
-            <button type="button" data-section="files">文件与目录</button>
-            <button type="button" data-section="help">使用帮助</button>
-            <button type="button" data-section="shortcuts">快捷键</button>
-            <button type="button" data-section="status">关于与状态</button>
+            <button type="button" data-section="appearance" aria-current="page" data-i18n="navAppearance">Appearance</button>
+            <button type="button" data-section="files" data-i18n="navFiles">Files &amp; Folders</button>
+            <button type="button" data-section="help" data-i18n="navHelp">Help</button>
+            <button type="button" data-section="shortcuts" data-i18n="navShortcuts">Keyboard Shortcuts</button>
+            <button type="button" data-section="status" data-i18n="navStatus">About &amp; Status</button>
           </nav>
-          <nav id="help-navigation" class="help-navigation" aria-label="使用帮助章节" hidden></nav>
+          <nav
+            id="help-navigation"
+            class="help-navigation"
+            aria-label="Help sections"
+            data-i18n-aria-label="helpNavigationAria"
+            hidden
+          ></nav>
         </aside>
 
         <main id="settings-content" class="settings-content" tabindex="-1">
           <section class="settings-section" data-section-panel="appearance" aria-labelledby="appearance-title">
             <header class="section-header">
-              <p class="section-kicker">Appearance</p>
-              <h1 id="appearance-title">外观</h1>
-              <p>只保留会持续影响阅读体验的个人偏好。</p>
+              <p class="section-kicker" data-i18n="appearanceKicker">Appearance</p>
+              <h1 id="appearance-title" data-i18n="appearanceTitle">Appearance</h1>
+              <p data-i18n="appearanceDescription">Personal preferences that shape your reading experience.</p>
             </header>
 
             <div class="setting-group">
               <div class="setting-copy">
-                <h2>明暗模式</h2>
-                <p>跟随系统时，Git Leaf 会随 macOS 或 Windows 的外观自动切换。</p>
+                <h2 data-i18n="languageTitle">Interface language</h2>
+                <p data-i18n="languageDescription">Follow your system language or choose a language for Git Leaf.</p>
               </div>
-              <fieldset class="choice-grid choice-grid-three" aria-label="明暗模式">
-                <label class="choice-card">
-                  <input type="radio" name="colorMode" value="system">
-                  <span class="theme-swatch is-system" aria-hidden="true"><i></i></span>
-                  <strong>跟随系统</strong>
+              <fieldset
+                class="choice-grid choice-grid-three"
+                aria-label="Interface language"
+                data-i18n-aria-label="languageAria"
+              >
+                <label class="choice-card language-choice">
+                  <input type="radio" name="language" value="system">
+                  <span class="language-sample" aria-hidden="true" data-i18n="languageAuto">Auto</span>
+                  <strong data-i18n="languageSystem">Follow system</strong>
                 </label>
-                <label class="choice-card">
-                  <input type="radio" name="colorMode" value="light">
-                  <span class="theme-swatch is-light" aria-hidden="true"></span>
-                  <strong>浅色</strong>
+                <label class="choice-card language-choice">
+                  <input type="radio" name="language" value="en">
+                  <span class="language-sample" aria-hidden="true">EN</span>
+                  <strong>English</strong>
                 </label>
-                <label class="choice-card">
-                  <input type="radio" name="colorMode" value="dark">
-                  <span class="theme-swatch is-dark" aria-hidden="true"></span>
-                  <strong>深色</strong>
+                <label class="choice-card language-choice">
+                  <input type="radio" name="language" value="zh-CN">
+                  <span class="language-sample" aria-hidden="true">中</span>
+                  <strong>简体中文</strong>
                 </label>
               </fieldset>
             </div>
 
             <div class="setting-group">
               <div class="setting-copy">
-                <h2>文档字体</h2>
-                <p>影响 Preview 和 Live 的正文；Source 始终使用等宽字体。</p>
+                <h2 data-i18n="colorModeTitle">Color mode</h2>
+                <p data-i18n="colorModeDescription">When following the system, Git Leaf switches with macOS or Windows.</p>
               </div>
-              <fieldset class="choice-grid choice-grid-two" aria-label="文档字体">
+              <fieldset
+                class="choice-grid choice-grid-three"
+                aria-label="Color mode"
+                data-i18n-aria-label="colorModeAria"
+              >
+                <label class="choice-card">
+                  <input type="radio" name="colorMode" value="system">
+                  <span class="theme-swatch is-system" aria-hidden="true"><i></i></span>
+                  <strong data-i18n="colorModeSystem">Follow system</strong>
+                </label>
+                <label class="choice-card">
+                  <input type="radio" name="colorMode" value="light">
+                  <span class="theme-swatch is-light" aria-hidden="true"></span>
+                  <strong data-i18n="colorModeLight">Light</strong>
+                </label>
+                <label class="choice-card">
+                  <input type="radio" name="colorMode" value="dark">
+                  <span class="theme-swatch is-dark" aria-hidden="true"></span>
+                  <strong data-i18n="colorModeDark">Dark</strong>
+                </label>
+              </fieldset>
+            </div>
+
+            <div class="setting-group">
+              <div class="setting-copy">
+                <h2 data-i18n="documentFontTitle">Document font</h2>
+                <p data-i18n="documentFontDescription">Applies to Preview and Live body text; Source always uses a monospace font.</p>
+              </div>
+              <fieldset
+                class="choice-grid choice-grid-two"
+                aria-label="Document font"
+                data-i18n-aria-label="documentFontAria"
+              >
                 <label class="choice-card font-choice is-sans">
                   <input type="radio" name="documentFont" value="system-sans">
-                  <span class="font-sample" aria-hidden="true">Aa 文档</span>
-                  <strong>系统无衬线</strong>
+                  <span class="font-sample" aria-hidden="true">Aa</span>
+                  <strong data-i18n="documentFontSans">System sans serif</strong>
                 </label>
                 <label class="choice-card font-choice is-serif">
                   <input type="radio" name="documentFont" value="reading-serif">
-                  <span class="font-sample" aria-hidden="true">Aa 文档</span>
-                  <strong>阅读衬线</strong>
+                  <span class="font-sample" aria-hidden="true">Aa</span>
+                  <strong data-i18n="documentFontSerif">Reading serif</strong>
                 </label>
               </fieldset>
             </div>
 
             <div class="setting-group setting-group-inline">
               <div class="setting-copy">
-                <h2>文字大小</h2>
-                <p>统一调整文档正文、Live、Source 和行号的排版比例。</p>
+                <h2 data-i18n="textSizeTitle">Text size</h2>
+                <p data-i18n="textSizeDescription">Adjust body text, Live, Source, and line-number scale together.</p>
               </div>
               <label class="text-size-control" for="document-font-size">
                 <span class="size-label is-small" aria-hidden="true">A</span>
@@ -109,65 +161,74 @@
 
           <section class="settings-section" data-section-panel="files" aria-labelledby="files-title" hidden>
             <header class="section-header">
-              <p class="section-kicker">Files</p>
-              <h1 id="files-title">文件与目录</h1>
-              <p>决定左侧目录树呈现多少仓库内容。</p>
+              <p class="section-kicker" data-i18n="filesKicker">Files</p>
+              <h1 id="files-title" data-i18n="filesTitle">Files &amp; Folders</h1>
+              <p data-i18n="filesDescription">Choose how much repository content appears in the file tree.</p>
             </header>
 
             <div class="setting-group">
               <div class="setting-copy">
-                <h2>目录树显示范围</h2>
-                <p>面向阅读者时可以隐藏开发配置噪音，需要时仍可查看完整仓库。</p>
+                <h2 data-i18n="fileTreeTitle">File tree scope</h2>
+                <p data-i18n="fileTreeDescription">Hide development configuration noise while reading, or show the complete repository.</p>
               </div>
-              <fieldset class="stacked-choices" aria-label="目录树显示范围">
+              <fieldset
+                class="stacked-choices"
+                aria-label="File tree scope"
+                data-i18n-aria-label="fileTreeAria"
+              >
                 <label class="stacked-choice">
                   <input type="radio" name="fileTreeMode" value="content">
                   <span>
-                    <strong>内容文件（推荐）</strong>
-                    <small>聚焦 Markdown / MDX、HTML、图片和 PDF；其他文件按需显示。</small>
+                    <strong data-i18n="fileTreeContent">Content files (recommended)</strong>
+                    <small data-i18n="fileTreeContentDescription">Focus on Markdown / MDX, HTML, images, and PDF; show other files when needed.</small>
                   </span>
                 </label>
                 <label class="stacked-choice">
                   <input type="radio" name="fileTreeMode" value="all">
                   <span>
-                    <strong>全部仓库文件</strong>
-                    <small>显示 Git 已跟踪和未被忽略的所有文件。</small>
+                    <strong data-i18n="fileTreeAll">All repository files</strong>
+                    <small data-i18n="fileTreeAllDescription">Show every Git-tracked and non-ignored file.</small>
                   </span>
                 </label>
               </fieldset>
-              <p class="boundary-note">
-                此设置只改变目录树显示，不改变 Git 改动发现、同步或提交范围。
+              <p class="boundary-note" data-i18n="fileTreeBoundary">
+                This setting changes only the file tree display, not Git change discovery, sync, or commit scope.
               </p>
             </div>
           </section>
 
           <section class="settings-section" data-section-panel="help" aria-labelledby="help-title" hidden>
             <header class="section-header">
-              <p class="section-kicker">Help</p>
-              <h1 id="help-title">使用帮助</h1>
-              <p>文件、筛选、worktree、分享和隐私说明集中在这里。</p>
+              <p class="section-kicker" data-i18n="helpKicker">Help</p>
+              <h1 id="help-title" data-i18n="helpTitle">Help</h1>
+              <p data-i18n="helpDescription">Guidance for files, filters, worktrees, sharing, and privacy.</p>
             </header>
             <div id="help-sections" class="help-document"></div>
           </section>
 
           <section class="settings-section" data-section-panel="shortcuts" aria-labelledby="shortcuts-title" hidden>
             <header class="section-header">
-              <p class="section-kicker">Keyboard</p>
-              <h1 id="shortcuts-title">快捷键</h1>
-              <p>保留系统菜单入口和 Git Leaf 当前键盘操作。</p>
+              <p class="section-kicker" data-i18n="shortcutsKicker">Keyboard</p>
+              <h1 id="shortcuts-title" data-i18n="shortcutsTitle">Keyboard Shortcuts</h1>
+              <p data-i18n="shortcutsDescription">System menu commands and current Git Leaf keyboard actions.</p>
             </header>
             <div id="shortcut-groups" class="shortcut-groups"></div>
           </section>
 
           <section class="settings-section" data-section-panel="status" aria-labelledby="status-title" hidden>
             <header class="section-header">
-              <p class="section-kicker">About &amp; Status</p>
-              <h1 id="status-title">关于与状态</h1>
-              <p>查看版本、运行环境以及当前仓库状态。</p>
+              <p class="section-kicker" data-i18n="statusKicker">About &amp; Status</p>
+              <h1 id="status-title" data-i18n="statusTitle">About &amp; Status</h1>
+              <p data-i18n="statusDescription">View version, environment, and current repository status.</p>
             </header>
             <div id="app-status" class="status-block"></div>
-            <div class="status-actions" aria-label="更新操作" hidden>
-              <button id="check-for-updates" type="button">检查更新</button>
+            <div
+              class="status-actions"
+              aria-label="Update actions"
+              data-i18n-aria-label="updateActionsAria"
+              hidden
+            >
+              <button id="check-for-updates" type="button" data-i18n="checkForUpdates">Check for updates</button>
               <span id="update-check-result" role="status" aria-live="polite"></span>
             </div>
             <div id="environment-status" class="status-block"></div>

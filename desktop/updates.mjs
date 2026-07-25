@@ -13,6 +13,9 @@ import {
   isOfficialDistribution,
   releaseTrackForBuildInfo,
 } from "../src/build-info.mjs";
+import { createDesktopTranslator } from "./localization.mjs";
+
+const DEFAULT_UPDATE_TRANSLATE = createDesktopTranslator({ language: "en" });
 
 export function createDesktopUpdateController({
   app,
@@ -40,7 +43,9 @@ export function createDesktopUpdateController({
     throw new Error("Windows update launch is unavailable.");
   },
   requestQuitForUpdate = async () => {},
+  translate = DEFAULT_UPDATE_TRANSLATE,
 } = {}) {
+  const text = translatedText(translate);
   let isChecking = false;
   let pendingMacErrorTimer = null;
   let pendingMacError = null;
@@ -57,6 +62,13 @@ export function createDesktopUpdateController({
       || environment.GIT_LEAF_UPDATE_CHANNEL
       || releaseTrackChannel
       || DEFAULT_UPDATE_CHANNEL;
+
+  async function showUpdateInfo(key, { values = {}, detail = "" } = {}) {
+    await showInfo(dialog, text(key, values), {
+      buttonLabel: text("common.ok"),
+      detail,
+    });
+  }
 
   if (autoUpdater?.on) {
     autoUpdater.on("update-not-available", () => {
@@ -76,7 +88,7 @@ export function createDesktopUpdateController({
           state: "error",
           version: update.version || "",
           manual: update.trigger === "manual",
-          message: "更新包暂不可用，点击重试。",
+          message: text("updates.packageUnavailable"),
         });
       }
     });
@@ -88,7 +100,7 @@ export function createDesktopUpdateController({
       void notifyUpdateStatus(showUpdateStatus, {
         state: "downloading",
         version: pendingMacUpdate?.version || "",
-        message: "正在下载并准备新版本…",
+        message: text("updates.downloading"),
       });
     });
     autoUpdater.on("error", (error) => {
@@ -115,7 +127,7 @@ export function createDesktopUpdateController({
       void notifyUpdateStatus(showUpdateStatus, {
         state: "downloaded",
         version: pendingMacUpdate.version || "",
-        message: "新版本已准备好，退出 Git Leaf 后自动安装。",
+        message: text("updates.downloaded"),
       });
     });
   }
@@ -154,7 +166,7 @@ export function createDesktopUpdateController({
       await notifyUpdateStatus(showUpdateStatus, {
         state: "available",
         version,
-        message: `Git Leaf ${version} 可用，点击更新后开始下载。`,
+        message: text("updates.availableVersion", { version }),
       });
       return true;
     },
@@ -224,25 +236,25 @@ export function createDesktopUpdateController({
   async function disabledUpdateResult({ manual = false } = {}) {
     if (buildInfo?.dev === true) {
       if (manual) {
-        await showInfo(dialog, "Git Leaf dev 不会检查正式版本更新。请重新构建并安装开发版本。");
+        await showUpdateInfo("updates.disabledDevBuild");
       }
       return "disabled";
     }
     if (!isOfficialDistribution(buildInfo)) {
       if (manual) {
-        await showInfo(dialog, "源码构建不会连接 Git Leaf 官方更新服务。请从官方渠道安装签名版本以接收更新。");
+        await showUpdateInfo("updates.disabledSourceBuild");
       }
       return "disabled";
     }
     if (!releaseTrackChannel) {
       if (manual) {
-        await showInfo(dialog, "当前构建没有可用的正式更新轨道。");
+        await showUpdateInfo("updates.disabledNoTrack");
       }
       return "disabled";
     }
     if (!isPackaged && process.env.GIT_LEAF_ENABLE_UPDATES !== "1") {
       if (manual) {
-        await showInfo(dialog, "开发模式不会检查自动更新。");
+        await showUpdateInfo("updates.disabledDevelopmentMode");
       }
       return "disabled";
     }
@@ -268,7 +280,7 @@ export function createDesktopUpdateController({
             state: "error",
             version: restoredUpdate.version,
             manual: true,
-            message: "更新检查未完成，点击重试。",
+            message: text("updates.checkIncomplete"),
           });
         }
         return result;
@@ -324,10 +336,13 @@ export function createDesktopUpdateController({
         state: "error",
         version: failedVersion || "",
         manual: currentManual,
-        message: `下载更新失败，点击重试：${currentError?.message ?? String(currentError)}`,
+        message: text("updates.downloadFailedRetry"),
+        detail: errorDetail(currentError),
       });
       if (currentManual) {
-        await showInfo(dialog, `下载更新失败：${currentError?.message ?? String(currentError)}`);
+        await showUpdateInfo("updates.downloadFailed", {
+          detail: errorDetail(currentError),
+        });
       }
     }, macErrorDialogDelayMs);
   }
@@ -344,7 +359,7 @@ export function createDesktopUpdateController({
   async function discoverUpdate({ manual = false } = {}) {
     if (platform !== "darwin" && platform !== "win32") {
       if (manual) {
-        await showInfo(dialog, "当前平台暂不支持 Git Leaf 自动更新。");
+        await showUpdateInfo("updates.unsupportedPlatform");
       }
       return "unsupported";
     }
@@ -352,7 +367,7 @@ export function createDesktopUpdateController({
     if (manual) {
       await notifyUpdateStatus(showUpdateStatus, {
         state: "checking",
-        message: "正在检查更新…",
+        message: text("updates.checking"),
       });
     }
 
@@ -371,9 +386,12 @@ export function createDesktopUpdateController({
         await notifyUpdateStatus(showUpdateStatus, {
           state: "error",
           manual: true,
-          message: `检查更新失败：${error?.message ?? String(error)}`,
+          message: text("updates.checkFailed"),
+          detail: errorDetail(error),
         });
-        await showInfo(dialog, `检查更新失败：${error?.message ?? String(error)}`);
+        await showUpdateInfo("updates.checkFailed", {
+          detail: errorDetail(error),
+        });
       }
       return "error";
     }
@@ -384,6 +402,12 @@ export function createDesktopUpdateController({
       platformKey,
     });
     if (identityError) {
+      const messageKey = updateManifestIdentityMessageKey(manifest, {
+        releaseTrack,
+        channel,
+        platformKey,
+      });
+      const message = text(messageKey);
       notifyUpdateTelemetry(recordUpdateState, {
         state: "failed",
         trigger: manual ? "manual" : "automatic",
@@ -395,9 +419,9 @@ export function createDesktopUpdateController({
         await notifyUpdateStatus(showUpdateStatus, {
           state: "error",
           manual: true,
-          message: identityError,
+          message,
         });
-        await showInfo(dialog, identityError);
+        await showUpdateInfo(messageKey);
       }
       return "error";
     }
@@ -410,10 +434,10 @@ export function createDesktopUpdateController({
         error_code: "manifest",
         stage: "check",
       });
-      const message = "更新清单中的版本号无效。";
+      const message = text("updates.manifestVersionInvalid");
       if (manual) {
         await notifyUpdateStatus(showUpdateStatus, { state: "error", manual: true, message });
-        await showInfo(dialog, message);
+        await showUpdateInfo("updates.manifestVersionInvalid");
       }
       return "error";
     }
@@ -431,9 +455,9 @@ export function createDesktopUpdateController({
       if (manual) {
         await notifyUpdateStatus(showUpdateStatus, {
           state: "current",
-          message: "Git Leaf 已经是最新版本。",
+          message: text("updates.current"),
         });
-        await showInfo(dialog, "Git Leaf 已经是最新版本。");
+        await showUpdateInfo("updates.current");
       }
       return "current";
     }
@@ -447,10 +471,10 @@ export function createDesktopUpdateController({
         error_code: "manifest",
         stage: "check",
       });
-      const message = "发现新版本，但更新包地址缺失。";
+      const message = text("updates.packageUrlMissing");
       if (manual) {
         await notifyUpdateStatus(showUpdateStatus, { state: "error", manual: true, message });
-        await showInfo(dialog, message);
+        await showUpdateInfo("updates.packageUrlMissing");
       }
       return "error";
     }
@@ -477,7 +501,7 @@ export function createDesktopUpdateController({
     await notifyUpdateStatus(showUpdateStatus, {
       state: "available",
       version: pending.version,
-      message: `Git Leaf ${pending.version} 可用，点击更新后开始下载。`,
+      message: text("updates.availableVersion", { version: pending.version }),
     });
     await persistAvailableUpdate(pending.version);
     await clearLegacyUpdatePreferences();
@@ -501,21 +525,24 @@ export function createDesktopUpdateController({
         await saveUpdatePreferences({ updateRequestedVersion: pending.version });
       } catch (error) {
         pending.state = "error";
-        const message = `无法保存更新选择，点击重试：${error?.message ?? String(error)}`;
+        const message = text("updates.saveChoiceFailedRetry");
         await notifyUpdateStatus(showUpdateStatus, {
           state: "error",
           version: pending.version,
           manual: true,
           message,
+          detail: errorDetail(error),
         });
-        await showInfo(dialog, message);
+        await showUpdateInfo("updates.saveChoiceFailed", {
+          detail: errorDetail(error),
+        });
         return "error";
       }
     }
     await notifyUpdateStatus(showUpdateStatus, {
       state: "downloading",
       version: pending.version,
-      message: "正在下载并准备新版本…",
+      message: text("updates.downloading"),
     });
 
     if (pending.platform === "darwin") {
@@ -544,10 +571,13 @@ export function createDesktopUpdateController({
           state: "error",
           version: pending.version,
           manual: trigger === "manual",
-          message: `下载更新失败，点击重试：${error?.message ?? String(error)}`,
+          message: text("updates.downloadFailedRetry"),
+          detail: errorDetail(error),
         });
         if (trigger === "manual") {
-          await showInfo(dialog, `下载更新失败：${error?.message ?? String(error)}`);
+          await showUpdateInfo("updates.downloadFailed", {
+            detail: errorDetail(error),
+          });
         }
         return "error";
       }
@@ -569,10 +599,13 @@ export function createDesktopUpdateController({
         state: "error",
         version: pending.version,
         manual: trigger === "manual",
-        message: `准备更新失败，点击重试：${error?.message ?? String(error)}`,
+        message: text("updates.prepareFailedRetry"),
+        detail: errorDetail(error),
       });
       if (trigger === "manual") {
-        await showInfo(dialog, `准备更新失败：${error?.message ?? String(error)}`);
+        await showUpdateInfo("updates.prepareFailed", {
+          detail: errorDetail(error),
+        });
       }
       return "error";
     }
@@ -586,7 +619,7 @@ export function createDesktopUpdateController({
     await notifyUpdateStatus(showUpdateStatus, {
       state: "downloaded",
       version: pending.version,
-      message: "新版本已准备好，退出 Git Leaf 后自动安装。",
+      message: text("updates.downloaded"),
     });
     return "downloaded";
   }
@@ -669,7 +702,7 @@ async function fetchUpdateManifest({ fetchFn, baseUrl, channel, platformKey }) {
   try {
     return await response.json();
   } catch (error) {
-    throw new Error(`latest.json 不可解析：${error?.message ?? String(error)}`);
+    throw new Error(`Could not parse latest.json: ${error?.message ?? String(error)}`);
   }
 }
 
@@ -685,15 +718,58 @@ async function notifyUpdateStatus(showUpdateStatus, status) {
   }
 }
 
-async function showInfo(dialog, message) {
+async function showInfo(dialog, message, {
+  buttonLabel = "OK",
+  detail = "",
+} = {}) {
   if (!dialog?.showMessageBox) {
     return;
   }
   await dialog.showMessageBox({
     type: "info",
-    buttons: ["好"],
+    buttons: [buttonLabel],
     message,
+    ...(detail ? { detail: String(detail) } : {}),
   });
+}
+
+function translatedText(translate) {
+  const candidate = typeof translate === "function" ? translate : DEFAULT_UPDATE_TRANSLATE;
+  return (key, values = {}) => {
+    try {
+      const message = candidate(key, values);
+      if (typeof message === "string" && message) {
+        return message;
+      }
+    } catch {
+      // A caller-provided translator must not break the updater state machine.
+    }
+    return DEFAULT_UPDATE_TRANSLATE(key, values);
+  };
+}
+
+function errorDetail(error) {
+  return error?.message ?? String(error);
+}
+
+function updateManifestIdentityMessageKey(manifest, {
+  releaseTrack,
+  channel,
+  platformKey,
+} = {}) {
+  if (!manifest || typeof manifest !== "object" || Array.isArray(manifest)) {
+    return "updates.manifestInvalid";
+  }
+  if (manifest.releaseTrack !== releaseTrack) {
+    return "updates.manifestTrackMismatch";
+  }
+  if (manifest.channel !== channel) {
+    return "updates.manifestChannelMismatch";
+  }
+  if (manifest.platform !== platformKey) {
+    return "updates.manifestPlatformMismatch";
+  }
+  return "updates.manifestInvalid";
 }
 
 function normalizedUpdatePreferences(value) {

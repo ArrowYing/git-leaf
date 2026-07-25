@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { tableComplexityAttributes } from "../src/table-complexity.mjs";
+import {
+  renderTableToolbar,
+  tableComplexityAttributes,
+} from "../src/table-complexity.mjs";
 
 test("tableComplexityAttributes keeps small tables plain", () => {
   assert.deepEqual(
@@ -85,4 +88,24 @@ test("tableComplexityAttributes supports explicit feature overrides", () => {
   assert.equal(attributes.search, true);
   assert.equal(attributes.freezeFirstColumn, false);
   assert.equal(attributes.copyCsv, true);
+});
+
+test("renderTableToolbar defaults to English and supports Simplified Chinese", () => {
+  const attributes = {
+    toolbar: true,
+    search: true,
+    freezeFirstColumn: true,
+    copyCsv: true,
+  };
+
+  const english = renderTableToolbar(attributes);
+  const chinese = renderTableToolbar(attributes, { locale: "zh-CN" });
+
+  assert.match(english, /aria-label="Filter current table"/);
+  assert.match(english, /placeholder="Filter current table"/);
+  assert.match(english, /> Freeze first column<\/label>/);
+  assert.match(english, />Copy CSV<\/button>/);
+  assert.match(chinese, /aria-label="筛选当前表格"/);
+  assert.match(chinese, /> 冻结首列<\/label>/);
+  assert.match(chinese, />复制 CSV<\/button>/);
 });

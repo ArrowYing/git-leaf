@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { CompletionContext } from "@codemirror/autocomplete";
 import { EditorState } from "@codemirror/state";
 
 import {
@@ -24,6 +25,8 @@ import {
   listItemIndentChange,
   SLASH_COMMANDS,
   isMarkdownDocumentPath,
+  slashCommandCompletionSource,
+  slashCommandsForLocale,
   slashCommandTemplate,
 } from "../src/client/source-editor.mjs";
 
@@ -332,6 +335,89 @@ test("Slash menu exposes Markdown and MDX-lite commands without AI-generated sni
     SLASH_COMMANDS.some((command) => /ai[_-]?snippet/i.test(command.template ?? "")),
     false,
   );
+});
+
+test("Slash menu localizes user-facing command copy while preserving technical syntax", () => {
+  const englishCommands = slashCommandsForLocale();
+  const chineseCommands = slashCommandsForLocale({ locale: "zh-CN" });
+  const chineseCommandsFromLanguageAlias = slashCommandsForLocale({ language: "zh-Hans" });
+
+  assert.equal(
+    englishCommands.find((command) => command.label === "quote")?.title,
+    "Quote",
+  );
+  assert.equal(
+    englishCommands.find((command) => command.label === "quote")?.description,
+    "Insert a block quote",
+  );
+  assert.equal(
+    chineseCommands.find((command) => command.label === "quote")?.title,
+    "引用",
+  );
+  assert.equal(
+    chineseCommands.find((command) => command.label === "quote")?.description,
+    "插入引用块",
+  );
+  assert.equal(
+    chineseCommandsFromLanguageAlias.find((command) => command.label === "quote")?.title,
+    "引用",
+  );
+  assert.equal(
+    slashCommandsForLocale({ locale: "fr" }).find((command) => command.label === "quote")?.title,
+    "Quote",
+  );
+
+  const englishCode = slashCommandTemplate(
+    englishCommands.find((command) => command.label === "code"),
+  );
+  const chineseCode = slashCommandTemplate(
+    chineseCommands.find((command) => command.label === "code"),
+  );
+  assert.equal(englishCode.text, chineseCode.text);
+  assert.match(englishCode.text, /^```text\n\n```$/);
+  assert.equal(
+    englishCommands.find((command) => command.label === "code")?.detail,
+    "Markdown",
+  );
+  assert.equal(
+    chineseCommands.find((command) => command.label === "code")?.detail,
+    "Markdown",
+  );
+});
+
+test("Slash menu inserts examples in the selected locale", () => {
+  const englishCommands = slashCommandsForLocale({ locale: "en" });
+  const chineseCommands = slashCommandsForLocale({ locale: "zh-CN" });
+  const template = (commands, label) => slashCommandTemplate(
+    commands.find((command) => command.label === label),
+  ).text;
+
+  assert.match(template(englishCommands, "datatable"), /\nExample,1,active\n/);
+  assert.match(template(chineseCommands, "datatable"), /\n示例,1,active\n/);
+  assert.match(template(englishCommands, "timeline"), /"title":"Milestone","body":"Add details"/);
+  assert.match(template(chineseCommands, "timeline"), /"title":"关键节点","body":"补充说明"/);
+  assert.match(template(englishCommands, "decision"), /\nDecision,\nReason,\nTrade-off,\n/);
+  assert.match(template(chineseCommands, "decision"), /\n决策,\n理由,\n代价,\n/);
+  assert.match(template(englishCommands, "metrics"), /\nCore metric,0,,Definition,neutral\n/);
+  assert.match(template(chineseCommands, "metrics"), /\n核心指标,0,,口径说明,neutral\n/);
+  assert.match(template(englishCommands, "flow"), /"label": "Start"/);
+  assert.match(template(chineseCommands, "flow"), /"label": "开始"/);
+
+  const relocalizedDefaultCommand = slashCommandTemplate(
+    SLASH_COMMANDS.find((command) => command.label === "metrics"),
+    { locale: "zh-CN" },
+  );
+  assert.match(relocalizedDefaultCommand.text, /\n核心指标,0,,口径说明,neutral\n/);
+});
+
+test("Slash completion presents localized title and description", () => {
+  const source = slashCommandCompletionSource({ locale: "zh-CN" });
+  const state = EditorState.create({ doc: "/" });
+  const result = source(new CompletionContext(state, 1, true));
+  const quote = result?.options.find((option) => option.label === "/quote");
+
+  assert.equal(quote?.detail, "Markdown");
+  assert.equal(quote?.info, "引用 — 插入引用块");
 });
 
 test("pastedTextLinkCandidate only handles URLs and Markdown document paths", () => {

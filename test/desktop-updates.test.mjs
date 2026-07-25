@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { createDesktopUpdateController as createDesktopUpdateControllerImpl } from "../desktop/updates.mjs";
+import { createDesktopTranslator } from "../desktop/localization.mjs";
 
 function createDesktopUpdateController(options = {}) {
   return createDesktopUpdateControllerImpl({
@@ -173,7 +174,7 @@ test("desktop updater rejects manifests from another track, channel, or platform
 
     assert.equal(await controller.checkForUpdates({ manual: true }), "error");
     assert.equal(dialog.calls.length, 1);
-    assert.match(dialog.calls[0][0].message, /不匹配/);
+    assert.match(dialog.calls[0][0].message, /does not match/);
   }
 });
 
@@ -196,7 +197,7 @@ test("desktop updater disables stable updates for packaged development builds", 
   assert.deepEqual(autoUpdater.feedUrls, []);
   assert.deepEqual(fetch.urls, []);
   assert.match(dialog.calls[0][0].message, /Git Leaf dev/);
-  assert.match(dialog.calls[0][0].message, /不会检查正式版本更新/);
+  assert.match(dialog.calls[0][0].message, /does not check for production updates/);
 });
 
 test("desktop updater never contacts the official feed for source builds", async () => {
@@ -216,7 +217,28 @@ test("desktop updater never contacts the official feed for source builds", async
   assert.equal(await controller.checkForUpdates({ manual: true }), "disabled");
   assert.equal(autoUpdater.checked, false);
   assert.deepEqual(fetch.urls, []);
-  assert.match(dialog.calls[0][0].message, /源码构建/);
+  assert.match(dialog.calls[0][0].message, /Source builds/);
+});
+
+test("desktop updater resolves its dynamic translator when feedback is shown", async () => {
+  const dialog = fakeDialog();
+  let language = "en";
+  const controller = createDesktopUpdateController({
+    autoUpdater: fakeAutoUpdater(),
+    buildInfo: { version: "1.8.1", dev: true },
+    dialog,
+    isPackaged: true,
+    platform: "darwin",
+    arch: "arm64",
+    translate(key, values) {
+      return createDesktopTranslator({ language })(key, values);
+    },
+  });
+
+  language = "zh-CN";
+  assert.equal(await controller.checkForUpdates({ manual: true }), "disabled");
+  assert.match(dialog.calls[0][0].message, /不会检查正式版本更新/);
+  assert.deepEqual(dialog.calls[0][0].buttons, ["好"]);
 });
 
 test("desktop update actions cannot bypass development-build update guards", async () => {
@@ -316,8 +338,8 @@ test("desktop updater reports macOS manual update progress", async () => {
     "downloading",
     "downloaded",
   ]);
-  assert.match(statuses[0].message, /正在检查更新/);
-  assert.match(statuses[2].message, /下载并准备/);
+  assert.match(statuses[0].message, /Checking for updates/);
+  assert.match(statuses[2].message, /Downloading and preparing/);
 });
 
 test("desktop updater reports low-cardinality lifecycle telemetry", async () => {
@@ -376,7 +398,9 @@ test("desktop updater eventually reports terminal macOS update errors", async ()
   await delayedError();
 
   assert.equal(dialog.calls.length, 1);
-  assert.match(dialog.calls[0][0].message, /下载更新失败：network failed/);
+  assert.match(dialog.calls[0][0].message, /Could not download the update/);
+  assert.equal(dialog.calls[0][0].detail, "network failed");
+  assert.deepEqual(dialog.calls[0][0].buttons, ["OK"]);
   assert.equal(updates.at(-1).stage, "download");
 });
 
@@ -614,7 +638,7 @@ test("desktop updater reports current Windows builds as up to date on manual che
   await controller.checkForUpdates({ manual: true });
 
   assert.deepEqual(statuses.map((status) => status.state), ["checking", "current"]);
-  assert.match(dialog.calls[0][0].message, /已经是最新版本/);
+  assert.match(dialog.calls[0][0].message, /up to date/);
 });
 
 test("automatic macOS checks only expose an available update without downloading it", async () => {
@@ -856,7 +880,9 @@ test("a failed update-intent write blocks the download with a retryable state", 
   assert.equal(autoUpdater.checked, false);
   assert.equal(statuses.at(-1).state, "error");
   assert.equal(statuses.at(-1).version, "1.9.0");
-  assert.match(dialog.calls[0][0].message, /无法保存更新选择/);
+  assert.equal(statuses.at(-1).detail, "disk full");
+  assert.match(dialog.calls[0][0].message, /Could not save the update choice/);
+  assert.equal(dialog.calls[0][0].detail, "disk full");
 });
 
 test("a synchronous macOS updater launch failure keeps a retryable update action", async () => {
@@ -980,7 +1006,9 @@ test("desktop updater reports Windows network failures on manual checks", async 
 
   assert.equal(result, "error");
   assert.deepEqual(statuses.map((status) => status.state), ["checking", "error"]);
-  assert.match(dialog.calls[0][0].message, /检查更新失败：fetch failed/);
+  assert.equal(statuses.at(-1).detail, "fetch failed");
+  assert.match(dialog.calls[0][0].message, /Could not check for updates/);
+  assert.equal(dialog.calls[0][0].detail, "fetch failed");
   assert.deepEqual(updates.at(-1), {
     state: "failed",
     trigger: "manual",
@@ -988,4 +1016,31 @@ test("desktop updater reports Windows network failures on manual checks", async 
     error_code: "network",
     stage: "check",
   });
+});
+
+test("desktop updater reports invalid latest.json without leaking Chinese parser copy", async () => {
+  const dialog = fakeDialog();
+  const statuses = [];
+  const controller = createDesktopUpdateController({
+    buildInfo: { version: "0.1.1" },
+    dialog,
+    fetch: async () => ({
+      ok: true,
+      json: async () => {
+        throw new SyntaxError("Unexpected token");
+      },
+    }),
+    isPackaged: true,
+    platform: "win32",
+    arch: "x64",
+    showUpdateStatus: async (status) => statuses.push(status),
+    translate: createDesktopTranslator({ language: "zh-CN" }),
+  });
+
+  assert.equal(await controller.checkForUpdates({ manual: true }), "error");
+  assert.equal(statuses.at(-1).message, "检查更新失败。");
+  assert.match(statuses.at(-1).detail, /Could not parse latest\.json: Unexpected token/);
+  assert.doesNotMatch(statuses.at(-1).detail, /不可解析/);
+  assert.equal(dialog.calls[0][0].message, "检查更新失败。");
+  assert.doesNotMatch(dialog.calls[0][0].detail, /不可解析/);
 });

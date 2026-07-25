@@ -4,6 +4,8 @@ import test from "node:test";
 import {
   GIT_LEAF_HELP_SECTIONS,
   FILE_TYPE_HELP_ROWS,
+  getFileTypeHelpRows,
+  getGitLeafHelpSections,
   gitLeafHelpPlainText,
 } from "../public/help-content.js";
 
@@ -72,4 +74,16 @@ test("Git Leaf help explains stable filtering and all repository files", () => {
       "按需显示",
     ],
   );
+});
+
+test("Git Leaf help is available in English and Simplified Chinese", () => {
+  const english = gitLeafHelpPlainText("en");
+  const chinese = gitLeafHelpPlainText("zh-CN");
+
+  assert.match(english, /Repository files/);
+  assert.match(english, /Share documents/);
+  assert.match(english, /Basic usage analytics/);
+  assert.match(chinese, /仓库文件/);
+  assert.equal(getGitLeafHelpSections("en").length, getGitLeafHelpSections("zh-CN").length);
+  assert.equal(getFileTypeHelpRows("en")[0].visibility, "Shown by default");
 });

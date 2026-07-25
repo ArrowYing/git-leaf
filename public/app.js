@@ -79,15 +79,21 @@ import {
   workbenchSessionForLaunch,
   workbenchSessionForRepo,
 } from "./workbench-session.js";
-import { KEYBOARD_SHORTCUT_GROUPS } from "./keyboard-shortcuts.js";
+import { getKeyboardShortcutGroups } from "./keyboard-shortcuts.js";
 import {
   findTextRanges,
   nextSearchIndex,
 } from "./document-search.js";
 import {
-  GIT_LEAF_HELP_SECTIONS,
-  FILE_TYPE_HELP_ROWS,
+  getGitLeafHelpSections,
+  getFileTypeHelpRows,
 } from "./help-content.js";
+import {
+  createTranslator,
+  localizeDocument,
+  resolveLocalePreference,
+} from "./i18n.js";
+import { WORKBENCH_MESSAGES } from "./workbench-locales.js";
 import { completeWorkbenchStartup } from "./workbench-startup.js";
 import {
   fileMatchesTextFilter,
@@ -175,6 +181,15 @@ const initialUserPreferences = normalizeUserPreferences(
     defaults: initialDesktopPreferences ? DEFAULT_USER_PREFERENCES : LEGACY_USER_PREFERENCES,
   },
 );
+const initialLocale = resolveLocalePreference(
+  window.GIT_LEAF_INITIAL_LOCALE
+    ?? initialDesktopPreferences?.resolvedLanguage
+    ?? initialDesktopPreferences?.language
+    ?? "system",
+  window.navigator.languages ?? [window.navigator.language],
+);
+const t = createTranslator(WORKBENCH_MESSAGES, initialLocale);
+localizeDocument(document, t);
 const systemColorSchemeQuery = window.matchMedia?.("(prefers-color-scheme: dark)") ?? null;
 const initialWorkbenchSessions = readWorkbenchSessions({ preferences: initialDesktopPreferences });
 const initialRepoId = initialSearchParams.get("repo") ||
@@ -221,6 +236,7 @@ const state = {
   documentFont: initialUserPreferences.documentFont,
   documentFontSize: initialUserPreferences.documentFontSize,
   fileTreeMode: initialUserPreferences.fileTreeMode,
+  locale: initialLocale,
   sidebarCollapsed: false,
   documentOutlineCollapsed: false,
   desktopPreferences: initialDesktopPreferences ?? {},
@@ -570,15 +586,15 @@ try {
 async function loadRepositories() {
   const response = await fetch(apiUrl("/api/repos"));
   if (!response.ok) {
-    const payload = await response.json().catch(() => ({ error: "无法读取仓库列表。" }));
-    throw new Error(payload.error || "无法读取仓库列表。");
+    const payload = await response.json().catch(() => ({ error: t("error.repositoryList") }));
+    throw new Error(payload.error || t("error.repositoryList"));
   }
 
   const payload = await response.json();
   state.repositories = payload.repositories ?? [];
   const current = repositoryById(state.currentRepo) ?? state.repositories[0];
   if (!current) {
-    throw new Error("没有可用仓库。");
+    throw new Error(t("error.noRepository"));
   }
 
   state.currentRepo = current.id;
@@ -671,15 +687,17 @@ function worktreeOptionElement(worktree) {
 }
 
 function worktreeDisplayLabel(worktree) {
-  const name = worktree?.name || "工作树";
-  return worktree?.primary ? name : `Worktree - ${name}`;
+  const name = worktree?.name || t("worktree.defaultName");
+  return worktree?.primary ? name : t("worktree.linkedName", { name });
 }
 
 function worktreeBranchLabel(worktree) {
   if (worktree.branch) {
     return worktree.branch;
   }
-  return `无分支 @ ${String(worktree.head || "").slice(0, 7) || "unknown"}`;
+  return t("worktree.detached", {
+    head: String(worktree.head || "").slice(0, 7) || "unknown",
+  });
 }
 
 async function toggleWorktreeSwitcher() {
@@ -841,12 +859,16 @@ async function openFile(
   }
 
   const hadDocument = Boolean(state.currentDocument);
-  const response = await fetch(apiUrl("/api/document", { repo: repoId, file: filePath }));
+  const response = await fetch(apiUrl("/api/document", {
+    repo: repoId,
+    file: filePath,
+    locale: state.locale,
+  }));
   if (!response.ok) {
-    const payload = await response.json().catch(() => ({ error: "加载失败" }));
-    const message = payload.error || "加载失败";
+    const payload = await response.json().catch(() => ({ error: t("error.load") }));
+    const message = payload.error || t("error.load");
     if (hadDocument) {
-      showCopyToast(`无法打开目标：${message}`);
+      showCopyToast(t("error.openTarget", { message }));
     } else {
       showStartupError(new Error(message));
     }
@@ -927,7 +949,7 @@ function showNoDocumentSelected({ pushState = false } = {}) {
 
 function showStartupError(error) {
   closeDocumentSearch({ restoreFocus: false });
-  const message = error instanceof Error ? error.message : "加载失败。";
+  const message = error instanceof Error ? error.message : t("error.load");
   state.currentDocument = null;
   state.selectedLines = new Set();
   state.selectionAnchor = null;
@@ -1365,7 +1387,7 @@ async function applyBranchProtectionPayload(payload) {
   }
   renderBranchStatus();
   if (payload.branchCreated) {
-    showCopyToast(`已创建保护分支：${payload.branch}`);
+    showCopyToast(t("branch.created", { branch: payload.branch }));
     await loadWorktrees();
   }
 }
@@ -1381,7 +1403,7 @@ function renderBranchStatus() {
     branchStatus.textContent = "";
     return;
   }
-  branchStatus.textContent = "当前工作树未关联分支；第一次编辑时会自动创建保护分支。";
+  branchStatus.textContent = t("branch.detachedHelp");
   branchStatus.hidden = false;
 }
 
@@ -1427,6 +1449,7 @@ function ensureSourceEditor() {
   state.sourceEditor = createSourceEditor({
     parent: sourceEditorHost,
     doc: state.currentDocument?.source ?? "",
+    locale: state.locale,
     onChange: scheduleSourceSync,
     onScroll: handleSourceEditorScroll,
     onLineSelect: selectSourceLine,
@@ -1483,7 +1506,7 @@ function updateThemeToggle() {
   }
   const isDark = state.theme === "dark";
   themeToggle.textContent = isDark ? "☀" : "☾";
-  themeToggle.title = isDark ? "切换到浅色模式" : "切换到深色模式";
+  themeToggle.title = isDark ? t("action.switchLight") : t("action.switchDark");
   themeToggle.setAttribute("aria-label", themeToggle.title);
   themeToggle.setAttribute("aria-pressed", String(isDark));
 }
@@ -1491,6 +1514,15 @@ function updateThemeToggle() {
 function handleDesktopPreferencesEvent(event) {
   const preferences = event.detail;
   if (!preferences || typeof preferences !== "object" || Array.isArray(preferences)) {
+    return;
+  }
+  const nextLocale = resolveLocalePreference(
+    preferences.resolvedLanguage ?? preferences.language ?? "system",
+    window.navigator.languages ?? [window.navigator.language],
+  );
+  if (nextLocale !== state.locale) {
+    event.preventDefault();
+    void reloadWorkbenchForLocaleChange();
     return;
   }
   const shouldRebuildFileTree = shouldRebuildFileTreeForPreferences(
@@ -1520,6 +1552,16 @@ function handleDesktopPreferencesEvent(event) {
   event.preventDefault();
 }
 
+async function reloadWorkbenchForLocaleChange() {
+  try {
+    await flushPendingSourceSync();
+    flushWorkbenchSessionPreference();
+    window.location.reload();
+  } catch {
+    showCopyToast(t("error.localeReload"));
+  }
+}
+
 function handleSystemColorSchemeChange() {
   if (state.colorMode !== "system") {
     return;
@@ -1534,17 +1576,21 @@ function handleSystemColorSchemeChange() {
 }
 
 function applyShortcutTooltips() {
-  setShortcutTooltip(sidebarToggle, "收起侧边栏", "Command+B");
-  setShortcutTooltip(historyBackButton, "后退", "Command+[");
-  setShortcutTooltip(historyForwardButton, "前进", "Command+]");
-  setShortcutButtonLabel(copyShareLinkButton, "复制分享链接", "Command+Shift+L");
-  copyShareLinkButton.title = `${shortcutTooltip("复制分享链接", "Command+Shift+L")}：复制主工作区 main 上已发布文档的分享链接`;
-  documentActionsMore.title = "更多文件操作";
+  setShortcutTooltip(sidebarToggle, t("action.collapseSidebar"), "Command+B");
+  setShortcutTooltip(historyBackButton, t("action.back"), "Command+[");
+  setShortcutTooltip(historyForwardButton, t("action.forward"), "Command+]");
+  setShortcutButtonLabel(copyShareLinkButton, t("action.copyShareLink"), "Command+Shift+L");
+  copyShareLinkButton.title = t("share.tooltip", {
+    shortcut: shortcutTooltip(t("action.copyShareLink"), "Command+Shift+L"),
+  });
+  documentActionsMore.title = t("action.moreFileActions");
   setShortcutButtonLabel(document.querySelector("#mode-preview"), "Preview", "Command+P");
   setShortcutButtonLabel(document.querySelector("#mode-source"), "Source", "Command+S");
   setShortcutButtonLabel(document.querySelector("#mode-live"), "Live", "Command+L");
-  setShortcutTooltip(treeFilter, "搜索文件", "Command+K");
-  treeFilter.placeholder = `搜索 (${platformShortcutLabel("Command+K")})`;
+  setShortcutTooltip(treeFilter, t("search.filesTooltip"), "Command+K");
+  treeFilter.placeholder = t("search.short", {
+    shortcut: platformShortcutLabel("Command+K"),
+  });
 }
 
 function setShortcutButtonLabel(element, label, shortcut) {
@@ -1610,6 +1656,7 @@ function documentRenderOptions() {
   return {
     currentFile: state.currentDocument?.path ?? state.currentFile,
     currentRepo: state.currentRepo,
+    locale: state.locale,
   };
 }
 
@@ -1626,14 +1673,18 @@ async function ensureSlashCommandAllowed(command) {
   const currentPath = state.currentDocument.path;
   const nextPath = currentPath.replace(/\.md$/i, ".mdx");
   const { confirmed } = await showAppDialog({
-    title: "改为 .mdx 文件",
+    title: t("dialog.renameMdxTitle"),
     message: [
-      "MDX 组件建议写在 .mdx 文件中。",
-      `是否将 ${currentPath} 重命名为 ${nextPath}，并插入 ${command.title || command.label}？`,
-      "注意：仓库里已有的链接不会自动改写。",
+      t("dialog.renameMdxLead"),
+      t("dialog.renameMdxQuestion", {
+        currentPath,
+        nextPath,
+        component: command.title || command.label,
+      }),
+      t("dialog.renameMdxWarning"),
     ].join("\n"),
-    confirmText: "改名并插入",
-    cancelText: "取消",
+    confirmText: t("action.renameAndInsert"),
+    cancelText: t("action.cancel"),
   });
   if (!confirmed) {
     recordTelemetryFeature("editing.markdown_to_mdx", { result: "cancel" });
@@ -1642,14 +1693,17 @@ async function ensureSlashCommandAllowed(command) {
 
   try {
     await flushPendingSourceSync();
-    const response = await fetch(apiUrl("/api/rename-document", { file: currentPath }), {
+    const response = await fetch(apiUrl("/api/rename-document", {
+      file: currentPath,
+      locale: state.locale,
+    }), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ extension: ".mdx" }),
     });
-    const payload = await response.json().catch(() => ({ error: "重命名失败" }));
+    const payload = await response.json().catch(() => ({ error: t("error.rename") }));
     if (!response.ok) {
-      throw new Error(payload.error || "重命名失败");
+      throw new Error(payload.error || t("error.rename"));
     }
     await applyBranchProtectionPayload(payload);
 
@@ -1666,11 +1720,11 @@ async function ensureSlashCommandAllowed(command) {
     resetDocumentWatch();
     recordTelemetryFeature("editing.markdown_to_mdx", { result: "success" });
     recordSlashCommandTelemetry(command);
-    showCopyToast("已改为 .mdx");
+    showCopyToast(t("toast.renamedMdx"));
     return true;
   } catch (error) {
     recordTelemetryFeature("editing.markdown_to_mdx", { result: "error" });
-    showCopyToast(error instanceof Error ? error.message : "重命名失败");
+    showCopyToast(error instanceof Error ? error.message : t("error.rename"));
     return false;
   }
 }
@@ -1860,7 +1914,7 @@ async function restartToolAfterUpdate(status) {
 
   state.toolRestartInFlight = true;
   const previousFingerprint = status.toolFingerprint || state.toolFingerprint;
-  showCopyToast("Git Leaf 正在更新");
+  showCopyToast(t("toast.toolUpdating"));
   try {
     await flushPendingSourceSync();
     const response = await fetch("/api/restart", { method: "POST" });
@@ -1871,7 +1925,7 @@ async function restartToolAfterUpdate(status) {
     window.location.reload();
   } catch {
     state.toolRestartInFlight = false;
-    showCopyToast("Git Leaf 更新失败，请重新运行命令");
+    showCopyToast(t("toast.toolUpdateFailed"));
   }
 }
 
@@ -1927,7 +1981,7 @@ function delay(ms) {
 }
 
 function updateSourceSyncStatus(nextState) {
-  const label = syncLabelForState(nextState);
+  const label = syncLabelForState(nextState, state.locale);
   const status = document.querySelector("#source-sync-status");
   if (!label) {
     status.hidden = true;
@@ -2090,8 +2144,10 @@ function renderDocumentTabs() {
     const close = document.createElement("button");
     close.type = "button";
     close.className = "document-tab-close";
-    close.title = shortcutTooltip("关闭当前 Tab", "Command+W");
-    close.setAttribute("aria-label", `关闭 ${tabTitleFromPath(path)}`);
+    close.title = shortcutTooltip(t("action.closeCurrentTab"), "Command+W");
+    close.setAttribute("aria-label", t("action.closeNamedTab", {
+      name: tabTitleFromPath(path),
+    }));
     close.textContent = "×";
     close.addEventListener("click", (event) => {
       event.stopPropagation();
@@ -2402,17 +2458,17 @@ function handleDocumentTabContextMenu(event) {
   const targetIndex = state.documentTabs.findIndex((item) => item.path === path);
   state.fileActionTarget = { source: "tab", path };
   showFileActionMenu([
-    { id: "close-tab", label: "关闭", shortcut: "Command+W" },
-    { id: "close-others", label: "关闭其他标签页", disabled: state.documentTabs.length < 2 },
-    { id: "close-right", label: "关闭右侧标签页", disabled: targetIndex < 0 || targetIndex === state.documentTabs.length - 1 },
-    { id: "close-all", label: "关闭全部标签页" },
+    { id: "close-tab", label: t("menu.close"), shortcut: "Command+W" },
+    { id: "close-others", label: t("menu.closeOthers"), disabled: state.documentTabs.length < 2 },
+    { id: "close-right", label: t("menu.closeRight"), disabled: targetIndex < 0 || targetIndex === state.documentTabs.length - 1 },
+    { id: "close-all", label: t("menu.closeAll") },
     null,
-    ...(isMarkdownPath(path) ? [{ id: "copy-share", label: "复制分享链接", shortcut: "Command+Shift+L" }] : []),
-    { id: "copy-path", label: "复制文件路径", shortcut: "Command+Shift+C" },
+    ...(isMarkdownPath(path) ? [{ id: "copy-share", label: t("action.copyShareLink"), shortcut: "Command+Shift+L" }] : []),
+    { id: "copy-path", label: t("menu.copyPath"), shortcut: "Command+Shift+C" },
     null,
-    { id: "reveal-tree", label: "在左侧目录中显示" },
+    { id: "reveal-tree", label: t("menu.revealTree") },
     { id: "reveal-finder", label: revealInFileManagerLabel(), shortcut: "Command+Shift+R", disabled: !canEditCurrentRepo() },
-    { id: "open-system", label: "使用系统应用打开", shortcut: "Command+Shift+O", disabled: !canEditCurrentRepo() },
+    { id: "open-system", label: t("menu.openSystem"), shortcut: "Command+Shift+O", disabled: !canEditCurrentRepo() },
   ], { x: event.clientX, y: event.clientY });
 }
 
@@ -2429,16 +2485,16 @@ function handleFileTreeContextMenu(event) {
     : { source: "tree-file", path, directoryPath: parentDirectoryPath(path), referencePath: path };
   const items = isDirectory
     ? [
-        { id: "new-document", label: "在这里新建文档", disabled: !canEditCurrentRepo() },
+        { id: "new-document", label: t("menu.newDocumentHere"), disabled: !canEditCurrentRepo() },
         null,
         { id: "reveal-finder", label: revealInFileManagerLabel(), shortcut: "Command+Shift+R", disabled: !canEditCurrentRepo() },
-        { id: "copy-path", label: "复制目录路径", shortcut: "Command+Shift+C" },
+        { id: "copy-path", label: t("menu.copyDirectoryPath"), shortcut: "Command+Shift+C" },
       ]
     : [
-        { id: "new-document", label: "在同一位置新建文档", disabled: !canEditCurrentRepo() },
-        { id: "open-new-tab", label: "在新标签页打开", shortcut: "Shift+Enter" },
+        { id: "new-document", label: t("menu.newDocumentSameLocation"), disabled: !canEditCurrentRepo() },
+        { id: "open-new-tab", label: t("menu.openNewTab"), shortcut: "Shift+Enter" },
         null,
-        ...(isMarkdownPath(path) ? [{ id: "copy-share", label: "复制分享链接", shortcut: "Command+Shift+L" }] : []),
+        ...(isMarkdownPath(path) ? [{ id: "copy-share", label: t("action.copyShareLink"), shortcut: "Command+Shift+L" }] : []),
         { id: "reveal-finder", label: revealInFileManagerLabel(), shortcut: "Command+Shift+R", disabled: !canEditCurrentRepo() },
       ];
   showFileActionMenu(items, { x: event.clientX, y: event.clientY });
@@ -2451,12 +2507,12 @@ function showCurrentDocumentActionsMenu() {
   const rect = documentActionsMore.getBoundingClientRect();
   state.fileActionTarget = { source: "current", path: state.currentDocument.path };
   showFileActionMenu([
-    { id: "reveal-tree", label: "在左侧目录中显示" },
+    { id: "reveal-tree", label: t("menu.revealTree") },
     { id: "reveal-finder", label: revealInFileManagerLabel(), shortcut: "Command+Shift+R", disabled: !canEditCurrentRepo() },
     null,
-    { id: "open-github", label: "查看 GitHub 源文件", shortcut: "Command+Shift+G", disabled: !state.currentDocument.githubUrl },
-    { id: "copy-path", label: "复制文件路径", shortcut: "Command+Shift+C" },
-    { id: "open-system", label: "使用系统应用打开", shortcut: "Command+Shift+O", disabled: !canEditCurrentRepo() },
+    { id: "open-github", label: t("menu.openGitHub"), shortcut: "Command+Shift+G", disabled: !state.currentDocument.githubUrl },
+    { id: "copy-path", label: t("menu.copyPath"), shortcut: "Command+Shift+C" },
+    { id: "open-system", label: t("menu.openSystem"), shortcut: "Command+Shift+O", disabled: !canEditCurrentRepo() },
   ], { x: rect.right, y: rect.bottom + 4, alignRight: true });
   documentActionsMore.setAttribute("aria-expanded", "true");
 }
@@ -2584,7 +2640,7 @@ function revealFileInTree(path) {
   window.requestAnimationFrame(() => {
     const item = treeItemByPath(path, "file");
     if (!item) {
-      showCopyToast("当前文件未显示在目录中");
+      showCopyToast(t("toast.notInTree"));
       return;
     }
     item.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "instant" });
@@ -2602,7 +2658,7 @@ function newDocumentLocationFromCurrent() {
 
 async function promptNewDocument({ directoryPath = "", referencePath = "" } = {}) {
   if (!canEditCurrentRepo()) {
-    showCopyToast("当前仓库不可新建文档");
+    showCopyToast(t("toast.cannotCreateDocument"));
     return;
   }
   let name = "";
@@ -2610,57 +2666,64 @@ async function promptNewDocument({ directoryPath = "", referencePath = "" } = {}
   let errorMessage = "";
   while (true) {
     const { confirmed, values } = await showAppDialog({
-      title: "新建文档",
+      title: t("newDocument.title"),
       message: [newDocumentLocationMessage({ directoryPath, referencePath }), errorMessage]
         .filter(Boolean)
         .join("\n"),
       fields: [
-        { id: "name", label: "文档名称", value: name, placeholder: "例如：活动复盘" },
+        {
+          id: "name",
+          label: t("newDocument.name"),
+          value: name,
+          placeholder: t("newDocument.namePlaceholder"),
+        },
         {
           id: "format",
-          label: "文档格式",
+          label: t("newDocument.format"),
           value: format,
           options: [
-            { value: "md", label: "Markdown（推荐）" },
-            { value: "mdx", label: "MDX（适合增强内容）" },
+            { value: "md", label: t("newDocument.markdown") },
+            { value: "mdx", label: t("newDocument.mdx") },
           ],
         },
       ],
-      confirmText: "创建",
-      cancelText: "取消",
+      confirmText: t("action.create"),
+      cancelText: t("action.cancel"),
     });
     if (!confirmed) {
       return;
     }
     name = values.name;
     format = values.format;
-    const response = await fetch(apiUrl("/api/create-document"), {
+    const response = await fetch(apiUrl("/api/create-document", { locale: state.locale }), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ directory: directoryPath, name, format }),
     });
-    const payload = await response.json().catch(() => ({ error: "无法创建文档。" }));
+    const payload = await response.json().catch(() => ({ error: t("error.createDocument") }));
     if (!response.ok) {
-      errorMessage = payload.error || "无法创建文档，请重试。";
+      errorMessage = payload.error || t("error.createDocumentRetry");
       continue;
     }
     await applyBranchProtectionPayload(payload);
     await loadTree({ force: true });
     await openFileInForegroundTab(payload.path);
     setMode("live");
-    showCopyToast(`已创建 ${payload.path}`);
+    showCopyToast(t("toast.created", { path: payload.path }));
     return;
   }
 }
 
 function newDocumentLocationMessage({ directoryPath, referencePath }) {
   if (referencePath) {
-    return `将与《${documentNameWithoutExtension(referencePath)}》放在一起。`;
+    return t("newDocument.alongside", {
+      name: documentNameWithoutExtension(referencePath),
+    });
   }
   if (directoryPath) {
-    return `将在“${pathBasename(directoryPath)}”中创建。`;
+    return t("newDocument.inDirectory", { name: pathBasename(directoryPath) });
   }
-  return "将在仓库首页创建。";
+  return t("newDocument.repoHome");
 }
 
 async function revealPathInFinder(path) {
@@ -2670,25 +2733,25 @@ async function revealPathInFinder(path) {
       throw new Error("Reveal path failed");
     }
   } catch {
-    showCopyToast("无法在文件管理器中显示");
+    showCopyToast(t("toast.revealFailed"));
   }
 }
 
 function revealInFileManagerLabel() {
   if (isMacPlatform()) {
-    return "在 Finder 中显示";
+    return t("action.revealFinder");
   }
   return /Win/.test(navigator.platform || "")
-    ? "在文件资源管理器中显示"
-    : "在文件管理器中显示";
+    ? t("action.revealExplorer")
+    : t("action.revealFileManager");
 }
 
 async function copyPathValue(path) {
   try {
     await writeClipboard(path);
-    showCopyToast("已复制路径");
+    showCopyToast(t("toast.pathCopied"));
   } catch {
-    showCopyToast("复制失败");
+    showCopyToast(t("toast.copyFailed"));
   }
 }
 
@@ -2699,7 +2762,7 @@ async function openPathWithSystem(path) {
       throw new Error("Open source file failed");
     }
   } catch {
-    showCopyToast("无法使用系统应用打开文件");
+    showCopyToast(t("toast.openSystemFailed"));
   }
 }
 
@@ -2709,7 +2772,8 @@ function parentDirectoryPath(path) {
 }
 
 function pathBasename(path) {
-  return String(path || "").replaceAll("\\", "/").split("/").filter(Boolean).at(-1) || "仓库首页";
+  return String(path || "").replaceAll("\\", "/").split("/").filter(Boolean).at(-1)
+    || t("repository.home");
 }
 
 function documentNameWithoutExtension(path) {
@@ -2805,15 +2869,19 @@ function renderNode(node, parentPath) {
 
 function treeFileCapability(kind) {
   if (kind === "markdown") {
-    return { name: "editable", label: "可编辑文档", badge: "" };
+    return { name: "editable", label: t("file.editable"), badge: "" };
   }
   if (["unsupported", "symlink", "submodule"].includes(kind)) {
-    return { name: "unsupported", label: "暂不支持预览", badge: "不支持" };
+    return {
+      name: "unsupported",
+      label: t("file.unsupported"),
+      badge: t("badge.unsupported"),
+    };
   }
   if (kind === "unknown") {
-    return { name: "unknown", label: "打开后检测预览能力", badge: "检测" };
+    return { name: "unknown", label: t("file.unknown"), badge: t("badge.detect") };
   }
-  return { name: "readonly", label: "只读预览", badge: "只读" };
+  return { name: "readonly", label: t("file.readonly"), badge: t("badge.readonly") };
 }
 
 function recordTreeDirectoryToggle(directoryPath, open) {
@@ -2877,8 +2945,8 @@ function setDocumentOutlineCollapsed(collapsed, { persist = true } = {}) {
     String(!state.documentOutlineCollapsed),
   );
   const label = state.documentOutlineCollapsed
-    ? "显示目录"
-    : "隐藏目录";
+    ? t("action.showOutline")
+    : t("action.hideOutline");
   documentOutlineToggle.title = shortcutTooltip(label, "Command+Shift+B");
   documentOutlineToggle.setAttribute(
     "aria-label",
@@ -2911,7 +2979,7 @@ function setSidebarCollapsed(collapsed, { persist = true } = {}) {
   state.sidebarCollapsed = Boolean(collapsed);
   appShell.classList.toggle("is-sidebar-collapsed", state.sidebarCollapsed);
   sidebarToggle.setAttribute("aria-expanded", String(!state.sidebarCollapsed));
-  const label = state.sidebarCollapsed ? "展开侧边栏" : "收起侧边栏";
+  const label = state.sidebarCollapsed ? t("action.expandSidebar") : t("action.collapseSidebar");
   sidebarToggle.title = shortcutTooltip(label, "Command+B");
   sidebarToggle.setAttribute("aria-label", shortcutTooltip(label, "Command+B"));
   sidebarResizer.tabIndex = state.sidebarCollapsed ? -1 : 0;
@@ -3083,8 +3151,9 @@ function renderDocumentContent(documentData) {
   documentContent.dataset.documentKind = kind;
   documentContent.classList.toggle("is-readonly-preview", kind !== "markdown");
   if (kind === "markdown") {
-    documentContent.innerHTML = documentData.html || "<p class=\"empty-message\">文档为空。</p>";
-    enhanceImageLoadStates(documentContent);
+    documentContent.innerHTML = documentData.html
+      || `<p class="empty-message">${escapeHtml(t("document.empty"))}</p>`;
+    enhanceImageLoadStates(documentContent, { locale: state.locale });
     enhanceTables();
     scheduleListSourceLineGutterSync();
     renderDocumentOutline();
@@ -3103,9 +3172,11 @@ function renderDocumentContent(documentData) {
 function readonlyPreviewElement(documentData) {
   if (documentData.textTruncated) {
     return readonlyMessage(
-      "文件过大",
-      `这个文件超过 ${formatBytes(documentData.textLimitBytes)}，请用“源文件”在系统应用中打开。`,
-      { actionLabel: "使用系统应用打开", onAction: openCurrentSource },
+      t("readonly.tooLargeTitle"),
+      t("readonly.tooLargeDetail", {
+        size: formatBytes(documentData.textLimitBytes),
+      }),
+      { actionLabel: t("action.openSystemSource"), onAction: openCurrentSource },
     );
   }
 
@@ -3116,22 +3187,27 @@ function readonlyPreviewElement(documentData) {
     image.src = apiUrl("/raw", { file: documentData.path });
     image.alt = documentData.title || documentData.path;
     frame.append(image);
-    attachImageLoadState(image);
+    attachImageLoadState(image, { locale: state.locale });
     return frame;
   }
 
   if (["unsupported", "symlink", "submodule"].includes(documentData.kind)) {
     const label = documentData.kind === "symlink"
-      ? "符号链接"
+      ? t("file.symlink")
       : documentData.kind === "submodule"
         ? "Git Submodule"
         : documentData.extension
-          ? `${documentData.extension.slice(1).toUpperCase()} 文件`
-          : "未知文件";
+          ? t("file.extension", {
+              extension: documentData.extension.slice(1).toUpperCase(),
+            })
+          : t("file.unknownType");
     return readonlyMessage(
-      "此文件类型暂时不支持预览",
-      `${label} · ${formatBytes(documentData.size || 0)}。可以使用系统应用打开源文件。`,
-      { actionLabel: "使用系统应用打开", onAction: openCurrentSource },
+      t("readonly.unsupportedTitle"),
+      t("readonly.unsupportedDetail", {
+        label,
+        size: formatBytes(documentData.size || 0),
+      }),
+      { actionLabel: t("action.openSystemSource"), onAction: openCurrentSource },
     );
   }
 
@@ -3199,7 +3275,7 @@ function codePreviewElement({ text, language, notice = "" }) {
 function csvPreviewElement(text) {
   const rows = parseCsvRows(text);
   if (rows.length === 0) {
-    return readonlyMessage("CSV 为空", "这个 CSV 文件没有可显示的内容。");
+    return readonlyMessage(t("csv.emptyTitle"), t("csv.emptyDetail"));
   }
 
   const container = document.createElement("section");
@@ -3245,7 +3321,7 @@ function jsonPreviewElement(documentData) {
     return codePreviewElement({
       text: documentData.text ?? "",
       language: "json",
-      notice: documentData.parseError || "JSON 解析失败，已按原始文本显示。",
+      notice: documentData.parseError || t("json.parseFallback"),
     });
   }
 }
@@ -3407,7 +3483,7 @@ function renderDocumentOutline() {
 
   const header = document.createElement("div");
   header.className = "document-outline-header";
-  header.textContent = "导航";
+  header.textContent = t("outline.navigation");
   const list = document.createElement("ul");
   list.className = "outline-list";
   for (const item of state.outlineItems) {
@@ -3631,21 +3707,21 @@ function gitChangeBadgeLabel(status) {
 
 function gitChangeStatusLabel(status) {
   if (status === "added") {
-    return "已新增";
+    return t("git.added");
   }
   if (status === "untracked") {
-    return "未跟踪";
+    return t("git.untracked");
   }
   if (status === "deleted") {
-    return "已删除";
+    return t("git.deleted");
   }
   if (status === "renamed") {
-    return "已重命名";
+    return t("git.renamed");
   }
   if (status === "copied") {
-    return "已复制";
+    return t("git.copied");
   }
-  return "已修改";
+  return t("git.modified");
 }
 
 function closeGitSyncPanel() {
@@ -3669,11 +3745,13 @@ async function submitGitSync() {
   const files = state.gitChanges.map((change) => change.path);
   const startedAt = performance.now();
   gitSyncOpen.disabled = true;
-  gitSyncOpen.textContent = "正在同步…";
+  gitSyncOpen.textContent = t("action.syncing");
   gitSyncResult.hidden = true;
   try {
     await flushPendingSourceSync();
-    const response = await fetch(apiUrl("/api/git-sync"), {
+    const response = await fetch(apiUrl("/api/git-sync", {
+      locale: state.locale,
+    }), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -3683,7 +3761,7 @@ async function submitGitSync() {
     const payload = await response.json().catch(() => ({
       ok: false,
       step: "git-sync",
-      error: "同步接口返回了不可解析的结果。",
+      error: t("error.syncInvalidResponse"),
     }));
     await applyBranchProtectionPayload(payload);
 
@@ -3703,7 +3781,7 @@ async function submitGitSync() {
         agentPrompt: payload.agentPrompt || clientGitSyncAgentPrompt({
           files,
           step: payload.step || "git-sync",
-          error: payload.error || "同步失败。",
+          error: payload.error || t("error.sync"),
         }),
       });
       return;
@@ -3718,7 +3796,7 @@ async function submitGitSync() {
       retry_bucket: retryCountBucket(payload.retryCount),
       duration_bucket: durationBucket(performance.now() - startedAt),
     });
-    showCopyToast("同步完成");
+    showCopyToast(t("toast.syncComplete"));
     await loadTree({ force: true });
     await loadGitStatus();
   } catch (error) {
@@ -3734,15 +3812,15 @@ async function submitGitSync() {
     showGitSyncFailure({
       files,
       step: "git-sync",
-      error: error instanceof Error ? error.message : "同步失败。",
+      error: error instanceof Error ? error.message : t("error.sync"),
       agentPrompt: clientGitSyncAgentPrompt({
         files,
         step: "git-sync",
-        error: error instanceof Error ? error.message : "同步失败。",
+        error: error instanceof Error ? error.message : t("error.sync"),
       }),
     });
   } finally {
-    gitSyncOpen.textContent = "同步";
+    gitSyncOpen.textContent = t("action.sync");
     gitSyncOpen.disabled = !canEditCurrentRepo() || state.gitChanges.length === 0;
   }
 }
@@ -3751,9 +3829,9 @@ function showGitSyncFailure(payload) {
   overflowTooltipController.hide();
   gitSyncPanel.hidden = false;
   gitSyncResult.hidden = false;
-  gitSyncResultTitle.textContent = payload.resultTitle || "同步遇到异常";
+  gitSyncResultTitle.textContent = payload.resultTitle || t("sync.resultTitle");
   gitSyncResultHelp.textContent = payload.resultHelp
-    || "点击复制提示词，然后粘贴到你选择的 AI Agent 中继续处理。";
+    || t("sync.resultHelp");
   gitSyncAgentPrompt.value = payload.agentPrompt || clientGitSyncAgentPrompt(payload);
   gitSyncCopyPrompt.disabled = false;
 }
@@ -3761,9 +3839,9 @@ function showGitSyncFailure(payload) {
 async function copyGitSyncAgentPrompt() {
   try {
     await writeClipboard(gitSyncAgentPrompt.value);
-    showCopyToast("已复制提示词");
+    showCopyToast(t("toast.promptCopied"));
   } catch {
-    showCopyToast("复制失败");
+    showCopyToast(t("toast.copyFailed"));
   }
 }
 
@@ -3774,8 +3852,8 @@ function showAppDialog({
   inputLabel = "",
   inputValue = "",
   fields = [],
-  confirmText = "确定",
-  cancelText = "取消",
+  confirmText = t("action.confirm"),
+  cancelText = t("action.cancel"),
   showCancel = true,
   showConfirm = true,
   variant = "",
@@ -3786,7 +3864,7 @@ function showAppDialog({
   }
 
   overflowTooltipController.hide();
-  appDialogTitle.textContent = title || "确认操作";
+  appDialogTitle.textContent = title || t("dialog.confirmTitle");
   appDialogMessage.textContent = message;
   appDialogMessage.hidden = !message;
   appDialogContent.replaceChildren();
@@ -4199,7 +4277,7 @@ function handleDesktopUpdateStatusEvent(event) {
 }
 
 function renderSidebarUpdateStatus(status) {
-  const view = sidebarUpdateView(status);
+  const view = sidebarUpdateView(status, state.locale);
   if (!desktopUpdatePanel) {
     return;
   }
@@ -4419,17 +4497,17 @@ function desktopUpdateStatusMessage(status) {
 
   switch (status?.state) {
     case "checking":
-      return "正在检查更新…";
+      return t("update.checking");
     case "downloading":
-      return "正在下载并准备新版本…";
+      return t("update.downloading");
     case "downloaded":
-      return "新版本已准备好，退出 Git Leaf 后自动安装。";
+      return t("update.downloaded");
     case "available":
-      return "发现新版本，点击更新后开始下载。";
+      return t("update.available");
     case "current":
-      return "Git Leaf 已经是最新版本。";
+      return t("update.current");
     case "error":
-      return "检查更新失败。";
+      return t("update.error");
     default:
       return "";
   }
@@ -4764,7 +4842,7 @@ function parentTreeDirectorySummary(item) {
 
 function showKeyboardShortcutsDialog() {
   void showAppDialog({
-    title: "Keyboard Shortcuts",
+    title: t("shortcuts.title"),
     content: renderKeyboardShortcutsDialog(),
     showCancel: false,
     showConfirm: false,
@@ -4775,7 +4853,7 @@ function showKeyboardShortcutsDialog() {
 
 function showGitLeafHelpDialog() {
   void showAppDialog({
-    title: "Git Leaf 帮助",
+    title: t("help.title"),
     content: renderGitLeafHelpDialog(),
     showCancel: false,
     showConfirm: false,
@@ -4788,7 +4866,7 @@ function renderGitLeafHelpDialog() {
   const root = document.createElement("div");
   root.className = "git-leaf-help";
 
-  for (const sectionData of GIT_LEAF_HELP_SECTIONS) {
+  for (const sectionData of getGitLeafHelpSections(state.locale)) {
     const section = document.createElement("section");
     section.className = "git-leaf-help-section";
 
@@ -4807,12 +4885,12 @@ function renderGitLeafHelpDialog() {
   const tableSection = document.createElement("section");
   tableSection.className = "git-leaf-help-section";
   const tableTitle = document.createElement("h3");
-  tableTitle.textContent = "文件类型支持";
+  tableTitle.textContent = t("help.fileTypes");
   tableSection.append(tableTitle);
 
   const table = document.createElement("div");
   table.className = "git-leaf-help-table";
-  for (const rowData of FILE_TYPE_HELP_ROWS) {
+  for (const rowData of getFileTypeHelpRows(state.locale)) {
     const row = document.createElement("div");
     row.className = "git-leaf-help-row";
     const files = document.createElement("code");
@@ -4834,10 +4912,10 @@ function renderKeyboardShortcutsDialog() {
 
   const intro = document.createElement("p");
   intro.className = "keyboard-shortcuts-note";
-  intro.textContent = "Git Leaf 会自动保存 Source 和 Live 编辑内容。";
+  intro.textContent = t("help.shortcutsNote");
   root.append(intro);
 
-  for (const group of KEYBOARD_SHORTCUT_GROUPS) {
+  for (const group of getKeyboardShortcutGroups(state.locale)) {
     const section = document.createElement("section");
     section.className = "keyboard-shortcut-group";
 
@@ -4868,23 +4946,23 @@ function renderKeyboardShortcutsDialog() {
   return root;
 }
 
-function clientGitSyncAgentPrompt({ files = [], step = "git-sync", error = "同步失败。" }) {
+function clientGitSyncAgentPrompt({ files = [], step = "git-sync", error = t("error.sync") }) {
   return [
-    "请处理 Git Leaf 同步失败：",
+    t("agentPrompt.title"),
     "",
-    `仓库：${state.currentRepo}`,
-    `当前分支：${state.currentRepoBranch}`,
-    "选中文件：",
+    t("agentPrompt.repository", { repo: state.currentRepo }),
+    t("agentPrompt.branch", { branch: state.currentRepoBranch }),
+    t("agentPrompt.files"),
     ...files.map((file) => `- ${file}`),
     "",
-    `失败步骤：${step}`,
-    "错误输出：",
+    t("agentPrompt.step", { step }),
+    t("agentPrompt.error"),
     error,
     "",
-    "目标：",
-    "1. 保留 Git Leaf 用户对上述文件的修改。",
-    "2. 处理当前 Git 状态、检查失败或冲突。",
-    "3. 完成必要检查后，提交并推送当前 main 分支。",
+    t("agentPrompt.goal"),
+    t("agentPrompt.goal1"),
+    t("agentPrompt.goal2"),
+    t("agentPrompt.goal3"),
   ].join("\n");
 }
 
@@ -5113,7 +5191,7 @@ function renderFrontmatterFilterPopover() {
   }
 
   if (state.frontmatterFacetsLoading) {
-    frontmatterFilterPopover.innerHTML = "<p class=\"frontmatter-filter-empty\">正在加载筛选项...</p>";
+    frontmatterFilterPopover.innerHTML = `<p class="frontmatter-filter-empty">${escapeHtml(t("filter.loading"))}</p>`;
     positionFrontmatterFilterPopover();
     return;
   }
@@ -5122,7 +5200,7 @@ function renderFrontmatterFilterPopover() {
   state.frontmatterActiveKey = activeKey;
   const values = state.frontmatterFacets?.[activeKey] ?? [];
   frontmatterFilterPopover.innerHTML = [
-    "<div class=\"frontmatter-filter-popover-header\"><span>添加筛选</span><span>AND 条件</span></div>",
+    `<div class="frontmatter-filter-popover-header"><span>${escapeHtml(t("filter.add"))}</span><span>${escapeHtml(t("filter.and"))}</span></div>`,
     "<div class=\"frontmatter-filter-grid\">",
     `<div class="frontmatter-filter-keys">${renderFrontmatterFilterKeys(activeKey)}</div>`,
     `<div class="frontmatter-filter-values">${renderFrontmatterFilterValues(activeKey, values)}</div>`,
@@ -5146,10 +5224,10 @@ function renderFrontmatterFilterKeys(activeKey) {
 
 function renderFrontmatterFilterValues(activeKey, values) {
   if (!activeKey) {
-    return "<p class=\"frontmatter-filter-empty\">已添加所有筛选条件。</p>";
+    return `<p class="frontmatter-filter-empty">${escapeHtml(t("filter.allAdded"))}</p>`;
   }
   if (values.length === 0) {
-    return "<p class=\"frontmatter-filter-empty\">这个字段暂无可用值。</p>";
+    return `<p class="frontmatter-filter-empty">${escapeHtml(t("filter.noValues"))}</p>`;
   }
 
   return values.map(({ value, count }) => [
@@ -5219,7 +5297,7 @@ function renderActiveFrontmatterFilters() {
     "<span class=\"frontmatter-filter-chip\">",
     `<span>${escapeHtml(key)}:</span>`,
     `${escapeHtml(value)}`,
-    `<button type="button" aria-label="移除 ${escapeHtml(key)} 筛选" data-remove-frontmatter-key="${escapeHtml(key)}">×</button>`,
+    `<button type="button" aria-label="${escapeHtml(t("filter.remove", { key }))}" data-remove-frontmatter-key="${escapeHtml(key)}">×</button>`,
     "</span>",
   ].join("")).join("");
 }
@@ -5480,14 +5558,14 @@ async function copyCurrentLineReference() {
     }),
   );
   clearLineSelection();
-  showCopyToast("已复制定位");
+  showCopyToast(t("toast.locationCopied"));
   try {
     await copyPromise;
     recordTelemetryFeature("line_reference.copy", {
       line_count_bucket: lineCountBucket(selectedLineCount),
     });
   } catch {
-    showCopyToast("复制失败");
+    showCopyToast(t("toast.copyFailed"));
   }
 }
 
@@ -5595,15 +5673,17 @@ function addCurrentSelectionToAgentContext(event) {
   clearLineSelection();
   renderAgentContext();
   setAgentContextPopoverOpen(true, { focus: true });
-  showCopyToast(replacing ? "已更新 Agent 上下文" : "已加入 Agent 上下文");
+  showCopyToast(replacing ? t("toast.contextUpdated") : t("toast.contextAdded"));
 }
 
 function renderAgentContext() {
   const count = state.agentContextItems.length;
   agentContextToggleCount.textContent = String(count);
-  agentContextToggle.title = `Agent 上下文（${count} 个片段）`;
+  agentContextToggle.title = t("agentContext.countTitle", { count });
   agentContextToggle.setAttribute("aria-label", agentContextToggle.title);
-  agentContextCopy.textContent = count > 0 ? `复制 ${count} 个片段` : "复制片段";
+  agentContextCopy.textContent = count > 0
+    ? t("action.copySnippetCount", { count })
+    : t("action.copySnippets");
   agentContextList.replaceChildren(
     ...state.agentContextItems.map(agentContextItemElement),
   );
@@ -5624,11 +5704,14 @@ function agentContextItemElement(item) {
   locate.className = "agent-context-item-open";
   locate.dataset.agentContextAction = "locate";
   locate.dataset.agentContextId = item.id;
-  locate.setAttribute("aria-label", `查看原文：${agentContextReferenceLabel(item)}`);
+  locate.setAttribute("aria-label", t("agentContext.viewSource", {
+    reference: agentContextReferenceLabel(item),
+  }));
 
   const preview = document.createElement("span");
   preview.className = "agent-context-item-preview";
-  preview.textContent = item.sourceLines.map((line) => line.text).join("\n").trim() || "（空行）";
+  preview.textContent = item.sourceLines.map((line) => line.text).join("\n").trim()
+    || t("agentContext.emptyLine");
 
   const reference = document.createElement("span");
   reference.className = "agent-context-item-reference";
@@ -5641,7 +5724,9 @@ function agentContextItemElement(item) {
   remove.dataset.agentContextAction = "remove";
   remove.dataset.agentContextId = item.id;
   remove.textContent = "×";
-  remove.setAttribute("aria-label", `移除片段：${agentContextItemLabel(item)}`);
+  remove.setAttribute("aria-label", t("agentContext.remove", {
+    label: agentContextItemLabel(item),
+  }));
   section.append(locate, remove);
   return section;
 }
@@ -5676,7 +5761,7 @@ async function handleAgentContextListClick(event) {
     persistAgentContextItems();
     renderAgentContext();
     agentContextClose.focus();
-    showCopyToast("已移除 1 个上下文片段");
+    showCopyToast(t("toast.contextRemoved"));
     return;
   }
 
@@ -5684,7 +5769,7 @@ async function handleAgentContextListClick(event) {
   renderAgentContext();
   const opened = await openFile(item.path, true);
   if (!opened) {
-    showCopyToast("无法定位原文");
+    showCopyToast(t("toast.sourceNotFound"));
     return;
   }
   state.selectedLines = new Set(item.selectedLines);
@@ -5693,7 +5778,7 @@ async function handleAgentContextListClick(event) {
   scrollToHashSelectedLine();
   renderAgentContext();
   agentContextClose.focus();
-  showCopyToast(`已定位到 ${agentContextReferenceLabel(item)}`);
+  showCopyToast(t("toast.located", { reference: agentContextReferenceLabel(item) }));
 }
 
 function clearAgentContextItems() {
@@ -5702,7 +5787,7 @@ function clearAgentContextItems() {
   persistAgentContextItems();
   renderAgentContext();
   agentContextClose.focus();
-  showCopyToast("已清空 Agent 上下文");
+  showCopyToast(t("toast.contextCleared"));
 }
 
 async function copyAgentContext() {
@@ -5712,9 +5797,9 @@ async function copyAgentContext() {
   }
   try {
     await writeClipboard(markdown);
-    showCopyToast(`已复制 ${state.agentContextItems.length} 个上下文片段`);
+    showCopyToast(t("toast.contextCopied", { count: state.agentContextItems.length }));
   } catch {
-    showCopyToast("复制失败");
+    showCopyToast(t("toast.copyFailed"));
   }
 }
 
@@ -5816,7 +5901,10 @@ async function refreshCurrentDocument({ external = false } = {}) {
   }
 
   const response = await fetch(
-    apiUrl("/api/document", { file: state.currentDocument.path }),
+    apiUrl("/api/document", {
+      file: state.currentDocument.path,
+      locale: state.locale,
+    }),
   );
   if (!response.ok) {
     return;
@@ -5855,9 +5943,10 @@ async function copyShareLinkForPath(documentPath, { disablePrimary = false } = {
     }
     const response = await fetch(apiUrl("/api/share-link", {
       file: documentPath,
+      locale: state.locale,
     }));
     const payload = await response.json().catch(() => ({
-      error: "分享链接接口返回了不可解析的结果。",
+      error: t("error.shareInvalidResponse"),
       code: "share_unavailable",
     }));
     if (!response.ok || !payload.url) {
@@ -5868,13 +5957,13 @@ async function copyShareLinkForPath(documentPath, { disablePrimary = false } = {
       payload.url,
       shareLinkClipboardTitle(payload.url, documentPath),
     );
-    showCopyToast("已复制分享链接");
+    showCopyToast(t("toast.shareCopied"));
   } catch (error) {
     await showAppDialog({
-      title: "无法复制分享链接",
-      message: error instanceof Error ? error.message : "复制分享链接失败。",
+      title: t("share.copyFailedTitle"),
+      message: error instanceof Error ? error.message : t("share.copyFailed"),
       showCancel: false,
-      confirmText: "知道了",
+      confirmText: t("action.gotIt"),
     });
   } finally {
     if (disablePrimary) {
@@ -5888,11 +5977,11 @@ async function showShareLinkUnavailable(payload, documentPath) {
     || payload?.code === "document_not_published";
   const needsCommit = payload?.code === "document_not_committed";
   const { confirmed } = await showAppDialog({
-    title: canPublishDocument ? "当前文档尚未发布" : "无法生成分享链接",
-    message: payload?.error || "当前文档暂时不能分享。",
+    title: canPublishDocument ? t("share.unpublishedTitle") : t("share.unavailableTitle"),
+    message: payload?.error || t("share.unavailable"),
     confirmText: canPublishDocument
-      ? (needsCommit ? "同步并复制" : "发布并复制")
-      : "知道了",
+      ? (needsCommit ? t("share.syncAndCopy") : t("share.publishAndCopy"))
+      : t("action.gotIt"),
     showCancel: canPublishDocument,
   });
   if (!confirmed || !canPublishDocument) {
@@ -5908,19 +5997,20 @@ async function publishShareLinkForPath(documentPath) {
     try {
       response = await fetch(apiUrl("/api/share-link", {
         file: documentPath,
+        locale: state.locale,
       }), {
         method: "POST",
       });
       payload = await response.json().catch(() => ({
         ok: false,
-        error: "分享发布接口返回了不可解析的结果。",
+        error: t("error.publishInvalidResponse"),
         code: "share_publish_failed",
         retryable: true,
       }));
     } catch (error) {
       payload = {
         ok: false,
-        error: error instanceof Error ? error.message : "无法连接本机分享发布服务。",
+        error: error instanceof Error ? error.message : t("error.publishUnavailable"),
         code: "share_publish_failed",
         step: "network",
         retryable: true,
@@ -5932,29 +6022,29 @@ async function publishShareLinkForPath(documentPath) {
         payload.url,
         shareLinkClipboardTitle(payload.url, documentPath),
       );
-      showCopyToast(payload.published ? "已发布并复制分享链接" : "已复制分享链接");
+      showCopyToast(payload.published ? t("toast.publishedAndCopied") : t("toast.shareCopied"));
       await loadGitStatus();
       return;
     }
 
     if (payload?.retryable !== true) {
       await showAppDialog({
-        title: "无法发布分享链接",
-        message: payload?.error || "当前文档暂时不能发布。",
+        title: t("share.publishFailedTitle"),
+        message: payload?.error || t("share.publishUnavailable"),
         showCancel: false,
-        confirmText: "知道了",
+        confirmText: t("action.gotIt"),
       });
       return;
     }
 
     const { confirmed } = await showAppDialog({
-      title: "分享发布失败",
+      title: t("share.publishFailed"),
       message: [
-        payload?.error || "远端发布没有完成。",
-        "本地修改和已创建的提交均会保留。请检查网络、GitHub 登录或远端分支状态后重试。",
+        payload?.error || t("share.remoteIncomplete"),
+        t("share.localPreserved"),
       ].join("\n\n"),
-      confirmText: "重试发布",
-      cancelText: payload?.agentPrompt ? "交给 AI Agent" : "关闭",
+      confirmText: t("share.retryPublish"),
+      cancelText: payload?.agentPrompt ? t("share.handOffAgent") : t("action.close"),
       showCancel: true,
     });
     if (confirmed) {
@@ -5965,8 +6055,8 @@ async function publishShareLinkForPath(documentPath) {
     if (payload?.agentPrompt) {
       showGitSyncFailure({
         ...payload,
-        resultTitle: "分享发布失败",
-        resultHelp: "复制提示词并交给 AI Agent，完成远端发布后再复制分享链接。",
+        resultTitle: t("share.publishFailed"),
+        resultHelp: t("share.agentHelp"),
       });
     }
     return;
@@ -6052,16 +6142,16 @@ function openCurrentGithub() {
   }
   if (!state.currentDocument.githubUrl) {
     recordTelemetryFeature("github.open", { result: "error" });
-    showCopyToast("当前文档没有 GitHub 链接");
+    showCopyToast(t("toast.noGitHubLink"));
     return;
   }
   try {
     window.open(state.currentDocument.githubUrl, "_blank", "noopener");
     recordTelemetryFeature("github.open", { result: "success" });
-    showCopyToast("已打开 GitHub");
+    showCopyToast(t("toast.openedGitHub"));
   } catch {
     recordTelemetryFeature("github.open", { result: "error" });
-    showCopyToast("无法打开 GitHub 链接");
+    showCopyToast(t("toast.openGitHubFailed"));
   }
 }
 
@@ -6091,14 +6181,17 @@ function enhanceTables() {
 
 async function pasteImageAsset(file) {
   if (!canEditCurrentDocument() || !state.currentDocument?.path) {
-    showCopyToast("当前文档不可编辑");
+    showCopyToast(t("toast.notEditable"));
     return "";
   }
 
-  showCopyToast("正在保存图片");
+  showCopyToast(t("toast.savingImage"));
   try {
     const dataUrl = await readFileAsDataUrl(file);
-    const response = await fetch(apiUrl("/api/image-assets", { file: state.currentDocument.path }), {
+    const response = await fetch(apiUrl("/api/image-assets", {
+      file: state.currentDocument.path,
+      locale: state.locale,
+    }), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -6106,17 +6199,17 @@ async function pasteImageAsset(file) {
         name: file.name || "",
       }),
     });
-    const payload = await response.json().catch(() => ({ error: "图片保存失败" }));
+    const payload = await response.json().catch(() => ({ error: t("error.saveImage") }));
     if (!response.ok) {
-      throw new Error(payload.error || "图片保存失败");
+      throw new Error(payload.error || t("error.saveImage"));
     }
     await applyBranchProtectionPayload(payload);
     recordTelemetryFeature("editing.image_paste", { result: "success" });
-    showCopyToast("已插入图片");
+    showCopyToast(t("toast.imageInserted"));
     return payload.tag || "";
   } catch (error) {
     recordTelemetryFeature("editing.image_paste", { result: "error" });
-    showCopyToast(error instanceof Error ? error.message : "图片保存失败");
+    showCopyToast(error instanceof Error ? error.message : t("error.saveImage"));
     return "";
   }
 }
@@ -6145,13 +6238,12 @@ async function runSlashCommand(command) {
 
   if (command.custom === "doclink") {
     const result = await showLinkFieldsDialog({
-      title: "添加仓库文档链接",
-      message: "link 填当前仓库内 Markdown / MDX 路径；title 可留空，保存时会使用目标文档标题。",
+      title: t("link.repositoryTitle"),
+      message: t("link.repositoryHelp"),
       titleValue: "",
       linkValue: "",
-      linkLabel: "link",
       linkPlaceholder: "docs/example.md",
-      confirmText: "插入链接",
+      confirmText: t("link.insert"),
     });
     if (!result.confirmed) {
       return null;
@@ -6167,9 +6259,9 @@ async function showLinkFieldsDialog({
   message,
   titleValue = "",
   linkValue = "",
-  linkLabel = "link",
+  linkLabel = t("link.fieldLink"),
   linkPlaceholder = "",
-  confirmText = "保存链接",
+  confirmText = t("link.save"),
 } = {}) {
   return showAppDialog({
     title,
@@ -6177,9 +6269,9 @@ async function showLinkFieldsDialog({
     fields: [
       {
         id: "title",
-        label: "title",
+        label: t("link.fieldTitle"),
         value: titleValue,
-        placeholder: "留空时自动使用默认标题",
+        placeholder: t("link.defaultTitlePlaceholder"),
       },
       {
         id: "link",
@@ -6189,7 +6281,7 @@ async function showLinkFieldsDialog({
       },
     ],
     confirmText,
-    cancelText: "取消",
+    cancelText: t("action.cancel"),
   });
 }
 
@@ -6200,13 +6292,12 @@ async function externalLinkMarkdown(url = "", selectedText = "") {
     ? await externalLinkTitle(normalizedUrl)
     : "";
   const result = await showLinkFieldsDialog({
-    title: "添加链接",
-    message: "外部链接请填写 URL；title 留空时会使用 URL。",
+    title: t("link.externalTitle"),
+    message: t("link.externalHelp"),
     titleValue: selectedText.trim() || fetchedTitle,
     linkValue: normalizedUrl || "https://",
-    linkLabel: "link",
     linkPlaceholder: "https://example.com",
-    confirmText: "插入链接",
+    confirmText: t("link.insert"),
   });
   if (!result.confirmed) {
     return "";
@@ -6218,7 +6309,7 @@ async function externalLinkMarkdown(url = "", selectedText = "") {
 function externalLinkMarkdownFromFields(title, url) {
   const normalizedUrl = String(url ?? "").trim();
   if (!/^https?:\/\/\S+$/i.test(normalizedUrl)) {
-    showCopyToast("链接 URL 无效");
+    showCopyToast(t("link.invalidUrl"));
     return "";
   }
 
@@ -6249,15 +6340,16 @@ async function documentLinkMarkdown(target, titleOverride = "") {
     const response = await fetch(apiUrl("/api/link-target", {
       file: state.currentDocument.path,
       target: normalizedTarget,
+      locale: state.locale,
     }));
-    const payload = await response.json().catch(() => ({ error: "无法读取目标文档" }));
+    const payload = await response.json().catch(() => ({ error: t("error.readTargetDocument") }));
     if (!response.ok) {
-      throw new Error(payload.error || "无法读取目标文档");
+      throw new Error(payload.error || t("error.readTargetDocument"));
     }
     const title = String(titleOverride ?? "").trim() || payload.title || payload.path;
     return `[${escapeMarkdownLinkText(title)}](${payload.href})`;
   } catch (error) {
-    showCopyToast(error instanceof Error ? error.message : "无法插入文档链接");
+    showCopyToast(error instanceof Error ? error.message : t("error.insertDocumentLink"));
     return "";
   }
 }
@@ -6283,7 +6375,7 @@ function readFileAsDataUrl(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.addEventListener("load", () => resolve(String(reader.result ?? "")));
-    reader.addEventListener("error", () => reject(reader.error ?? new Error("读取图片失败")));
+    reader.addEventListener("error", () => reject(reader.error ?? new Error(t("error.readImage"))));
     reader.readAsDataURL(file);
   });
 }
@@ -6472,14 +6564,14 @@ function renderFrontmatterFieldPopover() {
   const editor = renderFrontmatterFieldEditor(profile, field.value);
   const actions = [
     `<span class="frontmatter-field-popover-key">${escapeHtml(field.key)}</span>`,
-    editor || "<button type=\"button\" data-frontmatter-field-action=\"edit\">编辑</button>",
+    editor || `<button type="button" data-frontmatter-field-action="edit">${escapeHtml(t("action.edit"))}</button>`,
   ].filter(Boolean);
   if (profile.type === "date" && editor) {
-    actions.push("<button type=\"button\" data-frontmatter-field-action=\"today\">今天</button>");
+    actions.push(`<button type="button" data-frontmatter-field-action="today">${escapeHtml(t("action.today"))}</button>`);
   }
   actions.push(
-    "<button type=\"button\" data-frontmatter-field-action=\"add\">添加字段</button>",
-    "<button type=\"button\" data-frontmatter-field-action=\"delete\">删除</button>",
+    `<button type="button" data-frontmatter-field-action="add">${escapeHtml(t("action.addField"))}</button>`,
+    `<button type="button" data-frontmatter-field-action="delete">${escapeHtml(t("action.delete"))}</button>`,
   );
   frontmatterFieldPopover.innerHTML = actions.join("");
 }
@@ -6499,7 +6591,7 @@ function renderFrontmatterSelectEditor(definition, value, values) {
     values.unshift(currentValue);
   }
   const options = [
-    currentValue ? "" : "<option value=\"\">选择...</option>",
+    currentValue ? "" : `<option value="">${escapeHtml(t("action.select"))}</option>`,
     ...values.map((item) => (
       `<option value="${escapeHtml(item)}"${item === currentValue ? " selected" : ""}>${escapeHtml(item)}</option>`
     )),
@@ -6610,10 +6702,10 @@ async function editActiveFrontmatterField() {
 
   const definition = frontmatterFieldDefinition(field.key);
   const { confirmed, values } = await showAppDialog({
-    title: `编辑 ${field.key}`,
+    title: t("frontmatter.editTitle", { key: field.key }),
     fields: [dialogFieldForFrontmatterValue(definition, field.value)],
-    confirmText: "保存",
-    cancelText: "取消",
+    confirmText: t("action.save"),
+    cancelText: t("action.cancel"),
   });
   if (!confirmed) {
     return;
@@ -6638,7 +6730,7 @@ function updateActiveFrontmatterFieldValue(value) {
 
   const nextLine = frontmatterLineForValue(field.key, value);
   if (!nextLine) {
-    showCopyToast("字段名无效");
+    showCopyToast(t("frontmatter.invalidKey"));
     return;
   }
   const updated = state.sourceEditor.replaceLine(field.line, nextLine, { preserveSelection: true });
@@ -6652,7 +6744,7 @@ function updateActiveFrontmatterFieldValue(value) {
     element: null,
   };
   recordTelemetryFeature("editing.frontmatter", { action: "edit", result: "success" });
-  showCopyToast("已更新 frontmatter");
+  showCopyToast(t("frontmatter.updated"));
   window.requestAnimationFrame(() => {
     markActiveFrontmatterField();
     renderFrontmatterFieldPopover();
@@ -6673,7 +6765,7 @@ function deleteActiveFrontmatterField() {
   }
   clearActiveFrontmatterField();
   recordTelemetryFeature("editing.frontmatter", { action: "delete", result: "success" });
-  showCopyToast("已删除 frontmatter 字段");
+  showCopyToast(t("frontmatter.deleted"));
 }
 
 async function addFrontmatterField() {
@@ -6685,20 +6777,20 @@ async function addFrontmatterField() {
   const existingKeys = new Set(frontmatterKeysFromSource(source));
   const fields = frontmatterProfileFields().filter((field) => !existingKeys.has(field.key));
   if (fields.length === 0) {
-    showCopyToast("没有可添加的 frontmatter 字段");
+    showCopyToast(t("frontmatter.noneAvailable"));
     return;
   }
 
   const fieldResult = await showAppDialog({
-    title: "添加 frontmatter 字段",
+    title: t("frontmatter.addTitle"),
     fields: [{
       id: "field",
-      label: "字段",
+      label: t("frontmatter.field"),
       value: fields[0].key,
       options: fields.map((field) => ({ label: field.key, value: field.key })),
     }],
-    confirmText: "下一步",
-    cancelText: "取消",
+    confirmText: t("action.next"),
+    cancelText: t("action.cancel"),
   });
   if (!fieldResult.confirmed) {
     return;
@@ -6706,10 +6798,10 @@ async function addFrontmatterField() {
 
   const definition = frontmatterFieldDefinition(fieldResult.values.field);
   const valueResult = await showAppDialog({
-    title: `设置 ${definition.key}`,
+    title: t("frontmatter.setTitle", { key: definition.key }),
     fields: [dialogFieldForFrontmatterValue(definition, defaultFrontmatterValue(definition))],
-    confirmText: "添加",
-    cancelText: "取消",
+    confirmText: t("action.add"),
+    cancelText: t("action.cancel"),
   });
   if (!valueResult.confirmed) {
     return;
@@ -6719,7 +6811,7 @@ async function addFrontmatterField() {
   state.sourceEditor.replaceDocument(nextSource);
   clearActiveFrontmatterField();
   recordTelemetryFeature("editing.frontmatter", { action: "add", result: "success" });
-  showCopyToast("已添加 frontmatter 字段");
+  showCopyToast(t("frontmatter.added"));
 }
 
 function frontmatterProfileFields() {
@@ -6805,13 +6897,12 @@ async function editActiveLiveLink() {
   const lines = source.split(/\r?\n/);
   const currentLine = lines[link.line - 1] ?? "";
   const result = await showLinkFieldsDialog({
-    title: "修改链接",
-    message: "外部链接填 URL；仓库内文档填相对路径、根路径或 Git Leaf 文档 URL。",
+    title: t("link.editTitle"),
+    message: t("link.editHelp"),
     titleValue: link.text,
     linkValue: link.href,
-    linkLabel: "link",
-    linkPlaceholder: "docs/example.md 或 https://example.com",
-    confirmText: "保存链接",
+    linkPlaceholder: t("link.placeholder"),
+    confirmText: t("link.save"),
   });
   if (!result.confirmed) {
     return;
@@ -6840,7 +6931,7 @@ async function editActiveLiveLink() {
     href: nextLink.href,
     element: null,
   };
-  showCopyToast("已更新链接");
+  showCopyToast(t("link.updated"));
   window.requestAnimationFrame(() => {
     markActiveLink();
     positionLinkPopover();
@@ -6850,7 +6941,7 @@ async function editActiveLiveLink() {
 async function markdownFromLinkFields(values = {}) {
   const href = String(values.link ?? "").trim();
   if (!href) {
-    showCopyToast("链接不能为空");
+    showCopyToast(t("link.empty"));
     return "";
   }
 
@@ -6901,10 +6992,11 @@ async function liveDocumentTargetFromHref(href) {
     const response = await fetch(apiUrl("/api/link-target", {
       file: state.currentDocument.path,
       target: href,
+      locale: state.locale,
     }));
-    const payload = await response.json().catch(() => ({ error: "无法打开目标文档" }));
+    const payload = await response.json().catch(() => ({ error: t("error.openTargetDocument") }));
     if (!response.ok || !payload.path) {
-      throw new Error(payload.error || "无法打开目标文档");
+      throw new Error(payload.error || t("error.openTargetDocument"));
     }
     return {
       repo: payload.repo || state.currentRepo,
@@ -6912,7 +7004,7 @@ async function liveDocumentTargetFromHref(href) {
       hash: hashFromHref(payload.href || href),
     };
   } catch (error) {
-    showCopyToast(error instanceof Error ? error.message : "无法打开目标文档");
+    showCopyToast(error instanceof Error ? error.message : t("error.openTargetDocument"));
     return null;
   }
 }
@@ -7002,12 +7094,12 @@ async function handleImagePopoverClick(event) {
   if (action === "caption") {
     const currentCaption = imageLineAttributes(currentLine)?.["data-caption"] ?? "";
     const { confirmed, value } = await showAppDialog({
-      title: "图片说明",
-      message: "说明文字会显示在图片下方，并写入当前图片的 data-caption 属性。",
-      inputLabel: "说明文字",
+      title: t("image.captionTitle"),
+      message: t("image.captionHelp"),
+      inputLabel: t("image.captionLabel"),
       inputValue: currentCaption,
-      confirmText: "保存说明",
-      cancelText: "取消",
+      confirmText: t("image.saveCaption"),
+      cancelText: t("action.cancel"),
     });
     if (!confirmed) {
       return;
@@ -7026,7 +7118,7 @@ async function handleImagePopoverClick(event) {
   }
 
   updateActiveImageElementFromLine(nextLine);
-  showCopyToast("已更新图片");
+  showCopyToast(t("image.updated"));
   window.requestAnimationFrame(() => {
     markActiveImage();
     positionImagePopover();
@@ -7304,7 +7396,7 @@ function shareLinkClipboardTitle(value, fallbackPath = "") {
     // Fall back to the repository-relative file name for malformed legacy URLs.
   }
 
-  return String(fallbackPath).split("/").at(-1)?.trim() || "Git Leaf 文档";
+  return String(fallbackPath).split("/").at(-1)?.trim() || t("document.fallbackTitle");
 }
 
 function copyWithTextarea(value) {

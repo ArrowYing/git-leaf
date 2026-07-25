@@ -1,4 +1,18 @@
 import { tableLayoutStyleString } from "./table-layout.mjs";
+import { createTranslator } from "../public/i18n.js";
+
+const TABLE_MESSAGES = Object.freeze({
+  en: Object.freeze({
+    "table.filter": "Filter current table",
+    "table.freezeFirstColumn": "Freeze first column",
+    "table.copyCsv": "Copy CSV",
+  }),
+  "zh-CN": Object.freeze({
+    "table.filter": "筛选当前表格",
+    "table.freezeFirstColumn": "冻结首列",
+    "table.copyCsv": "复制 CSV",
+  }),
+});
 
 const DEFAULTS = {
   complexRows: 20,
@@ -75,20 +89,24 @@ export function tableCardAttributeString(attributes, layout = null) {
   ].filter(Boolean).join(" ");
 }
 
-export function renderTableToolbar(attributes) {
+export function renderTableToolbar(attributes, { locale = "en" } = {}) {
   if (!attributes.toolbar) {
     return "";
   }
+  const t = createTranslator(TABLE_MESSAGES, locale);
+  const filterLabel = escapeAttribute(t("table.filter"));
 
   return [
     '<div class="table-toolbar">',
     attributes.search
-      ? '<label class="table-search"><input type="search" data-table-search aria-label="筛选当前表格" placeholder="筛选当前表格"></label>'
+      ? `<label class="table-search"><input type="search" data-table-search aria-label="${filterLabel}" placeholder="${filterLabel}"></label>`
       : "",
     attributes.freezeFirstColumn
-      ? '<label class="table-toggle"><input type="checkbox" data-table-freeze> 冻结首列</label>'
+      ? `<label class="table-toggle"><input type="checkbox" data-table-freeze> ${escapeHtml(t("table.freezeFirstColumn"))}</label>`
       : "",
-    attributes.copyCsv ? '<button type="button" data-table-copy>复制 CSV</button>' : "",
+    attributes.copyCsv
+      ? `<button type="button" data-table-copy>${escapeHtml(t("table.copyCsv"))}</button>`
+      : "",
     "</div>",
   ].join("");
 }
@@ -120,4 +138,17 @@ function booleanOverride(value, fallback) {
     return false;
   }
   return fallback;
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
+}
+
+function escapeAttribute(value) {
+  return escapeHtml(value)
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
 }

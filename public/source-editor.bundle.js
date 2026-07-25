@@ -33409,6 +33409,35 @@ MarkdownIt.prototype.renderInline = function(src, env) {
 };
 var lib_default = MarkdownIt;
 
+// public/i18n.js
+var DEFAULT_LOCALE = "en";
+var SUPPORTED_LOCALES = Object.freeze(["en", "zh-CN"]);
+function normalizeLocaleTag(value, fallback = DEFAULT_LOCALE) {
+  const normalized = String(value ?? "").trim().replaceAll("_", "-").toLowerCase();
+  if (normalized === "zh" || normalized.startsWith("zh-")) {
+    return "zh-CN";
+  }
+  if (normalized === "en" || normalized.startsWith("en-")) {
+    return "en";
+  }
+  return SUPPORTED_LOCALES.includes(fallback) ? fallback : DEFAULT_LOCALE;
+}
+function formatMessage(template, values2 = {}) {
+  return String(template ?? "").replace(/\{([A-Za-z0-9_]+)\}/g, (match2, key) => Object.hasOwn(values2, key) ? String(values2[key]) : match2);
+}
+function createTranslator(messages, locale = DEFAULT_LOCALE) {
+  const resolvedLocale = normalizeLocaleTag(locale);
+  const localizedMessages = messages?.[resolvedLocale] ?? {};
+  const fallbackMessages = messages?.[DEFAULT_LOCALE] ?? {};
+  const translate = (key, values2 = {}, fallback = key) => {
+    const template = localizedMessages[key] ?? fallbackMessages[key] ?? fallback;
+    return formatMessage(template, values2);
+  };
+  translate.locale = resolvedLocale;
+  translate.messages = messages;
+  return translate;
+}
+
 // src/table-layout.mjs
 var WIDTHS = {
   number: { min: 64, max: 108 },
@@ -33630,6 +33659,18 @@ function clamp(value, min, max) {
 }
 
 // src/table-complexity.mjs
+var TABLE_MESSAGES = Object.freeze({
+  en: Object.freeze({
+    "table.filter": "Filter current table",
+    "table.freezeFirstColumn": "Freeze first column",
+    "table.copyCsv": "Copy CSV"
+  }),
+  "zh-CN": Object.freeze({
+    "table.filter": "\u7B5B\u9009\u5F53\u524D\u8868\u683C",
+    "table.freezeFirstColumn": "\u51BB\u7ED3\u9996\u5217",
+    "table.copyCsv": "\u590D\u5236 CSV"
+  })
+});
 var DEFAULTS = {
   complexRows: 20,
   complexColumns: 8,
@@ -33694,15 +33735,17 @@ function tableCardAttributeString(attributes, layout = null) {
     layout ? `style="${tableLayoutStyleString(layout)}"` : ""
   ].filter(Boolean).join(" ");
 }
-function renderTableToolbar(attributes) {
+function renderTableToolbar(attributes, { locale = "en" } = {}) {
   if (!attributes.toolbar) {
     return "";
   }
+  const t2 = createTranslator(TABLE_MESSAGES, locale);
+  const filterLabel = escapeAttribute2(t2("table.filter"));
   return [
     '<div class="table-toolbar">',
-    attributes.search ? '<label class="table-search"><input type="search" data-table-search aria-label="\u7B5B\u9009\u5F53\u524D\u8868\u683C" placeholder="\u7B5B\u9009\u5F53\u524D\u8868\u683C"></label>' : "",
-    attributes.freezeFirstColumn ? '<label class="table-toggle"><input type="checkbox" data-table-freeze> \u51BB\u7ED3\u9996\u5217</label>' : "",
-    attributes.copyCsv ? '<button type="button" data-table-copy>\u590D\u5236 CSV</button>' : "",
+    attributes.search ? `<label class="table-search"><input type="search" data-table-search aria-label="${filterLabel}" placeholder="${filterLabel}"></label>` : "",
+    attributes.freezeFirstColumn ? `<label class="table-toggle"><input type="checkbox" data-table-freeze> ${escapeHtml2(t2("table.freezeFirstColumn"))}</label>` : "",
+    attributes.copyCsv ? `<button type="button" data-table-copy>${escapeHtml2(t2("table.copyCsv"))}</button>` : "",
     "</div>"
   ].join("");
 }
@@ -33732,6 +33775,12 @@ function booleanOverride(value, fallback) {
   }
   return fallback;
 }
+function escapeHtml2(value) {
+  return String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+}
+function escapeAttribute2(value) {
+  return escapeHtml2(value).replaceAll('"', "&quot;").replaceAll("'", "&#39;");
+}
 
 // src/mdx-lite.mjs
 var COMPONENT_NAMES = /* @__PURE__ */ new Set([
@@ -33743,6 +33792,20 @@ var COMPONENT_NAMES = /* @__PURE__ */ new Set([
   "FlowDiagram"
 ]);
 var CHART_COLORS = ["#2563eb", "#dc2626", "#16a34a", "#d97706", "#7c3aed", "#0891b2"];
+var MDX_MESSAGES = Object.freeze({
+  en: Object.freeze({
+    "component.error": "Failed to render MDX component: {message}",
+    "decision.kicker": "Decision",
+    "flow.ariaLabel": "Flow diagram",
+    "chart.unit": "Unit: {unit}"
+  }),
+  "zh-CN": Object.freeze({
+    "component.error": "MDX \u7EC4\u4EF6\u6E32\u67D3\u5931\u8D25\uFF1A{message}",
+    "decision.kicker": "\u51B3\u7B56",
+    "flow.ariaLabel": "\u6D41\u7A0B\u56FE",
+    "chart.unit": "\u5355\u4F4D\uFF1A{unit}"
+  })
+});
 function mdxLiteBlockRule(state, startLine, endLine, silent) {
   const line = sourceLine(state, startLine).trim();
   const open = line.match(/^<([A-Z][A-Za-z0-9]*)\b([^>]*)>\s*$/);
@@ -33773,38 +33836,43 @@ function mdxLiteBlockRule(state, startLine, endLine, silent) {
   state.line = closeLine + 1;
   return true;
 }
-function renderMdxLiteComponent(token) {
+function renderMdxLiteComponent(token, { locale = "en" } = {}) {
   const name2 = token.meta?.name;
   const attributes = token.meta?.attributes ?? {};
+  const translate = createTranslator(MDX_MESSAGES, locale);
   try {
     if (name2 === "DataTable") {
-      return renderDataTable(token.content, attributes);
+      return renderDataTable(token.content, attributes, translate);
     }
     if (name2 === "Timeline") {
-      return renderTimeline(token.content, attributes);
+      return renderTimeline(token.content, attributes, translate);
     }
     if (name2 === "Chart") {
-      return renderChart(token.content, attributes);
+      return renderChart(token.content, attributes, translate);
     }
     if (name2 === "DecisionBox") {
-      return renderDecisionBox(token.content, attributes);
+      return renderDecisionBox(token.content, attributes, translate);
     }
     if (name2 === "MetricGrid") {
-      return renderMetricGrid(token.content, attributes);
+      return renderMetricGrid(token.content, attributes, translate);
     }
     if (name2 === "FlowDiagram") {
-      return renderFlowDiagram(token.content, attributes);
+      return renderFlowDiagram(token.content, attributes, translate);
     }
   } catch (error2) {
-    return componentError(name2, error2);
+    return componentError(name2, error2, translate);
   }
-  return componentError(name2, new Error("Unsupported MDX-lite component."));
+  return componentError(name2, new Error("Unsupported MDX-lite component."), translate);
 }
-function renderDataTable(content2, attributes) {
+function renderDataTable(content2, attributes, translate) {
   const rows = extractRows(content2);
   const columns = columnsForRows(rows, attributes.columns);
   if (rows.length === 0 || columns.length === 0) {
-    return componentError("DataTable", new Error("DataTable requires CSV, JSON, or a Markdown table."));
+    return componentError(
+      "DataTable",
+      new Error("DataTable requires CSV, JSON, or a Markdown table."),
+      translate
+    );
   }
   const tableAttributes = tableComplexityAttributes({
     rows,
@@ -33819,25 +33887,25 @@ function renderDataTable(content2, attributes) {
   return [
     '<div class="mdx-component mdx-data-table" data-mdx-component="DataTable">',
     `<div ${tableCardAttributeString(tableAttributes, tableLayout)}>`,
-    renderTableToolbar(tableAttributes),
+    renderTableToolbar(tableAttributes, { locale: translate.locale }),
     `<div ${tableScrollAttributeString(tableLayout)}><table>`,
     renderTableColgroup(tableLayout),
-    attributes.title ? `<caption>${escapeHtml2(attributes.title)}</caption>` : "",
+    attributes.title ? `<caption>${escapeHtml3(attributes.title)}</caption>` : "",
     "<thead><tr>",
-    columns.map((column) => `<th>${escapeHtml2(column)}</th>`).join(""),
+    columns.map((column) => `<th>${escapeHtml3(column)}</th>`).join(""),
     "</tr></thead><tbody>",
-    rows.map((row) => `<tr>${columns.map((column) => `<td>${escapeHtml2(row[column] ?? "")}</td>`).join("")}</tr>`).join(""),
+    rows.map((row) => `<tr>${columns.map((column) => `<td>${escapeHtml3(row[column] ?? "")}</td>`).join("")}</tr>`).join(""),
     "</tbody></table></div></div></div>"
   ].join("");
 }
-function renderTimeline(content2, attributes) {
+function renderTimeline(content2, attributes, translate) {
   const rows = extractRows(content2);
   if (rows.length === 0) {
-    return componentError("Timeline", new Error("Timeline requires CSV or JSON rows."));
+    return componentError("Timeline", new Error("Timeline requires CSV or JSON rows."), translate);
   }
   return [
     '<section class="mdx-component mdx-timeline" data-mdx-component="Timeline">',
-    attributes.title ? `<h3 class="mdx-component-title">${escapeHtml2(attributes.title)}</h3>` : "",
+    attributes.title ? `<h3 class="mdx-component-title">${escapeHtml3(attributes.title)}</h3>` : "",
     '<ol class="mdx-timeline-list">',
     rows.map(renderTimelineItem).join(""),
     "</ol></section>"
@@ -33853,14 +33921,14 @@ function renderTimelineItem(row) {
     `<li class="mdx-timeline-item is-${status}">`,
     '<div class="mdx-timeline-marker" aria-hidden="true"></div>',
     '<div class="mdx-timeline-content">',
-    date ? `<time>${escapeHtml2(date)}</time>` : "",
-    title ? `<strong>${escapeHtml2(title)}</strong>` : "",
-    body ? `<p>${escapeHtml2(body)}</p>` : "",
-    owner ? `<span class="mdx-timeline-meta">${escapeHtml2(owner)}</span>` : "",
+    date ? `<time>${escapeHtml3(date)}</time>` : "",
+    title ? `<strong>${escapeHtml3(title)}</strong>` : "",
+    body ? `<p>${escapeHtml3(body)}</p>` : "",
+    owner ? `<span class="mdx-timeline-meta">${escapeHtml3(owner)}</span>` : "",
     "</div></li>"
   ].join("");
 }
-function renderDecisionBox(content2, attributes) {
+function renderDecisionBox(content2, attributes, translate) {
   const rows = extractRows(content2);
   const items = rows.map((row) => ({
     label: row.label ?? row.key ?? row.name ?? row.item ?? "",
@@ -33868,15 +33936,15 @@ function renderDecisionBox(content2, attributes) {
   })).filter((item) => item.label || item.value);
   const status = normalizeDecisionStatus(attributes.status || attributes.decisionStatus);
   const badges = [
-    status ? `<span class="mdx-decision-badge">${escapeHtml2(status)}</span>` : "",
-    attributes.owner ? `<span class="mdx-decision-badge">${escapeHtml2(attributes.owner)}</span>` : "",
-    attributes.source ? `<span class="mdx-decision-badge">${escapeHtml2(attributes.source)}</span>` : ""
+    status ? `<span class="mdx-decision-badge">${escapeHtml3(status)}</span>` : "",
+    attributes.owner ? `<span class="mdx-decision-badge">${escapeHtml3(attributes.owner)}</span>` : "",
+    attributes.source ? `<span class="mdx-decision-badge">${escapeHtml3(attributes.source)}</span>` : ""
   ].filter(Boolean).join("");
   return [
     `<section class="mdx-component mdx-decision-box is-${status || "default"}" data-mdx-component="DecisionBox">`,
     '<div class="mdx-decision-header">',
-    '<span class="mdx-component-kicker">Decision</span>',
-    attributes.title ? `<h3 class="mdx-component-title">${escapeHtml2(attributes.title)}</h3>` : "",
+    `<span class="mdx-component-kicker">${escapeHtml3(translate("decision.kicker"))}</span>`,
+    attributes.title ? `<h3 class="mdx-component-title">${escapeHtml3(attributes.title)}</h3>` : "",
     badges ? `<div class="mdx-decision-badges">${badges}</div>` : "",
     "</div>",
     items.length > 0 ? `<dl class="mdx-decision-list">${items.map(renderDecisionItem).join("")}</dl>` : `<div class="mdx-decision-body">${renderRichBlock(content2)}</div>`,
@@ -33886,15 +33954,19 @@ function renderDecisionBox(content2, attributes) {
 function renderDecisionItem(item) {
   return [
     "<div>",
-    item.label ? `<dt>${escapeHtml2(item.label)}</dt>` : "",
+    item.label ? `<dt>${escapeHtml3(item.label)}</dt>` : "",
     item.value ? `<dd>${renderInlineText(item.value)}</dd>` : "",
     "</div>"
   ].join("");
 }
-function renderMetricGrid(content2, attributes) {
+function renderMetricGrid(content2, attributes, translate) {
   const rows = extractRows(content2);
   if (rows.length === 0) {
-    return componentError("MetricGrid", new Error("MetricGrid requires CSV, JSON, or a Markdown table."));
+    return componentError(
+      "MetricGrid",
+      new Error("MetricGrid requires CSV, JSON, or a Markdown table."),
+      translate
+    );
   }
   const items = rows.map((row) => ({
     label: row.label ?? row.metric ?? row.name ?? row.title ?? "",
@@ -33905,7 +33977,7 @@ function renderMetricGrid(content2, attributes) {
   })).filter((item) => item.label || item.value);
   return [
     '<section class="mdx-component mdx-metric-grid" data-mdx-component="MetricGrid">',
-    attributes.title ? `<h3 class="mdx-component-title">${escapeHtml2(attributes.title)}</h3>` : "",
+    attributes.title ? `<h3 class="mdx-component-title">${escapeHtml3(attributes.title)}</h3>` : "",
     '<div class="mdx-metric-grid-items">',
     items.map(renderMetricItem).join(""),
     "</div></section>"
@@ -33914,56 +33986,61 @@ function renderMetricGrid(content2, attributes) {
 function renderMetricItem(item) {
   return [
     `<article class="mdx-metric-item is-${item.status}">`,
-    item.label ? `<span class="mdx-metric-label">${escapeHtml2(item.label)}</span>` : "",
-    item.value ? `<strong>${escapeHtml2(item.value)}</strong>` : "",
-    item.delta ? `<span class="mdx-metric-delta">${escapeHtml2(item.delta)}</span>` : "",
-    item.note ? `<p>${escapeHtml2(item.note)}</p>` : "",
+    item.label ? `<span class="mdx-metric-label">${escapeHtml3(item.label)}</span>` : "",
+    item.value ? `<strong>${escapeHtml3(item.value)}</strong>` : "",
+    item.delta ? `<span class="mdx-metric-delta">${escapeHtml3(item.delta)}</span>` : "",
+    item.note ? `<p>${escapeHtml3(item.note)}</p>` : "",
     "</article>"
   ].join("");
 }
-function renderFlowDiagram(content2, attributes) {
+function renderFlowDiagram(content2, attributes, translate) {
   const model = extractFlowDiagram(content2);
   if (model.nodes.length === 0) {
-    return componentError("FlowDiagram", new Error("FlowDiagram requires nodes."));
+    return componentError("FlowDiagram", new Error("FlowDiagram requires nodes."), translate);
   }
   const layout = layoutFlowDiagram(model.nodes, model.edges);
   return [
     '<figure class="mdx-component mdx-flow-diagram" data-mdx-component="FlowDiagram">',
-    attributes.title ? `<figcaption>${escapeHtml2(attributes.title)}</figcaption>` : "",
+    attributes.title ? `<figcaption>${escapeHtml3(attributes.title)}</figcaption>` : "",
     '<div class="mdx-flow-scroll">',
-    `<svg viewBox="0 0 ${layout.width} ${layout.height}" role="img" aria-label="${escapeHtml2(attributes.title || "Flow diagram")}">`,
+    `<svg viewBox="0 0 ${layout.width} ${layout.height}" role="img" aria-label="${escapeHtml3(attributes.title || translate("flow.ariaLabel"))}">`,
     '<defs><marker id="mdx-flow-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z"></path></marker></defs>',
     layout.edges.map((edge) => renderFlowEdge(edge, layout)).join(""),
     layout.nodes.map((node) => renderFlowNode(node, layout)).join(""),
     "</svg></div>",
-    attributes.note ? `<p class="mdx-flow-note">${escapeHtml2(attributes.note)}</p>` : "",
+    attributes.note ? `<p class="mdx-flow-note">${escapeHtml3(attributes.note)}</p>` : "",
     "</figure>"
   ].join("");
 }
-function renderChart(content2, attributes) {
+function renderChart(content2, attributes, translate) {
   const rows = extractRows(content2);
   if (rows.length === 0) {
-    return componentError("Chart", new Error("Chart requires CSV or JSON rows."));
+    return componentError("Chart", new Error("Chart requires CSV or JSON rows."), translate);
   }
   const xKey = attributes.x || Object.keys(rows[0] ?? {})[0];
   const type = chartTypeFromAttributes(attributes);
   const seriesKeys = chartSeriesKeys(attributes).filter((key) => key !== xKey && rows.some((row) => Number.isFinite(toNumber(row[key]))));
   if (!xKey || seriesKeys.length === 0) {
-    return componentError("Chart", new Error("Chart requires x and numeric series fields."));
+    return componentError(
+      "Chart",
+      new Error("Chart requires x and numeric series fields."),
+      translate
+    );
   }
   const chartType = type || (seriesKeys.length > 1 ? "line" : "bar");
   const model = buildChartModel({ rows, xKey, seriesKeys, attributes, type: chartType });
+  model.translate = translate;
   configureChartSeries(model, chartType);
   const chartError = chartModelError(model, chartType);
   if (chartError) {
-    return componentError("Chart", chartError);
+    return componentError("Chart", chartError, translate);
   }
   const svg = chartType === "bar" ? renderBarSvg(model) : chartType === "grouped-bar" ? renderGroupedBarSvg(model) : chartType === "stacked-bar" ? renderStackedBarSvg(model) : chartType === "combo" ? renderComboSvg(model) : chartType === "combo-dual-axis" ? renderComboSvg(model, { dualAxis: true }) : renderLineSvg(model);
   return [
     '<figure class="mdx-component mdx-chart" data-mdx-component="Chart">',
-    attributes.title ? `<figcaption>${escapeHtml2(attributes.title)}</figcaption>` : "",
+    attributes.title ? `<figcaption>${escapeHtml3(attributes.title)}</figcaption>` : "",
     svg,
-    attributes.note ? `<p class="mdx-chart-note">${escapeHtml2(attributes.note)}</p>` : "",
+    attributes.note ? `<p class="mdx-chart-note">${escapeHtml3(attributes.note)}</p>` : "",
     "</figure>"
   ].join("");
 }
@@ -34246,13 +34323,13 @@ function renderComboSvg(model, { dualAxis = false } = {}) {
 function chartSvg(model, { min, max, x, y, body, rightAxis = null }) {
   const axisY = axisBaselineY(model, { min, max }, y);
   return [
-    `<svg viewBox="0 0 ${model.width} ${model.height}" role="img" aria-label="${escapeHtml2(model.title)}">`,
+    `<svg viewBox="0 0 ${model.width} ${model.height}" role="img" aria-label="${escapeHtml3(model.title)}">`,
     renderLegend(model),
     renderGrid(model, min, max, y),
     rightAxis ? renderRightAxis(model, rightAxis) : "",
     `<line class="mdx-chart-axis-line" x1="${model.pad.left}" y1="${axisY.toFixed(1)}" x2="${model.width - model.pad.right}" y2="${axisY.toFixed(1)}"></line>`,
-    model.unit ? `<text class="mdx-chart-unit-label" x="18" y="${model.pad.top + model.plotH / 2}" transform="rotate(-90 18 ${model.pad.top + model.plotH / 2})" text-anchor="middle" font-size="12" font-weight="700">\u5355\u4F4D\uFF1A${escapeHtml2(model.unit)}</text>` : "",
-    rightAxis && model.rightUnit ? `<text class="mdx-chart-unit-label mdx-chart-right-unit-label" x="${model.width - 18}" y="${model.pad.top + model.plotH / 2}" transform="rotate(90 ${model.width - 18} ${model.pad.top + model.plotH / 2})" text-anchor="middle" font-size="12" font-weight="700">\u5355\u4F4D\uFF1A${escapeHtml2(model.rightUnit)}</text>` : "",
+    model.unit ? `<text class="mdx-chart-unit-label" x="18" y="${model.pad.top + model.plotH / 2}" transform="rotate(-90 18 ${model.pad.top + model.plotH / 2})" text-anchor="middle" font-size="12" font-weight="700">${escapeHtml3(model.translate("chart.unit", { unit: model.unit }))}</text>` : "",
+    rightAxis && model.rightUnit ? `<text class="mdx-chart-unit-label mdx-chart-right-unit-label" x="${model.width - 18}" y="${model.pad.top + model.plotH / 2}" transform="rotate(90 ${model.width - 18} ${model.pad.top + model.plotH / 2})" text-anchor="middle" font-size="12" font-weight="700">${escapeHtml3(model.translate("chart.unit", { unit: model.rightUnit }))}</text>` : "",
     body,
     renderXAxis(model, x, axisY),
     "</svg>"
@@ -34264,7 +34341,7 @@ function axisBaselineY(model, range, y) {
 function renderLegend(model) {
   let cursor = model.pad.left;
   return model.series.map((item) => {
-    const label = escapeHtml2(item.label);
+    const label = escapeHtml3(item.label);
     const mark = item.role === "line" ? `<line x1="${cursor}" y1="24.5" x2="${cursor + 15}" y2="24.5" stroke="${item.color}" stroke-width="3" stroke-linecap="round"></line>` : `<rect x="${cursor}" y="22" width="15" height="5" fill="${item.color}" rx="2"></rect>`;
     const out = `${mark}<text class="mdx-chart-legend-label" x="${cursor + 20}" y="27" font-size="12">${label}</text>`;
     cursor += Math.max(72, item.label.length * 13 + 34);
@@ -34292,7 +34369,7 @@ function renderXAxis(model, x, axisY) {
     const highlight = model.highlights.has(label) ? `<rect class="mdx-chart-highlight-bg" x="${(x(index) - Math.max(36, label.length * 7) / 2).toFixed(1)}" y="${model.height - 38}" width="${Math.max(36, label.length * 7)}" height="18"></rect>` : "";
     return [
       `<line class="mdx-chart-x-tick${major ? " is-major" : " is-minor"}" x1="${x(index).toFixed(1)}" y1="${axisY.toFixed(1)}" x2="${x(index).toFixed(1)}" y2="${(axisY + (major ? 10 : 5)).toFixed(1)}"></line>`,
-      major ? `${highlight}<text${labelClass} x="${x(index).toFixed(1)}" y="${model.height - 24}" text-anchor="middle" font-size="12" font-weight="${model.highlights.has(label) ? 760 : 560}">${escapeHtml2(label)}</text>` : ""
+      major ? `${highlight}<text${labelClass} x="${x(index).toFixed(1)}" y="${model.height - 24}" text-anchor="middle" font-size="12" font-weight="${model.highlights.has(label) ? 760 : 560}">${escapeHtml3(label)}</text>` : ""
     ].join("");
   }).join("");
 }
@@ -34307,7 +34384,7 @@ function chartTooltipAttributes(model, index) {
     ...seriesLines
   ].filter(Boolean).join("\\n");
   const ariaLabel = tooltip.replaceAll("\\n", ", ");
-  return ` data-chart-tooltip="${escapeHtml2(tooltip)}" aria-label="${escapeHtml2(ariaLabel)}"`;
+  return ` data-chart-tooltip="${escapeHtml3(tooltip)}" aria-label="${escapeHtml3(ariaLabel)}"`;
 }
 function formatTooltipValue(value, unit) {
   const number2 = formatTooltipNumber(value);
@@ -34351,7 +34428,7 @@ function renderRichBlock(content2) {
   return blocks.join("");
 }
 function renderInlineText(value) {
-  return escapeHtml2(value).replace(/`([^`]+)`/g, "<code>$1</code>").replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+  return escapeHtml3(value).replace(/`([^`]+)`/g, "<code>$1</code>").replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
 }
 function stripTextFence(content2) {
   const dataBlock = extractDataBlock(content2);
@@ -34469,7 +34546,7 @@ function renderFlowEdge(edge, layout) {
   const tx = to.x + to.width / 2;
   const ty = to.y;
   const midY = sy + (ty - sy) / 2;
-  const label = edge.label ? `<text class="mdx-flow-edge-label" x="${((sx + tx) / 2).toFixed(1)}" y="${(midY - 7).toFixed(1)}" text-anchor="middle">${escapeHtml2(edge.label)}</text>` : "";
+  const label = edge.label ? `<text class="mdx-flow-edge-label" x="${((sx + tx) / 2).toFixed(1)}" y="${(midY - 7).toFixed(1)}" text-anchor="middle">${escapeHtml3(edge.label)}</text>` : "";
   return [
     `<path class="mdx-flow-edge" d="M ${sx.toFixed(1)} ${sy.toFixed(1)} C ${sx.toFixed(1)} ${midY.toFixed(1)}, ${tx.toFixed(1)} ${midY.toFixed(1)}, ${tx.toFixed(1)} ${ty.toFixed(1)}"></path>`,
     label
@@ -34482,9 +34559,9 @@ function renderFlowNode(node, layout) {
   const lines = wrapFlowText(node.label);
   const lineHeight = 15;
   const firstY = position.y + position.height / 2 - (lines.length - 1) * lineHeight / 2 + 5;
-  const title = node.note ? `<title>${escapeHtml2(node.note)}</title>` : "";
+  const title = node.note ? `<title>${escapeHtml3(node.note)}</title>` : "";
   const text2 = lines.map(
-    (line, index) => `<tspan x="${centerX.toFixed(1)}" y="${(firstY + index * lineHeight).toFixed(1)}">${escapeHtml2(line)}</tspan>`
+    (line, index) => `<tspan x="${centerX.toFixed(1)}" y="${(firstY + index * lineHeight).toFixed(1)}">${escapeHtml3(line)}</tspan>`
   ).join("");
   return [
     `<g class="mdx-flow-node is-${node.type}">`,
@@ -34704,8 +34781,8 @@ function normalizeFlowType(value) {
   if (["question", "branch", "condition"].includes(type)) return "decision";
   return "action";
 }
-function componentError(name2, error2) {
-  return `<div class="mdx-component-error" data-mdx-component="${escapeHtml2(name2 || "Unknown")}">MDX \u7EC4\u4EF6\u6E32\u67D3\u5931\u8D25\uFF1A${escapeHtml2(error2.message)}</div>`;
+function componentError(name2, error2, translate = createTranslator(MDX_MESSAGES, "en")) {
+  return `<div class="mdx-component-error" data-mdx-component="${escapeHtml3(name2 || "Unknown")}">${escapeHtml3(translate("component.error", { message: error2.message }))}</div>`;
 }
 function findClosingLine(state, startLine, endLine, name2) {
   for (let lineIndex = startLine; lineIndex < endLine; lineIndex += 1) {
@@ -34721,16 +34798,30 @@ function sourceLine(state, lineIndex) {
     state.eMarks[lineIndex]
   );
 }
-function escapeHtml2(value) {
+function escapeHtml3(value) {
   return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
 }
 
 // src/markdown.mjs
 var FRONT_MATTER_RE = /^---[ \t]*\r?\n[\s\S]*?\r?\n---[ \t]*\r?\n?/;
+var MARKDOWN_MESSAGES = Object.freeze({
+  en: Object.freeze({
+    "sourceLine.select": "Select line {line}",
+    "sourceLine.gutter": "Source line numbers"
+  }),
+  "zh-CN": Object.freeze({
+    "sourceLine.select": "\u9009\u62E9\u7B2C {line} \u884C",
+    "sourceLine.gutter": "\u6E90\u6587\u4EF6\u884C\u53F7"
+  })
+});
 function renderMarkdown(markdown2, options = {}) {
   const { source, lineOffset } = stripFrontmatter(markdown2);
-  const renderer = createRenderer(options);
-  return renderer.render(source, { lineOffset });
+  const translate = createTranslator(MARKDOWN_MESSAGES, options.locale);
+  const renderer = createRenderer({
+    ...options,
+    locale: translate.locale
+  });
+  return renderer.render(source, { lineOffset, translate });
 }
 function createRenderer(options) {
   const renderer = new lib_default({
@@ -34760,7 +34851,7 @@ function createRenderer(options) {
   });
   renderer.inline.ruler.before("html_inline", "safe_image_html_inline", safeImageHtmlInlineRule);
   renderer.inline.ruler.before("html_inline", "safe_html_break_inline", safeHtmlBreakInlineRule);
-  renderer.renderer.rules.mdx_lite_component = (tokens, index, rendererOptions, env) => sourceBlockOpen(tokens[index], env) + renderMdxLiteComponent(tokens[index]) + sourceBlockClose();
+  renderer.renderer.rules.mdx_lite_component = (tokens, index, rendererOptions, env) => sourceBlockOpen(tokens[index], env) + renderMdxLiteComponent(tokens[index], { locale: options.locale }) + sourceBlockClose();
   renderer.renderer.rules.safe_image_html = (tokens, index, rendererOptions, env) => sourceBlockOpen(tokens[index], env) + renderSafeImageHtml(tokens[index].content, options) + sourceBlockClose();
   renderer.renderer.rules.safe_image_gallery_html = (tokens, index, rendererOptions, env) => sourceBlockOpen(tokens[index], env) + renderSafeImageGalleryHtml(tokens[index].content, options) + sourceBlockClose();
   renderer.renderer.rules.safe_image_html_inline = (tokens, index) => renderSafeImageHtml(tokens[index].content, options, { inline: true });
@@ -34851,7 +34942,7 @@ function createRenderer(options) {
     return [
       sourceBlockOpen(tokens[index], env),
       `<div ${tableCardAttributeString(attributes, layout)}>`,
-      renderTableToolbar(attributes),
+      renderTableToolbar(attributes, { locale: options.locale }),
       `<div ${tableScrollAttributeString(layout)}><table>`,
       renderTableColgroup(layout)
     ].join("");
@@ -34932,7 +35023,7 @@ function renderSafeImageHtml(rawTag, options, { inline: inline2 = false } = {}) 
   const attributes = parseHtmlAttributes(rawTag);
   const src = attributes.src?.trim();
   if (!src) {
-    return escapeHtml3(rawTag);
+    return escapeHtml4(rawTag);
   }
   const alt = attributes.alt ?? "";
   const align = normalizeImageAlign(attributes["data-align"]);
@@ -34944,18 +35035,18 @@ function renderSafeImageHtml(rawTag, options, { inline: inline2 = false } = {}) 
     'class="git-leaf-image"',
     'data-git-leaf-image="true"',
     `data-image-align="${align}"`,
-    caption ? `data-image-caption="${escapeAttribute2(caption)}"` : "",
-    `src="${escapeAttribute2(transformedSrc)}"`,
-    `alt="${escapeAttribute2(alt)}"`,
-    width ? `width="${escapeAttribute2(width)}"` : "",
-    height ? `height="${escapeAttribute2(height)}"` : ""
+    caption ? `data-image-caption="${escapeAttribute3(caption)}"` : "",
+    `src="${escapeAttribute3(transformedSrc)}"`,
+    `alt="${escapeAttribute3(alt)}"`,
+    width ? `width="${escapeAttribute3(width)}"` : "",
+    height ? `height="${escapeAttribute3(height)}"` : ""
   ].filter(Boolean);
   const frameTag = inline2 ? "span" : "figure";
   const captionTag = inline2 ? "span" : "figcaption";
   return [
     `<${frameTag} class="git-leaf-image-frame is-align-${align}" data-image-align="${align}">`,
     `<img ${imageAttributes.join(" ")}>`,
-    caption ? `<${captionTag} class="git-leaf-image-caption">${escapeHtml3(caption)}</${captionTag}>` : "",
+    caption ? `<${captionTag} class="git-leaf-image-caption">${escapeHtml4(caption)}</${captionTag}>` : "",
     `</${frameTag}>`
   ].join("");
 }
@@ -35002,15 +35093,17 @@ function sourceBlockOpen(token, env, { lineLayout = "", lines = null } = {}) {
   const start = lineNumbers2[0] ?? fallbackStart;
   const end = lineNumbers2.at(-1) ?? fallbackEnd;
   const buttons = [];
+  const translate = typeof env.translate === "function" ? env.translate : createTranslator(MARKDOWN_MESSAGES, "en");
   for (const line of lineNumbers2) {
+    const lineLabel = escapeAttribute3(translate("sourceLine.select", { line }));
     buttons.push(
-      `<button type="button" class="source-line-button" data-source-line="${line}" title="\u9009\u62E9\u7B2C ${line} \u884C">${line}</button>`
+      `<button type="button" class="source-line-button" data-source-line="${line}" title="${lineLabel}" aria-label="${lineLabel}">${line}</button>`
     );
   }
-  const lineLayoutAttribute = lineLayout ? ` data-source-line-layout="${escapeAttribute2(lineLayout)}"` : "";
+  const lineLayoutAttribute = lineLayout ? ` data-source-line-layout="${escapeAttribute3(lineLayout)}"` : "";
   return [
     `<div class="source-block" data-source-start="${start}" data-source-end="${end}">`,
-    `<div class="source-line-gutter"${lineLayoutAttribute} aria-label="\u6E90\u6587\u4EF6\u884C\u53F7">`,
+    `<div class="source-line-gutter"${lineLayoutAttribute} aria-label="${escapeAttribute3(translate("sourceLine.gutter"))}">`,
     buttons.join(""),
     "</div>",
     '<div class="source-block-content">'
@@ -35274,11 +35367,11 @@ function posixNormalize(value) {
   }
   return segments.join("/") || ".";
 }
-function escapeHtml3(value) {
+function escapeHtml4(value) {
   return String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
 }
-function escapeAttribute2(value) {
-  return escapeHtml3(value).replaceAll("'", "&#39;");
+function escapeAttribute3(value) {
+  return escapeHtml4(value).replaceAll("'", "&#39;");
 }
 function plainText(value) {
   return value.replace(/!\[([^\]]*)\]\([^)]+\)/g, "$1").replace(/\[([^\]]+)\]\([^)]+\)/g, "$1").replace(/[*_`~]/g, "").trim();
@@ -35334,19 +35427,758 @@ function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+// public/workbench-locales.js
+var WORKBENCH_MESSAGES = Object.freeze({
+  en: Object.freeze({
+    "loading.title": "Opening repository",
+    "loading.detail": "Preparing documents and workspace.",
+    "aria.windowToolbar": "Window toolbar",
+    "aria.workspaceNavigation": "Workspace navigation",
+    "aria.openFiles": "Open files",
+    "aria.systemActions": "System actions",
+    "aria.displayMode": "Display mode",
+    "aria.fileBrowser": "File browser",
+    "aria.gitWorktrees": "Git worktrees",
+    "aria.frontmatterFilters": "Document frontmatter filters",
+    "aria.activeFrontmatterFilters": "Active frontmatter filters",
+    "aria.repositoryFiles": "Repository files",
+    "aria.gitLeafUpdates": "Git Leaf updates",
+    "aria.agentContext": "Agent Context",
+    "aria.resizeFileBrowser": "Resize file browser",
+    "aria.findInFile": "Find in current file",
+    "aria.fileActions": "File actions",
+    "aria.documentNavigation": "Document navigation",
+    "aria.resizeDocumentNavigation": "Resize document navigation",
+    "aria.resizeSourcePreview": "Resize Preview and Source editor",
+    "aria.sourceEditor": "Source editor",
+    "aria.frontmatterFieldActions": "Frontmatter field actions",
+    "tabs.empty": "No open documents",
+    "action.collapseSidebar": "Collapse sidebar",
+    "action.expandSidebar": "Expand sidebar",
+    "action.back": "Back",
+    "action.forward": "Forward",
+    "action.newDocument": "New document",
+    "action.switchDark": "Switch to dark mode",
+    "action.switchLight": "Switch to light mode",
+    "action.filter": "Filter",
+    "action.sync": "Sync",
+    "action.syncing": "Syncing\u2026",
+    "action.collapseAgentContext": "Collapse Agent Context",
+    "action.clear": "Clear",
+    "action.copySnippets": "Copy snippets",
+    "action.copySnippetCount": "Copy {count} snippets",
+    "action.previousMatch": "Previous match",
+    "action.previousMatchTitle": "Previous match (Shift+Enter)",
+    "action.nextMatch": "Next match",
+    "action.nextMatchTitle": "Next match (Enter)",
+    "action.closeSearch": "Close search",
+    "action.closeSearchTitle": "Close search (Esc)",
+    "action.copyShareLink": "Copy share link",
+    "action.moreFileActions": "More file actions",
+    "action.showOutline": "Show outline",
+    "action.hideOutline": "Hide outline",
+    "action.copyContent": "Copy content",
+    "action.addToContext": "Add to context",
+    "action.alignLeft": "Align left",
+    "action.alignCenter": "Center",
+    "action.shrink": "Smaller",
+    "action.grow": "Larger",
+    "action.caption": "Caption",
+    "action.editLink": "Edit link",
+    "action.openLink": "Open link",
+    "action.openInNewTab": "Open in new tab",
+    "action.copyAgentPrompt": "Copy prompt",
+    "action.close": "Close",
+    "action.cancel": "Cancel",
+    "action.confirm": "OK",
+    "action.gotIt": "Got it",
+    "action.create": "Create",
+    "action.save": "Save",
+    "action.add": "Add",
+    "action.next": "Next",
+    "action.edit": "Edit",
+    "action.today": "Today",
+    "action.addField": "Add field",
+    "action.delete": "Delete",
+    "action.select": "Select\u2026",
+    "action.retry": "Retry",
+    "search.files": "Search paths, file names, or AI snippets",
+    "search.short": "Search ({shortcut})",
+    "search.filesTooltip": "Search files",
+    "search.currentFile": "Find in current file",
+    "search.contents": "Search text",
+    "git.localChanges": "Local changes",
+    "agentContext.title": "Agent Context",
+    "agentContext.emptyTitle": "No context snippets yet",
+    "agentContext.emptyDetail": "Select lines in a document, then click \u201CAdd to context\u201D.",
+    "document.emptyTitle": "No file open",
+    "document.emptyDetail": "Select a repository file from the sidebar. Markdown and MDX can be edited; other files are read-only.",
+    "sync.agentTitle": "AI Agent assistance required",
+    "sync.agentDetail": "Your local changes are preserved. You can hand this off to an AI Agent to finish syncing.",
+    "error.repositoryList": "Could not read the repository list.",
+    "error.noRepository": "No repository is available.",
+    "worktree.defaultName": "Worktree",
+    "worktree.linkedName": "Worktree - {name}",
+    "worktree.detached": "No branch @ {head}",
+    "error.load": "Could not load.",
+    "error.localeReload": "Language changed, but Git Leaf could not reload before saving the current edit.",
+    "error.openTarget": "Could not open target: {message}",
+    "branch.created": "Created protective branch: {branch}",
+    "branch.detachedHelp": "This worktree has no branch. Git Leaf will create a protective branch when you first edit.",
+    "share.tooltip": "{shortcut}: Copy a share link for the published document on main",
+    "dialog.renameMdxTitle": "Change to an .mdx file",
+    "dialog.renameMdxLead": "MDX components should be written in .mdx files.",
+    "dialog.renameMdxQuestion": "Rename {currentPath} to {nextPath} and insert {component}?",
+    "dialog.renameMdxWarning": "Existing repository links will not be updated automatically.",
+    "action.renameAndInsert": "Rename and insert",
+    "error.rename": "Could not rename the file",
+    "toast.renamedMdx": "Changed to .mdx",
+    "toast.toolUpdating": "Git Leaf is updating",
+    "toast.toolUpdateFailed": "Git Leaf update failed. Run the command again.",
+    "action.closeCurrentTab": "Close current tab",
+    "action.closeNamedTab": "Close {name}",
+    "menu.close": "Close",
+    "menu.closeOthers": "Close other tabs",
+    "menu.closeRight": "Close tabs to the right",
+    "menu.closeAll": "Close all tabs",
+    "menu.copyPath": "Copy file path",
+    "menu.copyDirectoryPath": "Copy directory path",
+    "menu.revealTree": "Reveal in sidebar",
+    "menu.openSystem": "Open in system application",
+    "menu.newDocumentHere": "New document here",
+    "menu.newDocumentSameLocation": "New document in the same location",
+    "menu.openNewTab": "Open in new tab",
+    "menu.openGitHub": "View source file on GitHub",
+    "toast.notInTree": "The current file is not shown in the sidebar",
+    "toast.cannotCreateDocument": "Documents cannot be created in this repository",
+    "newDocument.title": "New document",
+    "newDocument.name": "Document name",
+    "newDocument.namePlaceholder": "For example: Campaign retrospective",
+    "newDocument.format": "Document format",
+    "newDocument.markdown": "Markdown (recommended)",
+    "newDocument.mdx": "MDX (for enhanced content)",
+    "error.createDocument": "Could not create the document.",
+    "error.createDocumentRetry": "Could not create the document. Try again.",
+    "toast.created": "Created {path}",
+    "newDocument.alongside": "It will be created next to \u201C{name}\u201D.",
+    "newDocument.inDirectory": "It will be created in \u201C{name}\u201D.",
+    "newDocument.repoHome": "It will be created at the repository root.",
+    "toast.revealFailed": "Could not reveal the file in the file manager",
+    "action.revealFinder": "Reveal in Finder",
+    "action.revealExplorer": "Show in File Explorer",
+    "action.revealFileManager": "Show in file manager",
+    "toast.pathCopied": "Path copied",
+    "toast.copyFailed": "Copy failed",
+    "toast.openSystemFailed": "Could not open the file in a system application",
+    "repository.home": "Repository root",
+    "file.editable": "Editable document",
+    "file.unsupported": "Preview is not supported",
+    "file.unknown": "Preview support is checked when opened",
+    "file.readonly": "Read-only preview",
+    "badge.unsupported": "Unsupported",
+    "badge.detect": "Check",
+    "badge.readonly": "Read-only",
+    "document.empty": "This document is empty.",
+    "readonly.tooLargeTitle": "File too large",
+    "readonly.tooLargeDetail": "This file is larger than {size}. Open the source file in a system application.",
+    "action.openSystemSource": "Open in system application",
+    "file.symlink": "Symbolic link",
+    "file.extension": "{extension} file",
+    "file.unknownType": "Unknown file",
+    "readonly.unsupportedTitle": "This file type cannot be previewed yet",
+    "readonly.unsupportedDetail": "{label} \xB7 {size}. You can open the source file in a system application.",
+    "csv.emptyTitle": "Empty CSV",
+    "csv.emptyDetail": "This CSV file has no content to display.",
+    "json.parseFallback": "JSON could not be parsed and is shown as plain text.",
+    "outline.navigation": "Navigation",
+    "git.added": "Added",
+    "git.untracked": "Untracked",
+    "git.deleted": "Deleted",
+    "git.renamed": "Renamed",
+    "git.copied": "Copied",
+    "git.modified": "Modified",
+    "error.syncInvalidResponse": "The sync service returned an unreadable response.",
+    "error.sync": "Sync failed.",
+    "toast.syncComplete": "Sync complete",
+    "sync.resultTitle": "Sync encountered a problem",
+    "sync.resultHelp": "Copy the prompt and paste it into the AI Agent of your choice.",
+    "toast.promptCopied": "Prompt copied",
+    "dialog.confirmTitle": "Confirm action",
+    "update.checking": "Checking for updates\u2026",
+    "update.downloading": "Downloading and preparing the update\u2026",
+    "update.downloaded": "The update is ready and will install after Git Leaf quits.",
+    "update.available": "A new version is available. Click Update to start downloading.",
+    "update.current": "Git Leaf is up to date.",
+    "update.error": "Could not check for updates.",
+    "help.title": "Git Leaf Help",
+    "help.fileTypes": "File type support",
+    "help.shortcutsNote": "Git Leaf auto-saves Source and Live edits.",
+    "agentPrompt.title": "Please resolve this Git Leaf sync failure:",
+    "agentPrompt.repository": "Repository: {repo}",
+    "agentPrompt.branch": "Current branch: {branch}",
+    "agentPrompt.files": "Files involved:",
+    "agentPrompt.step": "Failed step: {step}",
+    "agentPrompt.error": "Error output:",
+    "agentPrompt.goal": "Goals:",
+    "agentPrompt.goal1": "1. Preserve the Git Leaf user's changes to the files above.",
+    "agentPrompt.goal2": "2. Resolve the current Git state, failed checks, or conflicts.",
+    "agentPrompt.goal3": "3. After the necessary checks pass, commit and push the current main branch.",
+    "filter.loading": "Loading filters\u2026",
+    "filter.add": "Add filter",
+    "filter.and": "AND",
+    "filter.allAdded": "All available filters have been added.",
+    "filter.noValues": "This field has no available values.",
+    "filter.remove": "Remove {key} filter",
+    "toast.locationCopied": "Location copied",
+    "toast.contextUpdated": "Updated Agent Context",
+    "toast.contextAdded": "Added to Agent Context",
+    "agentContext.countTitle": "Agent Context ({count} snippets)",
+    "agentContext.viewSource": "View source: {reference}",
+    "agentContext.emptyLine": "(blank line)",
+    "agentContext.remove": "Remove snippet: {label}",
+    "toast.contextRemoved": "Removed 1 context snippet",
+    "toast.sourceNotFound": "Could not locate the source",
+    "toast.located": "Located {reference}",
+    "toast.contextCleared": "Agent Context cleared",
+    "toast.contextCopied": "Copied {count} context snippets",
+    "error.shareInvalidResponse": "The share service returned an unreadable response.",
+    "toast.shareCopied": "Share link copied",
+    "share.copyFailedTitle": "Could not copy share link",
+    "share.copyFailed": "Could not copy the share link.",
+    "share.unpublishedTitle": "This document has not been published",
+    "share.unavailableTitle": "Could not create share link",
+    "share.unavailable": "This document cannot be shared right now.",
+    "share.syncAndCopy": "Sync and copy",
+    "share.publishAndCopy": "Publish and copy",
+    "error.publishInvalidResponse": "The publishing service returned an unreadable response.",
+    "error.publishUnavailable": "Could not connect to the local publishing service.",
+    "toast.publishedAndCopied": "Published and copied share link",
+    "share.publishFailedTitle": "Could not publish share link",
+    "share.publishUnavailable": "This document cannot be published right now.",
+    "share.publishFailed": "Share publishing failed",
+    "share.remoteIncomplete": "Remote publishing did not complete.",
+    "share.localPreserved": "Local changes and any created commits are preserved. Check the network, GitHub sign-in, or remote branch, then try again.",
+    "share.retryPublish": "Retry publishing",
+    "share.handOffAgent": "Hand off to AI Agent",
+    "share.agentHelp": "Copy the prompt and hand it to an AI Agent. Publish remotely, then copy the share link again.",
+    "toast.noGitHubLink": "The current document has no GitHub link",
+    "toast.openedGitHub": "Opened GitHub",
+    "toast.openGitHubFailed": "Could not open the GitHub link",
+    "toast.notEditable": "The current document is not editable",
+    "toast.savingImage": "Saving image",
+    "error.saveImage": "Could not save the image",
+    "toast.imageInserted": "Image inserted",
+    "link.repositoryTitle": "Add repository document link",
+    "link.repositoryHelp": "For Link, enter a Markdown or MDX path in the current repository. Title can be blank and will use the target document title.",
+    "link.fieldTitle": "Title",
+    "link.fieldLink": "Link",
+    "link.insert": "Insert link",
+    "link.save": "Save link",
+    "link.defaultTitlePlaceholder": "Leave blank to use the default title",
+    "link.externalTitle": "Add link",
+    "link.externalHelp": "Enter a URL for an external link. A blank title uses the URL.",
+    "link.invalidUrl": "The link URL is invalid",
+    "error.readTargetDocument": "Could not read the target document",
+    "error.insertDocumentLink": "Could not insert the document link",
+    "error.readImage": "Could not read the image",
+    "frontmatter.editTitle": "Edit {key}",
+    "frontmatter.invalidKey": "The field name is invalid",
+    "frontmatter.updated": "Frontmatter updated",
+    "frontmatter.deleted": "Frontmatter field deleted",
+    "frontmatter.noneAvailable": "No frontmatter fields are available to add",
+    "frontmatter.addTitle": "Add frontmatter field",
+    "frontmatter.field": "Field",
+    "frontmatter.setTitle": "Set {key}",
+    "frontmatter.added": "Frontmatter field added",
+    "link.editTitle": "Edit link",
+    "link.editHelp": "Enter a URL for external links, or a relative path, root path, or Git Leaf document URL for repository documents.",
+    "link.placeholder": "docs/example.md or https://example.com",
+    "link.updated": "Link updated",
+    "link.empty": "A link is required",
+    "error.openTargetDocument": "Could not open the target document",
+    "image.captionTitle": "Image caption",
+    "image.captionHelp": "The caption appears below the image and is written to its data-caption attribute.",
+    "image.captionLabel": "Caption",
+    "image.saveCaption": "Save caption",
+    "image.updated": "Image updated",
+    "document.fallbackTitle": "Git Leaf document",
+    "image.remoteFailure": "Network unavailable, access denied, or the link has expired",
+    "image.localFailure": "File missing, path incorrect, or image format could not be decoded",
+    "image.failure": "Image failed to load: {label} ({reason})",
+    "image.inline": "Inline image",
+    "image.unknown": "Unknown image",
+    "sourceSync.error": "Sync failed",
+    "update.newVersion": "Git Leaf update",
+    "update.availableDetail": "New version available. Click to download.",
+    "update.action": "Update",
+    "update.preparingDetail": "Downloading and preparing the new version\u2026",
+    "update.readyDetail": "Ready. It will install after you quit.",
+    "update.restart": "Restart now",
+    "update.retryDetail": "Update incomplete. Click to retry.",
+    "help.repositoryFiles.title": "Repository files",
+    "help.repositoryFiles.1": "Git Leaf always discovers all tracked files and local files not ignored by .gitignore. The sidebar can show \u201CContent files\u201D or \u201CAll repository files\u201D. Content mode always includes Markdown, MDX, HTML, images, and PDFs.",
+    "help.repositoryFiles.2": "CSV, JSON, YAML, text, code, configuration, and unknown files appear only when relevant: when open, in search results, or under local changes. Switching documents does not change visibility based on references. All repository files mode shows the complete repository.",
+    "help.repositoryFiles.3": "The sidebar preference changes only visibility, never Git change discovery, syncing, or commit scope. Only Markdown and MDX are editable in Source and Live. Other files are previewed read-only or can be opened in a system application.",
+    "help.filters.title": "Search and frontmatter filters",
+    "help.filters.1": "Filters depend on docs/frontmatter-rules.json in the target repository. Git Leaf hides the filter button when that file is absent or has no aggregatable frontmatter fields.",
+    "help.filters.2": "These filters apply to documents and use frontmatter at the start of Markdown and MDX files. Non-document files are temporarily hidden while filters are active. Multiple conditions use AND; ai_snippet remains part of text search only.",
+    "help.worktrees.title": "Worktrees and branches",
+    "help.worktrees.1": "Git Leaf hides the worktree selector when a repository has only its primary working directory. With multiple worktrees, the selector appears above the sidebar and shows each branch.",
+    "help.worktrees.2": "Preview, Source, and Live work on regular branches. Each worktree restores its own tabs, expanded folders, scroll position, and focus.",
+    "help.worktrees.3": "\u201CNo branch\u201D means the worktree does not have a working branch yet. Git Leaf creates a protective branch before the first write so changes never remain on detached HEAD.",
+    "help.worktrees.4": "Most people do not need to create or switch worktrees manually. When unsure, stay in the primary working directory or ask an AI Agent to confirm.",
+    "help.sync.title": "Sync",
+    "help.sync.1": "When local changes appear in the sidebar, Sync processes all repository changes at once, including documents, images, attachments, and deletions. You do not need to choose files, write a commit message, or know Git commands.",
+    "help.sync.2": "The button shows \u201CSyncing\u2026\u201D during the operation and \u201CSync complete\u201D afterward. New changes made during sync remain local and are never silently overwritten.",
+    "help.sync.3": "Git Leaf stops dangerous operations on divergence, conflicts, or continuous changes and preserves local content. Copy the displayed prompt to the AI Agent of your choice.",
+    "help.sharing.title": "Share documents",
+    "help.sharing.1": "\u201CCopy share link\u201D shares only Markdown and MDX on main in the primary workspace. It never shares a local path or feature worktree. For an unpublished document, \u201CSync and copy\u201D commits, pushes, verifies the remote revision, and copies the link.",
+    "help.sharing.2": "Chat previews use only the published document title. The share URL does not carry ai_snippet and falls back to repository and document path for its description. A preview does not grant access.",
+    "help.sharing.3": "When a recipient opens the link, Git Leaf checks the local primary workspace and shared revision. It asks before switching from another worktree, preserving local changes while updating main, or syncing overlapping files.",
+    "help.sharing.4": "A publishing failure preserves local changes and any created commit. Retry after checking the network, GitHub sign-in, and remote branch, or hand the failure prompt to an AI Agent. A share link grants no GitHub access.",
+    "help.telemetry.title": "Basic usage analytics",
+    "help.telemetry.1": "Official Git Leaf builds may send an anonymous installation identifier, app version, update status, daily active duration, repository count, and aggregate core-feature counts to understand installation health and real usage.",
+    "help.telemetry.2": "Analytics never send repository names or paths, branches, worktree identities, file names, document content, search terms, links, Git identity, diffs, or raw error text. Development, test, CLI, and Web builds do not send official analytics.",
+    "help.visibility.default": "Shown by default",
+    "help.visibility.onDemand": "Shown when relevant",
+    "help.behavior.document": "Markdown / MDX preview and editing",
+    "help.behavior.image": "Image preview",
+    "help.behavior.pdf": "Browser PDF preview",
+    "help.behavior.html": "Read-only browser HTML preview",
+    "help.behavior.csv": "Table preview with the first row as headers",
+    "help.behavior.json": "Formatted JSON tree; plain text if parsing fails",
+    "help.behavior.text": "Read-only code block or plain-text preview",
+    "help.behavior.code": "Read-only code preview",
+    "help.behavior.other": "Checks preview support when opened; unsupported files open in a system application",
+    "help.files.code": ".js .ts .py .css .toml and other code / configuration",
+    "help.files.other": "Other files (for example, .pptx)",
+    "help.column.fileType": "File type",
+    "help.column.contentMode": "Content mode",
+    "help.column.openMethod": "Open method",
+    "shortcuts.repository": "Repository",
+    "shortcuts.title": "Keyboard Shortcuts",
+    "shortcuts.documents": "Documents",
+    "shortcuts.viewModes": "View Modes",
+    "shortcuts.navigation": "Navigation",
+    "shortcuts.help": "Help",
+    "shortcut.openRepository": "Open Git Repository",
+    "shortcut.switchRepositoryNumber": "Switch to Repository 1..9",
+    "shortcut.previousRepository": "Previous Repository",
+    "shortcut.nextRepository": "Next Repository",
+    "shortcut.switchTabNumber": "Switch to Tab 1..8",
+    "shortcut.switchLastTab": "Switch to Last Tab",
+    "shortcut.previousTab": "Previous Tab",
+    "shortcut.nextTab": "Next Tab",
+    "shortcut.previousTabWindows": "Previous Tab on Windows",
+    "shortcut.nextTabWindows": "Next Tab on Windows",
+    "shortcut.closeTab": "Close Current Tab",
+    "shortcut.findDocument": "Find in Current Document",
+    "shortcut.copyDocumentPath": "Copy Document Path",
+    "shortcut.copyShareLink": "Copy Share Link",
+    "shortcut.openGitHub": "Open GitHub Link",
+    "shortcut.openSource": "Open Source File",
+    "shortcut.revealFile": "Reveal in File Manager",
+    "shortcut.backgroundTab": "Open File in Background Tab",
+    "shortcut.activeTab": "Open File in New Active Tab",
+    "shortcut.preview": "Preview",
+    "shortcut.source": "Source",
+    "shortcut.live": "Live",
+    "shortcut.toggleSidebar": "Toggle Sidebar",
+    "shortcut.toggleOutline": "Toggle Document Navigation",
+    "shortcut.back": "Back",
+    "shortcut.forward": "Forward",
+    "shortcut.focusSearch": "Focus File Search",
+    "shortcut.focusTree": "Focus File Tree",
+    "shortcut.focusTreeFromSearch": "Focus File Tree from Search",
+    "shortcut.moveTree": "Move in File Tree",
+    "shortcut.toggleFolder": "Collapse or Expand Folder",
+    "shortcut.openSelected": "Open Selected File",
+    "shortcut.openSettings": "Open Settings",
+    "shortcut.openShortcuts": "Open Keyboard Shortcuts"
+  }),
+  "zh-CN": Object.freeze({
+    "loading.title": "\u6B63\u5728\u6253\u5F00\u4ED3\u5E93",
+    "loading.detail": "\u6B63\u5728\u51C6\u5907\u6587\u6863\u4E0E\u5DE5\u4F5C\u533A\u3002",
+    "aria.windowToolbar": "\u7A97\u53E3\u5DE5\u5177\u680F",
+    "aria.workspaceNavigation": "\u5DE5\u4F5C\u53F0\u5BFC\u822A",
+    "aria.openFiles": "\u6253\u5F00\u7684\u6587\u4EF6",
+    "aria.systemActions": "\u7CFB\u7EDF\u64CD\u4F5C",
+    "aria.displayMode": "\u663E\u793A\u6A21\u5F0F",
+    "aria.fileBrowser": "\u6587\u4EF6\u6D4F\u89C8\u5668",
+    "aria.gitWorktrees": "Git \u5DE5\u4F5C\u6811",
+    "aria.frontmatterFilters": "\u6587\u6863 Frontmatter \u7B5B\u9009",
+    "aria.activeFrontmatterFilters": "\u5DF2\u542F\u7528\u7684 Frontmatter \u7B5B\u9009",
+    "aria.repositoryFiles": "\u4ED3\u5E93\u6587\u4EF6",
+    "aria.gitLeafUpdates": "Git Leaf \u66F4\u65B0",
+    "aria.agentContext": "Agent \u4E0A\u4E0B\u6587",
+    "aria.resizeFileBrowser": "\u8C03\u6574\u6587\u4EF6\u6D4F\u89C8\u5668\u5BBD\u5EA6",
+    "aria.findInFile": "\u5728\u5F53\u524D\u6587\u4EF6\u4E2D\u67E5\u627E",
+    "aria.fileActions": "\u6587\u4EF6\u64CD\u4F5C",
+    "aria.documentNavigation": "\u6587\u6863\u5185\u5BFC\u822A",
+    "aria.resizeDocumentNavigation": "\u8C03\u6574\u6587\u6863\u5BFC\u822A\u5BBD\u5EA6",
+    "aria.resizeSourcePreview": "\u8C03\u6574\u9884\u89C8\u548C Source \u7F16\u8F91\u5668\u9AD8\u5EA6",
+    "aria.sourceEditor": "Source \u7F16\u8F91\u5668",
+    "aria.frontmatterFieldActions": "Frontmatter \u5B57\u6BB5\u64CD\u4F5C",
+    "tabs.empty": "\u672A\u6253\u5F00\u6587\u6863",
+    "action.collapseSidebar": "\u6536\u8D77\u4FA7\u8FB9\u680F",
+    "action.expandSidebar": "\u5C55\u5F00\u4FA7\u8FB9\u680F",
+    "action.back": "\u540E\u9000",
+    "action.forward": "\u524D\u8FDB",
+    "action.newDocument": "\u65B0\u5EFA\u6587\u6863",
+    "action.switchDark": "\u5207\u6362\u5230\u6DF1\u8272\u6A21\u5F0F",
+    "action.switchLight": "\u5207\u6362\u5230\u6D45\u8272\u6A21\u5F0F",
+    "action.filter": "\u7B5B\u9009",
+    "action.sync": "\u540C\u6B65",
+    "action.syncing": "\u6B63\u5728\u540C\u6B65\u2026",
+    "action.collapseAgentContext": "\u6536\u8D77 Agent \u4E0A\u4E0B\u6587",
+    "action.clear": "\u6E05\u7A7A",
+    "action.copySnippets": "\u590D\u5236\u7247\u6BB5",
+    "action.copySnippetCount": "\u590D\u5236 {count} \u4E2A\u7247\u6BB5",
+    "action.previousMatch": "\u4E0A\u4E00\u4E2A\u5339\u914D",
+    "action.previousMatchTitle": "\u4E0A\u4E00\u4E2A\u5339\u914D\uFF08Shift+Enter\uFF09",
+    "action.nextMatch": "\u4E0B\u4E00\u4E2A\u5339\u914D",
+    "action.nextMatchTitle": "\u4E0B\u4E00\u4E2A\u5339\u914D\uFF08Enter\uFF09",
+    "action.closeSearch": "\u5173\u95ED\u67E5\u627E",
+    "action.closeSearchTitle": "\u5173\u95ED\u67E5\u627E\uFF08Esc\uFF09",
+    "action.copyShareLink": "\u590D\u5236\u5206\u4EAB\u94FE\u63A5",
+    "action.moreFileActions": "\u66F4\u591A\u6587\u4EF6\u64CD\u4F5C",
+    "action.showOutline": "\u663E\u793A\u76EE\u5F55",
+    "action.hideOutline": "\u9690\u85CF\u76EE\u5F55",
+    "action.copyContent": "\u590D\u5236\u5185\u5BB9",
+    "action.addToContext": "\u52A0\u5165\u4E0A\u4E0B\u6587",
+    "action.alignLeft": "\u5DE6\u5BF9\u9F50",
+    "action.alignCenter": "\u5C45\u4E2D",
+    "action.shrink": "\u7F29\u5C0F",
+    "action.grow": "\u653E\u5927",
+    "action.caption": "\u8BF4\u660E",
+    "action.editLink": "\u4FEE\u6539\u94FE\u63A5",
+    "action.openLink": "\u6253\u5F00\u94FE\u63A5",
+    "action.openInNewTab": "\u65B0\u6807\u7B7E\u9875",
+    "action.copyAgentPrompt": "\u590D\u5236\u63D0\u793A\u8BCD",
+    "action.close": "\u5173\u95ED",
+    "action.cancel": "\u53D6\u6D88",
+    "action.confirm": "\u786E\u5B9A",
+    "action.gotIt": "\u77E5\u9053\u4E86",
+    "action.create": "\u521B\u5EFA",
+    "action.save": "\u4FDD\u5B58",
+    "action.add": "\u6DFB\u52A0",
+    "action.next": "\u4E0B\u4E00\u6B65",
+    "action.edit": "\u7F16\u8F91",
+    "action.today": "\u4ECA\u5929",
+    "action.addField": "\u6DFB\u52A0\u5B57\u6BB5",
+    "action.delete": "\u5220\u9664",
+    "action.select": "\u9009\u62E9...",
+    "action.retry": "\u91CD\u8BD5",
+    "search.files": "\u641C\u7D22\u8DEF\u5F84\u3001\u6587\u4EF6\u540D\u6216 AI snippet",
+    "search.short": "\u641C\u7D22 ({shortcut})",
+    "search.filesTooltip": "\u641C\u7D22\u6587\u4EF6",
+    "search.currentFile": "\u5728\u5F53\u524D\u6587\u4EF6\u4E2D\u67E5\u627E",
+    "search.contents": "\u67E5\u627E\u5185\u5BB9",
+    "git.localChanges": "\u672C\u5730\u6539\u52A8",
+    "agentContext.title": "Agent \u4E0A\u4E0B\u6587",
+    "agentContext.emptyTitle": "\u8FD8\u6CA1\u6709\u4E0A\u4E0B\u6587\u7247\u6BB5",
+    "agentContext.emptyDetail": "\u5728\u6587\u6863\u4E2D\u9009\u62E9\u884C\uFF0C\u518D\u70B9\u51FB\u201C\u52A0\u5165\u4E0A\u4E0B\u6587\u201D\u3002",
+    "document.emptyTitle": "\u672A\u6253\u5F00\u6587\u4EF6",
+    "document.emptyDetail": "\u4ECE\u5DE6\u4FA7\u76EE\u5F55\u6811\u9009\u62E9\u4ED3\u5E93\u6587\u4EF6\u3002Markdown / MDX \u652F\u6301\u7F16\u8F91\uFF0C\u5176\u4ED6\u6587\u4EF6\u53EA\u8BFB\u67E5\u770B\u3002",
+    "sync.agentTitle": "\u9700\u8981 AI Agent \u5904\u7406",
+    "sync.agentDetail": "\u672C\u5730\u4FEE\u6539\u90FD\u5DF2\u4FDD\u7559\uFF0C\u53EF\u4EE5\u4EA4\u7ED9 AI Agent \u7EE7\u7EED\u5B8C\u6210\u540C\u6B65\u3002",
+    "error.repositoryList": "\u65E0\u6CD5\u8BFB\u53D6\u4ED3\u5E93\u5217\u8868\u3002",
+    "error.noRepository": "\u6CA1\u6709\u53EF\u7528\u4ED3\u5E93\u3002",
+    "worktree.defaultName": "\u5DE5\u4F5C\u6811",
+    "worktree.linkedName": "\u5DE5\u4F5C\u6811 - {name}",
+    "worktree.detached": "\u65E0\u5206\u652F @ {head}",
+    "error.load": "\u52A0\u8F7D\u5931\u8D25\u3002",
+    "error.localeReload": "\u8BED\u8A00\u5DF2\u66F4\u6539\uFF0C\u4F46 Git Leaf \u65E0\u6CD5\u5728\u4FDD\u5B58\u5F53\u524D\u7F16\u8F91\u540E\u91CD\u65B0\u52A0\u8F7D\u3002",
+    "error.openTarget": "\u65E0\u6CD5\u6253\u5F00\u76EE\u6807\uFF1A{message}",
+    "branch.created": "\u5DF2\u521B\u5EFA\u4FDD\u62A4\u5206\u652F\uFF1A{branch}",
+    "branch.detachedHelp": "\u5F53\u524D\u5DE5\u4F5C\u6811\u672A\u5173\u8054\u5206\u652F\uFF1B\u7B2C\u4E00\u6B21\u7F16\u8F91\u65F6\u4F1A\u81EA\u52A8\u521B\u5EFA\u4FDD\u62A4\u5206\u652F\u3002",
+    "share.tooltip": "{shortcut}\uFF1A\u590D\u5236\u4E3B\u5DE5\u4F5C\u533A main \u4E0A\u5DF2\u53D1\u5E03\u6587\u6863\u7684\u5206\u4EAB\u94FE\u63A5",
+    "dialog.renameMdxTitle": "\u6539\u4E3A .mdx \u6587\u4EF6",
+    "dialog.renameMdxLead": "MDX \u7EC4\u4EF6\u5EFA\u8BAE\u5199\u5728 .mdx \u6587\u4EF6\u4E2D\u3002",
+    "dialog.renameMdxQuestion": "\u662F\u5426\u5C06 {currentPath} \u91CD\u547D\u540D\u4E3A {nextPath}\uFF0C\u5E76\u63D2\u5165 {component}\uFF1F",
+    "dialog.renameMdxWarning": "\u6CE8\u610F\uFF1A\u4ED3\u5E93\u91CC\u5DF2\u6709\u7684\u94FE\u63A5\u4E0D\u4F1A\u81EA\u52A8\u6539\u5199\u3002",
+    "action.renameAndInsert": "\u6539\u540D\u5E76\u63D2\u5165",
+    "error.rename": "\u91CD\u547D\u540D\u5931\u8D25",
+    "toast.renamedMdx": "\u5DF2\u6539\u4E3A .mdx",
+    "toast.toolUpdating": "Git Leaf \u6B63\u5728\u66F4\u65B0",
+    "toast.toolUpdateFailed": "Git Leaf \u66F4\u65B0\u5931\u8D25\uFF0C\u8BF7\u91CD\u65B0\u8FD0\u884C\u547D\u4EE4",
+    "action.closeCurrentTab": "\u5173\u95ED\u5F53\u524D Tab",
+    "action.closeNamedTab": "\u5173\u95ED {name}",
+    "menu.close": "\u5173\u95ED",
+    "menu.closeOthers": "\u5173\u95ED\u5176\u4ED6\u6807\u7B7E\u9875",
+    "menu.closeRight": "\u5173\u95ED\u53F3\u4FA7\u6807\u7B7E\u9875",
+    "menu.closeAll": "\u5173\u95ED\u5168\u90E8\u6807\u7B7E\u9875",
+    "menu.copyPath": "\u590D\u5236\u6587\u4EF6\u8DEF\u5F84",
+    "menu.copyDirectoryPath": "\u590D\u5236\u76EE\u5F55\u8DEF\u5F84",
+    "menu.revealTree": "\u5728\u5DE6\u4FA7\u76EE\u5F55\u4E2D\u663E\u793A",
+    "menu.openSystem": "\u4F7F\u7528\u7CFB\u7EDF\u5E94\u7528\u6253\u5F00",
+    "menu.newDocumentHere": "\u5728\u8FD9\u91CC\u65B0\u5EFA\u6587\u6863",
+    "menu.newDocumentSameLocation": "\u5728\u540C\u4E00\u4F4D\u7F6E\u65B0\u5EFA\u6587\u6863",
+    "menu.openNewTab": "\u5728\u65B0\u6807\u7B7E\u9875\u6253\u5F00",
+    "menu.openGitHub": "\u67E5\u770B GitHub \u6E90\u6587\u4EF6",
+    "toast.notInTree": "\u5F53\u524D\u6587\u4EF6\u672A\u663E\u793A\u5728\u76EE\u5F55\u4E2D",
+    "toast.cannotCreateDocument": "\u5F53\u524D\u4ED3\u5E93\u4E0D\u53EF\u65B0\u5EFA\u6587\u6863",
+    "newDocument.title": "\u65B0\u5EFA\u6587\u6863",
+    "newDocument.name": "\u6587\u6863\u540D\u79F0",
+    "newDocument.namePlaceholder": "\u4F8B\u5982\uFF1A\u6D3B\u52A8\u590D\u76D8",
+    "newDocument.format": "\u6587\u6863\u683C\u5F0F",
+    "newDocument.markdown": "Markdown\uFF08\u63A8\u8350\uFF09",
+    "newDocument.mdx": "MDX\uFF08\u9002\u5408\u589E\u5F3A\u5185\u5BB9\uFF09",
+    "error.createDocument": "\u65E0\u6CD5\u521B\u5EFA\u6587\u6863\u3002",
+    "error.createDocumentRetry": "\u65E0\u6CD5\u521B\u5EFA\u6587\u6863\uFF0C\u8BF7\u91CD\u8BD5\u3002",
+    "toast.created": "\u5DF2\u521B\u5EFA {path}",
+    "newDocument.alongside": "\u5C06\u4E0E\u300A{name}\u300B\u653E\u5728\u4E00\u8D77\u3002",
+    "newDocument.inDirectory": "\u5C06\u5728\u201C{name}\u201D\u4E2D\u521B\u5EFA\u3002",
+    "newDocument.repoHome": "\u5C06\u5728\u4ED3\u5E93\u9996\u9875\u521B\u5EFA\u3002",
+    "toast.revealFailed": "\u65E0\u6CD5\u5728\u6587\u4EF6\u7BA1\u7406\u5668\u4E2D\u663E\u793A",
+    "action.revealFinder": "\u5728 Finder \u4E2D\u663E\u793A",
+    "action.revealExplorer": "\u5728\u6587\u4EF6\u8D44\u6E90\u7BA1\u7406\u5668\u4E2D\u663E\u793A",
+    "action.revealFileManager": "\u5728\u6587\u4EF6\u7BA1\u7406\u5668\u4E2D\u663E\u793A",
+    "toast.pathCopied": "\u5DF2\u590D\u5236\u8DEF\u5F84",
+    "toast.copyFailed": "\u590D\u5236\u5931\u8D25",
+    "toast.openSystemFailed": "\u65E0\u6CD5\u4F7F\u7528\u7CFB\u7EDF\u5E94\u7528\u6253\u5F00\u6587\u4EF6",
+    "repository.home": "\u4ED3\u5E93\u9996\u9875",
+    "file.editable": "\u53EF\u7F16\u8F91\u6587\u6863",
+    "file.unsupported": "\u6682\u4E0D\u652F\u6301\u9884\u89C8",
+    "file.unknown": "\u6253\u5F00\u540E\u68C0\u6D4B\u9884\u89C8\u80FD\u529B",
+    "file.readonly": "\u53EA\u8BFB\u9884\u89C8",
+    "badge.unsupported": "\u4E0D\u652F\u6301",
+    "badge.detect": "\u68C0\u6D4B",
+    "badge.readonly": "\u53EA\u8BFB",
+    "document.empty": "\u6587\u6863\u4E3A\u7A7A\u3002",
+    "readonly.tooLargeTitle": "\u6587\u4EF6\u8FC7\u5927",
+    "readonly.tooLargeDetail": "\u8FD9\u4E2A\u6587\u4EF6\u8D85\u8FC7 {size}\uFF0C\u8BF7\u7528\u201C\u6E90\u6587\u4EF6\u201D\u5728\u7CFB\u7EDF\u5E94\u7528\u4E2D\u6253\u5F00\u3002",
+    "action.openSystemSource": "\u4F7F\u7528\u7CFB\u7EDF\u5E94\u7528\u6253\u5F00",
+    "file.symlink": "\u7B26\u53F7\u94FE\u63A5",
+    "file.extension": "{extension} \u6587\u4EF6",
+    "file.unknownType": "\u672A\u77E5\u6587\u4EF6",
+    "readonly.unsupportedTitle": "\u6B64\u6587\u4EF6\u7C7B\u578B\u6682\u65F6\u4E0D\u652F\u6301\u9884\u89C8",
+    "readonly.unsupportedDetail": "{label} \xB7 {size}\u3002\u53EF\u4EE5\u4F7F\u7528\u7CFB\u7EDF\u5E94\u7528\u6253\u5F00\u6E90\u6587\u4EF6\u3002",
+    "csv.emptyTitle": "CSV \u4E3A\u7A7A",
+    "csv.emptyDetail": "\u8FD9\u4E2A CSV \u6587\u4EF6\u6CA1\u6709\u53EF\u663E\u793A\u7684\u5185\u5BB9\u3002",
+    "json.parseFallback": "JSON \u89E3\u6790\u5931\u8D25\uFF0C\u5DF2\u6309\u539F\u59CB\u6587\u672C\u663E\u793A\u3002",
+    "outline.navigation": "\u5BFC\u822A",
+    "git.added": "\u5DF2\u65B0\u589E",
+    "git.untracked": "\u672A\u8DDF\u8E2A",
+    "git.deleted": "\u5DF2\u5220\u9664",
+    "git.renamed": "\u5DF2\u91CD\u547D\u540D",
+    "git.copied": "\u5DF2\u590D\u5236",
+    "git.modified": "\u5DF2\u4FEE\u6539",
+    "error.syncInvalidResponse": "\u540C\u6B65\u63A5\u53E3\u8FD4\u56DE\u4E86\u4E0D\u53EF\u89E3\u6790\u7684\u7ED3\u679C\u3002",
+    "error.sync": "\u540C\u6B65\u5931\u8D25\u3002",
+    "toast.syncComplete": "\u540C\u6B65\u5B8C\u6210",
+    "sync.resultTitle": "\u540C\u6B65\u9047\u5230\u5F02\u5E38",
+    "sync.resultHelp": "\u70B9\u51FB\u590D\u5236\u63D0\u793A\u8BCD\uFF0C\u7136\u540E\u7C98\u8D34\u5230\u4F60\u9009\u62E9\u7684 AI Agent \u4E2D\u7EE7\u7EED\u5904\u7406\u3002",
+    "toast.promptCopied": "\u5DF2\u590D\u5236\u63D0\u793A\u8BCD",
+    "dialog.confirmTitle": "\u786E\u8BA4\u64CD\u4F5C",
+    "update.checking": "\u6B63\u5728\u68C0\u67E5\u66F4\u65B0\u2026",
+    "update.downloading": "\u6B63\u5728\u4E0B\u8F7D\u5E76\u51C6\u5907\u65B0\u7248\u672C\u2026",
+    "update.downloaded": "\u65B0\u7248\u672C\u5DF2\u51C6\u5907\u597D\uFF0C\u9000\u51FA Git Leaf \u540E\u81EA\u52A8\u5B89\u88C5\u3002",
+    "update.available": "\u53D1\u73B0\u65B0\u7248\u672C\uFF0C\u70B9\u51FB\u66F4\u65B0\u540E\u5F00\u59CB\u4E0B\u8F7D\u3002",
+    "update.current": "Git Leaf \u5DF2\u7ECF\u662F\u6700\u65B0\u7248\u672C\u3002",
+    "update.error": "\u68C0\u67E5\u66F4\u65B0\u5931\u8D25\u3002",
+    "help.title": "Git Leaf \u5E2E\u52A9",
+    "help.fileTypes": "\u6587\u4EF6\u7C7B\u578B\u652F\u6301",
+    "help.shortcutsNote": "Git Leaf \u4F1A\u81EA\u52A8\u4FDD\u5B58 Source \u548C Live \u7F16\u8F91\u5185\u5BB9\u3002",
+    "agentPrompt.title": "\u8BF7\u5904\u7406 Git Leaf \u540C\u6B65\u5931\u8D25\uFF1A",
+    "agentPrompt.repository": "\u4ED3\u5E93\uFF1A{repo}",
+    "agentPrompt.branch": "\u5F53\u524D\u5206\u652F\uFF1A{branch}",
+    "agentPrompt.files": "\u9009\u4E2D\u6587\u4EF6\uFF1A",
+    "agentPrompt.step": "\u5931\u8D25\u6B65\u9AA4\uFF1A{step}",
+    "agentPrompt.error": "\u9519\u8BEF\u8F93\u51FA\uFF1A",
+    "agentPrompt.goal": "\u76EE\u6807\uFF1A",
+    "agentPrompt.goal1": "1. \u4FDD\u7559 Git Leaf \u7528\u6237\u5BF9\u4E0A\u8FF0\u6587\u4EF6\u7684\u4FEE\u6539\u3002",
+    "agentPrompt.goal2": "2. \u5904\u7406\u5F53\u524D Git \u72B6\u6001\u3001\u68C0\u67E5\u5931\u8D25\u6216\u51B2\u7A81\u3002",
+    "agentPrompt.goal3": "3. \u5B8C\u6210\u5FC5\u8981\u68C0\u67E5\u540E\uFF0C\u63D0\u4EA4\u5E76\u63A8\u9001\u5F53\u524D main \u5206\u652F\u3002",
+    "filter.loading": "\u6B63\u5728\u52A0\u8F7D\u7B5B\u9009\u9879...",
+    "filter.add": "\u6DFB\u52A0\u7B5B\u9009",
+    "filter.and": "AND \u6761\u4EF6",
+    "filter.allAdded": "\u5DF2\u6DFB\u52A0\u6240\u6709\u7B5B\u9009\u6761\u4EF6\u3002",
+    "filter.noValues": "\u8FD9\u4E2A\u5B57\u6BB5\u6682\u65E0\u53EF\u7528\u503C\u3002",
+    "filter.remove": "\u79FB\u9664 {key} \u7B5B\u9009",
+    "toast.locationCopied": "\u5DF2\u590D\u5236\u5B9A\u4F4D",
+    "toast.contextUpdated": "\u5DF2\u66F4\u65B0 Agent \u4E0A\u4E0B\u6587",
+    "toast.contextAdded": "\u5DF2\u52A0\u5165 Agent \u4E0A\u4E0B\u6587",
+    "agentContext.countTitle": "Agent \u4E0A\u4E0B\u6587\uFF08{count} \u4E2A\u7247\u6BB5\uFF09",
+    "agentContext.viewSource": "\u67E5\u770B\u539F\u6587\uFF1A{reference}",
+    "agentContext.emptyLine": "\uFF08\u7A7A\u884C\uFF09",
+    "agentContext.remove": "\u79FB\u9664\u7247\u6BB5\uFF1A{label}",
+    "toast.contextRemoved": "\u5DF2\u79FB\u9664 1 \u4E2A\u4E0A\u4E0B\u6587\u7247\u6BB5",
+    "toast.sourceNotFound": "\u65E0\u6CD5\u5B9A\u4F4D\u539F\u6587",
+    "toast.located": "\u5DF2\u5B9A\u4F4D\u5230 {reference}",
+    "toast.contextCleared": "\u5DF2\u6E05\u7A7A Agent \u4E0A\u4E0B\u6587",
+    "toast.contextCopied": "\u5DF2\u590D\u5236 {count} \u4E2A\u4E0A\u4E0B\u6587\u7247\u6BB5",
+    "error.shareInvalidResponse": "\u5206\u4EAB\u94FE\u63A5\u63A5\u53E3\u8FD4\u56DE\u4E86\u4E0D\u53EF\u89E3\u6790\u7684\u7ED3\u679C\u3002",
+    "toast.shareCopied": "\u5DF2\u590D\u5236\u5206\u4EAB\u94FE\u63A5",
+    "share.copyFailedTitle": "\u65E0\u6CD5\u590D\u5236\u5206\u4EAB\u94FE\u63A5",
+    "share.copyFailed": "\u590D\u5236\u5206\u4EAB\u94FE\u63A5\u5931\u8D25\u3002",
+    "share.unpublishedTitle": "\u5F53\u524D\u6587\u6863\u5C1A\u672A\u53D1\u5E03",
+    "share.unavailableTitle": "\u65E0\u6CD5\u751F\u6210\u5206\u4EAB\u94FE\u63A5",
+    "share.unavailable": "\u5F53\u524D\u6587\u6863\u6682\u65F6\u4E0D\u80FD\u5206\u4EAB\u3002",
+    "share.syncAndCopy": "\u540C\u6B65\u5E76\u590D\u5236",
+    "share.publishAndCopy": "\u53D1\u5E03\u5E76\u590D\u5236",
+    "error.publishInvalidResponse": "\u5206\u4EAB\u53D1\u5E03\u63A5\u53E3\u8FD4\u56DE\u4E86\u4E0D\u53EF\u89E3\u6790\u7684\u7ED3\u679C\u3002",
+    "error.publishUnavailable": "\u65E0\u6CD5\u8FDE\u63A5\u672C\u673A\u5206\u4EAB\u53D1\u5E03\u670D\u52A1\u3002",
+    "toast.publishedAndCopied": "\u5DF2\u53D1\u5E03\u5E76\u590D\u5236\u5206\u4EAB\u94FE\u63A5",
+    "share.publishFailedTitle": "\u65E0\u6CD5\u53D1\u5E03\u5206\u4EAB\u94FE\u63A5",
+    "share.publishUnavailable": "\u5F53\u524D\u6587\u6863\u6682\u65F6\u4E0D\u80FD\u53D1\u5E03\u3002",
+    "share.publishFailed": "\u5206\u4EAB\u53D1\u5E03\u5931\u8D25",
+    "share.remoteIncomplete": "\u8FDC\u7AEF\u53D1\u5E03\u6CA1\u6709\u5B8C\u6210\u3002",
+    "share.localPreserved": "\u672C\u5730\u4FEE\u6539\u548C\u5DF2\u521B\u5EFA\u7684\u63D0\u4EA4\u5747\u4F1A\u4FDD\u7559\u3002\u8BF7\u68C0\u67E5\u7F51\u7EDC\u3001GitHub \u767B\u5F55\u6216\u8FDC\u7AEF\u5206\u652F\u72B6\u6001\u540E\u91CD\u8BD5\u3002",
+    "share.retryPublish": "\u91CD\u8BD5\u53D1\u5E03",
+    "share.handOffAgent": "\u4EA4\u7ED9 AI Agent",
+    "share.agentHelp": "\u590D\u5236\u63D0\u793A\u8BCD\u5E76\u4EA4\u7ED9 AI Agent\uFF0C\u5B8C\u6210\u8FDC\u7AEF\u53D1\u5E03\u540E\u518D\u590D\u5236\u5206\u4EAB\u94FE\u63A5\u3002",
+    "toast.noGitHubLink": "\u5F53\u524D\u6587\u6863\u6CA1\u6709 GitHub \u94FE\u63A5",
+    "toast.openedGitHub": "\u5DF2\u6253\u5F00 GitHub",
+    "toast.openGitHubFailed": "\u65E0\u6CD5\u6253\u5F00 GitHub \u94FE\u63A5",
+    "toast.notEditable": "\u5F53\u524D\u6587\u6863\u4E0D\u53EF\u7F16\u8F91",
+    "toast.savingImage": "\u6B63\u5728\u4FDD\u5B58\u56FE\u7247",
+    "error.saveImage": "\u56FE\u7247\u4FDD\u5B58\u5931\u8D25",
+    "toast.imageInserted": "\u5DF2\u63D2\u5165\u56FE\u7247",
+    "link.repositoryTitle": "\u6DFB\u52A0\u4ED3\u5E93\u6587\u6863\u94FE\u63A5",
+    "link.repositoryHelp": "\u94FE\u63A5\u586B\u5199\u5F53\u524D\u4ED3\u5E93\u5185\u7684 Markdown / MDX \u8DEF\u5F84\uFF1B\u6807\u9898\u53EF\u7559\u7A7A\uFF0C\u4FDD\u5B58\u65F6\u4F1A\u4F7F\u7528\u76EE\u6807\u6587\u6863\u6807\u9898\u3002",
+    "link.fieldTitle": "\u6807\u9898",
+    "link.fieldLink": "\u94FE\u63A5",
+    "link.insert": "\u63D2\u5165\u94FE\u63A5",
+    "link.save": "\u4FDD\u5B58\u94FE\u63A5",
+    "link.defaultTitlePlaceholder": "\u7559\u7A7A\u65F6\u81EA\u52A8\u4F7F\u7528\u9ED8\u8BA4\u6807\u9898",
+    "link.externalTitle": "\u6DFB\u52A0\u94FE\u63A5",
+    "link.externalHelp": "\u5916\u90E8\u94FE\u63A5\u8BF7\u586B\u5199 URL\uFF1Btitle \u7559\u7A7A\u65F6\u4F1A\u4F7F\u7528 URL\u3002",
+    "link.invalidUrl": "\u94FE\u63A5 URL \u65E0\u6548",
+    "error.readTargetDocument": "\u65E0\u6CD5\u8BFB\u53D6\u76EE\u6807\u6587\u6863",
+    "error.insertDocumentLink": "\u65E0\u6CD5\u63D2\u5165\u6587\u6863\u94FE\u63A5",
+    "error.readImage": "\u8BFB\u53D6\u56FE\u7247\u5931\u8D25",
+    "frontmatter.editTitle": "\u7F16\u8F91 {key}",
+    "frontmatter.invalidKey": "\u5B57\u6BB5\u540D\u65E0\u6548",
+    "frontmatter.updated": "\u5DF2\u66F4\u65B0 frontmatter",
+    "frontmatter.deleted": "\u5DF2\u5220\u9664 frontmatter \u5B57\u6BB5",
+    "frontmatter.noneAvailable": "\u6CA1\u6709\u53EF\u6DFB\u52A0\u7684 frontmatter \u5B57\u6BB5",
+    "frontmatter.addTitle": "\u6DFB\u52A0 frontmatter \u5B57\u6BB5",
+    "frontmatter.field": "\u5B57\u6BB5",
+    "frontmatter.setTitle": "\u8BBE\u7F6E {key}",
+    "frontmatter.added": "\u5DF2\u6DFB\u52A0 frontmatter \u5B57\u6BB5",
+    "link.editTitle": "\u4FEE\u6539\u94FE\u63A5",
+    "link.editHelp": "\u5916\u90E8\u94FE\u63A5\u586B URL\uFF1B\u4ED3\u5E93\u5185\u6587\u6863\u586B\u76F8\u5BF9\u8DEF\u5F84\u3001\u6839\u8DEF\u5F84\u6216 Git Leaf \u6587\u6863 URL\u3002",
+    "link.placeholder": "docs/example.md \u6216 https://example.com",
+    "link.updated": "\u5DF2\u66F4\u65B0\u94FE\u63A5",
+    "link.empty": "\u94FE\u63A5\u4E0D\u80FD\u4E3A\u7A7A",
+    "error.openTargetDocument": "\u65E0\u6CD5\u6253\u5F00\u76EE\u6807\u6587\u6863",
+    "image.captionTitle": "\u56FE\u7247\u8BF4\u660E",
+    "image.captionHelp": "\u8BF4\u660E\u6587\u5B57\u4F1A\u663E\u793A\u5728\u56FE\u7247\u4E0B\u65B9\uFF0C\u5E76\u5199\u5165\u5F53\u524D\u56FE\u7247\u7684 data-caption \u5C5E\u6027\u3002",
+    "image.captionLabel": "\u8BF4\u660E\u6587\u5B57",
+    "image.saveCaption": "\u4FDD\u5B58\u8BF4\u660E",
+    "image.updated": "\u5DF2\u66F4\u65B0\u56FE\u7247",
+    "document.fallbackTitle": "Git Leaf \u6587\u6863",
+    "image.remoteFailure": "\u7F51\u7EDC\u4E0D\u53EF\u7528\u3001\u8BBF\u95EE\u53D7\u9650\u6216\u94FE\u63A5\u5DF2\u7ECF\u5931\u6548",
+    "image.localFailure": "\u6587\u4EF6\u4E0D\u5B58\u5728\u3001\u8DEF\u5F84\u9519\u8BEF\u6216\u56FE\u7247\u683C\u5F0F\u65E0\u6CD5\u89E3\u7801",
+    "image.failure": "\u56FE\u7247\u52A0\u8F7D\u5931\u8D25\uFF1A{label}\uFF08{reason}\uFF09",
+    "image.inline": "\u5185\u5D4C\u56FE\u7247",
+    "image.unknown": "\u672A\u77E5\u56FE\u7247",
+    "sourceSync.error": "\u540C\u6B65\u5931\u8D25",
+    "update.newVersion": "Git Leaf \u65B0\u7248\u672C",
+    "update.availableDetail": "\u65B0\u7248\u672C\u53EF\u7528\uFF0C\u70B9\u51FB\u540E\u4E0B\u8F7D",
+    "update.action": "\u66F4\u65B0",
+    "update.preparingDetail": "\u6B63\u5728\u4E0B\u8F7D\u5E76\u51C6\u5907\u65B0\u7248\u672C\u2026",
+    "update.readyDetail": "\u5DF2\u51C6\u5907\u597D\uFF0C\u9000\u51FA\u540E\u81EA\u52A8\u5B89\u88C5",
+    "update.restart": "\u7ACB\u5373\u91CD\u542F",
+    "update.retryDetail": "\u66F4\u65B0\u672A\u5B8C\u6210\uFF0C\u70B9\u51FB\u91CD\u8BD5",
+    "help.repositoryFiles.title": "\u4ED3\u5E93\u6587\u4EF6",
+    "help.repositoryFiles.1": "Git Leaf \u59CB\u7EC8\u53D1\u73B0\u4ED3\u5E93\u4E2D\u5168\u90E8\u5DF2\u8DDF\u8E2A\u6587\u4EF6\u548C\u672A\u88AB .gitignore \u5FFD\u7565\u7684\u672C\u5730\u6587\u4EF6\u3002\u76EE\u5F55\u6811\u53EF\u4EE5\u9009\u62E9\u201C\u5185\u5BB9\u6587\u4EF6\u201D\u6216\u201C\u5168\u90E8\u4ED3\u5E93\u6587\u4EF6\u201D\u3002\u5185\u5BB9\u6587\u4EF6\u6A21\u5F0F\u9ED8\u8BA4\u663E\u793A Markdown / MDX\u3001HTML\u3001\u56FE\u7247\u548C PDF\uFF1BHTML \u5E38\u7528\u4E8E\u539F\u578B\u3001\u526F\u6587\u672C\u8F93\u51FA\u548C\u62A5\u8868\uFF0C\u56E0\u6B64\u4E0E PDF \u4E00\u6837\u4F5C\u4E3A\u5185\u5BB9\u5E38\u9A7B\u5C55\u793A\u3002",
+    "help.repositoryFiles.2": "CSV\u3001JSON\u3001YAML\u3001TXT\u3001\u4EE3\u7801\u3001\u914D\u7F6E\u548C\u672A\u77E5\u7C7B\u578B\u4E0D\u4F1A\u5E38\u9A7B\u5185\u5BB9\u76EE\u5F55\u3002\u5F53\u524D\u6253\u5F00\u7684\u6587\u4EF6\u3001\u641C\u7D22\u7ED3\u679C\uFF0C\u4EE5\u53CA\u201C\u4EC5\u672C\u5730\u6539\u52A8\u201D\u4E2D\u7684\u6587\u4EF6\u4F1A\u6309\u9700\u4E34\u65F6\u663E\u9732\u3002\u5207\u6362\u6587\u6863\u4E0D\u4F1A\u56E0\u4E3A\u5F15\u7528\u5173\u7CFB\u6539\u53D8\u76EE\u5F55\u5185\u5BB9\uFF1B\u5168\u90E8\u4ED3\u5E93\u6587\u4EF6\u6A21\u5F0F\u4ECD\u4F1A\u663E\u793A\u5B8C\u6574\u4ED3\u5E93\u3002",
+    "help.repositoryFiles.3": "\u76EE\u5F55\u6811\u504F\u597D\u53EA\u6539\u53D8\u663E\u793A\uFF0C\u4E0D\u6539\u53D8 Git \u6539\u52A8\u53D1\u73B0\u3001\u540C\u6B65\u6216\u63D0\u4EA4\u8303\u56F4\u3002\u53EA\u6709 Markdown / MDX \u53EF\u4EE5\u5728 Source / Live \u4E2D\u7F16\u8F91\uFF1BHTML\u3001\u56FE\u7247\u3001PDF\u3001\u7ED3\u6784\u5316\u6570\u636E\u3001\u6587\u672C\u548C\u4EE3\u7801\u6309\u5BF9\u5E94\u65B9\u5F0F\u53EA\u8BFB\u9884\u89C8\uFF0C\u6682\u4E0D\u652F\u6301\u9884\u89C8\u7684\u6587\u4EF6\u53EF\u4EE5\u4EA4\u7ED9\u7CFB\u7EDF\u5E94\u7528\u6253\u5F00\u3002",
+    "help.filters.title": "\u641C\u7D22\u4E0E Frontmatter \u7B5B\u9009",
+    "help.filters.1": "\u7B5B\u9009\u6309\u94AE\u4F9D\u8D56\u76EE\u6807\u4ED3\u5E93\u91CC\u7684 docs/frontmatter-rules.json\u3002\u6CA1\u6709\u8FD9\u4E2A\u89C4\u5219\u6587\u4EF6\uFF0C\u6216\u89C4\u5219\u91CC\u6CA1\u6709\u53EF\u7528\u4E8E\u805A\u5408\u7684 frontmatter \u5B57\u6BB5\u65F6\uFF0CGit Leaf \u4F1A\u9690\u85CF\u7B5B\u9009\u6309\u94AE\u3002",
+    "help.filters.2": "\u8FD9\u662F\u6587\u6863\u7B5B\u9009\uFF1A\u7B5B\u9009\u9879\u6765\u81EA Markdown / MDX \u6587\u4EF6\u5F00\u5934\u7684 frontmatter\u3002\u542F\u7528\u540E\uFF0C\u56FE\u7247\u3001\u9644\u4EF6\u548C\u5176\u4ED6\u975E\u6587\u6863\u6587\u4EF6\u4F1A\u6682\u65F6\u9690\u85CF\uFF1B\u6E05\u9664\u7B5B\u9009\u5373\u53EF\u6062\u590D\u5185\u5BB9\u76EE\u5F55\u3002\u591A\u4E2A\u6761\u4EF6\u6309 AND \u7EC4\u5408\uFF1Bai_snippet \u53EA\u53C2\u4E0E\u641C\u7D22\u6846\u6587\u672C\u641C\u7D22\u3002",
+    "help.worktrees.title": "\u5DE5\u4F5C\u6811\u4E0E\u5206\u652F",
+    "help.worktrees.1": "\u4ED3\u5E93\u53EA\u6709\u4E00\u4E2A\u4E3B\u5DE5\u4F5C\u76EE\u5F55\u65F6\uFF0CGit Leaf \u4E0D\u663E\u793A\u5DE5\u4F5C\u6811\u9009\u62E9\u5668\u3002\u68C0\u6D4B\u5230\u591A\u4E2A worktree \u540E\uFF0C\u5DE6\u4FA7\u76EE\u5F55\u6811\u4E0A\u65B9\u4F1A\u663E\u793A\u9009\u62E9\u5668\uFF0C\u5E76\u6807\u51FA\u5404\u5DE5\u4F5C\u76EE\u5F55\u6240\u5728\u5206\u652F\u3002",
+    "help.worktrees.2": "\u6B63\u5E38\u5206\u652F\u90FD\u53EF\u4EE5\u4F7F\u7528 Preview\u3001Source \u548C Live\u3002\u5207\u6362 worktree \u65F6\uFF0CGit Leaf \u4F1A\u5206\u522B\u6062\u590D\u8BE5\u5DE5\u4F5C\u76EE\u5F55\u7684 Tab\u3001\u76EE\u5F55\u5C55\u5F00\u3001\u6EDA\u52A8\u548C\u7126\u70B9\u72B6\u6001\u3002",
+    "help.worktrees.3": "\u663E\u793A\u201C\u65E0\u5206\u652F\u201D\u8868\u793A\u5F53\u524D worktree \u8FD8\u6CA1\u6709\u5DE5\u4F5C\u5206\u652F\u3002\u7B2C\u4E00\u6B21\u5B9E\u9645\u5199\u5165\u524D\uFF0CGit Leaf \u4F1A\u81EA\u52A8\u521B\u5EFA\u4FDD\u62A4\u5206\u652F\uFF0C\u907F\u514D\u4FEE\u6539\u505C\u7559\u5728 Detached HEAD\u3002",
+    "help.worktrees.4": "\u666E\u901A\u540C\u4E8B\u901A\u5E38\u4E0D\u9700\u8981\u4E3B\u52A8\u521B\u5EFA\u6216\u5207\u6362 worktree\uFF1B\u4E0D\u786E\u5B9A\u5F53\u524D\u5DE5\u4F5C\u76EE\u5F55\u7528\u9014\u65F6\uFF0C\u5148\u4FDD\u6301\u4E3B\u5DE5\u4F5C\u76EE\u5F55\uFF0C\u6216\u4EA4\u7ED9 AI Agent \u786E\u8BA4\u3002",
+    "help.sync.title": "\u540C\u6B65",
+    "help.sync.1": "\u5DE6\u4FA7\u51FA\u73B0\u672C\u5730\u6539\u52A8\u6570\u91CF\u65F6\uFF0C\u70B9\u51FB\u201C\u540C\u6B65\u201D\u4F1A\u4E00\u6B21\u540C\u6B65\u5F53\u524D\u4ED3\u5E93\u7684\u5168\u90E8\u6539\u52A8\uFF0C\u5305\u62EC\u6587\u6863\u3001\u56FE\u7247\u3001\u9644\u4EF6\u548C\u5220\u9664\uFF1B\u4E0D\u9700\u8981\u9009\u62E9\u6587\u4EF6\u3001\u586B\u5199\u63D0\u4EA4\u8BF4\u660E\u6216\u7406\u89E3 Git \u547D\u4EE4\u3002",
+    "help.sync.2": "\u540C\u6B65\u65F6\u6309\u94AE\u4F1A\u663E\u793A\u201C\u6B63\u5728\u540C\u6B65\u2026\u201D\uFF0C\u5B8C\u6210\u540E\u63D0\u793A\u201C\u540C\u6B65\u5B8C\u6210\u201D\u3002\u540C\u6B65\u671F\u95F4\u540E\u6765\u4EA7\u751F\u7684\u65B0\u4FEE\u6539\u4ECD\u4FDD\u7559\u5728\u672C\u673A\uFF0C\u4E0D\u4F1A\u88AB\u6084\u6084\u8986\u76D6\u3002",
+    "help.sync.3": "\u9047\u5230\u5206\u652F\u5206\u53C9\u3001\u51B2\u7A81\u6216\u6301\u7EED\u53D8\u5316\u65F6\uFF0CGit Leaf \u4F1A\u505C\u6B62\u5371\u9669\u64CD\u4F5C\u5E76\u4FDD\u7559\u672C\u5730\u5185\u5BB9\uFF1B\u590D\u5236\u754C\u9762\u91CC\u7684\u63D0\u793A\u8BCD\u4EA4\u7ED9\u4F60\u9009\u62E9\u7684 AI Agent \u7EE7\u7EED\u5904\u7406\u5373\u53EF\u3002",
+    "help.sharing.title": "\u5206\u4EAB\u6587\u6863",
+    "help.sharing.1": "\u53F3\u4E0A\u89D2\u201C\u590D\u5236\u5206\u4EAB\u94FE\u63A5\u201D\u53EA\u5206\u4EAB\u4E3B\u5DE5\u4F5C\u533A main \u4E2D\u7684 Markdown / MDX \u6587\u6863\uFF0C\u4E0D\u4F1A\u5206\u4EAB\u672C\u673A\u8DEF\u5F84\u6216 feature worktree\u3002\u6587\u6863\u5C1A\u672A\u53D1\u5E03\u65F6\uFF0C\u786E\u8BA4\u201C\u540C\u6B65\u5E76\u590D\u5236\u201D\u4F1A\u5B8C\u6210\u63D0\u4EA4\u3001\u63A8\u9001\u548C\u8FDC\u7AEF\u590D\u6838\uFF0C\u6210\u529F\u540E\u76F4\u63A5\u628A\u94FE\u63A5\u5199\u5165\u526A\u8D34\u677F\u3002",
+    "help.sharing.2": "\u628A\u94FE\u63A5\u53D1\u5230\u98DE\u4E66\u7B49\u804A\u5929\u5DE5\u5177\u65F6\uFF0C\u5361\u7247\u53EA\u4F7F\u7528\u5DF2\u53D1\u5E03\u7248\u672C\u7684\u6587\u6863\u6807\u9898\uFF0C\u5206\u4EAB URL \u4E0D\u643A\u5E26 ai_snippet\uFF1B\u5361\u7247\u63CF\u8FF0\u56DE\u9000\u663E\u793A\u4ED3\u5E93\u4E0E\u6587\u6863\u8DEF\u5F84\u3002\u5361\u7247\u53EA\u662F\u9884\u89C8\uFF0C\u4E0D\u4F1A\u6388\u4E88\u6587\u6863\u8BBF\u95EE\u6743\u9650\u3002",
+    "help.sharing.3": "\u63A5\u6536\u65B9\u70B9\u51FB\u94FE\u63A5\u540E\uFF0CGit Leaf \u4F1A\u68C0\u67E5\u672C\u5730\u4E3B\u5DE5\u4F5C\u533A\u548C\u5206\u4EAB\u7248\u672C\u3002\u9700\u8981\u4ECE\u5176\u4ED6 worktree \u5207\u56DE\u4E3B\u5DE5\u4F5C\u533A\u3001\u4FDD\u7559\u672C\u5730\u4FEE\u6539\u66F4\u65B0 main\uFF0C\u6216\u5148\u540C\u6B65\u91CD\u53E0\u6587\u4EF6\u65F6\uFF0C\u5E94\u7528\u4F1A\u5148\u660E\u786E\u8BE2\u95EE\u3002",
+    "help.sharing.4": "\u5206\u4EAB\u53D1\u5E03\u5931\u8D25\u65F6\uFF0C\u672C\u5730\u4FEE\u6539\u548C\u5DF2\u7ECF\u521B\u5EFA\u7684\u63D0\u4EA4\u90FD\u4F1A\u4FDD\u7559\uFF1B\u68C0\u67E5\u7F51\u7EDC\u3001GitHub \u767B\u5F55\u6216\u8FDC\u7AEF\u5206\u652F\u72B6\u6001\u540E\u53EF\u4EE5\u539F\u5730\u91CD\u8BD5\uFF0C\u4E5F\u53EF\u4EE5\u628A\u5931\u8D25\u63D0\u793A\u4EA4\u7ED9 AI Agent\u3002\u5206\u4EAB\u94FE\u63A5\u4E0D\u4F1A\u6388\u4E88 GitHub \u6743\u9650\uFF1B\u63A5\u6536\u65B9\u672C\u673A\u5C1A\u672A\u6253\u5F00\u5BF9\u5E94\u4ED3\u5E93\u65F6\uFF0CGit Leaf \u4F1A\u8981\u6C42\u9009\u62E9\u672C\u673A\u76EE\u5F55\u5E76\u6838\u5BF9 GitHub origin\u3002",
+    "help.telemetry.title": "\u57FA\u7840\u4F7F\u7528\u7EDF\u8BA1",
+    "help.telemetry.1": "Git Leaf \u6B63\u5F0F\u7248\u4F1A\u53D1\u9001\u533F\u540D\u5B89\u88C5\u5B9E\u4F8B\u3001App \u7248\u672C\u3001\u66F4\u65B0\u72B6\u6001\u3001\u6BCF\u65E5\u6D3B\u8DC3\u65F6\u957F\u3001\u4ED3\u5E93\u6570\u91CF\u548C\u6838\u5FC3\u529F\u80FD\u6B21\u6570\uFF0C\u7528\u4E8E\u4E86\u89E3\u5B89\u88C5\u66F4\u65B0\u662F\u5426\u6B63\u5E38\u4EE5\u53CA\u5DE5\u5177\u662F\u5426\u88AB\u5B9E\u9645\u4F7F\u7528\u3002",
+    "help.telemetry.2": "\u7EDF\u8BA1\u4E0D\u4F1A\u53D1\u9001\u4ED3\u5E93\u540D\u3001\u4ED3\u5E93\u8DEF\u5F84\u3001\u5206\u652F\u540D\u3001worktree \u8EAB\u4EFD\u3001\u6587\u4EF6\u540D\u3001\u6587\u6863\u5185\u5BB9\u3001\u641C\u7D22\u8BCD\u3001\u94FE\u63A5\u3001Git \u8EAB\u4EFD\u3001diff \u6216\u9519\u8BEF\u539F\u6587\u3002\u8BBE\u5907\u540D\u79F0\u53EA\u51FA\u73B0\u5728\u4F4E\u9891\u5B89\u88C5\u89C2\u5BDF\u65E5\u5FD7\u4E2D\uFF0C\u4E0D\u4F5C\u4E3A\u884C\u4E3A\u6807\u8BC6\u3002\u5F00\u53D1\u7248\u3001\u6D4B\u8BD5\u548C CLI / Web \u5165\u53E3\u4E0D\u4F1A\u53D1\u9001\u6B63\u5F0F\u7EDF\u8BA1\u3002",
+    "help.visibility.default": "\u9ED8\u8BA4\u663E\u793A",
+    "help.visibility.onDemand": "\u6309\u9700\u663E\u793A",
+    "help.behavior.document": "Markdown / MDX \u9884\u89C8\uFF0C\u53EF\u7F16\u8F91",
+    "help.behavior.image": "\u56FE\u7247\u9884\u89C8",
+    "help.behavior.pdf": "\u6D4F\u89C8\u5668 PDF \u9884\u89C8",
+    "help.behavior.html": "\u6D4F\u89C8\u5668 HTML \u6548\u679C\u9884\u89C8\uFF0C\u53EA\u8BFB",
+    "help.behavior.csv": "\u8868\u683C\u9884\u89C8\uFF0C\u9996\u884C\u4F5C\u4E3A\u8868\u5934",
+    "help.behavior.json": "\u683C\u5F0F\u5316 JSON \u6811\uFF1B\u89E3\u6790\u5931\u8D25\u65F6\u6309\u6587\u672C\u663E\u793A",
+    "help.behavior.text": "\u53EA\u8BFB\u4EE3\u7801\u5757 / \u7EAF\u6587\u672C\u9884\u89C8",
+    "help.behavior.code": "\u53EA\u8BFB\u4EE3\u7801\u9884\u89C8\uFF0C\u4E0D\u63D0\u4F9B\u7F16\u8F91",
+    "help.behavior.other": "\u6253\u5F00\u540E\u68C0\u6D4B\u9884\u89C8\u80FD\u529B\uFF1B\u4E0D\u652F\u6301\u65F6\u4F7F\u7528\u7CFB\u7EDF\u5E94\u7528\u6253\u5F00",
+    "help.files.code": ".js .ts .py .css .toml \u7B49\u6587\u672C\u4EE3\u7801 / \u914D\u7F6E",
+    "help.files.other": "\u5176\u4ED6\u6587\u4EF6\uFF08\u4F8B\u5982 .pptx\uFF09",
+    "help.column.fileType": "\u6587\u4EF6\u7C7B\u578B",
+    "help.column.contentMode": "\u5185\u5BB9\u6A21\u5F0F",
+    "help.column.openMethod": "\u6253\u5F00\u65B9\u5F0F",
+    "shortcuts.repository": "\u4ED3\u5E93",
+    "shortcuts.title": "\u952E\u76D8\u5FEB\u6377\u952E",
+    "shortcuts.documents": "\u6587\u6863",
+    "shortcuts.viewModes": "\u663E\u793A\u6A21\u5F0F",
+    "shortcuts.navigation": "\u5BFC\u822A",
+    "shortcuts.help": "\u5E2E\u52A9",
+    "shortcut.openRepository": "\u6253\u5F00 Git \u4ED3\u5E93",
+    "shortcut.switchRepositoryNumber": "\u5207\u6362\u5230\u4ED3\u5E93 1..9",
+    "shortcut.previousRepository": "\u4E0A\u4E00\u4E2A\u4ED3\u5E93",
+    "shortcut.nextRepository": "\u4E0B\u4E00\u4E2A\u4ED3\u5E93",
+    "shortcut.switchTabNumber": "\u5207\u6362\u5230\u6807\u7B7E\u9875 1..8",
+    "shortcut.switchLastTab": "\u5207\u6362\u5230\u6700\u540E\u4E00\u4E2A\u6807\u7B7E\u9875",
+    "shortcut.previousTab": "\u4E0A\u4E00\u4E2A\u6807\u7B7E\u9875",
+    "shortcut.nextTab": "\u4E0B\u4E00\u4E2A\u6807\u7B7E\u9875",
+    "shortcut.previousTabWindows": "Windows \u4E0A\u7684\u4E0A\u4E00\u4E2A\u6807\u7B7E\u9875",
+    "shortcut.nextTabWindows": "Windows \u4E0A\u7684\u4E0B\u4E00\u4E2A\u6807\u7B7E\u9875",
+    "shortcut.closeTab": "\u5173\u95ED\u5F53\u524D\u6807\u7B7E\u9875",
+    "shortcut.findDocument": "\u5728\u5F53\u524D\u6587\u6863\u4E2D\u67E5\u627E",
+    "shortcut.copyDocumentPath": "\u590D\u5236\u6587\u6863\u8DEF\u5F84",
+    "shortcut.copyShareLink": "\u590D\u5236\u5206\u4EAB\u94FE\u63A5",
+    "shortcut.openGitHub": "\u6253\u5F00 GitHub \u94FE\u63A5",
+    "shortcut.openSource": "\u6253\u5F00\u6E90\u6587\u4EF6",
+    "shortcut.revealFile": "\u5728\u6587\u4EF6\u7BA1\u7406\u5668\u4E2D\u663E\u793A",
+    "shortcut.backgroundTab": "\u5728\u540E\u53F0\u6807\u7B7E\u9875\u6253\u5F00\u6587\u4EF6",
+    "shortcut.activeTab": "\u5728\u65B0\u7684\u6D3B\u52A8\u6807\u7B7E\u9875\u6253\u5F00\u6587\u4EF6",
+    "shortcut.preview": "Preview",
+    "shortcut.source": "Source",
+    "shortcut.live": "Live",
+    "shortcut.toggleSidebar": "\u5207\u6362\u4FA7\u8FB9\u680F",
+    "shortcut.toggleOutline": "\u5207\u6362\u6587\u6863\u5BFC\u822A",
+    "shortcut.back": "\u540E\u9000",
+    "shortcut.forward": "\u524D\u8FDB",
+    "shortcut.focusSearch": "\u805A\u7126\u6587\u4EF6\u641C\u7D22",
+    "shortcut.focusTree": "\u805A\u7126\u6587\u4EF6\u6811",
+    "shortcut.focusTreeFromSearch": "\u4ECE\u641C\u7D22\u805A\u7126\u6587\u4EF6\u6811",
+    "shortcut.moveTree": "\u5728\u6587\u4EF6\u6811\u4E2D\u79FB\u52A8",
+    "shortcut.toggleFolder": "\u6298\u53E0\u6216\u5C55\u5F00\u6587\u4EF6\u5939",
+    "shortcut.openSelected": "\u6253\u5F00\u9009\u4E2D\u6587\u4EF6",
+    "shortcut.openSettings": "\u6253\u5F00\u8BBE\u7F6E",
+    "shortcut.openShortcuts": "\u6253\u5F00\u952E\u76D8\u5FEB\u6377\u952E"
+  })
+});
+
 // public/image-preview.js
-function imageLoadFailureMessage({ src = "", alt = "" } = {}) {
+function imageLoadFailureMessage({ src = "", alt = "" } = {}, locale = "zh-CN") {
+  const t2 = createTranslator(WORKBENCH_MESSAGES, locale);
   const source = String(src ?? "").trim();
-  const label = imageSourceLabel(source, alt);
-  const reason = isRemoteImageSource(source) ? "\u7F51\u7EDC\u4E0D\u53EF\u7528\u3001\u8BBF\u95EE\u53D7\u9650\u6216\u94FE\u63A5\u5DF2\u7ECF\u5931\u6548" : "\u6587\u4EF6\u4E0D\u5B58\u5728\u3001\u8DEF\u5F84\u9519\u8BEF\u6216\u56FE\u7247\u683C\u5F0F\u65E0\u6CD5\u89E3\u7801";
-  return `\u56FE\u7247\u52A0\u8F7D\u5931\u8D25\uFF1A${label}\uFF08${reason}\uFF09`;
+  const label = imageSourceLabel(source, alt, t2);
+  const reason = isRemoteImageSource(source) ? t2("image.remoteFailure") : t2("image.localFailure");
+  return t2("image.failure", { label, reason });
 }
-function enhanceImageLoadStates(root) {
+function enhanceImageLoadStates(root, { locale = "zh-CN" } = {}) {
   for (const image2 of root?.querySelectorAll?.("img") ?? []) {
-    attachImageLoadState(image2);
+    attachImageLoadState(image2, { locale });
   }
 }
-function attachImageLoadState(image2) {
+function attachImageLoadState(image2, { locale = "zh-CN" } = {}) {
   if (!image2 || image2.dataset.gitLeafLoadStateAttached === "true") {
     return;
   }
@@ -35370,7 +36202,7 @@ function attachImageLoadState(image2) {
     message.textContent = imageLoadFailureMessage({
       src: image2.getAttribute("src") || image2.currentSrc || image2.src,
       alt: image2.alt
-    });
+    }, locale);
     frame.append(message);
   };
   image2.addEventListener("load", clearFailure);
@@ -35379,7 +36211,7 @@ function attachImageLoadState(image2) {
     queueMicrotask(image2.naturalWidth > 0 ? clearFailure : showFailure);
   }
 }
-function imageSourceLabel(source, alt) {
+function imageSourceLabel(source, alt, t2) {
   try {
     const url = new URL(source, "http://git-leaf.local");
     const repositoryPath = url.pathname === "/raw" ? url.searchParams.get("file") : "";
@@ -35390,11 +36222,11 @@ function imageSourceLabel(source, alt) {
       return url.href;
     }
     if (url.protocol === "data:") {
-      return String(alt ?? "").trim() || "\u5185\u5D4C\u56FE\u7247";
+      return String(alt ?? "").trim() || t2("image.inline");
     }
   } catch {
   }
-  return source || String(alt ?? "").trim() || "\u672A\u77E5\u56FE\u7247";
+  return source || String(alt ?? "").trim() || t2("image.unknown");
 }
 function isRemoteImageSource(source) {
   return /^(?:https?:)?\/\//i.test(String(source ?? "").trim());
@@ -35437,10 +36269,79 @@ var mdxLiteComponentNames = [
   "FlowDiagram"
 ];
 var imageWidthSteps = [320, 480, 640, 760, 960, 1200];
-var SLASH_COMMANDS = [
+var SOURCE_EDITOR_SLASH_MESSAGES = {
+  en: {
+    "frontmatter.title": "Document frontmatter",
+    "frontmatter.description": "Insert document metadata",
+    "quote.title": "Quote",
+    "quote.description": "Insert a block quote",
+    "code.title": "Code block",
+    "code.description": "Insert a fenced code block",
+    "link.title": "External link",
+    "link.description": "Insert an external Markdown link",
+    "doclink.title": "Repository document link",
+    "doclink.description": "Link to another document in this repository",
+    "datatable.title": "DataTable",
+    "datatable.description": "Insert a CSV-backed data table",
+    "datatable.example": "Example",
+    "timeline.title": "Timeline",
+    "timeline.description": "Insert a JSON-backed timeline",
+    "timeline.exampleTitle": "Milestone",
+    "timeline.exampleBody": "Add details",
+    "chart.title": "Chart",
+    "chart.description": "Insert a CSV-backed chart",
+    "decision.title": "DecisionBox",
+    "decision.description": "Insert a structured decision summary",
+    "decision.rowDecision": "Decision",
+    "decision.rowReason": "Reason",
+    "decision.rowTradeoff": "Trade-off",
+    "metrics.title": "MetricGrid",
+    "metrics.description": "Insert a metric card grid",
+    "metrics.exampleLabel": "Core metric",
+    "metrics.exampleNote": "Definition",
+    "flow.title": "FlowDiagram",
+    "flow.description": "Insert a JSON-backed flow diagram",
+    "flow.start": "Start",
+    "flow.done": "Done"
+  },
+  "zh-CN": {
+    "frontmatter.title": "\u6587\u6863 frontmatter",
+    "frontmatter.description": "\u63D2\u5165\u6587\u6863\u5143\u6570\u636E",
+    "quote.title": "\u5F15\u7528",
+    "quote.description": "\u63D2\u5165\u5F15\u7528\u5757",
+    "code.title": "\u4EE3\u7801\u5757",
+    "code.description": "\u63D2\u5165\u56F4\u680F\u4EE3\u7801\u5757",
+    "link.title": "\u5916\u90E8\u94FE\u63A5",
+    "link.description": "\u63D2\u5165\u5916\u90E8 Markdown \u94FE\u63A5",
+    "doclink.title": "\u4ED3\u5E93\u6587\u6863\u94FE\u63A5",
+    "doclink.description": "\u94FE\u63A5\u5230\u5F53\u524D\u4ED3\u5E93\u4E2D\u7684\u5176\u4ED6\u6587\u6863",
+    "datatable.title": "DataTable \u6570\u636E\u8868",
+    "datatable.description": "\u63D2\u5165\u7531 CSV \u6570\u636E\u9A71\u52A8\u7684\u6570\u636E\u8868",
+    "datatable.example": "\u793A\u4F8B",
+    "timeline.title": "Timeline \u65F6\u95F4\u7EBF",
+    "timeline.description": "\u63D2\u5165\u7531 JSON \u6570\u636E\u9A71\u52A8\u7684\u65F6\u95F4\u7EBF",
+    "timeline.exampleTitle": "\u5173\u952E\u8282\u70B9",
+    "timeline.exampleBody": "\u8865\u5145\u8BF4\u660E",
+    "chart.title": "Chart \u7EDF\u8BA1\u56FE\u8868",
+    "chart.description": "\u63D2\u5165\u7531 CSV \u6570\u636E\u9A71\u52A8\u7684\u7EDF\u8BA1\u56FE\u8868",
+    "decision.title": "DecisionBox \u51B3\u7B56\u6458\u8981",
+    "decision.description": "\u63D2\u5165\u7ED3\u6784\u5316\u51B3\u7B56\u6458\u8981",
+    "decision.rowDecision": "\u51B3\u7B56",
+    "decision.rowReason": "\u7406\u7531",
+    "decision.rowTradeoff": "\u4EE3\u4EF7",
+    "metrics.title": "MetricGrid \u6307\u6807\u5361",
+    "metrics.description": "\u63D2\u5165\u6307\u6807\u5361\u7F51\u683C",
+    "metrics.exampleLabel": "\u6838\u5FC3\u6307\u6807",
+    "metrics.exampleNote": "\u53E3\u5F84\u8BF4\u660E",
+    "flow.title": "FlowDiagram \u6D41\u7A0B\u56FE",
+    "flow.description": "\u63D2\u5165\u7531 JSON \u6570\u636E\u9A71\u52A8\u7684\u6D41\u7A0B\u56FE",
+    "flow.start": "\u5F00\u59CB",
+    "flow.done": "\u5B8C\u6210"
+  }
+};
+var slashCommandDefinitions = [
   {
     label: "frontmatter",
-    title: "\u6587\u6863 frontmatter",
     detail: "Markdown",
     template: ({ today }) => [
       "---",
@@ -35456,52 +36357,46 @@ var SLASH_COMMANDS = [
   },
   {
     label: "quote",
-    title: "\u5F15\u7528",
     detail: "Markdown",
     template: "> {{cursor}}"
   },
   {
     label: "code",
-    title: "\u4EE3\u7801\u5757",
     detail: "Markdown",
     template: "```text\n{{cursor}}\n```"
   },
   {
     label: "link",
-    title: "\u5916\u90E8\u94FE\u63A5",
     detail: "Markdown",
     custom: "link"
   },
   {
     label: "doclink",
-    title: "\u4ED3\u5E93\u6587\u6863\u94FE\u63A5",
     detail: "Markdown",
     custom: "doclink"
   },
   {
     label: "datatable",
-    title: "DataTable \u6570\u636E\u8868",
     detail: "MDX-lite",
     requiresMdx: true,
-    template: [
+    template: ({ translate }) => [
       '<DataTable title="{{cursor}}">',
       "```csv",
       "name,value,status",
-      "\u793A\u4F8B,1,active",
+      `${translate("datatable.example")},1,active`,
       "```",
       "</DataTable>"
     ].join("\n")
   },
   {
     label: "timeline",
-    title: "Timeline \u65F6\u95F4\u7EBF",
     detail: "MDX-lite",
     requiresMdx: true,
-    template: [
+    template: ({ translate }) => [
       '<Timeline title="{{cursor}}">',
       "```json",
       "[",
-      '  {"date":"2026-07-04","title":"\u5173\u952E\u8282\u70B9","body":"\u8865\u5145\u8BF4\u660E","status":"active"}',
+      `  {"date":"2026-07-04","title":"${translate("timeline.exampleTitle")}","body":"${translate("timeline.exampleBody")}","status":"active"}`,
       "]",
       "```",
       "</Timeline>"
@@ -35509,7 +36404,6 @@ var SLASH_COMMANDS = [
   },
   {
     label: "chart",
-    title: "Chart \u7EDF\u8BA1\u56FE\u8868",
     detail: "MDX-lite",
     requiresMdx: true,
     template: [
@@ -35524,46 +36418,43 @@ var SLASH_COMMANDS = [
   },
   {
     label: "decision",
-    title: "DecisionBox \u51B3\u7B56\u6458\u8981",
     detail: "MDX-lite",
     requiresMdx: true,
-    template: [
+    template: ({ translate }) => [
       '<DecisionBox title="{{cursor}}" status="proposed" owner="">',
       "```csv",
       "label,value",
-      "\u51B3\u7B56,",
-      "\u7406\u7531,",
-      "\u4EE3\u4EF7,",
+      `${translate("decision.rowDecision")},`,
+      `${translate("decision.rowReason")},`,
+      `${translate("decision.rowTradeoff")},`,
       "```",
       "</DecisionBox>"
     ].join("\n")
   },
   {
     label: "metrics",
-    title: "MetricGrid \u6307\u6807\u5361",
     detail: "MDX-lite",
     requiresMdx: true,
-    template: [
+    template: ({ translate }) => [
       '<MetricGrid title="{{cursor}}">',
       "```csv",
       "label,value,delta,note,status",
-      "\u6838\u5FC3\u6307\u6807,0,,\u53E3\u5F84\u8BF4\u660E,neutral",
+      `${translate("metrics.exampleLabel")},0,,${translate("metrics.exampleNote")},neutral`,
       "```",
       "</MetricGrid>"
     ].join("\n")
   },
   {
     label: "flow",
-    title: "FlowDiagram \u6D41\u7A0B\u56FE",
     detail: "MDX-lite",
     requiresMdx: true,
-    template: [
+    template: ({ translate }) => [
       '<FlowDiagram title="{{cursor}}">',
       "```json",
       "{",
       '  "nodes": [',
-      '    {"id": "start", "label": "\u5F00\u59CB", "type": "start"},',
-      '    {"id": "done", "label": "\u5B8C\u6210", "type": "end"}',
+      `    {"id": "start", "label": "${translate("flow.start")}", "type": "start"},`,
+      `    {"id": "done", "label": "${translate("flow.done")}", "type": "end"}`,
       "  ],",
       '  "edges": [',
       '    {"from": "start", "to": "done"}',
@@ -35574,6 +36465,22 @@ var SLASH_COMMANDS = [
     ].join("\n")
   }
 ];
+function slashCommandsForLocale({ locale, language: language2 } = {}) {
+  const translate = createTranslator(SOURCE_EDITOR_SLASH_MESSAGES, locale ?? language2);
+  return slashCommandDefinitions.map((definition) => {
+    const command2 = {
+      ...definition,
+      locale: translate.locale,
+      title: translate(`${definition.label}.title`),
+      description: translate(`${definition.label}.description`)
+    };
+    if (typeof definition.template === "function") {
+      command2.template = ({ today }) => definition.template({ today, translate });
+    }
+    return command2;
+  });
+}
+var SLASH_COMMANDS = slashCommandsForLocale();
 var liveEditingSuppression = StateField.define({
   create() {
     return false;
@@ -35982,6 +36889,8 @@ function liveMarkdownThemeForTheme(theme2) {
 function createSourceEditor({
   parent,
   doc: doc2 = "",
+  locale,
+  language: language2,
   onChange,
   onScroll,
   onLineSelect,
@@ -36023,6 +36932,8 @@ function createSourceEditor({
       autocompletion({
         override: [
           slashCommandCompletionSource({
+            locale,
+            language: language2,
             getDocumentPath,
             onBeforeSlashCommand,
             onSlashCommand
@@ -36517,8 +37428,13 @@ function pastedTextLinkCandidate(value) {
 function isMarkdownDocumentPath(value) {
   return /\.md$/i.test(String(value ?? ""));
 }
-function slashCommandTemplate(command2, { today = localIsoDate() } = {}) {
-  const rawTemplate = typeof command2?.template === "function" ? command2.template({ today }) : String(command2?.template ?? "");
+function slashCommandTemplate(command2, {
+  today = localIsoDate(),
+  locale,
+  language: language2
+} = {}) {
+  const localizedCommand = slashCommandForRequestedLocale(command2, { locale, language: language2 });
+  const rawTemplate = typeof localizedCommand?.template === "function" ? localizedCommand.template({ today }) : String(localizedCommand?.template ?? "");
   const cursorOffset = rawTemplate.indexOf(cursorPlaceholder);
   if (cursorOffset < 0) {
     return {
@@ -36532,10 +37448,13 @@ function slashCommandTemplate(command2, { today = localIsoDate() } = {}) {
   };
 }
 function slashCommandCompletionSource({
+  locale,
+  language: language2,
   getDocumentPath = () => "",
   onBeforeSlashCommand = async () => true,
   onSlashCommand = async () => null
 } = {}) {
+  const commands = slashCommandsForLocale({ locale, language: language2 });
   return (context) => {
     const token = context.matchBefore(/\/[a-z0-9-]*/i);
     if (!token) {
@@ -36547,10 +37466,10 @@ function slashCommandCompletionSource({
       return null;
     }
     const query = token.text.slice(1).toLowerCase();
-    const options = SLASH_COMMANDS.filter((command2) => slashCommandMatches(command2, query)).map((command2) => ({
+    const options = commands.filter((command2) => slashCommandMatches(command2, query)).map((command2) => ({
       label: `/${command2.label}`,
       detail: command2.detail,
-      info: command2.title,
+      info: command2.description ? `${command2.title} \u2014 ${command2.description}` : command2.title,
       type: command2.requiresMdx ? "class" : "keyword",
       apply(view, _completion, from, to) {
         void applySlashCommand(view, command2, from, to, {
@@ -36572,7 +37491,13 @@ function slashCommandMatches(command2, query) {
   if (!query) {
     return true;
   }
-  return [command2.label, command2.title, command2.detail].filter(Boolean).some((value) => String(value).toLowerCase().includes(query));
+  return [command2.label, command2.title, command2.description, command2.detail].filter(Boolean).some((value) => String(value).toLowerCase().includes(query));
+}
+function slashCommandForRequestedLocale(command2, { locale, language: language2 } = {}) {
+  if (locale == null && language2 == null) {
+    return command2;
+  }
+  return slashCommandsForLocale({ locale, language: language2 }).find((candidate) => candidate.label === command2?.label) ?? command2;
 }
 async function applySlashCommand(view, command2, from, to, {
   getDocumentPath = () => "",
@@ -37447,5 +38372,6 @@ export {
   pastedImageInsertionText,
   pastedTextLinkCandidate,
   slashCommandCompletionSource,
-  slashCommandTemplate
+  slashCommandTemplate,
+  slashCommandsForLocale
 };

@@ -2,6 +2,180 @@
   "use strict";
 
   const api = window.gitLeafSettings;
+  const messages = Object.freeze({
+    en: Object.freeze({
+      documentTitle: "Git Leaf Settings & Help",
+      backAria: "Back to Git Leaf",
+      back: "Back",
+      sidebarAria: "Settings and help sections",
+      settingsAndHelp: "Settings & Help",
+      navAppearance: "Appearance",
+      navFiles: "Files & Folders",
+      navHelp: "Help",
+      navShortcuts: "Keyboard Shortcuts",
+      navStatus: "About & Status",
+      helpNavigationAria: "Help sections",
+      appearanceKicker: "Appearance",
+      appearanceTitle: "Appearance",
+      appearanceDescription: "Personal preferences that shape your reading experience.",
+      languageTitle: "Interface language",
+      languageDescription: "Follow your system language or choose a language for Git Leaf.",
+      languageAria: "Interface language",
+      languageAuto: "Auto",
+      languageSystem: "Follow system",
+      colorModeTitle: "Color mode",
+      colorModeDescription: "When following the system, Git Leaf switches with macOS or Windows.",
+      colorModeAria: "Color mode",
+      colorModeSystem: "Follow system",
+      colorModeLight: "Light",
+      colorModeDark: "Dark",
+      documentFontTitle: "Document font",
+      documentFontDescription: "Applies to Preview and Live body text; Source always uses a monospace font.",
+      documentFontAria: "Document font",
+      documentFontSans: "System sans serif",
+      documentFontSerif: "Reading serif",
+      textSizeTitle: "Text size",
+      textSizeDescription: "Adjust body text, Live, Source, and line-number scale together.",
+      filesKicker: "Files",
+      filesTitle: "Files & Folders",
+      filesDescription: "Choose how much repository content appears in the file tree.",
+      fileTreeTitle: "File tree scope",
+      fileTreeDescription: "Hide development configuration noise while reading, or show the complete repository.",
+      fileTreeAria: "File tree scope",
+      fileTreeContent: "Content files (recommended)",
+      fileTreeContentDescription: "Focus on Markdown / MDX, HTML, images, and PDF; show other files when needed.",
+      fileTreeAll: "All repository files",
+      fileTreeAllDescription: "Show every Git-tracked and non-ignored file.",
+      fileTreeBoundary: "This setting changes only the file tree display, not Git change discovery, sync, or commit scope.",
+      helpKicker: "Help",
+      helpTitle: "Help",
+      helpDescription: "Guidance for files, filters, worktrees, sharing, and privacy.",
+      shortcutsKicker: "Keyboard",
+      shortcutsTitle: "Keyboard Shortcuts",
+      shortcutsDescription: "System menu commands and current Git Leaf keyboard actions.",
+      statusKicker: "About & Status",
+      statusTitle: "About & Status",
+      statusDescription: "View version, environment, and current repository status.",
+      updateActionsAria: "Update actions",
+      checkForUpdates: "Check for updates",
+      desktopOnly: "The settings center is available only in the Git Leaf desktop app.",
+      readSettingsFailed: "Unable to read Git Leaf settings.",
+      returnFailed: "Unable to return to the workspace.",
+      checkingUpdates: "Checking for updates…",
+      checkUpdatesFailedShort: "Update check failed",
+      checkUpdatesFailed: "Unable to check for updates.",
+      saving: "Saving…",
+      notSaved: "Not saved",
+      saved: "Saved",
+      saveFailedShort: "Save failed",
+      saveFailed: "Unable to save settings.",
+      noHelp: "No help content is available.",
+      helpFallback: "Help",
+      fileType: "File type",
+      contentMode: "Content mode",
+      openBehavior: "Open behavior",
+      noShortcuts: "No keyboard shortcuts are available.",
+      shortcutsFallback: "Keyboard Shortcuts",
+      appStatus: "Application",
+      noAppStatus: "No application version information is available.",
+      environmentStatus: "Environment",
+      noEnvironmentStatus: "No environment check information is available.",
+      repositoryStatus: "Current repository",
+      noRepositoryStatus: "No repository is currently open.",
+      openLinkFailed: "Unable to open the link.",
+      updateCurrent: "Git Leaf is up to date.",
+      updateAvailable: "An update is available.",
+      updateDownloading: "Downloading update…",
+      updateError: "Update check failed.",
+      updateStarted: "Update check started.",
+    }),
+    "zh-CN": Object.freeze({
+      documentTitle: "Git Leaf 设置与帮助",
+      backAria: "返回 Git Leaf",
+      back: "返回",
+      sidebarAria: "设置与帮助栏目",
+      settingsAndHelp: "设置与帮助",
+      navAppearance: "外观",
+      navFiles: "文件与目录",
+      navHelp: "使用帮助",
+      navShortcuts: "快捷键",
+      navStatus: "关于与状态",
+      helpNavigationAria: "使用帮助章节",
+      appearanceKicker: "外观",
+      appearanceTitle: "外观",
+      appearanceDescription: "只保留会持续影响阅读体验的个人偏好。",
+      languageTitle: "界面语言",
+      languageDescription: "跟随系统语言，或为 Git Leaf 选择固定语言。",
+      languageAria: "界面语言",
+      languageAuto: "自动",
+      languageSystem: "跟随系统",
+      colorModeTitle: "明暗模式",
+      colorModeDescription: "跟随系统时，Git Leaf 会随 macOS 或 Windows 的外观自动切换。",
+      colorModeAria: "明暗模式",
+      colorModeSystem: "跟随系统",
+      colorModeLight: "浅色",
+      colorModeDark: "深色",
+      documentFontTitle: "文档字体",
+      documentFontDescription: "影响 Preview 和 Live 的正文；Source 始终使用等宽字体。",
+      documentFontAria: "文档字体",
+      documentFontSans: "系统无衬线",
+      documentFontSerif: "阅读衬线",
+      textSizeTitle: "文字大小",
+      textSizeDescription: "统一调整文档正文、Live、Source 和行号的排版比例。",
+      filesKicker: "文件",
+      filesTitle: "文件与目录",
+      filesDescription: "决定左侧目录树呈现多少仓库内容。",
+      fileTreeTitle: "目录树显示范围",
+      fileTreeDescription: "面向阅读者时可以隐藏开发配置噪音，需要时仍可查看完整仓库。",
+      fileTreeAria: "目录树显示范围",
+      fileTreeContent: "内容文件（推荐）",
+      fileTreeContentDescription: "聚焦 Markdown / MDX、HTML、图片和 PDF；其他文件按需显示。",
+      fileTreeAll: "全部仓库文件",
+      fileTreeAllDescription: "显示 Git 已跟踪和未被忽略的所有文件。",
+      fileTreeBoundary: "此设置只改变目录树显示，不改变 Git 改动发现、同步或提交范围。",
+      helpKicker: "帮助",
+      helpTitle: "使用帮助",
+      helpDescription: "文件、筛选、worktree、分享和隐私说明集中在这里。",
+      shortcutsKicker: "键盘",
+      shortcutsTitle: "快捷键",
+      shortcutsDescription: "保留系统菜单入口和 Git Leaf 当前键盘操作。",
+      statusKicker: "关于与状态",
+      statusTitle: "关于与状态",
+      statusDescription: "查看版本、运行环境以及当前仓库状态。",
+      updateActionsAria: "更新操作",
+      checkForUpdates: "检查更新",
+      desktopOnly: "设置中心只能在 Git Leaf 桌面版中使用。",
+      readSettingsFailed: "无法读取 Git Leaf 设置。",
+      returnFailed: "无法返回工作台。",
+      checkingUpdates: "正在检查更新…",
+      checkUpdatesFailedShort: "检查更新失败",
+      checkUpdatesFailed: "检查更新失败。",
+      saving: "正在保存…",
+      notSaved: "未保存",
+      saved: "已保存",
+      saveFailedShort: "保存失败",
+      saveFailed: "设置保存失败。",
+      noHelp: "暂无帮助内容。",
+      helpFallback: "帮助",
+      fileType: "文件类型",
+      contentMode: "内容模式",
+      openBehavior: "打开方式",
+      noShortcuts: "暂无快捷键内容。",
+      shortcutsFallback: "快捷键",
+      appStatus: "应用",
+      noAppStatus: "暂无应用版本信息。",
+      environmentStatus: "运行环境",
+      noEnvironmentStatus: "暂无环境检查信息。",
+      repositoryStatus: "当前仓库",
+      noRepositoryStatus: "当前没有打开仓库。",
+      openLinkFailed: "无法打开链接。",
+      updateCurrent: "Git Leaf 已经是最新版本。",
+      updateAvailable: "发现可用更新。",
+      updateDownloading: "正在下载更新…",
+      updateError: "检查更新失败。",
+      updateStarted: "检查已开始。",
+    }),
+  });
   const sections = new Set(["appearance", "files", "help", "shortcuts", "status"]);
   const navigation = document.querySelector("#settings-navigation");
   const helpNavigation = document.querySelector("#help-navigation");
@@ -22,8 +196,11 @@
   const systemColorQuery = window.matchMedia("(prefers-color-scheme: dark)");
   let currentSection = "appearance";
   let currentPreferences = {};
+  let currentLanguage = "en";
   let applyingModel = false;
   let saveGeneration = 0;
+  let saveQueue = Promise.resolve();
+  let updateCheckGeneration = 0;
   let helpScrollFrame = 0;
 
   navigation.addEventListener("click", handleNavigationClick);
@@ -37,7 +214,9 @@
   systemColorQuery.addEventListener?.("change", handleSystemColorChange);
 
   if (!api) {
-    showError("设置中心只能在 Git Leaf 桌面版中使用。");
+    applyLanguage(browserLanguage());
+    showError(t("desktopOnly"));
+    revealSettings();
     return;
   }
 
@@ -58,14 +237,17 @@
     try {
       applyModel(await api.getModel());
     } catch (error) {
-      showError(errorMessage(error, "无法读取 Git Leaf 设置。"));
+      showError(errorMessage(error, t("readSettingsFailed")));
+      revealSettings();
     }
   }
 
   function applyModel(model = {}) {
     applyingModel = true;
     try {
+      applyLanguage(model.resolvedLanguage);
       currentPreferences = isRecord(model.preferences) ? { ...model.preferences } : {};
+      setRadioValue("language", currentPreferences.language || "system");
       setRadioValue("colorMode", currentPreferences.colorMode || "system");
       setRadioValue("documentFont", currentPreferences.documentFont || "system-sans");
       setRadioValue("fileTreeMode", currentPreferences.fileTreeMode || "content");
@@ -79,6 +261,7 @@
       hideError();
     } finally {
       applyingModel = false;
+      revealSettings();
     }
   }
 
@@ -142,21 +325,30 @@
 
   function closeSettingsCenter() {
     void api.close().catch((error) => {
-      showError(errorMessage(error, "无法返回工作台。"));
+      showError(errorMessage(error, t("returnFailed")));
     });
   }
 
   async function checkForUpdates() {
+    const generation = ++updateCheckGeneration;
     checkForUpdatesButton.disabled = true;
-    updateCheckResult.textContent = "正在检查更新…";
+    updateCheckResult.textContent = t("checkingUpdates");
     try {
       const response = await api.checkForUpdates();
+      if (generation !== updateCheckGeneration) {
+        return;
+      }
       updateCheckResult.textContent = updateResultMessage(response?.result);
     } catch (error) {
-      updateCheckResult.textContent = "检查更新失败";
-      showError(errorMessage(error, "检查更新失败。"));
+      if (generation !== updateCheckGeneration) {
+        return;
+      }
+      updateCheckResult.textContent = t("checkUpdatesFailedShort");
+      showError(errorMessage(error, t("checkUpdatesFailed")));
     } finally {
-      checkForUpdatesButton.disabled = false;
+      if (generation === updateCheckGeneration) {
+        checkForUpdatesButton.disabled = false;
+      }
     }
   }
 
@@ -170,7 +362,10 @@
     }
 
     let patch = null;
-    if (input.type === "radio" && ["colorMode", "documentFont", "fileTreeMode"].includes(input.name)) {
+    if (
+      input.type === "radio"
+      && ["language", "colorMode", "documentFont", "fileTreeMode"].includes(input.name)
+    ) {
       patch = { [input.name]: input.value };
     } else if (input.id === "document-font-size") {
       patch = { documentFontSize: Number.parseInt(input.value, 10) };
@@ -184,18 +379,43 @@
     void savePreferencePatch(patch);
   }
 
-  async function savePreferencePatch(patch) {
+  function savePreferencePatch(patch) {
+    const queuedSave = saveQueue.then(() => persistPreferencePatch(patch));
+    saveQueue = queuedSave.catch(() => {});
+    return queuedSave;
+  }
+
+  async function persistPreferencePatch(patch) {
     const generation = ++saveGeneration;
-    saveStatus.textContent = "正在保存…";
+    saveStatus.textContent = t("saving");
     try {
       const result = await api.updatePreferences(patch);
+      if (isRecord(result?.model)) {
+        const modelPreferences = isRecord(result.model.preferences)
+          ? result.model.preferences
+          : {};
+        if (
+          !Object.hasOwn(modelPreferences, "language")
+          || modelPreferences.language === currentPreferences.language
+        ) {
+          applyModel({
+            ...result.model,
+            preferences: {
+              ...modelPreferences,
+              ...currentPreferences,
+            },
+          });
+        }
+      } else if (isRecord(result?.preferences)) {
+        currentPreferences = {
+          ...result.preferences,
+          ...currentPreferences,
+        };
+      }
       if (generation !== saveGeneration) {
         return;
       }
-      if (isRecord(result?.preferences)) {
-        currentPreferences = { ...result.preferences };
-      }
-      saveStatus.textContent = result?.ok === false ? "未保存" : "已保存";
+      saveStatus.textContent = result?.ok === false ? t("notSaved") : t("saved");
       window.setTimeout(() => {
         if (generation === saveGeneration) {
           saveStatus.textContent = "";
@@ -205,8 +425,8 @@
       if (generation !== saveGeneration) {
         return;
       }
-      saveStatus.textContent = "保存失败";
-      showError(errorMessage(error, "设置保存失败。"));
+      saveStatus.textContent = t("saveFailedShort");
+      showError(errorMessage(error, t("saveFailed")));
       await loadModel();
     }
   }
@@ -236,7 +456,7 @@
     const sectionsToRender = Array.isArray(value) ? value : [];
     renderHelpNavigation(sectionsToRender);
     if (sectionsToRender.length === 0) {
-      helpSections.append(emptyCard("暂无帮助内容。"));
+      helpSections.append(emptyCard(t("noHelp")));
       return;
     }
 
@@ -245,7 +465,7 @@
       articleSection.className = "help-document-section";
       articleSection.id = helpSectionTarget(section, index);
       const title = document.createElement("h2");
-      title.textContent = stringValue(section?.title, "帮助");
+      title.textContent = stringValue(section?.title, t("helpFallback"));
       articleSection.append(title);
       const paragraphs = Array.isArray(section?.body) ? section.body : [];
       for (const paragraphValue of paragraphs) {
@@ -269,7 +489,7 @@
       const button = document.createElement("button");
       button.type = "button";
       button.dataset.helpTarget = helpSectionTarget(section, index);
-      button.textContent = stringValue(section?.title, "帮助");
+      button.textContent = stringValue(section?.title, t("helpFallback"));
       helpNavigation.append(button);
     });
   }
@@ -338,7 +558,7 @@
     table.className = "help-file-table";
     const head = document.createElement("thead");
     const headingRow = document.createElement("tr");
-    for (const heading of ["文件类型", "内容模式", "打开方式"]) {
+    for (const heading of [t("fileType"), t("contentMode"), t("openBehavior")]) {
       const cell = document.createElement("th");
       cell.scope = "col";
       cell.textContent = heading;
@@ -372,7 +592,7 @@
     shortcutGroups.replaceChildren();
     const groups = Array.isArray(value) ? value : [];
     if (groups.length === 0) {
-      shortcutGroups.append(emptyCard("暂无快捷键内容。"));
+      shortcutGroups.append(emptyCard(t("noShortcuts")));
       return;
     }
 
@@ -380,7 +600,7 @@
       const section = document.createElement("section");
       section.className = "shortcut-group";
       const title = document.createElement("h2");
-      title.textContent = stringValue(group?.title, "快捷键");
+      title.textContent = stringValue(group?.title, t("shortcutsFallback"));
       section.append(title);
       const list = document.createElement("div");
       list.className = "shortcut-list";
@@ -402,18 +622,23 @@
   function renderStatus(value) {
     const status = isRecord(value) ? value : {};
     updateActions.hidden = status.updatesEnabled !== true;
-    renderStatusBlock(appStatus, "应用", status.app || status.application, "暂无应用版本信息。");
+    renderStatusBlock(
+      appStatus,
+      t("appStatus"),
+      status.app || status.application,
+      t("noAppStatus"),
+    );
     renderStatusBlock(
       environmentStatus,
-      "运行环境",
+      t("environmentStatus"),
       status.environment || status.checks,
-      "暂无环境检查信息。",
+      t("noEnvironmentStatus"),
     );
     renderStatusBlock(
       repositoryStatus,
-      "当前仓库",
+      t("repositoryStatus"),
       status.repository,
-      "当前没有打开仓库。",
+      t("noRepositoryStatus"),
     );
   }
 
@@ -513,7 +738,7 @@
       return;
     }
     void api.openExternal(url).catch((error) => {
-      showError(errorMessage(error, "无法打开链接。"));
+      showError(errorMessage(error, t("openLinkFailed")));
     });
   }
 
@@ -581,8 +806,8 @@
     return string || fallback;
   }
 
-  function errorMessage(error, fallback) {
-    return error instanceof Error && error.message ? error.message : fallback;
+  function errorMessage(_error, fallback) {
+    return fallback;
   }
 
   function updateResultMessage(value) {
@@ -595,16 +820,52 @@
     const state = isRecord(value) ? String(value.state ?? "").trim().toLowerCase() : "";
     switch (state) {
       case "current":
-        return "Git Leaf 已经是最新版本。";
+        return t("updateCurrent");
       case "available":
-        return "发现可用更新。";
+        return t("updateAvailable");
       case "downloading":
-        return "正在下载更新…";
+        return t("updateDownloading");
       case "error":
-        return "检查更新失败。";
+        return t("updateError");
       default:
-        return "检查已开始。";
+        return t("updateStarted");
     }
+  }
+
+  function applyLanguage(value) {
+    const nextLanguage = normalizedLanguage(value);
+    const languageChanged = nextLanguage !== currentLanguage;
+    currentLanguage = nextLanguage;
+    if (languageChanged) {
+      updateCheckGeneration += 1;
+      updateCheckResult.textContent = "";
+      checkForUpdatesButton.disabled = false;
+    }
+    document.documentElement.lang = currentLanguage;
+    document.documentElement.dataset.language = currentLanguage;
+    document.title = t("documentTitle");
+    for (const element of document.querySelectorAll("[data-i18n]")) {
+      element.textContent = t(element.dataset.i18n);
+    }
+    for (const element of document.querySelectorAll("[data-i18n-aria-label]")) {
+      element.setAttribute("aria-label", t(element.dataset.i18nAriaLabel));
+    }
+  }
+
+  function normalizedLanguage(value) {
+    return String(value ?? "").trim().toLowerCase().startsWith("zh") ? "zh-CN" : "en";
+  }
+
+  function browserLanguage() {
+    return navigator.language || "en";
+  }
+
+  function t(key) {
+    return messages[currentLanguage]?.[key] || messages.en[key] || key;
+  }
+
+  function revealSettings() {
+    document.documentElement.dataset.settingsReady = "true";
   }
 
   function isRecord(value) {

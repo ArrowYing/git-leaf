@@ -1,12 +1,16 @@
-export function sidebarUpdateView(status = {}) {
+import { createTranslator } from "./i18n.js";
+import { WORKBENCH_MESSAGES } from "./workbench-locales.js";
+
+export function sidebarUpdateView(status = {}, locale = "zh-CN") {
+  const t = createTranslator(WORKBENCH_MESSAGES, locale);
   const version = String(status?.version || "").trim();
-  const title = version ? `Git Leaf ${version}` : "Git Leaf 新版本";
+  const title = version ? `Git Leaf ${version}` : t("update.newVersion");
   if (status?.state === "available") {
     return {
       hidden: false,
       title,
-      detail: "新版本可用，点击后下载",
-      actionLabel: "更新",
+      detail: t("update.availableDetail"),
+      actionLabel: t("update.action"),
       actionDisabled: false,
     };
   }
@@ -14,7 +18,7 @@ export function sidebarUpdateView(status = {}) {
     return {
       hidden: false,
       title,
-      detail: "正在下载并准备新版本…",
+      detail: t("update.preparingDetail"),
       actionLabel: "",
       actionDisabled: true,
     };
@@ -23,8 +27,8 @@ export function sidebarUpdateView(status = {}) {
     return {
       hidden: false,
       title,
-      detail: "已准备好，退出后自动安装",
-      actionLabel: "立即重启",
+      detail: t("update.readyDetail"),
+      actionLabel: t("update.restart"),
       actionDisabled: false,
     };
   }
@@ -32,8 +36,8 @@ export function sidebarUpdateView(status = {}) {
     return {
       hidden: false,
       title,
-      detail: "更新未完成，点击重试",
-      actionLabel: "重试",
+      detail: t("update.retryDetail"),
+      actionLabel: t("action.retry"),
       actionDisabled: false,
     };
   }

@@ -1,10 +1,15 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, realpath, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { findRepoRoot, resolveOpenablePath, resolvePreviewPath } from "../src/paths.mjs";
+import {
+  findRepoRoot,
+  resolveNewDocumentPath,
+  resolveOpenablePath,
+  resolvePreviewPath,
+} from "../src/paths.mjs";
 import { GitRepositoryNotFoundError } from "../src/git-errors.mjs";
 
 test("findRepoRoot classifies directories outside Git repositories", async () => {
@@ -93,6 +98,98 @@ test("resolvePreviewPath rejects non-markdown files", async () => {
     () => resolvePreviewPath(repoRoot, "notes.txt"),
     /Markdown or MDX/,
   );
+});
+
+test("resolveNewDocumentPath defaults to English and assigns stable validation codes", async () => {
+  const repoRoot = await mkdtemp(path.join(tmpdir(), "git-leaf-new-document-"));
+  try {
+    await writeFile(path.join(repoRoot, "not-a-directory"), "file\n");
+    const cases = [
+      {
+        options: { directory: "not-a-directory", name: "Brief", format: "md" },
+        code: "new_document_directory_invalid",
+        english: "The document location must be an existing directory.",
+        chinese: "创建位置必须是已有目录。",
+      },
+      {
+        options: { name: "Brief", format: "txt" },
+        code: "new_document_format_invalid",
+        english: "Document format must be Markdown or MDX.",
+        chinese: "文档格式只支持 Markdown 或 MDX。",
+      },
+      {
+        options: { name: "", format: "md" },
+        code: "new_document_name_required",
+        english: "Enter a document name.",
+        chinese: "请输入文档名称。",
+      },
+      {
+        options: { name: "bad/name", format: "md" },
+        code: "new_document_name_invalid",
+        english: "The document name contains characters that are not supported by the system.",
+        chinese: "文档名称包含系统不支持的字符。",
+      },
+      {
+        options: { directory: "../outside", name: "Brief", format: "md" },
+        code: "new_document_path_outside_repository",
+        english: "The document location must be inside the current repository.",
+        chinese: "创建位置必须位于当前仓库内。",
+      },
+    ];
+
+    for (const validationCase of cases) {
+      await assert.rejects(
+        resolveNewDocumentPath(repoRoot, validationCase.options),
+        (error) => {
+          assert.equal(error.code, validationCase.code);
+          assert.equal(error.statusCode, 400);
+          assert.equal(error.message, validationCase.english);
+          return true;
+        },
+      );
+      await assert.rejects(
+        resolveNewDocumentPath(repoRoot, {
+          ...validationCase.options,
+          language: "zh-CN",
+        }),
+        (error) => {
+          assert.equal(error.code, validationCase.code);
+          assert.equal(error.statusCode, 400);
+          assert.equal(error.message, validationCase.chinese);
+          return true;
+        },
+      );
+    }
+  } finally {
+    await rm(repoRoot, { recursive: true, force: true });
+  }
+});
+
+test("resolveNewDocumentPath lets locale override language without changing path data", async () => {
+  const repoRoot = await mkdtemp(path.join(tmpdir(), "git-leaf-new-document-locale-"));
+  try {
+    const resolved = await resolveNewDocumentPath(repoRoot, {
+      name: "Brief.md",
+      format: "mdx",
+      language: "zh-CN",
+      locale: "en",
+    });
+    assert.equal(resolved.relativePath, "Brief.mdx");
+    assert.equal(resolved.title, "Brief");
+    assert.equal(resolved.extension, "mdx");
+
+    await assert.rejects(
+      resolveNewDocumentPath(repoRoot, {
+        name: "",
+        language: "en",
+        locale: "zh-CN",
+      }),
+      (error) => error.code === "new_document_name_required"
+        && error.message === "请输入文档名称。",
+    );
+  } finally {
+    await rm(repoRoot, { recursive: true, force: true });
+  }
 });
 
 test("resolveOpenablePath accepts selected readonly preview files", async () => {

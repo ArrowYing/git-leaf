@@ -86,6 +86,21 @@ test("assertGitAvailable gives Windows-specific Git installation guidance", asyn
   );
 });
 
+test("assertGitAvailable accepts the language option and keeps command details unchanged", async () => {
+  await assert.rejects(
+    () => assertGitAvailable({
+      language: "zh-CN",
+      gitRunner: async () => ({ stdout: "wrapper ready\n" }),
+    }),
+    (error) => {
+      assert.equal(error.state, "invalid_output");
+      assert.match(error.message, /无法识别/);
+      assert.equal(error.cause.stdout, undefined);
+      return true;
+    },
+  );
+});
+
 test("desktopEnvironmentChecks gives Windows-specific Git installation guidance", async () => {
   const checks = await desktopEnvironmentChecks({
     platform: "win32",
@@ -106,6 +121,53 @@ test("desktopEnvironmentChecks gives Windows-specific Git installation guidance"
   assert.equal(checks[0].status, "error");
   assert.match(checks[0].message, /Git for Windows/);
   assert.doesNotMatch(checks[0].message, /Xcode Command Line Tools/);
+});
+
+test("desktopEnvironmentChecks localizes labels and guidance with language or locale", async () => {
+  const unavailableGit = new Error("spawn git ENOENT");
+  unavailableGit.code = "ENOENT";
+  const missingGh = new Error("spawn gh ENOENT");
+  missingGh.code = "ENOENT";
+  const runners = {
+    platform: "darwin",
+    gitVersionRunner: async () => {
+      throw unavailableGit;
+    },
+    gitConfigRunner: async () => ({ stdout: "" }),
+    ghAuthRunner: async () => {
+      throw missingGh;
+    },
+  };
+
+  const chinese = await desktopEnvironmentChecks({
+    ...runners,
+    language: "zh-CN",
+  });
+  assert.deepEqual(
+    chinese.map(({ label }) => label),
+    ["Git 命令", "Git 身份", "GitHub 登录"],
+  );
+  assert.match(chinese[0].message, /未检测到 Git 命令/);
+  assert.match(chinese[1].message, /user\.name/);
+  assert.match(chinese[2].message, /未检测到 GitHub CLI/);
+
+  const localeAlias = await desktopEnvironmentChecks({
+    ...runners,
+    locale: "zh-Hans-CN",
+  });
+  assert.deepEqual(
+    localeAlias.map(({ label }) => label),
+    ["Git 命令", "Git 身份", "GitHub 登录"],
+  );
+
+  const unsupported = await desktopEnvironmentChecks({
+    ...runners,
+    language: "fr-FR",
+  });
+  assert.deepEqual(
+    unsupported.map(({ label }) => label),
+    ["Git command", "Git identity", "GitHub login"],
+  );
 });
 
 test("desktopEnvironmentChecks reports git, identity, and GitHub auth readiness", async () => {
@@ -130,6 +192,10 @@ test("desktopEnvironmentChecks reports git, identity, and GitHub auth readiness"
   assert.match(checks[0].message, /git version 2\.50\.1/);
   assert.match(checks[1].message, /Example Fang/);
   assert.match(checks[2].message, /Logged in/);
+  assert.deepEqual(
+    checks.map((check) => check.label),
+    ["Git command", "Git identity", "GitHub login"],
+  );
 });
 
 test("desktopEnvironmentChecks keeps login checks non-blocking", async () => {

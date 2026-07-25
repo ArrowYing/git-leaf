@@ -9,6 +9,7 @@ import {
   isExternalCommandExit,
   runExternalCommand,
 } from "./external-command.mjs";
+import { createTranslator } from "../public/i18n.js";
 
 const IN_PROGRESS_GIT_REFS = new Map([
   ["MERGE_HEAD", "merge"],
@@ -17,6 +18,99 @@ const IN_PROGRESS_GIT_REFS = new Map([
 ]);
 
 const REBASE_STATE_PATHS = ["rebase-merge", "rebase-apply"];
+
+const GIT_SYNC_MESSAGES = {
+  en: {
+    "result.title": "Sync encountered a problem",
+    "result.help": "Copy the prompt and paste it into the AI Agent of your choice.",
+    "error.selectFiles": "Select at least one file to sync.",
+    "error.noLocalChanges": "There are no local file changes to sync.",
+    "error.selectedFilesUnchanged": "The selected files have no local changes: {files}",
+    "error.divergedSync": "The current branch has diverged from its remote. To avoid rewriting local commits automatically, hand it off to an AI Agent before syncing again.",
+    "error.remoteChangedWithUnselected": "The remote branch has new commits, but some local changes are not selected.",
+    "error.selectAllChanges": "To avoid affecting those files during the update, select all changes and try again, or handle these unselected files first:",
+    "error.workspaceStillChanging": "The workspace kept changing while Git Leaf prepared the sync. Git Leaf did not commit the current changes. Try syncing again later.",
+    "error.noStagedChanges": "The selected files have no staged changes to commit.",
+    "error.postCommitChanged": "New workspace changes appeared after the commit. Git Leaf preserved the local commit and new changes, but did not rebase or push. Hand it off to an AI Agent to continue.",
+    "error.rebaseAbortSucceeded": "Git Leaf exited the failed rebase automatically and restored the local commit and files.",
+    "error.rebaseAbortFailed": "Git Leaf could not exit the rebase automatically. Do not continue syncing; hand it off to an AI Agent.",
+    "error.headChanged": "New commits appeared on the current branch during sync. Git Leaf did not continue pushing. Hand it off to an AI Agent to inspect the branch.",
+    "error.uncommittedBeforePublish": "There are still uncommitted local changes. Finish syncing them before publishing.",
+    "error.divergedPublish": "The current branch has diverged from its remote. To avoid rewriting local commits automatically, hand it off to an AI Agent before publishing.",
+    "error.unresolvedConflicts": "The repository has unresolved conflicts. Hand it off to an AI Agent first.",
+    "error.operationInProgress": "A {operations} operation is in progress in the repository. Finish or cancel it first.",
+    "error.remoteMissingCommit": "The remote origin/{branch} does not contain this commit yet. Git Leaf preserved the local commit. Check the network or remote permissions, then try again.",
+    "error.unknownGit": "Unknown Git error",
+    "error.gitNameMissing": "Git user.name is not configured. Run `git config --global user.name \"Your Name\"` before syncing.",
+    "error.gitEmailMissing": "Git user.email is not configured. Run `git config --global user.email \"you@example.com\"` before syncing.",
+    "error.originMissing": "Git remote `origin` is not configured. Clone the repository from GitHub or add an origin remote before syncing.",
+    "state.unavailable": "Git was not found. Sync has stopped.",
+    "state.permissionDenied": "Access to Git or the repository was denied. Sync has stopped.",
+    "state.unsupported": "The installed Git does not support a command required for sync.",
+    "state.invalidContext": "The current directory is no longer a usable Git worktree.",
+    "state.authenticationRequired": "Git authentication failed. Sync has stopped.",
+    "state.networkUnavailable": "The network or Git remote is temporarily unavailable. Sync has stopped.",
+    "state.interrupted": "The Git command was interrupted before it completed. Sync has stopped.",
+    "state.invalidOutput": "Git returned a result that Git Leaf could not recognize. Sync has stopped.",
+    "prompt.title": "Please resolve this Git Leaf sync failure:",
+    "prompt.repository": "Repository: {repo}",
+    "prompt.repositoryPath": "Repository path: {path}",
+    "prompt.branch": "Current branch: {branch}",
+    "prompt.files": "Selected files:",
+    "prompt.step": "Failed step: {step}",
+    "prompt.error": "Error output:",
+    "prompt.noError": "No error output",
+    "prompt.goals": "Goals:",
+    "prompt.goal1": "1. Preserve the Git Leaf user's changes to the files above.",
+    "prompt.goal2": "2. Resolve the current Git state, failed checks, or conflicts.",
+    "prompt.goal3": "3. After the necessary checks pass, commit and push the current branch {branch}.",
+  },
+  "zh-CN": {
+    "result.title": "同步遇到异常",
+    "result.help": "点击复制提示词，然后粘贴到你选择的 AI Agent 中继续处理。",
+    "error.selectFiles": "请选择需要同步的文件。",
+    "error.noLocalChanges": "当前没有需要同步的本地文件改动。",
+    "error.selectedFilesUnchanged": "选中文件没有本地改动：{files}",
+    "error.divergedSync": "当前分支与远端已经分叉。为避免自动改写本地提交，请交给 AI Agent 处理后再同步。",
+    "error.remoteChangedWithUnselected": "远端分支已有新提交，但当前仍有未勾选的本地改动。",
+    "error.selectAllChanges": "为避免自动更新时影响这些文件，请勾选全部改动后重试，或先处理未勾选文件：",
+    "error.workspaceStillChanging": "同步准备期间内容仍在变化。Git Leaf 没有提交当前改动，请稍后重新同步。",
+    "error.noStagedChanges": "选中文件没有可提交的 staged 改动。",
+    "error.postCommitChanged": "提交后工作区出现了新的修改。Git Leaf 已保留本地提交和新修改，但没有执行 rebase 或 push，请交给 AI Agent 继续处理。",
+    "error.rebaseAbortSucceeded": "Git Leaf 已自动退出失败的 rebase，本地提交和文件已恢复。",
+    "error.rebaseAbortFailed": "Git Leaf 无法自动退出 rebase；请不要继续同步，直接交给 AI Agent 处理。",
+    "error.headChanged": "同步期间当前分支出现了新的提交。Git Leaf 没有继续推送，请交给 AI Agent 检查分支状态。",
+    "error.uncommittedBeforePublish": "当前仍有未提交的本地改动，请先完成同步后再发布。",
+    "error.divergedPublish": "当前分支与远端已经分叉。为避免自动改写本地提交，请交给 AI Agent 处理后再发布。",
+    "error.unresolvedConflicts": "仓库存在尚未解决的冲突，请先交给 AI Agent 处理。",
+    "error.operationInProgress": "仓库正在进行 {operations}，请先完成或取消该操作。",
+    "error.remoteMissingCommit": "远端 origin/{branch} 尚未包含本次提交。Git Leaf 已保留本地提交，请检查网络或远端权限后重试。",
+    "error.unknownGit": "未知 Git 错误",
+    "error.gitNameMissing": "尚未配置 Git user.name。请先运行 `git config --global user.name \"你的名字\"`。",
+    "error.gitEmailMissing": "尚未配置 Git user.email。请先运行 `git config --global user.email \"you@example.com\"`。",
+    "error.originMissing": "尚未配置 Git 远端 `origin`。请从 GitHub 克隆仓库，或先添加 origin 远端。",
+    "state.unavailable": "未检测到 Git 命令，当前同步已停止。",
+    "state.permissionDenied": "Git 命令或仓库访问被拒绝，当前同步已停止。",
+    "state.unsupported": "本机 Git 不支持当前同步所需的命令能力。",
+    "state.invalidContext": "当前目录已经不是可用的 Git 工作区。",
+    "state.authenticationRequired": "Git 身份验证未通过，当前同步已停止。",
+    "state.networkUnavailable": "网络或 Git 远端暂时不可用，当前同步已停止。",
+    "state.interrupted": "Git 命令在完成前被中断，当前同步已停止。",
+    "state.invalidOutput": "Git 返回了 Git Leaf 无法识别的结果，当前同步已停止。",
+    "prompt.title": "请处理 Git Leaf 同步失败：",
+    "prompt.repository": "仓库：{repo}",
+    "prompt.repositoryPath": "仓库路径：{path}",
+    "prompt.branch": "当前分支：{branch}",
+    "prompt.files": "选中文件：",
+    "prompt.step": "失败步骤：{step}",
+    "prompt.error": "错误输出：",
+    "prompt.noError": "无错误输出",
+    "prompt.goals": "目标：",
+    "prompt.goal1": "1. 保留 Git Leaf 用户对上述文件的修改。",
+    "prompt.goal2": "2. 处理当前 Git 状态、检查失败或冲突。",
+    "prompt.goal3": "3. 完成必要检查后，提交并推送当前分支 {branch}。",
+  },
+};
 
 export function repositoryChangesFromPorcelain(output) {
   const records = String(output ?? "").split("\0");
@@ -62,24 +156,30 @@ export async function syncSelectedFiles({
   files,
   note = "",
   allChanges = false,
+  locale,
+  language,
   gitRunner = runGitCommand,
   syncGuard: providedSyncGuard = null,
   operationPathExists = gitOperationPathExists,
 }) {
+  const translate = gitSyncTranslator({ locale, language });
   let selectedFiles = normalizeSelectedFiles(files);
   if (!allChanges && selectedFiles.length === 0) {
-    return {
-      ok: false,
+    return failurePayload({
+      repo,
+      files: selectedFiles,
       step: "validate",
-      error: "请选择需要同步的文件。",
-      agentPrompt: "",
-    };
+      error: translate("error.selectFiles"),
+      locale: translate.locale,
+      includeAgentPrompt: false,
+    });
   }
 
   const context = {
     repo,
     files: selectedFiles,
     note: String(note ?? "").trim(),
+    locale: translate.locale,
   };
   const syncGuard = providedSyncGuard ?? createGitSyncGuard({ repo, gitRunner });
   let retryCount = 0;
@@ -108,7 +208,7 @@ export async function syncSelectedFiles({
         return failurePayload({
           ...context,
           step: "validate",
-          error: "当前没有需要同步的本地文件改动。",
+          error: translate("error.noLocalChanges"),
           retryCount,
           driftKind,
         });
@@ -121,7 +221,9 @@ export async function syncSelectedFiles({
         return failurePayload({
           ...context,
           step: "validate",
-          error: `选中文件没有本地改动：${unchangedFiles.join(", ")}`,
+          error: translate("error.selectedFilesUnchanged", {
+            files: unchangedFiles.join(", "),
+          }),
           retryCount,
           driftKind,
         });
@@ -143,7 +245,7 @@ export async function syncSelectedFiles({
           return failurePayload({
             ...context,
             step: "compare remote",
-            error: "当前分支与远端已经分叉。为避免自动改写本地提交，请交给 AI Agent 处理后再同步。",
+            error: translate("error.divergedSync"),
             retryCount,
             driftKind,
           });
@@ -154,8 +256,8 @@ export async function syncSelectedFiles({
             ...context,
             step: "validate",
             error: [
-              "远端分支已有新提交，但当前仍有未勾选的本地改动。",
-              "为避免自动更新时影响这些文件，请勾选全部改动后重试，或先处理未勾选文件：",
+              translate("error.remoteChangedWithUnselected"),
+              translate("error.selectAllChanges"),
               ...unselectedChanges.map((change) => `- ${change.path}`),
             ].join("\n"),
             retryCount,
@@ -174,7 +276,7 @@ export async function syncSelectedFiles({
         return failurePayload({
           ...context,
           step: "workspace changed",
-          error: "同步准备期间内容仍在变化。Git Leaf 没有提交当前改动，请稍后重新同步。",
+          error: translate("error.workspaceStillChanging"),
           retryCount,
           driftKind,
         });
@@ -199,7 +301,7 @@ export async function syncSelectedFiles({
       return failurePayload({
         ...context,
         step: "diff staged",
-        error: "选中文件没有可提交的 staged 改动。",
+        error: translate("error.noStagedChanges"),
         retryCount,
         driftKind,
       });
@@ -223,7 +325,7 @@ export async function syncSelectedFiles({
         return failurePayload({
           ...context,
           step: "workspace changed",
-          error: "提交后工作区出现了新的修改。Git Leaf 已保留本地提交和新修改，但没有执行 rebase 或 push，请交给 AI Agent 继续处理。",
+          error: translate("error.postCommitChanged"),
           retryCount,
           driftKind,
         });
@@ -238,9 +340,9 @@ export async function syncSelectedFiles({
       } catch (error) {
         try {
           await gitRunner(repo.root, ["rebase", "--abort"]);
-          error.gitLeafRecovery = "Git Leaf 已自动退出失败的 rebase，本地提交和文件已恢复。";
+          error.gitLeafRecovery = translate("error.rebaseAbortSucceeded");
         } catch {
-          error.gitLeafRecovery = "Git Leaf 无法自动退出 rebase；请不要继续同步，直接交给 AI Agent 处理。";
+          error.gitLeafRecovery = translate("error.rebaseAbortFailed");
         }
         throw error;
       }
@@ -250,7 +352,7 @@ export async function syncSelectedFiles({
       return failurePayload({
         ...context,
         step: "head changed",
-        error: "同步期间当前分支出现了新的提交。Git Leaf 没有继续推送，请交给 AI Agent 检查分支状态。",
+        error: translate("error.headChanged"),
         retryCount,
         driftKind: "head_changed",
       });
@@ -281,7 +383,7 @@ export async function syncSelectedFiles({
     return failurePayload({
       ...context,
       step: error.step ?? "git",
-      error: commandErrorText(error),
+      error: commandErrorText(error, { locale: translate.locale }),
       retryCount,
       driftKind,
     });
@@ -291,13 +393,17 @@ export async function syncSelectedFiles({
 export async function publishCurrentBranch({
   repo,
   files = [],
+  locale,
+  language,
   gitRunner = runGitCommand,
   operationPathExists = gitOperationPathExists,
 }) {
+  const translate = gitSyncTranslator({ locale, language });
   const context = {
     repo,
     files: normalizeSelectedFiles(files),
     note: "",
+    locale: translate.locale,
   };
 
   try {
@@ -312,7 +418,7 @@ export async function publishCurrentBranch({
       return failurePayload({
         ...context,
         step: "validate",
-        error: "当前仍有未提交的本地改动，请先完成同步后再发布。",
+        error: translate("error.uncommittedBeforePublish"),
       });
     }
 
@@ -332,7 +438,7 @@ export async function publishCurrentBranch({
         return failurePayload({
           ...context,
           step: "compare remote",
-          error: "当前分支与远端已经分叉。为避免自动改写本地提交，请交给 AI Agent 处理后再发布。",
+          error: translate("error.divergedPublish"),
         });
       }
       shouldPush = remoteCounts.ahead > 0;
@@ -366,7 +472,7 @@ export async function publishCurrentBranch({
     return failurePayload({
       ...context,
       step: error.step ?? "git",
-      error: commandErrorText(error),
+      error: commandErrorText(error, { locale: translate.locale }),
     });
   }
 }
@@ -451,23 +557,24 @@ async function readCurrentHead(repo, gitRunner) {
 }
 
 async function preflightGitSync(context, gitRunner, operationPathExists) {
+  const translate = gitSyncTranslator(context);
   const name = await requiredGitValue(
     context,
     gitRunner,
     ["config", "--get", "user.name"],
-    "Git user.name is not configured. Run `git config --global user.name \"Your Name\"` before syncing.",
+    translate("error.gitNameMissing"),
   );
   const email = await requiredGitValue(
     context,
     gitRunner,
     ["config", "--get", "user.email"],
-    "Git user.email is not configured. Run `git config --global user.email \"you@example.com\"` before syncing.",
+    translate("error.gitEmailMissing"),
   );
   const origin = await requiredGitValue(
     context,
     gitRunner,
     ["remote", "get-url", "origin"],
-    "Git remote `origin` is not configured. Clone the repository from GitHub or add an origin remote before syncing.",
+    translate("error.originMissing"),
   );
 
   await assertNoGitOperationInProgress(context, gitRunner, operationPathExists);
@@ -476,13 +583,14 @@ async function preflightGitSync(context, gitRunner, operationPathExists) {
 }
 
 async function assertNoGitOperationInProgress(context, gitRunner, operationPathExists) {
+  const translate = gitSyncTranslator(context);
   const conflicts = await runStep(context, "preflight", gitRunner, [
     "ls-files",
     "--unmerged",
     "-z",
   ]);
   if (String(conflicts.stdout ?? "").split("\0").some(Boolean)) {
-    const error = new Error("仓库存在尚未解决的冲突，请先交给 AI Agent 处理。");
+    const error = new Error(translate("error.unresolvedConflicts"));
     error.step = "preflight";
     throw error;
   }
@@ -527,7 +635,9 @@ async function assertNoGitOperationInProgress(context, gitRunner, operationPathE
     }
   }
   if (activeOperations.length > 0) {
-    const error = new Error(`仓库正在进行 ${activeOperations.join(" / ")}，请先完成或取消该操作。`);
+    const error = new Error(translate("error.operationInProgress", {
+      operations: activeOperations.join(" / "),
+    }));
     error.step = "preflight";
     throw error;
   }
@@ -616,6 +726,7 @@ async function runStep(context, step, gitRunner, args) {
 }
 
 async function verifyRemotePublication(context, revision, gitRunner) {
+  const translate = gitSyncTranslator(context);
   await runStep(context, "verify publication", gitRunner, [
     "fetch",
     "origin",
@@ -633,15 +744,28 @@ async function verifyRemotePublication(context, revision, gitRunner) {
       throw error;
     }
     const publicationError = new Error(
-      `远端 origin/${context.repo.branch} 尚未包含本次提交。Git Leaf 已保留本地提交，请检查网络或远端权限后重试。`,
+      translate("error.remoteMissingCommit", {
+        branch: context.repo.branch,
+      }),
     );
     publicationError.step = "verify publication";
     throw publicationError;
   }
 }
 
-function failurePayload({ repo, files, step, error, retryCount = 0, driftKind = "none" }) {
-  const errorText = String(error || "未知 Git 错误").trim();
+function failurePayload({
+  repo,
+  files,
+  step,
+  error,
+  locale,
+  language,
+  retryCount = 0,
+  driftKind = "none",
+  includeAgentPrompt = true,
+}) {
+  const translate = gitSyncTranslator({ locale, language });
+  const errorText = String(error || translate("error.unknownGit")).trim();
   return {
     ok: false,
     repo: repo.id,
@@ -651,33 +775,46 @@ function failurePayload({ repo, files, step, error, retryCount = 0, driftKind = 
     error: errorText,
     retryCount,
     driftKind,
-    agentPrompt: buildGitSyncAgentPrompt({
-      repo,
-      files,
-      step,
-      error: errorText,
-    }),
+    resultTitle: translate("result.title"),
+    resultHelp: translate("result.help"),
+    agentPrompt: includeAgentPrompt
+      ? buildGitSyncAgentPrompt({
+          repo,
+          files,
+          step,
+          error: errorText,
+          locale: translate.locale,
+        })
+      : "",
   };
 }
 
-function buildGitSyncAgentPrompt({ repo, files, step, error }) {
+export function buildGitSyncAgentPrompt({
+  repo,
+  files = [],
+  step = "git",
+  error = "",
+  locale,
+  language,
+}) {
+  const translate = gitSyncTranslator({ locale, language });
   return [
-    "请处理 Git Leaf 同步失败：",
+    translate("prompt.title"),
     "",
-    `仓库：${repo.id}`,
-    `仓库路径：${repo.root}`,
-    `当前分支：${repo.branch}`,
-    "选中文件：",
+    translate("prompt.repository", { repo: repo.id }),
+    translate("prompt.repositoryPath", { path: repo.root }),
+    translate("prompt.branch", { branch: repo.branch }),
+    translate("prompt.files"),
     ...files.map((file) => `- ${file}`),
     "",
-    `失败步骤：${step}`,
-    "错误输出：",
-    error || "无错误输出",
+    translate("prompt.step", { step }),
+    translate("prompt.error"),
+    error || translate("prompt.noError"),
     "",
-    "目标：",
-    "1. 保留 Git Leaf 用户对上述文件的修改。",
-    "2. 处理当前 Git 状态、检查失败或冲突。",
-    `3. 完成必要检查后，提交并推送当前分支 ${repo.branch}。`,
+    translate("prompt.goals"),
+    translate("prompt.goal1"),
+    translate("prompt.goal2"),
+    translate("prompt.goal3", { branch: repo.branch }),
   ].join("\n");
 }
 
@@ -748,13 +885,17 @@ function statusLabel(rawStatus) {
   return "modified";
 }
 
-function commandErrorText(error) {
+function gitSyncTranslator({ locale, language } = {}) {
+  return createTranslator(GIT_SYNC_MESSAGES, locale ?? language);
+}
+
+function commandErrorText(error, { locale, language } = {}) {
   const stderr = typeof error?.stderr === "string" ? error.stderr.trim() : "";
   const stdout = typeof error?.stdout === "string" ? error.stdout.trim() : "";
   const message = error instanceof Error ? error.message : String(error ?? "");
   const recovery = typeof error?.gitLeafRecovery === "string" ? error.gitLeafRecovery.trim() : "";
   const state = externalCommandState(error);
-  const stateMessage = commandStateMessage(state);
+  const stateMessage = commandStateMessage(state, { locale, language });
   return [stateMessage, stderr, stdout, message, recovery].filter(Boolean).join("\n");
 }
 
@@ -774,15 +915,16 @@ function gitCommandReportsMissingRequiredValue(error, args) {
   return false;
 }
 
-function commandStateMessage(state) {
-  if (state === "unavailable") return "未检测到 Git 命令，当前同步已停止。";
-  if (state === "permission_denied") return "Git 命令或仓库访问被拒绝，当前同步已停止。";
-  if (state === "unsupported") return "本机 Git 不支持当前同步所需的命令能力。";
-  if (state === "invalid_context") return "当前目录已经不是可用的 Git 工作区。";
-  if (state === "authentication_required") return "Git 身份验证未通过，当前同步已停止。";
-  if (state === "network_unavailable") return "网络或 Git 远端暂时不可用，当前同步已停止。";
-  if (state === "interrupted") return "Git 命令在完成前被中断，当前同步已停止。";
-  if (state === "invalid_output") return "Git 返回了 Git Leaf 无法识别的结果，当前同步已停止。";
+function commandStateMessage(state, { locale, language } = {}) {
+  const translate = gitSyncTranslator({ locale, language });
+  if (state === "unavailable") return translate("state.unavailable");
+  if (state === "permission_denied") return translate("state.permissionDenied");
+  if (state === "unsupported") return translate("state.unsupported");
+  if (state === "invalid_context") return translate("state.invalidContext");
+  if (state === "authentication_required") return translate("state.authenticationRequired");
+  if (state === "network_unavailable") return translate("state.networkUnavailable");
+  if (state === "interrupted") return translate("state.interrupted");
+  if (state === "invalid_output") return translate("state.invalidOutput");
   return "";
 }
 

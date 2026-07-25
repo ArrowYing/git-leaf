@@ -32,6 +32,7 @@ test("settings center normalizes sections and reuses the shared fresh preference
   assert.deepEqual(
     normalizeSettingsPreferences({
       preferences: {
+        language: "zh-CN",
         colorMode: "dark",
         documentFont: "reading-serif",
         documentFontSize: 20,
@@ -39,6 +40,7 @@ test("settings center normalizes sections and reuses the shared fresh preference
       },
     }),
     {
+      language: "zh-CN",
       colorMode: "dark",
       documentFont: "reading-serif",
       documentFontSize: 20,
@@ -51,6 +53,7 @@ test("settings preference patches and actions expose only approved values", () =
   assert.deepEqual(
     normalizeSettingsPreferencePatch({
       colorMode: "dark",
+      language: "en",
       documentFont: "reading-serif",
       documentFontSize: 22,
       fileTreeMode: "all",
@@ -60,6 +63,7 @@ test("settings preference patches and actions expose only approved values", () =
     }),
     {
       colorMode: "dark",
+      language: "en",
       documentFont: "reading-serif",
       documentFontSize: 22,
       fileTreeMode: "all",
@@ -110,6 +114,7 @@ test("settings controller lazily creates, shows, resizes, hides, reuses, and des
   );
   assert.equal(initialMessage.channel, SETTINGS_CENTER_CHANNELS.show);
   assert.equal(initialMessage.payload.section, "shortcuts");
+  assert.equal(initialMessage.payload.model.resolvedLanguage, "en");
   assert.equal(harness.views[0].webContents.focusCount, 1);
   assert.match(harness.views[0].webContents.executedScripts[0], /dataset\.theme = "light"/);
 
@@ -225,32 +230,81 @@ test("settings status hydration cannot update or focus a view after it is hidden
   assert.equal(harness.views[0].webContents.focusCount, 1);
 });
 
+test("settings status hydration cannot overwrite a newly selected language", async () => {
+  let currentPreferences = {
+    ...DEFAULT_USER_PREFERENCES,
+    language: "zh-CN",
+  };
+  let releaseChineseStatus;
+  const chineseStatus = new Promise((resolve) => {
+    releaseChineseStatus = resolve;
+  });
+  const harness = createHarness({
+    getPreferences: async () => currentPreferences,
+    savePreferences: async (patch) => {
+      currentPreferences = { ...currentPreferences, ...patch };
+      return currentPreferences;
+    },
+    getStatus: async (resolvedLanguage) => (
+      resolvedLanguage === "zh-CN"
+        ? chineseStatus
+        : { app: { version: { label: "Version", value: "1.0.0" } } }
+    ),
+  });
+  const controller = harness.createController();
+  await controller.show("status");
+
+  const result = await harness.ipcMain.invoke(
+    SETTINGS_CENTER_CHANNELS.updatePreferences,
+    controller.webContents,
+    { language: "en" },
+  );
+  assert.equal(result.model.resolvedLanguage, "en");
+
+  releaseChineseStatus({
+    app: { version: { label: "版本", value: "1.0.0" } },
+  });
+  await new Promise((resolve) => setImmediate(resolve));
+
+  const statusOnlyMessages = harness.views[0].webContents.messages.filter(
+    (message) => message.payload.status && !message.payload.model,
+  );
+  assert.deepEqual(statusOnlyMessages, []);
+  controller.destroy();
+});
+
 test("settings IPC authorizes its own view and whitelists model, preference, and action calls", async () => {
   const savedPatches = [];
+  const contentLanguages = [];
+  const statusLanguages = [];
+  let currentPreferences = {
+    ...DEFAULT_USER_PREFERENCES,
+    language: "system",
+    documentFontSize: 17,
+  };
   let updateChecks = 0;
   const harness = createHarness({
-    getPreferences: async () => ({
-      colorMode: "light",
-      documentFont: "system-sans",
-      documentFontSize: 17,
-      fileTreeMode: "content",
-    }),
+    getPreferences: async () => currentPreferences,
     savePreferences: async (patch) => {
       savedPatches.push(patch);
+      currentPreferences = { ...currentPreferences, ...patch };
+      return { preferences: currentPreferences };
+    },
+    getSystemLanguages: () => ["zh-Hans-CN", "en-US"],
+    getStatus: async (resolvedLanguage) => {
+      statusLanguages.push(resolvedLanguage);
+      return { repository: { name: "git-leaf", branch: "main" } };
+    },
+    getContent: async (resolvedLanguage) => {
+      contentLanguages.push(resolvedLanguage);
       return {
-        preferences: {
-          colorMode: patch.colorMode || "light",
-          documentFont: patch.documentFont || "system-sans",
-          documentFontSize: patch.documentFontSize || 17,
-          fileTreeMode: patch.fileTreeMode || "content",
-        },
+        helpSections: [{
+          title: resolvedLanguage === "zh-CN" ? "仓库文件" : "Repository files",
+          body: ["帮助内容"],
+        }],
+        shortcutGroups: [{ title: "Help", shortcuts: [{ keys: "Command+/", action: "Help" }] }],
       };
     },
-    getStatus: async () => ({ repository: { name: "git-leaf", branch: "main" } }),
-    getContent: async () => ({
-      helpSections: [{ title: "仓库文件", body: ["帮助内容"] }],
-      shortcutGroups: [{ title: "Help", shortcuts: [{ keys: "Command+/", action: "Help" }] }],
-    }),
     checkForUpdates: async () => {
       updateChecks += 1;
       return { state: "current", message: "Git Leaf 已经是最新版本。" };
@@ -262,9 +316,12 @@ test("settings IPC authorizes its own view and whitelists model, preference, and
 
   const model = await harness.ipcMain.invoke(SETTINGS_CENTER_CHANNELS.getModel, sender);
   assert.equal(model.preferences.documentFontSize, 17);
+  assert.equal(model.resolvedLanguage, "zh-CN");
   assert.equal(model.status.repository.name, "git-leaf");
   assert.equal(model.helpSections[0].title, "仓库文件");
   assert.equal(model.shortcutGroups[0].shortcuts[0].keys, "Command+/");
+  assert.deepEqual(contentLanguages, ["zh-CN", "zh-CN"]);
+  assert.deepEqual(statusLanguages, ["zh-CN", "zh-CN"]);
 
   await assert.rejects(
     () => harness.ipcMain.invoke(SETTINGS_CENTER_CHANNELS.getModel, {}),
@@ -288,6 +345,19 @@ test("settings IPC authorizes its own view and whitelists model, preference, and
   }]);
   assert.equal(saveResult.ok, true);
   assert.equal(saveResult.preferences.colorMode, "dark");
+
+  const languageResult = await harness.ipcMain.invoke(
+    SETTINGS_CENTER_CHANNELS.updatePreferences,
+    sender,
+    { language: "en" },
+  );
+  assert.deepEqual(savedPatches.at(-1), { language: "en" });
+  assert.equal(languageResult.ok, true);
+  assert.equal(languageResult.preferences.language, "en");
+  assert.equal(languageResult.model.resolvedLanguage, "en");
+  assert.equal(languageResult.model.helpSections[0].title, "Repository files");
+  assert.deepEqual(contentLanguages.at(-1), "en");
+  assert.deepEqual(statusLanguages.at(-1), "en");
 
   await harness.ipcMain.invoke(
     SETTINGS_CENTER_CHANNELS.action,
@@ -431,6 +501,7 @@ function createHarness(overrides = {}) {
         getStatus: overrides.getStatus ?? (async () => ({})),
         getContent: overrides.getContent ?? (async () => ({})),
         checkForUpdates: overrides.checkForUpdates ?? (async () => ({})),
+        getSystemLanguages: overrides.getSystemLanguages ?? (() => []),
       });
     },
   };

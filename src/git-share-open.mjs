@@ -4,6 +4,64 @@ import { externalCommandState, isExternalCommandExit } from "./external-command.
 
 const TRANSIENT_FETCH_STATES = new Set(["network_unavailable", "interrupted"]);
 const DEFAULT_FETCH_RETRY_DELAY_MS = 500;
+const SHARED_FETCH_FAILURE_MESSAGES = Object.freeze({
+  en: Object.freeze({
+    "network_unavailable.message": "GitHub is temporarily unavailable",
+    "network_unavailable.summary": "Git Leaf retried automatically but still could not fetch the latest main.",
+    "network_unavailable.action": "Check your network, proxy, or GitHub connection, then try again here.",
+    "authentication_required.message": "Git credentials require sign-in",
+    "authentication_required.summary": "Git Leaf could not access the remote with this repository's current Git credentials.",
+    "authentication_required.action": "Sign in again with the Git credentials used by this repository, then return here and check again.",
+    "unavailable.message": "Git is unavailable on this computer",
+    "unavailable.summary": "Git Leaf could not find the Git command and cannot fetch the latest main.",
+    "unavailable.action": "Make sure Git is installed and available to the desktop app, then try again.",
+    "permission_denied.message": "Git access was denied by the system",
+    "permission_denied.summary": "Git Leaf does not have permission to run Git or read the main worktree.",
+    "permission_denied.action": "Check access to Git and the repository directory, then try again.",
+    "invalid_context.message": "The main worktree is no longer available",
+    "invalid_context.summary": "Git Leaf could not fetch the latest main from the original main worktree.",
+    "invalid_context.action": "Make sure the repository directory still exists and is still a Git worktree, then try again.",
+    "interrupted.message": "Fetching the latest main was interrupted",
+    "interrupted.summary": "Git Leaf retried automatically, but the Git operation was interrupted again before it finished.",
+    "interrupted.action": "Make sure no system task is stopping Git, then try again here.",
+    "failed.message": "Could not fetch the latest main",
+    "failed.summary": "Git Leaf encountered a problem while fetching the remote main.",
+    "failed.action": "Check the remote URL and technical information, then try again here.",
+    "repositoryUnmodified": "The local repository was not modified.",
+    "technicalInformation": "Technical information: {error}",
+    "button.retry": "Try again",
+    "button.recheck": "Check again",
+    "button.cancel": "Don't open now",
+  }),
+  "zh-CN": Object.freeze({
+    "network_unavailable.message": "暂时无法连接 GitHub",
+    "network_unavailable.summary": "Git Leaf 已自动重试，但仍无法获取最新 main。",
+    "network_unavailable.action": "请检查网络、代理或 GitHub 连接状态，然后在这里重新尝试。",
+    "authentication_required.message": "Git 凭据需要重新登录",
+    "authentication_required.summary": "Git Leaf 无法使用当前仓库的 Git 凭据访问远端。",
+    "authentication_required.action": "请重新登录当前仓库使用的 Git 凭据，然后回到这里重新检查。",
+    "unavailable.message": "本机 Git 暂不可用",
+    "unavailable.summary": "Git Leaf 找不到本机 Git 命令，无法获取最新 main。",
+    "unavailable.action": "请确认 Git 已安装并可供桌面应用使用，然后重新尝试。",
+    "permission_denied.message": "Git 访问被系统拒绝",
+    "permission_denied.summary": "Git Leaf 没有权限运行 Git 或读取主工作区。",
+    "permission_denied.action": "请检查 Git 和仓库目录的访问权限，然后重新尝试。",
+    "invalid_context.message": "主工作区已经不可用",
+    "invalid_context.summary": "Git Leaf 无法在原主工作区中获取最新 main。",
+    "invalid_context.action": "请确认仓库目录仍然存在并且仍是 Git 工作区，然后重新尝试。",
+    "interrupted.message": "获取最新 main 被中断",
+    "interrupted.summary": "Git Leaf 已自动重试，但 Git 操作仍在完成前被中断。",
+    "interrupted.action": "请确认没有系统任务终止 Git，然后在这里重新尝试。",
+    "failed.message": "无法获取最新 main",
+    "failed.summary": "Git Leaf 获取远端 main 时遇到问题。",
+    "failed.action": "请检查远端地址和技术信息，然后在这里重新尝试。",
+    "repositoryUnmodified": "本地仓库没有被修改。",
+    "technicalInformation": "技术信息：{error}",
+    "button.retry": "重新尝试",
+    "button.recheck": "重新检查",
+    "button.cancel": "暂不打开",
+  }),
+});
 
 export async function sharedMainWorktree(repoRoot, { readWorktrees = listGitWorktrees } = {}) {
   const worktrees = await readWorktrees(repoRoot);
@@ -120,11 +178,15 @@ export async function inspectSharedMainWithFetchRecovery({
   return state;
 }
 
-export function sharedFetchFailurePrompt(state = {}) {
+export function sharedFetchFailurePrompt(state = {}, {
+  language = "en",
+  locale,
+} = {}) {
   const commandState = String(state.commandState ?? "failed");
-  const guidance = fetchFailureGuidance(commandState);
+  const translate = createSharedFetchFailureTranslator(locale ?? language);
+  const guidance = fetchFailureGuidance(commandState, translate);
   const technicalInformation = state.error
-    ? `技术信息：${String(state.error).slice(0, 240)}`
+    ? translate("technicalInformation", { error: String(state.error).slice(0, 240) })
     : "";
   return {
     type: "warning",
@@ -132,12 +194,12 @@ export function sharedFetchFailurePrompt(state = {}) {
     detail: [
       guidance.summary,
       guidance.action,
-      "本地仓库没有被修改。",
+      translate("repositoryUnmodified"),
       technicalInformation,
     ].filter(Boolean).join("\n"),
     buttons: [
-      commandState === "authentication_required" ? "重新检查" : "重新尝试",
-      "暂不打开",
+      translate(commandState === "authentication_required" ? "button.recheck" : "button.retry"),
+      translate("button.cancel"),
     ],
     defaultId: 0,
     cancelId: 1,
@@ -212,54 +274,34 @@ async function fetchSharedMain(repoRoot, {
   return null;
 }
 
-function fetchFailureGuidance(state) {
-  if (state === "network_unavailable") {
-    return {
-      message: "暂时无法连接 GitHub",
-      summary: "Git Leaf 已自动重试，但仍无法获取最新 main。",
-      action: "请检查网络、代理或 GitHub 连接状态，然后在这里重新尝试。",
-    };
-  }
-  if (state === "authentication_required") {
-    return {
-      message: "Git 凭据需要重新登录",
-      summary: "Git Leaf 无法使用当前仓库的 Git 凭据访问远端。",
-      action: "请重新登录当前仓库使用的 Git 凭据，然后回到这里重新检查。",
-    };
-  }
-  if (state === "unavailable") {
-    return {
-      message: "本机 Git 暂不可用",
-      summary: "Git Leaf 找不到本机 Git 命令，无法获取最新 main。",
-      action: "请确认 Git 已安装并可供桌面应用使用，然后重新尝试。",
-    };
-  }
-  if (state === "permission_denied") {
-    return {
-      message: "Git 访问被系统拒绝",
-      summary: "Git Leaf 没有权限运行 Git 或读取主工作区。",
-      action: "请检查 Git 和仓库目录的访问权限，然后重新尝试。",
-    };
-  }
-  if (state === "invalid_context") {
-    return {
-      message: "主工作区已经不可用",
-      summary: "Git Leaf 无法在原主工作区中获取最新 main。",
-      action: "请确认仓库目录仍然存在并且仍是 Git 工作区，然后重新尝试。",
-    };
-  }
-  if (state === "interrupted") {
-    return {
-      message: "获取最新 main 被中断",
-      summary: "Git Leaf 已自动重试，但 Git 操作仍在完成前被中断。",
-      action: "请确认没有系统任务终止 Git，然后在这里重新尝试。",
-    };
-  }
+function fetchFailureGuidance(state, translate) {
+  const key = [
+    "network_unavailable",
+    "authentication_required",
+    "unavailable",
+    "permission_denied",
+    "invalid_context",
+    "interrupted",
+  ].includes(state) ? state : "failed";
   return {
-    message: "无法获取最新 main",
-    summary: "Git Leaf 获取远端 main 时遇到问题。",
-    action: "请检查远端地址和技术信息，然后在这里重新尝试。",
+    message: translate(`${key}.message`),
+    summary: translate(`${key}.summary`),
+    action: translate(`${key}.action`),
   };
+}
+
+function createSharedFetchFailureTranslator(locale) {
+  const messages = SHARED_FETCH_FAILURE_MESSAGES[resolveSharedFetchFailureLocale(locale)];
+  return (key, replacements = {}) => {
+    const template = messages[key] ?? SHARED_FETCH_FAILURE_MESSAGES.en[key] ?? key;
+    return template.replace(/\{([a-zA-Z]+)\}/g, (_match, name) => (
+      replacements[name] == null ? "" : String(replacements[name])
+    ));
+  };
+}
+
+function resolveSharedFetchFailureLocale(locale) {
+  return String(locale || "").toLowerCase().startsWith("zh") ? "zh-CN" : "en";
 }
 
 function normalizeGitPath(value) {

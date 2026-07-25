@@ -6,6 +6,83 @@ import {
   externalCommandState,
   runExternalCommand,
 } from "./external-command.mjs";
+import { createTranslator } from "../public/i18n.js";
+
+const GIT_ENVIRONMENT_MESSAGES = Object.freeze({
+  en: Object.freeze({
+    "git.command": "Git command",
+    "git.identity": "Git identity",
+    "github.login": "GitHub login",
+    "git.detected": "Git was detected.",
+    "git.required.win32":
+      "Git is required to open local repositories. Install Git for Windows, or make sure `git.exe` is available on PATH.",
+    "git.required.darwin":
+      "Git is required to open local repositories. Install Xcode Command Line Tools with `xcode-select --install`, or make sure `git` is available on PATH.",
+    "git.required.other":
+      "Git is required to open local repositories. Install Git, or make sure `git` is available on PATH.",
+    "git.permission":
+      "Git Leaf found Git, but does not have permission to run it or access its files.",
+    "git.interrupted": "The Git version check was interrupted before it completed.",
+    "git.invalidOutput":
+      "The Git command returned an unexpected response, so Git Leaf cannot verify the environment.",
+    "git.checkFailed": "Git is present, but Git Leaf could not complete the Git environment check.",
+    "desktop.git.missing.win32":
+      "Git was not detected. Install Git for Windows and make sure git is available on PATH.",
+    "desktop.git.missing.darwin":
+      "Git was not detected. Install Xcode Command Line Tools, or make sure git is available on PATH.",
+    "desktop.git.missing.other":
+      "Git was not detected. Install Git, or make sure git is available on PATH.",
+    "desktop.git.permission":
+      "Git was detected, but Git Leaf does not have permission to run it. Check the Git command permissions.",
+    "desktop.git.interrupted": "The Git version check was interrupted. Try again.",
+    "desktop.git.invalidOutput":
+      "The Git command returned an unrecognized version, so Git Leaf cannot verify the environment.",
+    "desktop.git.checkFailed": "Git is present, but the environment check did not complete.",
+    "identity.waitForGit":
+      "Git must be detected before Git Leaf can check user.name and user.email.",
+    "identity.missing":
+      "Git user.name / user.email is not configured. Before syncing commits, run git config --global user.name and git config --global user.email.",
+    "github.loggedIn": "GitHub CLI is logged in.",
+    "github.cliMissing":
+      "GitHub CLI was not detected. Git Leaf can still open local repositories; syncing to GitHub will use local Git credentials.",
+    "github.notLoggedIn":
+      "GitHub CLI is not logged in. To sync to GitHub, run gh auth login or configure Git credentials.",
+  }),
+  "zh-CN": Object.freeze({
+    "git.command": "Git 命令",
+    "git.identity": "Git 身份",
+    "github.login": "GitHub 登录",
+    "git.detected": "已检测到 Git 命令。",
+    "git.required.win32":
+      "打开本地仓库需要 Git。请安装 Git for Windows，或确认 `git.exe` 已加入 PATH。",
+    "git.required.darwin":
+      "打开本地仓库需要 Git。请运行 `xcode-select --install` 安装 Xcode Command Line Tools，或确认 `git` 已加入 PATH。",
+    "git.required.other": "打开本地仓库需要 Git。请安装 Git，或确认 `git` 已加入 PATH。",
+    "git.permission": "已检测到 Git，但 Git Leaf 没有权限运行它或访问相关文件。",
+    "git.interrupted": "Git 版本检查在完成前被中断。",
+    "git.invalidOutput": "Git 命令返回了无法识别的结果，Git Leaf 无法确认环境状态。",
+    "git.checkFailed": "Git 命令存在，但 Git Leaf 没有完成 Git 环境检查。",
+    "desktop.git.missing.win32":
+      "未检测到 Git 命令。请先安装 Git for Windows，并确认 git 在 PATH 中。",
+    "desktop.git.missing.darwin":
+      "未检测到 Git 命令。请先安装 Xcode Command Line Tools，或确认 git 在 PATH 中。",
+    "desktop.git.missing.other": "未检测到 Git 命令。请先安装 Git，或确认 git 在 PATH 中。",
+    "desktop.git.permission":
+      "已检测到 Git，但 Git Leaf 没有权限运行它。请检查 Git 命令的执行权限。",
+    "desktop.git.interrupted": "Git 版本检查在完成前被中断，请重试。",
+    "desktop.git.invalidOutput":
+      "Git 命令返回了无法识别的版本信息，Git Leaf 无法确认环境状态。",
+    "desktop.git.checkFailed": "Git 命令存在，但环境检查没有正常完成。",
+    "identity.waitForGit": "需要先检测到 Git 命令，才能检查 user.name 和 user.email。",
+    "identity.missing":
+      "还没有配置 Git user.name / user.email。同步提交前请运行 git config --global user.name 和 git config --global user.email。",
+    "github.loggedIn": "GitHub CLI 已登录。",
+    "github.cliMissing":
+      "未检测到 GitHub CLI。Git Leaf 仍可打开本地仓库；需要同步到 GitHub 时会依赖本机 Git 凭据。",
+    "github.notLoggedIn":
+      "GitHub CLI 尚未登录；如需同步到 GitHub，请运行 gh auth login 或配置 Git 凭据。",
+  }),
+});
 
 export class GitUnavailableError extends Error {
   constructor(message, { state = "unavailable", ...options } = {}) {
@@ -19,14 +96,17 @@ export class GitUnavailableError extends Error {
 export async function assertGitAvailable({
   gitRunner = runGitVersion,
   platform = process.platform,
+  locale,
+  language,
 } = {}) {
+  const translate = gitEnvironmentTranslator({ locale, language });
   try {
     const result = await gitRunner();
     return { version: validatedGitVersion(result) };
   } catch (error) {
     const state = externalCommandState(error);
     throw new GitUnavailableError(
-      gitDependencyMessage(state, platform),
+      gitDependencyMessage(state, platform, translate),
       { cause: error, state },
     );
   }
@@ -37,7 +117,10 @@ export async function desktopEnvironmentChecks({
   gitConfigRunner = runGitConfig,
   ghAuthRunner = runGhAuthStatus,
   platform = process.platform,
+  locale,
+  language,
 } = {}) {
+  const translate = gitEnvironmentTranslator({ locale, language });
   const checks = [];
   let gitAvailable = false;
 
@@ -47,77 +130,76 @@ export async function desktopEnvironmentChecks({
     gitAvailable = true;
     checks.push({
       id: "git-command",
-      label: "Git 命令",
+      label: translate("git.command"),
       status: "ok",
-      message: version || "已检测到 Git 命令。",
+      message: version || translate("git.detected"),
     });
   } catch (error) {
     const state = externalCommandState(error);
     checks.push({
       id: "git-command",
-      label: "Git 命令",
+      label: translate("git.command"),
       status: "error",
       state,
-      message: desktopGitDependencyMessage(state, platform),
+      message: desktopGitDependencyMessage(state, platform, translate),
     });
   }
 
-  checks.push(await gitIdentityCheck({ gitAvailable, gitConfigRunner, platform }));
-  checks.push(await githubLoginCheck({ ghAuthRunner }));
+  checks.push(await gitIdentityCheck({
+    gitAvailable,
+    gitConfigRunner,
+    platform,
+    translate,
+  }));
+  checks.push(await githubLoginCheck({ ghAuthRunner, translate }));
 
   return checks;
 }
 
-function gitUnavailableMessage(platform) {
-  if (platform === "win32") {
-    return "Git is required to open local repositories. Install Git for Windows, or make sure `git.exe` is available on PATH.";
-  }
-  if (platform === "darwin") {
-    return "Git is required to open local repositories. Install Xcode Command Line Tools with `xcode-select --install`, or make sure `git` is available on PATH.";
-  }
-  return "Git is required to open local repositories. Install Git, or make sure `git` is available on PATH.";
+function gitEnvironmentTranslator({ locale, language } = {}) {
+  return createTranslator(GIT_ENVIRONMENT_MESSAGES, language ?? locale);
 }
 
-function gitDependencyMessage(state, platform) {
+function gitUnavailableMessage(platform, translate) {
+  return translate(`git.required.${platform === "win32" || platform === "darwin" ? platform : "other"}`);
+}
+
+function gitDependencyMessage(state, platform, translate) {
   if (state === "unavailable") {
-    return gitUnavailableMessage(platform);
+    return gitUnavailableMessage(platform, translate);
   }
   if (state === "permission_denied") {
-    return "Git Leaf found Git, but does not have permission to run it or access its files.";
+    return translate("git.permission");
   }
   if (state === "interrupted") {
-    return "The Git version check was interrupted before it completed.";
+    return translate("git.interrupted");
   }
   if (state === "invalid_output") {
-    return "The Git command returned an unexpected response, so Git Leaf cannot verify the environment.";
+    return translate("git.invalidOutput");
   }
-  return "Git is present, but Git Leaf could not complete the Git environment check.";
+  return translate("git.checkFailed");
 }
 
-function desktopGitUnavailableMessage(platform) {
-  if (platform === "win32") {
-    return "未检测到 Git 命令。请先安装 Git for Windows，并确认 git 在 PATH 中。";
-  }
-  if (platform === "darwin") {
-    return "未检测到 Git 命令。请先安装 Xcode Command Line Tools，或确认 git 在 PATH 中。";
-  }
-  return "未检测到 Git 命令。请先安装 Git，或确认 git 在 PATH 中。";
+function desktopGitUnavailableMessage(platform, translate) {
+  return translate(
+    `desktop.git.missing.${platform === "win32" || platform === "darwin" ? platform : "other"}`,
+  );
 }
 
-function desktopGitDependencyMessage(state, platform) {
+function desktopGitDependencyMessage(state, platform, translate) {
   if (state === "unavailable") {
-    return desktopGitUnavailableMessage(platform);
+    return desktopGitUnavailableMessage(platform, translate);
   }
   if (state === "permission_denied") {
-    return "已检测到 Git，但 Git Leaf 没有权限运行它。请检查 Git 命令的执行权限。";
+    return translate("desktop.git.permission");
   }
   if (state === "interrupted") {
-    return "Git 版本检查在完成前被中断，请重试。";
+    return translate("desktop.git.interrupted");
   }
   if (state === "invalid_output") {
-    return "Git 命令返回了无法识别的版本信息，Git Leaf 无法确认环境状态。";
+    return translate("desktop.git.invalidOutput");
   }
-  return "Git 命令存在，但环境检查没有正常完成。";
+  return translate("desktop.git.checkFailed");
 }
 
 function validatedGitVersion(result) {
@@ -128,13 +210,13 @@ function validatedGitVersion(result) {
   return version;
 }
 
-async function gitIdentityCheck({ gitAvailable, gitConfigRunner, platform }) {
+async function gitIdentityCheck({ gitAvailable, gitConfigRunner, platform, translate }) {
   if (!gitAvailable) {
     return {
       id: "git-identity",
-      label: "Git 身份",
+      label: translate("git.identity"),
       status: "warn",
-      message: "需要先检测到 Git 命令，才能检查 user.name 和 user.email。",
+      message: translate("identity.waitForGit"),
     };
   }
 
@@ -151,7 +233,7 @@ async function gitIdentityCheck({ gitAvailable, gitConfigRunner, platform }) {
 
     return {
       id: "git-identity",
-      label: "Git 身份",
+      label: translate("git.identity"),
       status: "ok",
       message: `${name} <${email}>`,
     };
@@ -160,49 +242,49 @@ async function gitIdentityCheck({ gitAvailable, gitConfigRunner, platform }) {
     if (["unavailable", "permission_denied", "interrupted", "invalid_output"].includes(state)) {
       return {
         id: "git-identity",
-        label: "Git 身份",
+        label: translate("git.identity"),
         status: "error",
         state,
-        message: desktopGitDependencyMessage(state, platform),
+        message: desktopGitDependencyMessage(state, platform, translate),
       };
     }
     return {
       id: "git-identity",
-      label: "Git 身份",
+      label: translate("git.identity"),
       status: "warn",
-      message: "还没有配置 Git user.name / user.email。同步提交前请运行 git config --global user.name 和 git config --global user.email。",
+      message: translate("identity.missing"),
     };
   }
 }
 
-async function githubLoginCheck({ ghAuthRunner }) {
+async function githubLoginCheck({ ghAuthRunner, translate }) {
   try {
     const result = await ghAuthRunner();
     const output = String(result.stdout || result.stderr || "").trim();
     return {
       id: "github-login",
-      label: "GitHub 登录",
+      label: translate("github.login"),
       status: "ok",
-      message: authStatusSummary(output) || "GitHub CLI 已登录。",
+      message: authStatusSummary(output) || translate("github.loggedIn"),
     };
   } catch (error) {
     const state = externalCommandState(error);
     if (state === "unavailable") {
       return {
         id: "github-login",
-        label: "GitHub 登录",
+        label: translate("github.login"),
         status: "warn",
-        message: "未检测到 GitHub CLI。Git Leaf 仍可打开本地仓库；需要同步到 GitHub 时会依赖本机 Git 凭据。",
+        message: translate("github.cliMissing"),
       };
     }
 
     const output = String(error?.stdout || error?.stderr || "").trim();
     return {
       id: "github-login",
-      label: "GitHub 登录",
+      label: translate("github.login"),
       status: "warn",
       state,
-      message: authStatusSummary(output) || "GitHub CLI 尚未登录；如需同步到 GitHub，请运行 gh auth login 或配置 Git 凭据。",
+      message: authStatusSummary(output) || translate("github.notLoggedIn"),
     };
   }
 }

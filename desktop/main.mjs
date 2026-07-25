@@ -18,13 +18,24 @@ import process from "node:process";
 
 import { createDesktopUpdateController } from "./updates.mjs";
 import { createSettingsCenterController } from "./settings-center.mjs";
+import {
+  createDesktopTranslatorForLanguage,
+  desktopPreferencesForRenderer,
+  preferredSystemLanguages,
+  translatedFileCount,
+} from "./localization.mjs";
+import {
+  createApplicationTranslator,
+  localizedAboutPanelCopyright,
+  localizeDesktopHomeError,
+  windowsStartMenuShortcutOptions,
+} from "./main-localization.mjs";
 import { saveAndSyncDesktopPreferences } from "./preference-sync.mjs";
 import { createUpdateCheckScheduler } from "./update-check-schedule.mjs";
 import { completeDesktopShutdown } from "./shutdown.mjs";
 import { parseDesktopArgs } from "../src/desktop-args.mjs";
 import { desktopSecondInstanceAction } from "../src/desktop-instance-routing.mjs";
 import {
-  aboutPanelCopyright,
   appDisplayName,
   BUILD_INFO,
   buildDistributionLabel,
@@ -50,7 +61,6 @@ import { classifyDesktopNavigation } from "../src/desktop-navigation.mjs";
 import { waitForWebContentsPaint } from "../src/desktop-paint.mjs";
 import {
   repositorySelectionErrorMessage,
-  startupRepositoryErrorMessage,
 } from "../src/desktop-repository-errors.mjs";
 import { startDesktopGitLeafServer } from "../src/desktop-server.mjs";
 import { GIT_LEAF_PROTOCOL } from "../src/desktop-deep-link.mjs";
@@ -101,8 +111,11 @@ import {
   DEFAULT_TELEMETRY_SHUTDOWN_UPLOAD_TIMEOUT_MS,
 } from "../src/telemetry-upload-scheduler.mjs";
 import { initializeUsageAnalyticsSetting } from "../src/usage-analytics-setting.mjs";
-import { FILE_TYPE_HELP_ROWS, GIT_LEAF_HELP_SECTIONS } from "../public/help-content.js";
-import { KEYBOARD_SHORTCUT_GROUPS } from "../public/keyboard-shortcuts.js";
+import {
+  getFileTypeHelpRows,
+  getGitLeafHelpSections,
+} from "../public/help-content.js";
+import { getKeyboardShortcutGroups } from "../public/keyboard-shortcuts.js";
 
 applyDevelopmentUserDataOverride({ app, isDevBuild: BUILD_INFO.dev || !app.isPackaged });
 
@@ -122,6 +135,7 @@ let telemetryActivityTracker = null;
 let telemetryUploadScheduler = null;
 let telemetryMode = "preview";
 let usageAnalyticsEnabled = false;
+let currentHomeErrorState = null;
 const settingsShortcutBridges = new WeakSet();
 let desktopRepositoryState = {
   openRepoRoots: [],
@@ -152,6 +166,18 @@ const DEFAULT_WINDOW_BOUNDS = {
 const TELEMETRY_RELEASE_TIER = "stable";
 const TELEMETRY_CHANNEL = "stable";
 
+function currentDesktopTranslator() {
+  return createApplicationTranslator(desktopRepositoryState.preferences ?? {}, { app });
+}
+
+function desktopText(key, values = {}) {
+  return currentDesktopTranslator()(key, values);
+}
+
+function preferencesForRenderer(preferences = desktopRepositoryState.preferences ?? {}) {
+  return desktopPreferencesForRenderer(preferences, { app });
+}
+
 if (windowsBootstrap.status === "current") {
   registerDesktopProtocol();
   app.on("open-url", (event, url) => {
@@ -180,6 +206,7 @@ function prepareWindowsAppInstall() {
 }
 
 async function runWindowsAppInstall(plan) {
+  const language = currentDesktopTranslator().locale;
   const progressWindow = new BrowserWindow({
     width: 520,
     height: 320,
@@ -200,6 +227,7 @@ async function runWindowsAppInstall(plan) {
   await progressWindow.loadURL(htmlDataUrl(windowsInstallProgressHtml({
     version: plan.version,
     mode: plan.status,
+    language,
   })));
   progressWindow.show();
   progressWindow.setProgressBar(0.03);
@@ -218,6 +246,7 @@ async function runWindowsAppInstall(plan) {
   try {
     await bootstrapWindowsApp({
       plan,
+      language,
       onProgress: updateProgress,
       beforeRelaunch: releaseManualWindowsBootstrapLock,
     });
@@ -227,17 +256,17 @@ async function runWindowsAppInstall(plan) {
     await updateProgress({
       phase: "error",
       percent: 100,
-      title: "Git Leaf 更新失败",
+      title: desktopText("windows.updateFailedTitle"),
       message: failure.message,
       detail: failure.detail,
-      stage: "更新失败",
+      stage: desktopText("windows.updateFailedStage"),
     });
     progressWindow.setProgressBar(-1);
     await dialog.showMessageBox(progressWindow, {
       type: "error",
-      buttons: ["关闭"],
+      buttons: [desktopText("dialog.close")],
       defaultId: 0,
-      message: "Git Leaf 更新失败",
+      message: desktopText("windows.updateFailed"),
       detail: [
         failure.message,
         failure.detail,
@@ -251,21 +280,21 @@ async function runWindowsAppInstall(plan) {
 function windowsInstallFailureCopy(plan, error) {
   if (error?.code === "WINDOWS_INSTALL_RECOVERY_REQUIRED") {
     return {
-      message: "新版本切换失败，并且没有自动恢复到固定目录。",
-      detail: `旧版本备份仍保留在：${plan.previousRoot}`,
+      message: desktopText("windows.switchFailed"),
+      detail: desktopText("windows.backupPreserved", { path: plan.previousRoot }),
     };
   }
   if (plan.status === "install") {
     return {
-      message: "Git Leaf 安装未完成。请重新完整解压安装包后再试。",
-      detail: "这是首次安装，固定目录中没有可恢复的旧版本。",
+      message: desktopText("windows.installIncomplete"),
+      detail: desktopText("windows.noPreviousInstall"),
     };
   }
   return {
     message: plan.waitForPid
-      ? "原版本已恢复。请从开始菜单重新启动 Git Leaf，稍后可以再次更新。"
-      : "原版本已恢复。请重新双击这个新版解压目录中的 Git Leaf.exe。",
-    detail: "固定目录中的原版本仍然可用。",
+      ? desktopText("windows.restoredStartMenu")
+      : desktopText("windows.restoredPortable"),
+    detail: desktopText("windows.previousAvailable"),
   };
 }
 
@@ -297,12 +326,14 @@ function installWindowsStartMenuShortcut() {
     roamingAppData: process.env.APPDATA,
   });
   try {
-    shell.writeShortcutLink(shortcut, {
-      target: process.execPath,
-      description: "Open Git repositories and Markdown documents in Git Leaf.",
-      icon: process.execPath,
-      iconIndex: 0,
-    });
+    shell.writeShortcutLink(
+      shortcut,
+      windowsStartMenuShortcutOptions(
+        process.execPath,
+        desktopRepositoryState.preferences ?? {},
+        { app },
+      ),
+    );
   } catch {
     // A missing Start Menu shortcut must not prevent Git Leaf from opening.
   }
@@ -437,6 +468,7 @@ async function recordTelemetryUpdateState(update) {
 }
 
 async function saveDesktopPreferenceValues(preferences, { notifyRenderer = true } = {}) {
+  const previousLanguage = currentDesktopTranslator().locale;
   const saved = await saveAndSyncDesktopPreferences({
     preferences,
     persistPreferences: (nextPreferences) => saveDesktopPreferences({
@@ -445,26 +477,47 @@ async function saveDesktopPreferenceValues(preferences, { notifyRenderer = true 
       repoRoot: activeServer?.repoRoot ?? "",
     }),
     updateServerPreferences: (nextPreferences) => {
-      activeServer?.updateDesktopPreferences?.(nextPreferences);
+      activeServer?.updateDesktopPreferences?.(preferencesForRenderer(nextPreferences));
     },
     sendRendererPreferences: (nextPreferences) => sendRendererEvent(
       "git-leaf-desktop-preferences",
-      nextPreferences,
+      preferencesForRenderer(nextPreferences),
     ),
     notifyRenderer,
   });
   desktopRepositoryState = saved.state;
+  const nextLanguage = currentDesktopTranslator().locale;
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.setBackgroundColor(desktopPageBackgroundColor(
       desktopRepositoryState.preferences ?? {},
       { systemDark: nativeTheme.shouldUseDarkColors },
     ));
   }
+  if (previousLanguage !== nextLanguage) {
+    const localizedUpdateMessage = desktopUpdateStatusMessage(
+      { ...desktopUpdateStatus, message: "" },
+      nextLanguage,
+    );
+    if (localizedUpdateMessage) {
+      desktopUpdateStatus = {
+        ...desktopUpdateStatus,
+        message: localizedUpdateMessage,
+      };
+    }
+    installAboutPanelOptions();
+    installWindowsStartMenuShortcut();
+    installMenu();
+    if (!activeServer && !isRepositoryTransitioning) {
+      await reloadDesktopHomeForLanguage();
+    }
+  }
   return saved.preferences;
 }
 
 async function saveDesktopPreferenceValuesFromRenderer(preferences) {
-  return saveDesktopPreferenceValues(preferences, { notifyRenderer: false });
+  return preferencesForRenderer(
+    await saveDesktopPreferenceValues(preferences, { notifyRenderer: false }),
+  );
 }
 
 async function loadDesktopRepositoryState() {
@@ -558,11 +611,12 @@ function installSettingsCenterController(browserWindow) {
     getPreferences: async () => desktopRepositoryState.preferences ?? {},
     savePreferences: saveDesktopPreferenceValues,
     getStatus: settingsCenterStatus,
-    getContent: async () => ({
-      helpSections: settingsCenterHelpSections(),
-      shortcutGroups: KEYBOARD_SHORTCUT_GROUPS,
+    getContent: async (resolvedLanguage) => ({
+      helpSections: settingsCenterHelpSections(resolvedLanguage),
+      shortcutGroups: getKeyboardShortcutGroups(resolvedLanguage),
     }),
     getSystemDark: () => nativeTheme.shouldUseDarkColors,
+    getSystemLanguages: () => preferredSystemLanguages(app),
     checkForUpdates: async () => {
       await updateCheckScheduler?.checkManually();
       return desktopUpdateStatus;
@@ -650,7 +704,11 @@ function installAboutPanelOptions() {
     return;
   }
 
-  const aboutCopyright = aboutPanelCopyright(BUILD_INFO);
+  const aboutCopyright = localizedAboutPanelCopyright(
+    BUILD_INFO,
+    desktopRepositoryState.preferences ?? {},
+    { app },
+  );
   app.setAboutPanelOptions({
     applicationName: APP_DISPLAY_NAME,
     applicationVersion: BUILD_INFO.version,
@@ -670,6 +728,7 @@ function installUpdateController() {
     getUpdatePreferences: () => desktopRepositoryState.preferences ?? {},
     saveUpdatePreferences: saveDesktopPreferenceValues,
     recordUpdateState: recordTelemetryUpdateState,
+    translate: (key, values) => desktopText(key, values),
     prepareWindowsUpdate: (manifest) => prepareWindowsAppUpdate({
       manifest,
       localAppData: process.env.LOCALAPPDATA,
@@ -688,7 +747,7 @@ function installUpdateController() {
 
 function checkForUpdatesMenuItem() {
   return {
-    label: "Check for Updates...",
+    label: desktopText("menu.checkUpdates"),
     click: () => {
       void updateCheckScheduler?.checkManually();
     },
@@ -1034,24 +1093,27 @@ async function showDesktopUpdateStatusFallback(status) {
   ).then(Boolean).catch(() => false);
 }
 
-function desktopUpdateStatusMessage(status) {
+function desktopUpdateStatusMessage(status, resolvedLanguage = "") {
   if (typeof status?.message === "string" && status.message.trim()) {
     return status.message.trim();
   }
 
+  const translate = resolvedLanguage
+    ? createDesktopTranslatorForLanguage(resolvedLanguage)
+    : currentDesktopTranslator();
   switch (status?.state) {
     case "checking":
-      return "正在检查更新…";
+      return translate("updates.checking");
     case "downloading":
-      return "正在下载并准备新版本…";
+      return translate("updates.downloading");
     case "downloaded":
-      return "新版本已准备好，退出 Git Leaf 后自动安装。";
+      return translate("updates.downloaded");
     case "available":
-      return "发现新版本，点击更新后开始下载。";
+      return translate("updates.available");
     case "current":
-      return "Git Leaf 已经是最新版本。";
+      return translate("updates.current");
     case "error":
-      return "检查更新失败。";
+      return translate("updates.error");
     default:
       return "";
   }
@@ -1067,49 +1129,57 @@ async function showSettingsAndHelpCenter(section = "appearance") {
   return true;
 }
 
-function settingsCenterHelpSections() {
+function settingsCenterHelpSections(resolvedLanguage) {
+  const translate = createDesktopTranslatorForLanguage(resolvedLanguage);
   return [
-    ...GIT_LEAF_HELP_SECTIONS,
+    ...getGitLeafHelpSections(resolvedLanguage),
     {
       id: "file-types",
-      title: "文件类型支持",
+      title: translate("settings.fileTypes.title"),
       body: [
-        "“默认显示”表示文件会常驻内容目录；“按需显示”表示它只在当前打开、被文档引用、命中搜索或存在本地改动时临时出现。切换到“全部仓库文件”可以随时查看完整仓库。",
+        translate("settings.fileTypes.body"),
       ],
-      fileTypes: FILE_TYPE_HELP_ROWS,
+      fileTypes: getFileTypeHelpRows(resolvedLanguage),
     },
   ];
 }
 
-async function settingsCenterStatus() {
-  const environment = await desktopEnvironmentChecks();
+async function settingsCenterStatus(resolvedLanguage) {
+  const translate = createDesktopTranslatorForLanguage(resolvedLanguage);
+  const environment = await desktopEnvironmentChecks({ language: resolvedLanguage });
   return {
     updatesEnabled: isOfficialDistribution(BUILD_INFO),
     app: {
-      version: { label: "版本", value: BUILD_INFO.version },
+      version: { label: translate("settings.version"), value: BUILD_INFO.version },
       build: {
-        label: "构建",
-        value: buildDistributionLabel(BUILD_INFO),
+        label: translate("settings.build"),
+        value: buildDistributionLabel(BUILD_INFO, { language: resolvedLanguage }),
       },
-      release: { label: "更新时间", value: releaseDateLabel(BUILD_INFO) || "未知" },
+      release: {
+        label: translate("settings.releaseDate"),
+        value: releaseDateLabel(BUILD_INFO, { language: resolvedLanguage })
+          || translate("common.unknown"),
+      },
       update: {
-        label: "更新状态",
-        value: desktopUpdateStatusMessage(desktopUpdateStatus) || "尚未检查更新。",
+        label: translate("settings.updateStatus"),
+        value: desktopUpdateStatusMessage(desktopUpdateStatus, resolvedLanguage)
+          || translate("settings.notChecked"),
         status: settingsUpdateStatusTone(desktopUpdateStatus),
       },
       privacy: {
-        label: "隐私与使用统计",
+        label: translate("settings.privacy"),
         value: telemetryClient?.enabled
-          ? "使用统计已开启；只发送匿名汇总与更新状态，不发送仓库名、路径、文件名、搜索词、文档内容或 Git 身份。"
-          : "使用统计已关闭；当前构建不会发送使用统计。",
+          ? translate("settings.analyticsOn")
+          : translate("settings.analyticsOff"),
       },
     },
     environment,
-    repository: await settingsCenterRepositoryStatus(),
+    repository: await settingsCenterRepositoryStatus(resolvedLanguage),
   };
 }
 
-async function settingsCenterRepositoryStatus() {
+async function settingsCenterRepositoryStatus(resolvedLanguage) {
+  const translate = createDesktopTranslatorForLanguage(resolvedLanguage);
   const server = activeServer;
   if (!server || isRepositoryTransitioning) {
     return {};
@@ -1132,28 +1202,39 @@ async function settingsCenterRepositoryStatus() {
     ? treePayload.frontmatterAllowedKeys
     : [];
   return {
-    repository: { label: "仓库", value: server.repoName },
-    path: { label: "工作目录", value: server.repoRoot },
+    repository: { label: translate("settings.repository"), value: server.repoName },
+    path: { label: translate("settings.workingDirectory"), value: server.repoRoot },
     worktree: {
-      label: "Worktree",
+      label: translate("settings.worktree"),
       value: server.repoRoot === server.repositoryRoot
-        ? "主工作目录"
+        ? translate("settings.mainWorkingDirectory")
         : server.worktreeName || path.basename(server.repoRoot),
     },
     branch: {
-      label: "分支",
-      value: treePayload?.detached ? "Detached HEAD" : treePayload?.branch || "未知",
+      label: translate("settings.branch"),
+      value: treePayload?.detached
+        ? "Detached HEAD"
+        : treePayload?.branch || translate("common.unknown"),
       status: treePayload?.detached ? "warning" : "ok",
     },
-    files: { label: "仓库文件", value: `${counts.total} 个` },
-    markdown: { label: "Markdown / MDX", value: `${counts.markdown} 个` },
+    files: {
+      label: translate("settings.repositoryFiles"),
+      value: translatedFileCount(translate, counts.total),
+    },
+    markdown: {
+      label: translate("settings.markdownFiles"),
+      value: translatedFileCount(translate, counts.markdown),
+    },
     frontmatter: {
-      label: "Front Matter 规则",
+      label: translate("settings.frontmatterRules"),
       value: hasFrontmatterRules
         ? allowedKeys.length > 0
-          ? `已检测，${allowedKeys.length} 个可筛选字段：${allowedKeys.join("、")}`
-          : "已检测，但没有可筛选字段"
-        : "未检测到 docs/frontmatter-rules.json",
+          ? translate("settings.frontmatterDetected", {
+              count: allowedKeys.length,
+              fields: allowedKeys.join(resolvedLanguage === "zh-CN" ? "、" : ", "),
+            })
+          : translate("settings.frontmatterNoFields")
+        : translate("settings.frontmatterMissing"),
       status: hasFrontmatterRules ? "ok" : "warning",
     },
   };
@@ -1206,13 +1287,13 @@ async function exportCurrentDocumentPdf() {
   if (!metadata?.path) {
     await dialog.showMessageBox(mainWindow, {
       type: "info",
-      message: "Open a document before exporting PDF.",
+      message: desktopText("dialog.openDocumentForPdf"),
     });
     return;
   }
 
   const result = await dialog.showSaveDialog(mainWindow, {
-    title: "Export PDF",
+    title: desktopText("dialog.exportPdf"),
     defaultPath: defaultPdfExportPath(metadata),
     filters: [{ name: "PDF", extensions: ["pdf"] }],
   });
@@ -1281,7 +1362,7 @@ async function showPdfExportError(error) {
   const detail = error?.message ? String(error.message) : "Unknown PDF export error.";
   await dialog.showMessageBox(mainWindow, {
     type: "error",
-    message: "Could not export PDF.",
+    message: desktopText("dialog.exportPdfFailed"),
     detail,
   });
 }
@@ -1350,7 +1431,7 @@ async function openWorktreeFromAction(requestedRoot) {
     const worktrees = await listGitWorktrees(activeServer.repoRoot);
     const selected = worktrees.find((worktree) => worktree.root === resolvedRoot);
     if (!selected || selected.bare || selected.prunable) {
-      throw new Error("所选工作树不属于当前仓库，或已经不可用。");
+      throw new Error(desktopText("worktree.unavailable"));
     }
     if (selected.root === activeServer.repoRoot) {
       return;
@@ -1361,7 +1442,7 @@ async function openWorktreeFromAction(requestedRoot) {
     recordTelemetryFeature("navigation.worktree_switch", { result: "error" });
     const options = {
       type: "error",
-      message: "无法切换工作树",
+      message: desktopText("worktree.switchFailed"),
       detail: error instanceof Error ? error.message : String(error),
     };
     if (mainWindow && !mainWindow.isDestroyed()) {
@@ -1372,29 +1453,53 @@ async function openWorktreeFromAction(requestedRoot) {
   }
 }
 
-async function showHomePage({ errorMessage = "", closeActiveRepository = true } = {}) {
+async function showHomePage({ errorState = null, closeActiveRepository = true } = {}) {
   await ensureMainWindow();
   settingsCenter?.hide();
   hideRepositoryTransitionView();
 
-  const checks = await desktopEnvironmentChecks();
   const previousServer = closeActiveRepository ? activeServer : null;
-  const html = desktopHomeHtml({
-    checks,
-    errorMessage,
-    preferences: desktopRepositoryState.preferences ?? {},
-  });
+  currentHomeErrorState = errorState;
   if (closeActiveRepository) {
     activeServer = null;
   }
-  await mainWindow.loadURL(htmlDataUrl(html));
-  mainWindow.setTitle(APP_DISPLAY_NAME);
+  await loadDesktopHomePage({ errorState });
   isRepositoryTransitioning = false;
   installMenu();
 
   if (previousServer) {
     await previousServer.close();
   }
+}
+
+async function reloadDesktopHomeForLanguage() {
+  if (
+    !mainWindow
+    || mainWindow.isDestroyed()
+    || activeServer
+    || isRepositoryTransitioning
+  ) {
+    return false;
+  }
+  await loadDesktopHomePage({ errorState: currentHomeErrorState });
+  return true;
+}
+
+async function loadDesktopHomePage({ errorState = null } = {}) {
+  const resolvedLanguage = currentDesktopTranslator().locale;
+  const checks = await desktopEnvironmentChecks({ language: resolvedLanguage });
+  const html = desktopHomeHtml({
+    checks,
+    errorMessage: localizeDesktopHomeError(
+      errorState,
+      desktopRepositoryState.preferences ?? {},
+      { app },
+    ),
+    preferences: desktopRepositoryState.preferences ?? {},
+    systemLanguages: preferredSystemLanguages(app),
+  });
+  await mainWindow.loadURL(htmlDataUrl(html));
+  mainWindow.setTitle(APP_DISPLAY_NAME);
 }
 
 async function showProgressPage({ title, message }) {
@@ -1419,6 +1524,7 @@ async function showProgressPage({ title, message }) {
     title,
     message,
     preferences: desktopRepositoryState.preferences ?? {},
+    systemLanguages: preferredSystemLanguages(app),
   })));
   await waitForWebContentsPaint(mainWindow.webContents);
   mainWindow.setTitle(`${APP_DISPLAY_NAME} - ${title}`);
@@ -1442,6 +1548,7 @@ async function showRepositoryTransitionView(browserWindow, { title, message }) {
       title,
       message,
       preferences: desktopRepositoryState.preferences ?? {},
+      systemLanguages: preferredSystemLanguages(app),
     })));
     if (repositoryTransitionView !== view || browserWindow.isDestroyed?.()) {
       closeWebContentsView(view);
@@ -1542,8 +1649,12 @@ async function openRepository(
   await ensureMainWindow();
   if (showProgress) {
     await showProgressPage({
-      title: activeServer ? "正在切换仓库" : "正在打开仓库",
-      message: `正在准备 ${path.basename(repoRoot)} 的文档工作区。`,
+      title: activeServer
+        ? desktopText("progress.switchingRepository")
+        : desktopText("progress.openingRepository"),
+      message: desktopText("progress.preparingWorkspace", {
+        repo: path.basename(repoRoot),
+      }),
     });
   }
 
@@ -1557,7 +1668,7 @@ async function openRepository(
   const nextServer = await startDesktopGitLeafServer({
     repoRoot,
     initialFilePath,
-    desktopPreferences: desktopRepositoryState.preferences ?? {},
+    desktopPreferences: preferencesForRenderer(),
     saveDesktopPreferences: saveDesktopPreferenceValuesFromRenderer,
     recordTelemetryActions: telemetryClient?.enabled ? recordDesktopTelemetryActions : null,
   });
@@ -1586,7 +1697,7 @@ async function chooseAndOpenRepository() {
   }
 
   const dialogOptions = {
-    title: "Open Repository",
+    title: desktopText("menu.openRepository").replace(/[.…]+$/, ""),
     properties: ["openDirectory"],
   };
   const result = mainWindow && !mainWindow.isDestroyed()
@@ -1598,15 +1709,19 @@ async function chooseAndOpenRepository() {
 
   try {
     await showProgressPage({
-      title: "正在打开仓库",
-      message: "正在检查所选目录并启动本地服务。",
+      title: desktopText("progress.openingRepository"),
+      message: desktopText("progress.checkingRepository"),
     });
     const repoRoot = await findRepoRoot(result.filePaths[0]);
     await openRepository(repoRoot, "", { showProgress: false });
     return "opened";
   } catch (error) {
     await showHomePage({
-      errorMessage: repositorySelectionErrorMessage(result.filePaths[0], error),
+      errorState: {
+        kind: "repository-selection",
+        path: result.filePaths[0],
+        error,
+      },
       closeActiveRepository: false,
     });
     return "invalid";
@@ -1626,10 +1741,17 @@ async function openKnownRepository(
     if (showProgress) {
       const currentRepoName = activeServer ? path.basename(activeServer.repoRoot) : "";
       await showProgressPage({
-        title: currentRepoName ? "正在切换仓库" : "正在打开仓库",
+        title: currentRepoName
+          ? desktopText("progress.switchingRepository")
+          : desktopText("progress.openingRepository"),
         message: currentRepoName
-          ? `正在从 ${currentRepoName} 切换到 ${path.basename(repoRoot)}。`
-          : `正在准备 ${path.basename(repoRoot)} 的文档工作区。`,
+          ? desktopText("progress.switchingWorkspace", {
+              from: currentRepoName,
+              to: path.basename(repoRoot),
+            })
+          : desktopText("progress.preparingWorkspace", {
+              repo: path.basename(repoRoot),
+            }),
       });
     } else if (!isRepositoryTransitioning) {
       isRepositoryTransitioning = true;
@@ -1640,7 +1762,11 @@ async function openKnownRepository(
     return true;
   } catch (error) {
     await showHomePage({
-      errorMessage: startupRepositoryErrorMessage(repoRoot, error),
+      errorState: {
+        kind: "startup-repository",
+        path: repoRoot,
+        error,
+      },
       closeActiveRepository: false,
     });
     return false;
@@ -1664,10 +1790,17 @@ async function closeCurrentRepository() {
     closingServer.repositoryRoot,
   );
   await showProgressPage({
-    title: nextRepositoryRoot ? "正在切换仓库" : "正在关闭仓库",
+    title: nextRepositoryRoot
+      ? desktopText("progress.switchingRepository")
+      : desktopText("progress.closingRepository"),
     message: nextRepositoryRoot
-      ? `正在从 ${path.basename(closingRepoRoot)} 切换到 ${path.basename(nextRepositoryRoot)}。`
-      : `正在关闭 ${path.basename(closingRepoRoot)}，并停止本地服务。`,
+      ? desktopText("progress.switchingWorkspace", {
+          from: path.basename(closingRepoRoot),
+          to: path.basename(nextRepositoryRoot),
+        })
+      : desktopText("progress.closingWorkspace", {
+          repo: path.basename(closingRepoRoot),
+        }),
   });
   activeServer = null;
   desktopRepositoryState = await closeDesktopRepository({
@@ -1684,6 +1817,7 @@ async function closeCurrentRepository() {
 }
 
 function installMenu() {
+  const translate = currentDesktopTranslator();
   const isMac = process.platform === "darwin";
   const hasActiveRepository = Boolean(activeServer) && !isRepositoryTransitioning;
   const openRepoRoots = desktopRepositoryState.openRepoRoots;
@@ -1702,29 +1836,38 @@ function installMenu() {
       ? [{
           label: APP_DISPLAY_NAME,
           submenu: [
-            { role: "about", label: `About ${APP_DISPLAY_NAME}` },
+            {
+              role: "about",
+              label: translate("menu.about", { app: APP_DISPLAY_NAME }),
+            },
             ...(isOfficialDistribution(BUILD_INFO) ? [checkForUpdatesMenuItem()] : []),
             {
-              label: "Settings...",
+              label: translate("menu.settings"),
               accelerator: "CmdOrCtrl+,",
               click: () => {
                 void showSettingsAndHelpCenter("appearance");
               },
             },
             { type: "separator" },
-            { role: "hide", label: `Hide ${APP_DISPLAY_NAME}` },
-            { role: "hideOthers" },
-            { role: "unhide" },
+            {
+              role: "hide",
+              label: translate("menu.hide", { app: APP_DISPLAY_NAME }),
+            },
+            { role: "hideOthers", label: translate("menu.hideOthers") },
+            { role: "unhide", label: translate("menu.showAll") },
             { type: "separator" },
-            { role: "quit", label: `Quit ${APP_DISPLAY_NAME}` },
+            {
+              role: "quit",
+              label: translate("menu.quit", { app: APP_DISPLAY_NAME }),
+            },
           ],
         }]
       : []),
     {
-      label: "File",
+      label: translate("menu.file"),
       submenu: [
         {
-          label: "Open Repository...",
+          label: translate("menu.openRepository"),
           accelerator: "CmdOrCtrl+O",
           enabled: !isRepositoryTransitioning,
           click: () => {
@@ -1737,7 +1880,7 @@ function installMenu() {
               ...(openRepoRoots.length >= 2
                 ? [
                     {
-                      label: "Previous Repository",
+                      label: translate("menu.previousRepository"),
                       accelerator: "CmdOrCtrl+Alt+Left",
                       enabled: !isRepositoryTransitioning,
                       click: () => {
@@ -1745,7 +1888,7 @@ function installMenu() {
                       },
                     },
                     {
-                      label: "Next Repository",
+                      label: translate("menu.nextRepository"),
                       accelerator: "CmdOrCtrl+Alt+Right",
                       enabled: !isRepositoryTransitioning,
                       click: () => {
@@ -1760,7 +1903,7 @@ function installMenu() {
             ]
           : []),
         {
-          label: "Export PDF...",
+          label: translate("menu.exportPdf"),
           enabled: hasActiveRepository,
           click: () => {
             void exportCurrentDocumentPdf();
@@ -1768,7 +1911,7 @@ function installMenu() {
         },
         { type: "separator" },
         {
-          label: "Close Repository",
+          label: translate("menu.closeRepository"),
           enabled: hasActiveRepository,
           click: () => {
             void closeCurrentRepository();
@@ -1778,84 +1921,84 @@ function installMenu() {
           ? [
               { type: "separator" },
               {
-                label: "Settings...",
+                label: translate("menu.settings"),
                 accelerator: "CmdOrCtrl+,",
                 click: () => {
                   void showSettingsAndHelpCenter("appearance");
                 },
               },
               ...(isOfficialDistribution(BUILD_INFO) ? [checkForUpdatesMenuItem()] : []),
-              { role: "quit" },
+              { role: "quit", label: translate("menu.quit", { app: APP_DISPLAY_NAME }) },
             ]
           : []),
       ],
     },
     {
-      label: "Edit",
+      label: translate("menu.edit"),
       submenu: [
-        { role: "undo" },
-        { role: "redo" },
+        { role: "undo", label: translate("menu.undo") },
+        { role: "redo", label: translate("menu.redo") },
         { type: "separator" },
-        { role: "cut" },
-        { role: "copy" },
-        { role: "paste" },
+        { role: "cut", label: translate("menu.cut") },
+        { role: "copy", label: translate("menu.copy") },
+        { role: "paste", label: translate("menu.paste") },
         { type: "separator" },
-        { role: "selectAll" },
+        { role: "selectAll", label: translate("menu.selectAll") },
         { type: "separator" },
-        rendererShortcutMenuItem("Find in Document", "CmdOrCtrl+F", { command: "find-in-document" }, {
+        rendererShortcutMenuItem(translate("menu.findDocument"), "CmdOrCtrl+F", { command: "find-in-document" }, {
           enabled: hasActiveRepository,
         }),
       ],
     },
     {
-      label: "View",
+      label: translate("menu.view"),
       submenu: [
-        rendererShortcutMenuItem("Toggle Sidebar", "CmdOrCtrl+B", { command: "toggle-sidebar" }, {
+        rendererShortcutMenuItem(translate("menu.toggleSidebar"), "CmdOrCtrl+B", { command: "toggle-sidebar" }, {
           enabled: hasActiveRepository,
         }),
-        rendererShortcutMenuItem("Toggle Document Navigation", "CmdOrCtrl+Shift+B", { command: "toggle-document-outline" }, {
+        rendererShortcutMenuItem(translate("menu.toggleOutline"), "CmdOrCtrl+Shift+B", { command: "toggle-document-outline" }, {
           enabled: hasActiveRepository,
         }),
         { type: "separator" },
-        rendererShortcutMenuItem("Preview", "CmdOrCtrl+P", { command: "set-mode", mode: "preview" }, {
+        rendererShortcutMenuItem(translate("menu.preview"), "CmdOrCtrl+P", { command: "set-mode", mode: "preview" }, {
           enabled: hasActiveRepository,
         }),
-        rendererShortcutMenuItem("Source", "CmdOrCtrl+S", { command: "set-mode", mode: "source" }, {
+        rendererShortcutMenuItem(translate("menu.source"), "CmdOrCtrl+S", { command: "set-mode", mode: "source" }, {
           enabled: hasActiveRepository,
         }),
-        rendererShortcutMenuItem("Live", "CmdOrCtrl+L", { command: "set-mode", mode: "live" }, {
+        rendererShortcutMenuItem(translate("menu.live"), "CmdOrCtrl+L", { command: "set-mode", mode: "live" }, {
           enabled: hasActiveRepository,
         }),
         { type: "separator" },
         {
-          label: "Tabs",
+          label: translate("menu.tabs"),
           submenu: [
-            rendererShortcutMenuItem("Previous Tab", previousTabAccelerator(), { command: "previous-tab" }, {
+            rendererShortcutMenuItem(translate("menu.previousTab"), previousTabAccelerator(), { command: "previous-tab" }, {
               enabled: hasActiveRepository,
             }),
-            rendererShortcutMenuItem("Next Tab", nextTabAccelerator(), { command: "next-tab" }, {
+            rendererShortcutMenuItem(translate("menu.nextTab"), nextTabAccelerator(), { command: "next-tab" }, {
               enabled: hasActiveRepository,
             }),
             { type: "separator" },
-            rendererShortcutMenuItem("Close Tab", "CmdOrCtrl+W", { command: "close-current-tab" }, {
+            rendererShortcutMenuItem(translate("menu.closeTab"), "CmdOrCtrl+W", { command: "close-current-tab" }, {
               enabled: hasActiveRepository,
             }),
           ],
         },
         { type: "separator" },
         ...(BUILD_INFO.dev === true
-          ? [{ role: "reload" }, { type: "separator" }]
+          ? [{ role: "reload", label: translate("menu.reload") }, { type: "separator" }]
           : []),
-        { role: "resetZoom" },
-        { role: "zoomIn" },
-        { role: "zoomOut" },
+        { role: "resetZoom", label: translate("menu.actualSize") },
+        { role: "zoomIn", label: translate("menu.zoomIn") },
+        { role: "zoomOut", label: translate("menu.zoomOut") },
       ],
     },
     {
-      label: "Help",
+      label: translate("menu.help"),
       submenu: [
         {
-          label: "Git Leaf Help...",
+          label: translate("menu.gitLeafHelp"),
           click: () => {
             void showSettingsAndHelpCenter("help");
           },
@@ -1921,30 +2064,48 @@ async function openInitialRepository() {
     return;
   }
   void logDesktopHandoff("received", options);
-  let startupError = "";
+  let startupErrorState = null;
   const candidates = await initialRepositoryCandidates(options);
   if (options.repository && candidates.length === 0) {
-    startupError = options.worktree
-      ? repositoryWorktreeNotFoundMessage(options.repository, options.worktree)
-      : repositoryIdentityNotFoundMessage(options.repository);
+    startupErrorState = options.worktree
+      ? {
+          kind: "repository-worktree-not-found",
+          repository: options.repository,
+          worktree: options.worktree,
+        }
+      : {
+          kind: "repository-identity-not-found",
+          repository: options.repository,
+        };
   }
   for (const candidate of candidates) {
     try {
       await showProgressPage({
-        title: "正在打开仓库",
-        message: `正在恢复 ${path.basename(candidate)} 的工作区。`,
+        title: desktopText("progress.openingRepository"),
+        message: desktopText("progress.restoringWorkspace", {
+          repo: path.basename(candidate),
+        }),
       });
       const repoRoot = await findRepoRoot(candidate);
       await openRepository(repoRoot, options.file, { showProgress: false });
       void confirmDesktopHandoff(options);
       return;
     } catch (error) {
-      startupError = startupRepositoryErrorMessage(candidate, error);
+      startupErrorState = {
+        kind: "startup-repository",
+        path: candidate,
+        error,
+      };
     }
   }
 
-  await showHomePage({ errorMessage: startupError });
-  if (options.handoff && !desktopRequestHasRepository(options) && !startupError) {
+  const startupError = localizeDesktopHomeError(
+    startupErrorState,
+    desktopRepositoryState.preferences ?? {},
+    { app },
+  );
+  await showHomePage({ errorState: startupErrorState });
+  if (options.handoff && !desktopRequestHasRepository(options) && !startupErrorState) {
     void confirmDesktopHandoff(options);
   } else if (options.handoff) {
     void logDesktopHandoff("failed", options, startupError || "repository not found");
@@ -2065,7 +2226,7 @@ async function openSharedDesktopRequest(options) {
   } catch (error) {
     await failSharedDesktopRequest(
       options,
-      "无法检查主工作区",
+      desktopText("share.inspectMainFailed"),
       error instanceof Error ? error.message : String(error),
       "main_worktree_check_failed",
     );
@@ -2073,14 +2234,11 @@ async function openSharedDesktopRequest(options) {
   }
   if (!target.ok) {
     const detail = target.state === "primary_not_main"
-      ? [
-        `该仓库的主工作区当前位于 ${target.branch}。`,
-        "分享链接只能在主工作区的 main 分支打开。请先切换回 main，再重新打开链接。",
-      ].join("\n")
-      : "Git Leaf 找不到这个仓库可用的主工作区。请确认主工作区仍在本机且可以访问，再重新打开链接。";
+      ? desktopText("share.mainWrongBranch", { branch: target.branch })
+      : desktopText("share.mainMissing");
     await failSharedDesktopRequest(
       options,
-      "无法打开分享链接",
+      desktopText("share.openFailed"),
       detail,
       target.state === "primary_not_main" ? "primary_not_main" : "main_worktree_unavailable",
     );
@@ -2094,14 +2252,16 @@ async function openSharedDesktopRequest(options) {
   if (activeIsLinkedWorktree) {
     const current = target.worktrees.find((worktree) => worktree.root === activeServer.repoRoot);
     const confirmed = await confirmSharedDesktopAction({
-      message: "切换到主工作区？",
+      message: desktopText("share.switchPrompt"),
       detail: [
-        "打开分享链接需要切换到主工作区的 main 分支。",
+        desktopText("share.switchRequired"),
         "",
-        `当前工作区：${current?.branch || current?.name || "其他工作区"}`,
-        "目标工作区：主工作区 · main",
+        desktopText("share.currentWorktree", {
+          worktree: current?.branch || current?.name || desktopText("share.otherWorktree"),
+        }),
+        desktopText("share.targetWorktree"),
       ].join("\n"),
-      confirmText: "切换并打开",
+      confirmText: desktopText("share.switchAndOpen"),
     });
     if (!confirmed) {
       recordDeepLinkTelemetry(options, "cancel");
@@ -2124,7 +2284,7 @@ async function openSharedDesktopRequest(options) {
   } catch (error) {
     await failSharedDesktopRequest(
       options,
-      "无法检查最新 main",
+      desktopText("share.inspectLatestMainFailed"),
       error instanceof Error ? error.message : String(error),
       "main_worktree_check_failed",
     );
@@ -2141,12 +2301,14 @@ async function openSharedDesktopRequest(options) {
       await fastForwardSharedMain(primaryRoot);
     } else if (state.state === "behind_dirty_disjoint") {
       const confirmed = await confirmSharedDesktopAction({
-        message: "打开分享内容需要更新 main",
+        message: desktopText("share.updateMainPrompt"),
         detail: [
-          `你有 ${state.dirtyPaths.length} 个未提交文件，但与本次更新不冲突。`,
-          "本地修改将被保留。",
+          desktopText("share.dirtyNonOverlapping", {
+            count: state.dirtyPaths.length,
+          }),
+          desktopText("share.localChangesPreserved"),
         ].join("\n"),
-        confirmText: "保留修改并更新",
+        confirmText: desktopText("share.preserveAndUpdate"),
       });
       if (!confirmed) {
         recordDeepLinkTelemetry(options, "cancel");
@@ -2157,12 +2319,12 @@ async function openSharedDesktopRequest(options) {
       await fastForwardSharedMain(primaryRoot);
     } else if (state.state === "sync_required") {
       const confirmed = await confirmSharedDesktopAction({
-        message: "打开分享内容需要先同步本地修改",
+        message: desktopText("share.syncRequiredPrompt"),
         detail: [
-          "以下文件存在本地修改，需要先提交、同步 main 并推送：",
+          desktopText("share.syncRequiredDetail"),
           ...state.dirtyPaths.map((file) => `• ${file}`),
         ].join("\n"),
-        confirmText: "同步并打开",
+        confirmText: desktopText("share.syncAndOpen"),
       });
       if (!confirmed) {
         recordDeepLinkTelemetry(options, "cancel");
@@ -2177,7 +2339,8 @@ async function openSharedDesktopRequest(options) {
           branch: "main",
         },
         files: state.dirtyPaths,
-        note: "打开分享链接前同步本地文件",
+        note: desktopText("share.syncNote"),
+        locale: currentDesktopTranslator().locale,
       });
       if (!sync.ok) {
         await showSharedSyncFailure(sync);
@@ -2197,7 +2360,7 @@ async function openSharedDesktopRequest(options) {
   } catch (error) {
     await failSharedDesktopRequest(
       options,
-      "无法安全更新 main",
+      desktopText("share.safeUpdateFailed"),
       error instanceof Error ? error.message : String(error),
       "safe_update_failed",
     );
@@ -2238,7 +2401,7 @@ async function confirmSharedDesktopAction({ message, detail, confirmText }) {
     type: "question",
     message,
     detail,
-    buttons: [confirmText, "取消"],
+    buttons: [confirmText, desktopText("dialog.cancel")],
     defaultId: 0,
     cancelId: 1,
     noLink: true,
@@ -2250,7 +2413,9 @@ async function confirmSharedDesktopAction({ message, detail, confirmText }) {
 }
 
 async function confirmSharedFetchRetry(state) {
-  const options = sharedFetchFailurePrompt(state);
+  const options = sharedFetchFailurePrompt(state, {
+    language: currentDesktopTranslator().locale,
+  });
   const result = mainWindow && !mainWindow.isDestroyed()
     ? await dialog.showMessageBox(mainWindow, options)
     : await dialog.showMessageBox(options);
@@ -2260,11 +2425,16 @@ async function confirmSharedFetchRetry(state) {
 async function requestDeepLinkRepository(options) {
   const promptOptions = {
     type: "warning",
-    message: options.worktree ? "本机尚未找到目标工作树" : "此仓库尚未添加到 Git Leaf",
+    message: options.worktree
+      ? desktopText("share.worktreeNotFound")
+      : desktopText("share.repositoryNotAdded"),
     detail: options.worktree
       ? repositoryWorktreeNotFoundMessage(options.repository, options.worktree)
       : repositoryIdentityNotFoundMessage(options.repository),
-    buttons: ["选择本机仓库…", "取消"],
+    buttons: [
+      desktopText("dialog.chooseLocalRepository"),
+      desktopText("dialog.cancel"),
+    ],
     defaultId: 0,
     cancelId: 1,
     noLink: true,
@@ -2278,7 +2448,7 @@ async function requestDeepLinkRepository(options) {
 
   while (!isRepositoryTransitioning) {
     const pickerOptions = {
-      title: "选择链接对应的 Git 仓库",
+      title: desktopText("share.chooseRepositoryTitle"),
       properties: ["openDirectory"],
     };
     const picked = mainWindow && !mainWindow.isDestroyed()
@@ -2290,14 +2460,14 @@ async function requestDeepLinkRepository(options) {
 
     let selectedRoot = "";
     let failureReason = "repository_selection_invalid";
-    let failureMessage = "所选文件夹不是可用的 Git 仓库";
-    let failureDetail = "请选择链接对应仓库的本机目录。";
+    let failureMessage = desktopText("share.invalidRepository");
+    let failureDetail = desktopText("share.chooseMatchingRepository");
     try {
       selectedRoot = await findRepoRoot(picked.filePaths[0]);
       const identityRoot = await findGithubRepositoryRoot(options.repository, [selectedRoot]);
       if (!identityRoot) {
         failureReason = "repository_identity_mismatch";
-        failureMessage = "所选仓库与链接不匹配";
+        failureMessage = desktopText("share.repositoryMismatch");
         failureDetail = repositorySelectionMismatchMessage(options.repository);
       } else if (options.worktree) {
         const worktreeRoot = await findGithubRepositoryRoot(
@@ -2309,20 +2479,25 @@ async function requestDeepLinkRepository(options) {
           return { status: "selected", repoRoot: worktreeRoot };
         }
         failureReason = "worktree_not_found";
-        failureMessage = "所选仓库中没有目标工作树";
+        failureMessage = desktopText("share.worktreeMissingFromRepository");
         failureDetail = repositoryWorktreeNotFoundMessage(options.repository, options.worktree);
       } else {
         return { status: "selected", repoRoot: identityRoot };
       }
     } catch (error) {
-      failureDetail = repositorySelectionErrorMessage(picked.filePaths[0], error);
+      failureDetail = repositorySelectionErrorMessage(picked.filePaths[0], error, {
+        language: currentDesktopTranslator().locale,
+      });
     }
 
     const retryOptions = {
       type: "warning",
       message: failureMessage,
       detail: failureDetail,
-      buttons: ["重新选择", "取消"],
+      buttons: [
+        desktopText("dialog.retrySelection"),
+        desktopText("dialog.cancel"),
+      ],
       defaultId: 0,
       cancelId: 1,
       noLink: true,
@@ -2358,7 +2533,7 @@ async function failSharedDesktopRequest(options, message, detail, failureReason 
     type: "warning",
     message,
     detail,
-    buttons: ["知道了"],
+    buttons: [desktopText("dialog.acknowledge")],
     defaultId: 0,
   };
   if (mainWindow && !mainWindow.isDestroyed()) {
@@ -2374,9 +2549,14 @@ async function failSharedDesktopRequest(options, message, detail, failureReason 
 async function showSharedSyncFailure(sync) {
   const options = {
     type: "error",
-    message: "同步本地修改失败",
-    detail: sync.error || "Git 同步没有完成。",
-    buttons: sync.agentPrompt ? ["复制 Agent 提示词", "知道了"] : ["知道了"],
+    message: desktopText("share.syncFailed"),
+    detail: sync.error || desktopText("share.syncIncomplete"),
+    buttons: sync.agentPrompt
+      ? [
+          desktopText("dialog.copyAgentPrompt"),
+          desktopText("dialog.acknowledge"),
+        ]
+      : [desktopText("dialog.acknowledge")],
     defaultId: sync.agentPrompt ? 1 : 0,
     cancelId: sync.agentPrompt ? 1 : 0,
   };
@@ -2389,29 +2569,35 @@ async function showSharedSyncFailure(sync) {
 }
 
 function sharedOpenFailureTitle(state) {
-  if (state.state === "fetch_failed") return "无法获取最新 main";
-  if (state.state === "revision_missing") return "分享版本已失效";
-  if (state.state === "ahead" || state.state === "diverged") return "main 存在尚未同步的提交";
-  return "无法打开分享链接";
+  if (state.state === "fetch_failed") return desktopText("share.fetchFailedTitle");
+  if (state.state === "revision_missing") return desktopText("share.revisionMissingTitle");
+  if (state.state === "ahead" || state.state === "diverged") {
+    return desktopText("share.unpushedMainTitle");
+  }
+  return desktopText("share.openFailed");
 }
 
 function sharedOpenFailureDetail(state) {
   if (state.state === "fetch_failed") {
     return [
-      "Git Leaf 无法从 GitHub 获取最新 main。请检查网络和 GitHub 访问状态，然后重新打开链接。",
-      state.error ? `技术信息：${String(state.error).slice(0, 240)}` : "",
+      desktopText("share.fetchFailedDetail"),
+      state.error
+        ? desktopText("share.technicalDetail", {
+            detail: String(state.error).slice(0, 240),
+          })
+        : "",
     ].filter(Boolean).join("\n");
   }
   if (state.state === "revision_missing") {
-    return "origin/main 已不再包含链接中的文档版本。请联系分享者重新生成链接。";
+    return desktopText("share.revisionMissingDetail");
   }
   if (state.state === "ahead") {
-    return "本地主工作区有尚未推送的 commit。请先在 Git Leaf 中完成 Git 同步，再重新打开链接。";
+    return desktopText("share.aheadDetail");
   }
   if (state.state === "diverged") {
-    return "本地主工作区与 origin/main 已经分叉。请先让 AI Agent 处理分叉并完成 Git 同步，再重新打开链接。";
+    return desktopText("share.divergedDetail");
   }
-  return "主工作区当前不满足安全打开条件。请先完成 Git 同步，再重新打开链接。";
+  return desktopText("share.unsafeDetail");
 }
 
 function sharedOpenFailureReason(state) {
@@ -2474,45 +2660,31 @@ function desktopRepositoryCandidates() {
 }
 
 function repositoryIdentityNotFoundMessage(repository) {
-  return [
-    `Git Leaf 的仓库列表里还没有 ${repository}。`,
-    "选择它的本机目录后，Git Leaf 会核对 GitHub origin，并继续打开当前链接。",
-  ].join("\n");
+  return desktopText("share.repositoryUnknown", { repository });
 }
 
 function repositoryWorktreeNotFoundMessage(repository, worktree) {
-  return [
-    `Git Leaf 在本机尚未找到 ${repository} 的目标工作树 ${worktree}。`,
-    "请选择该仓库任一工作树的本机目录，Git Leaf 会继续查找链接指定的工作树。",
-    "如果目标工作树只存在于另一台电脑，请在创建链接的电脑上打开。",
-  ].join("\n");
+  return desktopText("share.worktreeUnknown", { repository, worktree });
 }
 
 function repositorySelectionMismatchMessage(repository) {
-  return [
-    `这个链接需要 ${repository}。`,
-    "请选择该 GitHub 仓库的本机目录；Git Leaf 不会用其他仓库替代打开。",
-  ].join("\n");
+  return desktopText("share.repositorySelectionMismatch", { repository });
 }
 
 if (manualWindowsBootstrapBlocked) {
   app.whenReady().then(() => {
     dialog.showErrorBox(
-      "请先完全退出正在运行的 Git Leaf",
-      [
-        "检测到另一个 Git Leaf 仍在运行，因此尚未修改任何安装文件。",
-        "请退出旧版本，然后重新双击这个新版解压目录中的 Git Leaf.exe。",
-      ].join("\n\n"),
+      desktopText("windows.quitRunningTitle"),
+      desktopText("windows.quitRunningDetail"),
     );
     app.exit(1);
   });
 } else if (windowsBootstrap.status === "error") {
   app.whenReady().then(() => {
     dialog.showErrorBox(
-      "无法准备 Git Leaf",
+      desktopText("windows.prepareFailedTitle"),
       [
-        "Git Leaf 无法更新本机固定安装位置。",
-        "请先退出正在运行的 Git Leaf，然后重新双击这个新版本。",
+        desktopText("windows.prepareFailedDetail"),
         windowsBootstrap.error instanceof Error
           ? windowsBootstrap.error.message
           : String(windowsBootstrap.error),
@@ -2530,8 +2702,8 @@ if (manualWindowsBootstrapBlocked) {
   });
 
   app.whenReady().then(async () => {
-    installAboutPanelOptions();
     await loadDesktopRepositoryState();
+    installAboutPanelOptions();
     await initializeDesktopTelemetry();
     installUpdateController();
     installWindowsStartMenuShortcut();
@@ -2588,11 +2760,12 @@ function handleDesktopStartupFailure(error) {
   const invalidConfig = error?.code === "DESKTOP_CONFIG_INVALID";
   console.error("Git Leaf desktop startup failed", error);
   dialog.showErrorBox(
-    invalidConfig ? "Git Leaf 配置文件损坏" : "Git Leaf 启动失败",
+    invalidConfig
+      ? desktopText("startup.configInvalidTitle")
+      : desktopText("startup.failedTitle"),
     invalidConfig
       ? [
-          "Git Leaf 检测到设置文件和备份都无法读取。",
-          "为避免覆盖原有仓库、外观与工作台状态，App 已停止启动，现有文件保持不变。",
+          desktopText("startup.configInvalidDetail"),
           error instanceof Error ? error.message : String(error),
         ].join("\n\n")
       : (error instanceof Error ? error.message : String(error)),

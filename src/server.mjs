@@ -194,6 +194,8 @@ async function handleRequest(request, response, context) {
     requestUrl.pathname === "/mode-preference.js" ||
     requestUrl.pathname === "/theme-preference.js" ||
     requestUrl.pathname === "/settings-preferences.js" ||
+    requestUrl.pathname === "/i18n.js" ||
+    requestUrl.pathname === "/workbench-locales.js" ||
     requestUrl.pathname === "/file-tree-visibility.js" ||
     requestUrl.pathname === "/document-tabs.js" ||
     requestUrl.pathname === "/document-search.js" ||
@@ -284,12 +286,14 @@ async function handleRequest(request, response, context) {
     requireLocalRequest(request, context);
     const repo = await requestRepository(requestUrl, context);
     const file = documentFileFromRequest(requestUrl, repo);
+    const locale = previewLocaleFromRequest(requestUrl);
     try {
       if (request.method === "POST") {
         requireEditableRequest(request, context, repo);
         const payload = await publishGitLeafShareLink({
           repo,
           file,
+          locale,
           gitRunner: context.gitRunner,
         });
         sendJson(response, payload.ok ? 200 : 409, payload);
@@ -299,12 +303,15 @@ async function handleRequest(request, response, context) {
         url: await createGitLeafShareLink({
           repoRoot: repo.root,
           file,
+          locale,
           gitRunner: context.gitRunner,
         }),
       });
     } catch (error) {
       sendJson(response, 409, {
-        error: error instanceof Error ? error.message : "无法生成分享链接。",
+        error: error instanceof Error
+          ? error.message
+          : localizedServerMessage(locale, "shareUnavailable"),
         code: typeof error?.code === "string" ? error.code : "share_unavailable",
       });
     }
@@ -326,6 +333,7 @@ async function handleRequest(request, response, context) {
       files: body.files,
       note: body.note,
       allChanges: body.allChanges === true,
+      locale: previewLocaleFromRequest(requestUrl),
       gitRunner: context.gitRunner,
     });
     sendJson(response, payload.ok ? 200 : 409, {
@@ -411,6 +419,7 @@ async function handleRequest(request, response, context) {
   if (requestUrl.pathname === "/api/document") {
     let repo = await localRequestRepository(request, requestUrl, context);
     const file = documentFileFromRequest(requestUrl, repo);
+    const locale = previewLocaleFromRequest(requestUrl);
     if (request.method === "POST") {
       requireEditableRequest(request, context, repo);
       let branchState = { repo, created: false };
@@ -433,6 +442,7 @@ async function handleRequest(request, response, context) {
       await documentPayload(repo, file, {
         includeSource: canEditRepository({ repo, isLocalRequest }),
         canEdit: canEditRepository({ repo, isLocalRequest }),
+        locale,
       }),
     );
     return;
@@ -446,10 +456,14 @@ async function handleRequest(request, response, context) {
       return;
     }
     const body = await readJsonRequest(request);
-    const documentPath = await resolveNewDocumentPath(repo.root, body);
+    const locale = previewLocaleFromRequest(requestUrl);
+    const documentPath = await resolveNewDocumentPath(repo.root, {
+      ...body,
+      locale,
+    });
     try {
       await stat(documentPath.absolutePath);
-      throw newDocumentConflictError();
+      throw newDocumentConflictError(locale);
     } catch (error) {
       if (error?.code !== "ENOENT") {
         throw error;
@@ -457,7 +471,9 @@ async function handleRequest(request, response, context) {
     }
     const branchState = await ensureRepositoryWriteBranch(repo, context);
     repo = branchState.repo;
-    const payload = await createDocumentPayload(repo, documentPath);
+    const payload = await createDocumentPayload(repo, documentPath, {
+      locale,
+    });
     sendJson(response, 201, {
       ...payload,
       ...branchStatePayload(branchState),
@@ -476,6 +492,7 @@ async function handleRequest(request, response, context) {
     let branchState = { repo, created: false };
     sendJson(response, 200, {
       ...(await renameDocumentPayload(repo, file, request, {
+        locale: previewLocaleFromRequest(requestUrl),
         beforeWrite: async () => {
           branchState = await ensureRepositoryWriteBranch(repo, context);
           repo = branchState.repo;
@@ -495,6 +512,7 @@ async function handleRequest(request, response, context) {
       return;
     }
     const file = documentFileFromRequest(requestUrl, repo);
+    const locale = previewLocaleFromRequest(requestUrl);
     sendJson(
       response,
       200,
@@ -502,6 +520,7 @@ async function handleRequest(request, response, context) {
         currentRepo: repo,
         file,
         rawTarget: requestUrl.searchParams.get("target") ?? "",
+        locale,
       }),
     );
     return;
@@ -526,9 +545,11 @@ async function handleRequest(request, response, context) {
       return;
     }
     const file = documentFileFromRequest(requestUrl, repo);
+    const locale = previewLocaleFromRequest(requestUrl);
     let branchState = { repo, created: false };
     sendJson(response, 200, {
       ...(await writeImageAssetPayload(repo, file, request, {
+        locale,
         beforeWrite: async () => {
           branchState = await ensureRepositoryWriteBranch(repo, context);
           repo = branchState.repo;
@@ -637,6 +658,10 @@ function documentFileFromRequest(requestUrl, repo) {
   const error = new Error("No document selected.");
   error.statusCode = 400;
   throw error;
+}
+
+export function previewLocaleFromRequest(requestUrl) {
+  return requestUrl?.searchParams?.get("locale") === "zh-CN" ? "zh-CN" : "en";
 }
 
 async function requestRepository(requestUrl, context) {
@@ -778,7 +803,15 @@ function localRequestOrigin(request) {
   return `http://${request.headers.host ?? "127.0.0.1"}`;
 }
 
-export async function documentPayload(repo, file, { includeSource = true, canEdit = true } = {}) {
+export async function documentPayload(
+  repo,
+  file,
+  {
+    includeSource = true,
+    canEdit = true,
+    locale = "en",
+  } = {},
+) {
   const documentPath = await resolveOpenablePath(repo.root, file);
   const fileStat = documentPath.fileStat;
   const basePayload = {
@@ -808,7 +841,7 @@ export async function documentPayload(repo, file, { includeSource = true, canEdi
       frontmatterProfile: { enabled: false, fields: [] },
     };
     if (documentPath.text) {
-      Object.assign(payload, await textPreviewPayload(documentPath, fileStat));
+      Object.assign(payload, await textPreviewPayload(documentPath, fileStat, { locale }));
     }
     if (documentPath.kind === "html" && fileStat.size <= TEXT_PREVIEW_MAX_BYTES) {
       payload.dependencySource = await readFile(documentPath.absolutePath, "utf8");
@@ -820,6 +853,7 @@ export async function documentPayload(repo, file, { includeSource = true, canEdi
   const html = renderMarkdown(source, {
     currentFile: documentPath.relativePath,
     currentRepo: repo.id,
+    locale,
   });
 
   const payload = {
@@ -861,7 +895,7 @@ async function documentStatusPayload(repo, file, { canEdit = true } = {}) {
   };
 }
 
-async function textPreviewPayload(documentPath, fileStat) {
+async function textPreviewPayload(documentPath, fileStat, { locale = "en" } = {}) {
   if (fileStat.size > TEXT_PREVIEW_MAX_BYTES) {
     return {
       text: "",
@@ -888,7 +922,7 @@ async function textPreviewPayload(documentPath, fileStat) {
   } catch {
     return {
       text: rawText,
-      parseError: "JSON 解析失败，已按原始文本显示。",
+      parseError: localizedServerMessage(locale, "jsonParseError"),
       textTruncated: false,
       textLimitBytes: TEXT_PREVIEW_MAX_BYTES,
     };
@@ -919,7 +953,7 @@ async function writeDocumentPayload(repo, file, request, { beforeWrite = async (
   };
 }
 
-async function createDocumentPayload(repo, documentPath) {
+async function createDocumentPayload(repo, documentPath, { locale = "en" } = {}) {
   try {
     await writeFile(documentPath.absolutePath, `# ${documentPath.title}\n\n`, {
       encoding: "utf8",
@@ -927,20 +961,59 @@ async function createDocumentPayload(repo, documentPath) {
     });
   } catch (error) {
     if (error?.code === "EEXIST") {
-      throw newDocumentConflictError();
+      throw newDocumentConflictError(locale);
     }
     throw error;
   }
-  return documentPayload(repo, documentPath.relativePath);
+  return documentPayload(repo, documentPath.relativePath, { locale });
 }
 
-function newDocumentConflictError() {
-  const conflict = new Error("同名文档已经存在，请换一个名称。");
+function newDocumentConflictError(locale = "en") {
+  const conflict = new Error(localizedServerMessage(locale, "documentConflict"));
   conflict.statusCode = 409;
   return conflict;
 }
 
-async function renameDocumentPayload(repo, file, request, { beforeWrite = async () => repo } = {}) {
+function localizedServerMessage(locale, key, values = {}) {
+  const messages = {
+    en: {
+      documentConflict: "A document with this name already exists. Choose another name.",
+      documentRenameConflict: "Target document already exists: {path}",
+      imageTypeUnsupported: "Unsupported image type: {type}",
+      jsonParseError: "JSON parsing failed. The original text is shown.",
+      linkRepositoryUnavailable: "Repository is not available: {repository}",
+      linkTargetRequired: "Enter a target document.",
+      linkTargetUnavailable: "The target document is not available.",
+      shareUnavailable: "Could not create a share link.",
+    },
+    "zh-CN": {
+      documentConflict: "同名文档已经存在，请换一个名称。",
+      documentRenameConflict: "目标文档已存在：{path}",
+      imageTypeUnsupported: "不支持的图片类型：{type}",
+      jsonParseError: "JSON 解析失败，已按原始文本显示。",
+      linkRepositoryUnavailable: "仓库不可用：{repository}",
+      linkTargetRequired: "请输入目标文档。",
+      linkTargetUnavailable: "目标文档不可用。",
+      shareUnavailable: "无法生成分享链接。",
+    },
+  };
+  const template = messages[locale === "zh-CN" ? "zh-CN" : "en"][key]
+    ?? messages.en[key]
+    ?? key;
+  return template.replace(/\{([a-zA-Z]+)\}/g, (_match, name) => (
+    values[name] == null ? "" : String(values[name])
+  ));
+}
+
+async function renameDocumentPayload(
+  repo,
+  file,
+  request,
+  {
+    beforeWrite = async () => repo,
+    locale = "en",
+  } = {},
+) {
   const documentPath = await resolvePreviewPath(repo.root, file);
   const body = await readJsonRequest(request);
   if (body.extension !== ".mdx") {
@@ -959,7 +1032,9 @@ async function renameDocumentPayload(repo, file, request, { beforeWrite = async 
   const targetAbsolutePath = path.join(repo.root, ...targetRelativePath.split("/"));
   try {
     await stat(targetAbsolutePath);
-    const error = new Error(`Target document already exists: ${targetRelativePath}`);
+    const error = new Error(localizedServerMessage(locale, "documentRenameConflict", {
+      path: targetRelativePath,
+    }));
     error.statusCode = 409;
     throw error;
   } catch (error) {
@@ -973,16 +1048,26 @@ async function renameDocumentPayload(repo, file, request, { beforeWrite = async 
 
   repo = await beforeWrite();
   await rename(documentPath.absolutePath, targetAbsolutePath);
-  return documentPayload(repo, targetRelativePath);
+  return documentPayload(repo, targetRelativePath, { locale });
 }
 
-async function writeImageAssetPayload(repo, file, request, { beforeWrite = async () => repo } = {}) {
+async function writeImageAssetPayload(
+  repo,
+  file,
+  request,
+  {
+    beforeWrite = async () => repo,
+    locale = "en",
+  } = {},
+) {
   const documentPath = await resolvePreviewPath(repo.root, file);
   const body = await readJsonRequest(request);
   const image = imageBufferFromDataUrl(body.dataUrl);
   const extension = IMAGE_ASSET_EXTENSIONS.get(image.mimeType);
   if (!extension) {
-    const error = new Error(`Unsupported image type: ${image.mimeType}`);
+    const error = new Error(localizedServerMessage(locale, "imageTypeUnsupported", {
+      type: image.mimeType,
+    }));
     error.statusCode = 400;
     throw error;
   }
@@ -1003,11 +1088,18 @@ async function writeImageAssetPayload(repo, file, request, { beforeWrite = async
   };
 }
 
-async function linkTargetPayload({ currentRepo, file, rawTarget }) {
+async function linkTargetPayload({
+  currentRepo,
+  file,
+  rawTarget,
+  locale = "en",
+}) {
   const currentDocument = await resolvePreviewPath(currentRepo.root, file);
   const gitLeafTarget = gitLeafDocumentUrlTarget(rawTarget);
   if (gitLeafTarget?.repo && gitLeafTarget.repo !== currentRepo.id) {
-    const error = new Error(`Repository is not available: ${gitLeafTarget.repo}`);
+    const error = new Error(localizedServerMessage(locale, "linkRepositoryUnavailable", {
+      repository: gitLeafTarget.repo,
+    }));
     error.statusCode = 404;
     throw error;
   }
@@ -1015,8 +1107,9 @@ async function linkTargetPayload({ currentRepo, file, rawTarget }) {
   const targetDocument = await resolveFirstPreviewPath(
     targetRepo.root,
     gitLeafTarget
-      ? [repoRootDocumentInput(gitLeafTarget.file)]
-      : documentLinkTargetInputs(currentRepo.root, currentDocument.relativePath, rawTarget),
+      ? [repoRootDocumentInput(gitLeafTarget.file, locale)]
+      : documentLinkTargetInputs(currentRepo.root, currentDocument.relativePath, rawTarget, locale),
+    { locale },
   );
   const source = await readFile(targetDocument.absolutePath, "utf8");
   const suffix = gitLeafTarget?.suffix ?? "";
@@ -1031,23 +1124,22 @@ async function linkTargetPayload({ currentRepo, file, rawTarget }) {
   };
 }
 
-async function resolveFirstPreviewPath(repoRoot, candidates) {
-  let lastError = null;
+async function resolveFirstPreviewPath(repoRoot, candidates, { locale = "en" } = {}) {
   for (const candidate of candidates) {
     try {
       return await resolvePreviewPath(repoRoot, candidate);
-    } catch (error) {
-      lastError = error;
-    }
+    } catch {}
   }
 
-  throw lastError ?? new Error("Target document is not available.");
+  const error = new Error(localizedServerMessage(locale, "linkTargetUnavailable"));
+  error.statusCode = 404;
+  throw error;
 }
 
-function documentLinkTargetInputs(repoRoot, currentRelativePath, rawTarget) {
+function documentLinkTargetInputs(repoRoot, currentRelativePath, rawTarget, locale = "en") {
   const target = String(rawTarget ?? "").trim();
   if (!target) {
-    const error = new Error("target is required");
+    const error = new Error(localizedServerMessage(locale, "linkTargetRequired"));
     error.statusCode = 400;
     throw error;
   }
@@ -1097,10 +1189,10 @@ function gitLeafDocumentUrlTarget(rawTarget) {
   }
 }
 
-function repoRootDocumentInput(rawFile) {
+function repoRootDocumentInput(rawFile, locale = "en") {
   const file = String(rawFile ?? "").trim().replaceAll("\\", "/").replace(/^\/+/, "");
   if (!file) {
-    const error = new Error("target file is required");
+    const error = new Error(localizedServerMessage(locale, "linkTargetRequired"));
     error.statusCode = 400;
     throw error;
   }

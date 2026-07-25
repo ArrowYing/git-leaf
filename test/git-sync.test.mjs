@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  buildGitSyncAgentPrompt,
   createGitSyncGuard,
   publishCurrentBranch,
   repositoryChangesFromPorcelain,
@@ -68,6 +69,90 @@ test("repositoryChangesFromPorcelain returns every Git file change", () => {
       rawStatus: "C ",
     },
   ]);
+});
+
+test("buildGitSyncAgentPrompt localizes instructions without rewriting repository details", () => {
+  const repo = {
+    id: "知识库",
+    root: "/repo/公司资料",
+    branch: "feature/同步",
+  };
+  const files = ["docs/说明.md", "assets/example.png"];
+  const error = "fatal: Updates were rejected for refs/heads/feature/同步";
+  const english = buildGitSyncAgentPrompt({
+    repo,
+    files,
+    step: "push",
+    error,
+  });
+  const chinese = buildGitSyncAgentPrompt({
+    repo,
+    files,
+    step: "push",
+    error,
+    language: "zh-Hans",
+  });
+
+  assert.match(english, /^Please resolve this Git Leaf sync failure:/);
+  assert.match(english, /Repository path: \/repo\/公司资料/);
+  assert.match(english, /Current branch: feature\/同步/);
+  assert.match(english, /Selected files:\n- docs\/说明\.md\n- assets\/example\.png/);
+  assert.match(english, /fatal: Updates were rejected for refs\/heads\/feature\/同步/);
+  assert.match(english, /commit and push the current branch feature\/同步/);
+
+  assert.match(chinese, /^请处理 Git Leaf 同步失败：/);
+  assert.match(chinese, /仓库路径：\/repo\/公司资料/);
+  assert.match(chinese, /当前分支：feature\/同步/);
+  assert.match(chinese, /选中文件：\n- docs\/说明\.md\n- assets\/example\.png/);
+  assert.match(chinese, /fatal: Updates were rejected for refs\/heads\/feature\/同步/);
+  assert.match(chinese, /提交并推送当前分支 feature\/同步/);
+});
+
+test("syncSelectedFiles localizes structured failure copy and preserves raw Git output", async () => {
+  const rawStderr = "fatal: permission denied for /repo/公司资料";
+  const result = await syncSelectedFiles({
+    repo: {
+      id: "知识库",
+      root: "/repo/公司资料",
+      branch: "feature/同步",
+    },
+    files: ["docs/说明.md"],
+    locale: "zh-CN",
+    gitRunner: async () => {
+      const error = new Error("spawn git EACCES");
+      error.code = "EACCES";
+      error.stderr = rawStderr;
+      throw error;
+    },
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.resultTitle, "同步遇到异常");
+  assert.equal(result.resultHelp, "点击复制提示词，然后粘贴到你选择的 AI Agent 中继续处理。");
+  assert.match(result.error, /^Git 命令或仓库访问被拒绝/);
+  assert.match(result.error, new RegExp(rawStderr.replaceAll("/", "\\/")));
+  assert.match(result.agentPrompt, /仓库路径：\/repo\/公司资料/);
+  assert.match(result.agentPrompt, /当前分支：feature\/同步/);
+  assert.match(result.agentPrompt, /- docs\/说明\.md/);
+  assert.match(result.agentPrompt, /fatal: permission denied for \/repo\/公司资料/);
+});
+
+test("validation failures default to English and do not create an Agent prompt", async () => {
+  const result = await syncSelectedFiles({
+    repo: REPO,
+    files: [],
+    gitRunner: async () => {
+      assert.fail("Git must not run without a selected file");
+    },
+  });
+
+  assert.equal(result.error, "Select at least one file to sync.");
+  assert.equal(result.resultTitle, "Sync encountered a problem");
+  assert.equal(
+    result.resultHelp,
+    "Copy the prompt and paste it into the AI Agent of your choice.",
+  );
+  assert.equal(result.agentPrompt, "");
 });
 
 test("syncSelectedFiles fetches first, commits every selected file type, rebases, and pushes", async () => {
@@ -208,7 +293,7 @@ test("syncSelectedFiles blocks before staging when remote updates meet unselecte
 
   assert.equal(result.ok, false);
   assert.equal(result.step, "validate");
-  assert.match(result.error, /未勾选的本地改动/);
+  assert.match(result.error, /some local changes are not selected/);
   assert.match(result.error, /assets\/image\.png/);
   assert.equal(calls.some((args) => args[0] === "add"), false);
   assert.equal(calls.some((args) => args[0] === "commit"), false);
@@ -232,7 +317,7 @@ test("syncSelectedFiles blocks a diverged branch before staging", async () => {
 
   assert.equal(result.ok, false);
   assert.equal(result.step, "compare remote");
-  assert.match(result.error, /已经分叉/);
+  assert.match(result.error, /has diverged/);
   assert.equal(calls.some((args) => args[0] === "add"), false);
 });
 
@@ -252,7 +337,7 @@ test("syncSelectedFiles stops when a successful Git comparison has invalid outpu
 
   assert.equal(result.ok, false);
   assert.equal(result.step, "compare remote");
-  assert.match(result.error, /无法识别的结果/);
+  assert.match(result.error, /could not recognize/);
 });
 
 test("syncSelectedFiles returns an all-file Agent prompt when rebase fails", async () => {
@@ -278,9 +363,9 @@ test("syncSelectedFiles returns an all-file Agent prompt when rebase fails", asy
   assert.equal(result.ok, false);
   assert.equal(result.step, "rebase remote");
   assert.match(result.error, /CONFLICT/);
-  assert.match(result.error, /已自动退出失败的 rebase/);
-  assert.match(result.agentPrompt, /选中文件：\n- docs\/changed\.md/);
-  assert.match(result.agentPrompt, /保留 Git Leaf 用户对上述文件的修改/);
+  assert.match(result.error, /exited the failed rebase automatically/);
+  assert.match(result.agentPrompt, /Selected files:\n- docs\/changed\.md/);
+  assert.match(result.agentPrompt, /Preserve the Git Leaf user's changes/);
 });
 
 test("syncSelectedFiles refuses unresolved conflicts and in-progress Git operations", async () => {
@@ -295,7 +380,7 @@ test("syncSelectedFiles refuses unresolved conflicts and in-progress Git operati
     },
   });
   assert.equal(conflicts.step, "preflight");
-  assert.match(conflicts.error, /尚未解决的冲突/);
+  assert.match(conflicts.error, /unresolved conflicts/);
 
   const rebase = await syncSelectedFiles({
     repo: REPO,
@@ -311,7 +396,7 @@ test("syncSelectedFiles refuses unresolved conflicts and in-progress Git operati
     },
   });
   assert.equal(rebase.step, "preflight");
-  assert.match(rebase.error, /正在进行 rebase/);
+  assert.match(rebase.error, /rebase operation is in progress/);
 });
 
 test("syncSelectedFiles publishes a branch without an upstream", async () => {
@@ -382,6 +467,29 @@ test("publishCurrentBranch retries an already committed main and verifies origin
   ]);
 });
 
+test("publishCurrentBranch accepts the language alias for localized failure copy", async () => {
+  const result = await publishCurrentBranch({
+    repo: REPO,
+    files: ["docs/changed.md"],
+    language: "zh-Hans",
+    operationPathExists: async () => false,
+    gitRunner: async (_cwd, args) => {
+      const preflight = successfulPreflight(args);
+      if (preflight) return preflight;
+      if (args[0] === "status") {
+        return { stdout: " M docs/changed.md\0", stderr: "" };
+      }
+      return { stdout: "", stderr: "" };
+    },
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.error, "当前仍有未提交的本地改动，请先完成同步后再发布。");
+  assert.equal(result.resultTitle, "同步遇到异常");
+  assert.match(result.agentPrompt, /^请处理 Git Leaf 同步失败：/);
+  assert.match(result.agentPrompt, /当前分支：main/);
+});
+
 test("syncSelectedFiles checks Git identity before staging files", async () => {
   const calls = [];
   const result = await syncSelectedFiles({
@@ -439,7 +547,7 @@ test("syncSelectedFiles rejects unsafe paths but accepts code and binary paths",
 
   assert.equal(called, false);
   assert.equal(unsafe.ok, false);
-  assert.match(unsafe.error, /请选择需要同步的文件/);
+  assert.match(unsafe.error, /Select at least one file to sync/);
 
   const selected = ["public/app.js", "assets/slides.pptx"];
   const accepted = await syncSelectedFiles({

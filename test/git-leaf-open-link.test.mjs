@@ -39,6 +39,44 @@ test("createGitLeafOpenLink keeps primary-worktree links portable", async () => 
   );
 });
 
+test("createGitLeafOpenLink localizes predictable errors and preserves dependency errors", async () => {
+  await assert.rejects(
+    createGitLeafOpenLink(),
+    /A Git repository root is required\./,
+  );
+  await assert.rejects(
+    createGitLeafOpenLink({ language: "zh-CN" }),
+    /需要提供 Git 仓库根目录/,
+  );
+  await assert.rejects(
+    createGitLeafOpenLink({
+      repoRoot: "/repos/company-docs",
+      locale: "zh-CN",
+      readOrigin: async () => "",
+    }),
+    /仓库必须配置 GitHub origin/,
+  );
+  await assert.rejects(
+    createGitLeafOpenLink({
+      repoRoot: "/repos/company-docs",
+      readOrigin: async () => "git@github.com:ExampleOrg/company-docs.git",
+      listWorktrees: async () => [],
+    }),
+    /Could not identify the current Git worktree/,
+  );
+
+  const rawError = new Error("fatal: could not read origin");
+  await assert.rejects(
+    createGitLeafOpenLink({
+      repoRoot: "/repos/company-docs",
+      readOrigin: async () => {
+        throw rawError;
+      },
+    }),
+    (error) => error === rawError,
+  );
+});
+
 test("createGitLeafShareLink publishes a main-primary document revision", async () => {
   const revision = "a".repeat(40);
   const calls = [];
@@ -108,17 +146,20 @@ test("createGitLeafShareLink rejects linked worktrees and non-main primary branc
         { root: "/repos/company-docs-task", primary: false, current: true, branch: "feature/report" },
       ],
     }),
-    (error) => error.code === "primary_required",
+    (error) => error.code === "primary_required"
+      && error.message === "Share links are available only from the primary worktree.",
   );
   await assert.rejects(
     createGitLeafShareLink({
       repoRoot: "/repos/company-docs",
       file: "docs/report.md",
+      language: "zh-CN",
       listWorktrees: async () => [
         { root: "/repos/company-docs", primary: true, current: true, branch: "feature/report" },
       ],
     }),
-    (error) => error.code === "main_required",
+    (error) => error.code === "main_required"
+      && error.message === "分享链接只支持主工作区的 main 分支。",
   );
 });
 
@@ -137,12 +178,14 @@ test("createGitLeafShareLink rejects unpublished document changes", async () => 
         return { stdout: "", stderr: "" };
       },
     }),
-    (error) => error.code === "document_not_committed",
+    (error) => error.code === "document_not_committed"
+      && error.message === "This document has uncommitted changes. Sync it before sharing.",
   );
   await assert.rejects(
     createGitLeafShareLink({
       repoRoot: "/repos/company-docs",
       file: "docs/report.md",
+      locale: "zh-CN",
       readOrigin: async () => "https://github.com/ExampleOrg/company-docs.git",
       listWorktrees: async () => [
         { root: "/repos/company-docs", primary: true, current: true, branch: "main" },
@@ -155,7 +198,46 @@ test("createGitLeafShareLink rejects unpublished document changes", async () => 
         throw error;
       },
     }),
-    (error) => error.code === "document_not_published",
+    (error) => error.code === "document_not_published"
+      && error.message === "当前文档已经提交，但尚未发布到 origin/main。",
+  );
+});
+
+test("createGitLeafShareLink localizes repository and first-commit errors", async () => {
+  await assert.rejects(
+    createGitLeafShareLink(),
+    (error) => error.code === "repository_required"
+      && error.message === "Open a Git repository before creating a share link.",
+  );
+  await assert.rejects(
+    createGitLeafShareLink({
+      repoRoot: "/repos/company-docs",
+      file: "docs/report.md",
+      language: "zh-CN",
+      readOrigin: async () => "not-a-github-remote",
+      listWorktrees: async () => [
+        { root: "/repos/company-docs", primary: true, current: true, branch: "main" },
+      ],
+    }),
+    (error) => error.code === "github_origin_required"
+      && error.message === "当前仓库没有可识别的 GitHub origin。",
+  );
+  await assert.rejects(
+    createGitLeafShareLink({
+      repoRoot: "/repos/company-docs",
+      file: "docs/report.md",
+      readOrigin: async () => "https://github.com/ExampleOrg/company-docs.git",
+      listWorktrees: async () => [
+        { root: "/repos/company-docs", primary: true, current: true, branch: "main" },
+      ],
+      gitRunner: async (_cwd, args) => {
+        if (args.includes("status")) return { stdout: "", stderr: "" };
+        if (args.includes("log")) return { stdout: "", stderr: "" };
+        return { stdout: "", stderr: "" };
+      },
+    }),
+    (error) => error.code === "document_not_committed"
+      && error.message === "This document has not been committed yet. Sync it before sharing.",
   );
 });
 

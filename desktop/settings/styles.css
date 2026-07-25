@@ -43,6 +43,10 @@
   --shadow: 0 10px 28px rgba(0, 0, 0, 0.34);
 }
 
+:root[data-settings-ready="false"] body {
+  visibility: hidden;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -382,6 +386,19 @@ button {
 .choice-card strong {
   font-size: 12px;
   font-weight: 700;
+}
+
+.language-choice {
+  min-height: 88px;
+  align-content: center;
+  text-align: center;
+}
+
+.language-sample {
+  color: var(--text-strong);
+  font-size: 22px;
+  font-weight: 720;
+  line-height: 1;
 }
 
 .theme-swatch {

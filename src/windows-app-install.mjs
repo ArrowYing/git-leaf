@@ -20,6 +20,60 @@ const WINDOWS_INSTALL_DIR = "app";
 const WINDOWS_EXECUTABLE = "Git Leaf.exe";
 const WINDOWS_INSTALL_STATE = "install-state.json";
 const WINDOWS_INSTALL_CONFIRM_ARGUMENT = "--git-leaf-install-confirm=";
+const WINDOWS_INSTALL_MESSAGES = Object.freeze({
+  en: Object.freeze({
+    "outdated.title": "This is an older version of Git Leaf{version}",
+    "redirect.title": "Git Leaf{version} is installed",
+    "outdated.message": "A newer Git Leaf{installedVersion} is already installed. The older package will not overwrite it.",
+    "redirect.message": "Starting Git Leaf from its fixed location.",
+    "outdated.detail": "Start Git Leaf from the Start menu. You can delete this older extracted folder.",
+    "redirect.detail": "Continue to start Git Leaf from the Start menu. You can delete this and older extracted folders.",
+    "stage.fixedLocation": "Starting from fixed location",
+    "progress.updateTitle": "Updating Git Leaf{version}",
+    "progress.installTitle": "Preparing Git Leaf{version}",
+    "waiting.message": "Closing the current version…",
+    "stage.waiting": "Waiting for current version to exit",
+    "copying.message": "Copying the new version…",
+    "stage.copying": "Copying files",
+    "switching.message": "Files copied. Switching to the new version…",
+    "stage.switching": "Switching versions",
+    "starting.message": "Starting the new version from its fixed location…",
+    "stage.starting": "Confirming the new version",
+    "complete.updateTitle": "Git Leaf update complete",
+    "complete.installTitle": "Git Leaf is ready",
+    "complete.updateMessage": "Updated Git Leaf{version} has started.",
+    "complete.installMessage": "Git Leaf{version} has started from its fixed location.",
+    "complete.automaticDetail": "Temporary update files will be cleaned up automatically. Continue to start Git Leaf from the Start menu.",
+    "complete.manualDetail": "Continue to start Git Leaf from the Start menu. You can delete this and older extracted folders.",
+    "stage.complete": "Complete",
+  }),
+  "zh-CN": Object.freeze({
+    "outdated.title": "这是旧版本的 Git Leaf{version}",
+    "redirect.title": "Git Leaf{version} 已安装",
+    "outdated.message": "本机已安装更新的 Git Leaf{installedVersion}，不会使用旧版本覆盖。",
+    "redirect.message": "正在从固定位置启动。",
+    "outdated.detail": "请从开始菜单启动 Git Leaf。这个旧版解压目录可以删除。",
+    "redirect.detail": "以后请从开始菜单启动 Git Leaf。当前和旧版解压目录均可删除。",
+    "stage.fixedLocation": "从固定位置启动",
+    "progress.updateTitle": "正在更新 Git Leaf{version}",
+    "progress.installTitle": "正在准备 Git Leaf{version}",
+    "waiting.message": "正在关闭当前版本…",
+    "stage.waiting": "等待当前版本退出",
+    "copying.message": "正在复制新版本文件…",
+    "stage.copying": "复制文件",
+    "switching.message": "文件复制完成，正在切换到新版本…",
+    "stage.switching": "切换版本",
+    "starting.message": "正在启动固定目录中的新版本…",
+    "stage.starting": "确认新版本",
+    "complete.updateTitle": "版本更新已完成",
+    "complete.installTitle": "Git Leaf 已准备完成",
+    "complete.updateMessage": "已启动更新后的 Git Leaf{version}。",
+    "complete.installMessage": "已从固定位置启动 Git Leaf{version}。",
+    "complete.automaticDetail": "更新临时文件会自动清理；以后继续从开始菜单启动 Git Leaf。",
+    "complete.manualDetail": "以后请从开始菜单启动 Git Leaf。当前和旧版解压目录均可删除。",
+    "stage.complete": "完成",
+  }),
+});
 
 export function windowsInstalledAppPaths({
   localAppData,
@@ -118,6 +172,8 @@ export function windowsBootstrapNeedsExclusiveLock(plan) {
 
 export async function bootstrapWindowsApp({
   plan,
+  language = "en",
+  locale,
   copyDirectory = cp,
   makeDirectory = mkdir,
   movePath = rename,
@@ -135,6 +191,7 @@ export async function bootstrapWindowsApp({
   stopRelaunchedApp = stopWindowsRelaunchedApp,
   persistInstalledVersion = persistWindowsInstalledVersion,
 } = {}) {
+  const translate = createWindowsInstallTranslator(locale ?? language);
   if (!plan || plan.status === "current") {
     return { status: "current" };
   }
@@ -145,15 +202,17 @@ export async function bootstrapWindowsApp({
       phase: outdated ? "outdated" : "redirect",
       percent: 100,
       title: outdated
-        ? `这是旧版本的 Git Leaf${plan.version ? ` ${plan.version}` : ""}`
-        : `Git Leaf${plan.version ? ` ${plan.version}` : ""} 已安装`,
+        ? translate("outdated.title", { version: versionSuffix(plan.version) })
+        : translate("redirect.title", { version: versionSuffix(plan.version) }),
       message: outdated
-        ? `本机已安装更新的 Git Leaf${plan.installedVersion ? ` ${plan.installedVersion}` : ""}，不会使用旧版本覆盖。`
-        : "正在从固定位置启动。",
+        ? translate("outdated.message", {
+          installedVersion: versionSuffix(plan.installedVersion),
+        })
+        : translate("redirect.message"),
       detail: outdated
-        ? "请从开始菜单启动 Git Leaf。这个旧版解压目录可以删除。"
-        : "以后请从开始菜单启动 Git Leaf。当前和旧版解压目录均可删除。",
-      stage: "从固定位置启动",
+        ? translate("outdated.detail")
+        : translate("redirect.detail"),
+      stage: translate("stage.fixedLocation"),
     });
     await wait(completionDelayMs);
     return relaunchWindowsApp(plan, spawnProcess).result;
@@ -163,9 +222,9 @@ export async function bootstrapWindowsApp({
     await onProgress({
       phase: "waiting",
       percent: 5,
-      title: progressTitle(plan),
-      message: "正在关闭当前版本…",
-      stage: "等待当前版本退出",
+      title: progressTitle(plan, translate),
+      message: translate("waiting.message"),
+      stage: translate("stage.waiting"),
     });
     await waitForProcessExit(plan.waitForPid);
   }
@@ -173,9 +232,9 @@ export async function bootstrapWindowsApp({
   await onProgress({
     phase: "copying",
     percent: 12,
-    title: progressTitle(plan),
-    message: "正在复制新版本文件…",
-    stage: "复制文件",
+    title: progressTitle(plan, translate),
+    message: translate("copying.message"),
+    stage: translate("stage.copying"),
   });
   await makeDirectory(plan.parent, { recursive: true });
   await removePath(plan.stagingRoot, { recursive: true, force: true });
@@ -185,9 +244,9 @@ export async function bootstrapWindowsApp({
   await onProgress({
     phase: "switching",
     percent: 76,
-    title: progressTitle(plan),
-    message: "文件复制完成，正在切换到新版本…",
-    stage: "切换版本",
+    title: progressTitle(plan, translate),
+    message: translate("switching.message"),
+    stage: translate("stage.switching"),
   });
   let movedPrevious = false;
   try {
@@ -228,9 +287,9 @@ export async function bootstrapWindowsApp({
   await onProgress({
     phase: "starting",
     percent: 88,
-    title: progressTitle(plan),
-    message: "正在启动固定目录中的新版本…",
-    stage: "确认新版本",
+    title: progressTitle(plan, translate),
+    message: translate("starting.message"),
+    stage: translate("stage.starting"),
   });
   await removePath(plan.confirmFile, { recursive: false, force: true });
   await beforeRelaunch();
@@ -267,10 +326,12 @@ export async function bootstrapWindowsApp({
   await onProgress({
     phase: "complete",
     percent: 100,
-    title: plan.status === "update" ? "版本更新已完成" : "Git Leaf 已准备完成",
-    message: completionMessage(plan),
-    detail: completionDetail(plan),
-    stage: "完成",
+    title: translate(plan.status === "update"
+      ? "complete.updateTitle"
+      : "complete.installTitle"),
+    message: completionMessage(plan, translate),
+    detail: completionDetail(plan, translate),
+    stage: translate("stage.complete"),
   });
   await wait(completionDelayMs);
   return relaunched.result;
@@ -348,24 +409,42 @@ async function copyWindowsAppDirectory(source, destination, copyDirectory) {
   }
 }
 
-function progressTitle(plan) {
-  const version = plan.version ? ` ${plan.version}` : "";
-  return plan.status === "update"
-    ? `正在更新 Git Leaf${version}`
-    : `正在准备 Git Leaf${version}`;
+function progressTitle(plan, translate) {
+  return translate(
+    plan.status === "update" ? "progress.updateTitle" : "progress.installTitle",
+    { version: versionSuffix(plan.version) },
+  );
 }
 
-function completionMessage(plan) {
-  const version = plan.version ? ` ${plan.version}` : "";
-  return plan.status === "update"
-    ? `已启动更新后的 Git Leaf${version}。`
-    : `已从固定位置启动 Git Leaf${version}。`;
+function completionMessage(plan, translate) {
+  return translate(
+    plan.status === "update" ? "complete.updateMessage" : "complete.installMessage",
+    { version: versionSuffix(plan.version) },
+  );
 }
 
-function completionDetail(plan) {
-  return plan.waitForPid
-    ? "更新临时文件会自动清理；以后继续从开始菜单启动 Git Leaf。"
-    : "以后请从开始菜单启动 Git Leaf。当前和旧版解压目录均可删除。";
+function completionDetail(plan, translate) {
+  return translate(plan.waitForPid
+    ? "complete.automaticDetail"
+    : "complete.manualDetail");
+}
+
+function createWindowsInstallTranslator(locale) {
+  const messages = WINDOWS_INSTALL_MESSAGES[resolveWindowsInstallLocale(locale)];
+  return (key, replacements = {}) => {
+    const template = messages[key] ?? WINDOWS_INSTALL_MESSAGES.en[key] ?? key;
+    return template.replace(/\{([a-zA-Z]+)\}/g, (_match, name) => (
+      replacements[name] == null ? "" : String(replacements[name])
+    ));
+  };
+}
+
+function resolveWindowsInstallLocale(locale) {
+  return String(locale || "").toLowerCase().startsWith("zh") ? "zh-CN" : "en";
+}
+
+function versionSuffix(version) {
+  return version ? ` ${version}` : "";
 }
 
 function readWindowsInstalledVersion(stateFile) {

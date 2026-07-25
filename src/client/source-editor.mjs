@@ -35,6 +35,7 @@ import { EditorView, minimalSetup } from "codemirror";
 import { renderMarkdown } from "../markdown.mjs";
 import { findTextMatches } from "../../public/document-search.js";
 import { enhanceImageLoadStates } from "../../public/image-preview.js";
+import { createTranslator } from "../../public/i18n.js";
 
 const livePreviewEnterEffect = StateEffect.define();
 const livePreviewExitEffect = StateEffect.define();
@@ -73,10 +74,80 @@ const mdxLiteComponentNames = [
 ];
 const imageWidthSteps = [320, 480, 640, 760, 960, 1200];
 
-export const SLASH_COMMANDS = [
+const SOURCE_EDITOR_SLASH_MESSAGES = {
+  en: {
+    "frontmatter.title": "Document frontmatter",
+    "frontmatter.description": "Insert document metadata",
+    "quote.title": "Quote",
+    "quote.description": "Insert a block quote",
+    "code.title": "Code block",
+    "code.description": "Insert a fenced code block",
+    "link.title": "External link",
+    "link.description": "Insert an external Markdown link",
+    "doclink.title": "Repository document link",
+    "doclink.description": "Link to another document in this repository",
+    "datatable.title": "DataTable",
+    "datatable.description": "Insert a CSV-backed data table",
+    "datatable.example": "Example",
+    "timeline.title": "Timeline",
+    "timeline.description": "Insert a JSON-backed timeline",
+    "timeline.exampleTitle": "Milestone",
+    "timeline.exampleBody": "Add details",
+    "chart.title": "Chart",
+    "chart.description": "Insert a CSV-backed chart",
+    "decision.title": "DecisionBox",
+    "decision.description": "Insert a structured decision summary",
+    "decision.rowDecision": "Decision",
+    "decision.rowReason": "Reason",
+    "decision.rowTradeoff": "Trade-off",
+    "metrics.title": "MetricGrid",
+    "metrics.description": "Insert a metric card grid",
+    "metrics.exampleLabel": "Core metric",
+    "metrics.exampleNote": "Definition",
+    "flow.title": "FlowDiagram",
+    "flow.description": "Insert a JSON-backed flow diagram",
+    "flow.start": "Start",
+    "flow.done": "Done",
+  },
+  "zh-CN": {
+    "frontmatter.title": "文档 frontmatter",
+    "frontmatter.description": "插入文档元数据",
+    "quote.title": "引用",
+    "quote.description": "插入引用块",
+    "code.title": "代码块",
+    "code.description": "插入围栏代码块",
+    "link.title": "外部链接",
+    "link.description": "插入外部 Markdown 链接",
+    "doclink.title": "仓库文档链接",
+    "doclink.description": "链接到当前仓库中的其他文档",
+    "datatable.title": "DataTable 数据表",
+    "datatable.description": "插入由 CSV 数据驱动的数据表",
+    "datatable.example": "示例",
+    "timeline.title": "Timeline 时间线",
+    "timeline.description": "插入由 JSON 数据驱动的时间线",
+    "timeline.exampleTitle": "关键节点",
+    "timeline.exampleBody": "补充说明",
+    "chart.title": "Chart 统计图表",
+    "chart.description": "插入由 CSV 数据驱动的统计图表",
+    "decision.title": "DecisionBox 决策摘要",
+    "decision.description": "插入结构化决策摘要",
+    "decision.rowDecision": "决策",
+    "decision.rowReason": "理由",
+    "decision.rowTradeoff": "代价",
+    "metrics.title": "MetricGrid 指标卡",
+    "metrics.description": "插入指标卡网格",
+    "metrics.exampleLabel": "核心指标",
+    "metrics.exampleNote": "口径说明",
+    "flow.title": "FlowDiagram 流程图",
+    "flow.description": "插入由 JSON 数据驱动的流程图",
+    "flow.start": "开始",
+    "flow.done": "完成",
+  },
+};
+
+const slashCommandDefinitions = [
   {
     label: "frontmatter",
-    title: "文档 frontmatter",
     detail: "Markdown",
     template: ({ today }) => [
       "---",
@@ -92,52 +163,46 @@ export const SLASH_COMMANDS = [
   },
   {
     label: "quote",
-    title: "引用",
     detail: "Markdown",
     template: "> {{cursor}}",
   },
   {
     label: "code",
-    title: "代码块",
     detail: "Markdown",
     template: "```text\n{{cursor}}\n```",
   },
   {
     label: "link",
-    title: "外部链接",
     detail: "Markdown",
     custom: "link",
   },
   {
     label: "doclink",
-    title: "仓库文档链接",
     detail: "Markdown",
     custom: "doclink",
   },
   {
     label: "datatable",
-    title: "DataTable 数据表",
     detail: "MDX-lite",
     requiresMdx: true,
-    template: [
+    template: ({ translate }) => [
       '<DataTable title="{{cursor}}">',
       "```csv",
       "name,value,status",
-      "示例,1,active",
+      `${translate("datatable.example")},1,active`,
       "```",
       "</DataTable>",
     ].join("\n"),
   },
   {
     label: "timeline",
-    title: "Timeline 时间线",
     detail: "MDX-lite",
     requiresMdx: true,
-    template: [
+    template: ({ translate }) => [
       '<Timeline title="{{cursor}}">',
       "```json",
       "[",
-      '  {"date":"2026-07-04","title":"关键节点","body":"补充说明","status":"active"}',
+      `  {"date":"2026-07-04","title":"${translate("timeline.exampleTitle")}","body":"${translate("timeline.exampleBody")}","status":"active"}`,
       "]",
       "```",
       "</Timeline>",
@@ -145,7 +210,6 @@ export const SLASH_COMMANDS = [
   },
   {
     label: "chart",
-    title: "Chart 统计图表",
     detail: "MDX-lite",
     requiresMdx: true,
     template: [
@@ -160,46 +224,43 @@ export const SLASH_COMMANDS = [
   },
   {
     label: "decision",
-    title: "DecisionBox 决策摘要",
     detail: "MDX-lite",
     requiresMdx: true,
-    template: [
+    template: ({ translate }) => [
       '<DecisionBox title="{{cursor}}" status="proposed" owner="">',
       "```csv",
       "label,value",
-      "决策,",
-      "理由,",
-      "代价,",
+      `${translate("decision.rowDecision")},`,
+      `${translate("decision.rowReason")},`,
+      `${translate("decision.rowTradeoff")},`,
       "```",
       "</DecisionBox>",
     ].join("\n"),
   },
   {
     label: "metrics",
-    title: "MetricGrid 指标卡",
     detail: "MDX-lite",
     requiresMdx: true,
-    template: [
+    template: ({ translate }) => [
       '<MetricGrid title="{{cursor}}">',
       "```csv",
       "label,value,delta,note,status",
-      "核心指标,0,,口径说明,neutral",
+      `${translate("metrics.exampleLabel")},0,,${translate("metrics.exampleNote")},neutral`,
       "```",
       "</MetricGrid>",
     ].join("\n"),
   },
   {
     label: "flow",
-    title: "FlowDiagram 流程图",
     detail: "MDX-lite",
     requiresMdx: true,
-    template: [
+    template: ({ translate }) => [
       '<FlowDiagram title="{{cursor}}">',
       "```json",
       "{",
       '  "nodes": [',
-      '    {"id": "start", "label": "开始", "type": "start"},',
-      '    {"id": "done", "label": "完成", "type": "end"}',
+      `    {"id": "start", "label": "${translate("flow.start")}", "type": "start"},`,
+      `    {"id": "done", "label": "${translate("flow.done")}", "type": "end"}`,
       "  ],",
       '  "edges": [',
       '    {"from": "start", "to": "done"}',
@@ -210,6 +271,24 @@ export const SLASH_COMMANDS = [
     ].join("\n"),
   },
 ];
+
+export function slashCommandsForLocale({ locale, language } = {}) {
+  const translate = createTranslator(SOURCE_EDITOR_SLASH_MESSAGES, locale ?? language);
+  return slashCommandDefinitions.map((definition) => {
+    const command = {
+      ...definition,
+      locale: translate.locale,
+      title: translate(`${definition.label}.title`),
+      description: translate(`${definition.label}.description`),
+    };
+    if (typeof definition.template === "function") {
+      command.template = ({ today }) => definition.template({ today, translate });
+    }
+    return command;
+  });
+}
+
+export const SLASH_COMMANDS = slashCommandsForLocale();
 
 const liveEditingSuppression = StateField.define({
   create() {
@@ -646,6 +725,8 @@ function liveMarkdownThemeForTheme(theme) {
 export function createSourceEditor({
   parent,
   doc = "",
+  locale,
+  language,
   onChange,
   onScroll,
   onLineSelect,
@@ -690,6 +771,8 @@ export function createSourceEditor({
       autocompletion({
         override: [
           slashCommandCompletionSource({
+            locale,
+            language,
             getDocumentPath,
             onBeforeSlashCommand,
             onSlashCommand,
@@ -1254,10 +1337,18 @@ export function isMarkdownDocumentPath(value) {
   return /\.md$/i.test(String(value ?? ""));
 }
 
-export function slashCommandTemplate(command, { today = localIsoDate() } = {}) {
-  const rawTemplate = typeof command?.template === "function"
-    ? command.template({ today })
-    : String(command?.template ?? "");
+export function slashCommandTemplate(
+  command,
+  {
+    today = localIsoDate(),
+    locale,
+    language,
+  } = {},
+) {
+  const localizedCommand = slashCommandForRequestedLocale(command, { locale, language });
+  const rawTemplate = typeof localizedCommand?.template === "function"
+    ? localizedCommand.template({ today })
+    : String(localizedCommand?.template ?? "");
   const cursorOffset = rawTemplate.indexOf(cursorPlaceholder);
   if (cursorOffset < 0) {
     return {
@@ -1273,10 +1364,13 @@ export function slashCommandTemplate(command, { today = localIsoDate() } = {}) {
 }
 
 export function slashCommandCompletionSource({
+  locale,
+  language,
   getDocumentPath = () => "",
   onBeforeSlashCommand = async () => true,
   onSlashCommand = async () => null,
 } = {}) {
+  const commands = slashCommandsForLocale({ locale, language });
   return (context) => {
     const token = context.matchBefore(/\/[a-z0-9-]*/i);
     if (!token) {
@@ -1290,12 +1384,14 @@ export function slashCommandCompletionSource({
     }
 
     const query = token.text.slice(1).toLowerCase();
-    const options = SLASH_COMMANDS
+    const options = commands
       .filter((command) => slashCommandMatches(command, query))
       .map((command) => ({
         label: `/${command.label}`,
         detail: command.detail,
-        info: command.title,
+        info: command.description
+          ? `${command.title} — ${command.description}`
+          : command.title,
         type: command.requiresMdx ? "class" : "keyword",
         apply(view, _completion, from, to) {
           void applySlashCommand(view, command, from, to, {
@@ -1319,9 +1415,17 @@ function slashCommandMatches(command, query) {
   if (!query) {
     return true;
   }
-  return [command.label, command.title, command.detail]
+  return [command.label, command.title, command.description, command.detail]
     .filter(Boolean)
     .some((value) => String(value).toLowerCase().includes(query));
+}
+
+function slashCommandForRequestedLocale(command, { locale, language } = {}) {
+  if (locale == null && language == null) {
+    return command;
+  }
+  return slashCommandsForLocale({ locale, language })
+    .find((candidate) => candidate.label === command?.label) ?? command;
 }
 
 async function applySlashCommand(

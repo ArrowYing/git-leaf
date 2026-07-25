@@ -29,8 +29,9 @@ open remain the source of truth.
 - Commits and pushes the current repository through one explicit Sync action, stopping safely on divergence,
   conflicts, or an in-progress Git operation.
 - Publishes versioned share links only after pushing and verifying the exact revision on `origin/main`.
-- Keeps appearance, typography, repository-tree preferences, shortcuts, version details, and environment
-  status in a full-screen Settings & Help view.
+- Keeps language, appearance, typography, repository-tree preferences, shortcuts, version details, and
+  environment status in a full-screen Settings & Help view. The interface follows the operating-system
+  language by default and can be fixed to English or Simplified Chinese.
 
 ## Install and run
 

@@ -1,3 +1,6 @@
+import { createTranslator } from "./i18n.js";
+import { WORKBENCH_MESSAGES } from "./workbench-locales.js";
+
 export function shouldIgnoreWatchedChange({
   currentMode,
   watchedHash,
@@ -7,12 +10,13 @@ export function shouldIgnoreWatchedChange({
   return isEditingMode && Boolean(watchedHash) && watchedHash === lastWrittenHash;
 }
 
-export function syncLabelForState(state) {
+export function syncLabelForState(state, locale = "zh-CN") {
+  const t = createTranslator(WORKBENCH_MESSAGES, locale);
   const labels = {
     idle: "",
     syncing: "",
     external: "",
-    error: "同步失败",
+    error: t("sourceSync.error"),
   };
   return labels[state] ?? labels.idle;
 }

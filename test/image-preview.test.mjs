@@ -19,3 +19,12 @@ test("imageLoadFailureMessage explains remote image failures separately", () => 
     "图片加载失败：https://cdn.example.com/report.png（网络不可用、访问受限或链接已经失效）",
   );
 });
+
+test("imageLoadFailureMessage supports English UI copy", () => {
+  assert.equal(
+    imageLoadFailureMessage({
+      src: "/raw?repo=company-docs&file=docs%2F_assets%2Freport.png",
+    }, "en"),
+    "Image failed to load: docs/_assets/report.png (File missing, path incorrect, or image format could not be decoded)",
+  );
+});

@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-CN" class="is-workbench-loading">
+<html lang="en" class="is-workbench-loading" data-locale="en">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -13,6 +13,39 @@
       window.GIT_LEAF_TELEMETRY_ENABLED = __GIT_LEAF_TELEMETRY_ENABLED__;
       (() => {
         const preferences = window.GIT_LEAF_DESKTOP_PREFERENCES;
+        const language = String(preferences?.language || "system").trim().toLowerCase();
+        const desktopResolvedLanguage = preferences?.resolvedLanguage === "zh-CN"
+          ? "zh-CN"
+          : preferences?.resolvedLanguage === "en"
+            ? "en"
+            : "";
+        const systemLanguages = Array.isArray(window.navigator.languages)
+          ? window.navigator.languages
+          : [window.navigator.language];
+        let locale = desktopResolvedLanguage || (
+          language === "zh-cn" || language === "zh" || language.startsWith("zh-")
+            ? "zh-CN"
+            : language === "en" || language.startsWith("en-")
+              ? "en"
+              : ""
+        );
+        if (!locale && (language === "" || language === "system")) {
+          for (const candidate of systemLanguages) {
+            const normalized = String(candidate || "").replaceAll("_", "-").toLowerCase();
+            if (normalized === "zh" || normalized.startsWith("zh-")) {
+              locale = "zh-CN";
+              break;
+            }
+            if (normalized === "en" || normalized.startsWith("en-")) {
+              locale = "en";
+              break;
+            }
+          }
+        }
+        locale ||= "en";
+        window.GIT_LEAF_INITIAL_LOCALE = locale;
+        document.documentElement.lang = locale;
+        document.documentElement.dataset.locale = locale;
         let colorMode = preferences?.colorMode;
         if (!["system", "light", "dark"].includes(colorMode)) {
           try {
@@ -47,6 +80,11 @@
 
       .is-workbench-loading #app-shell {
         visibility: hidden;
+      }
+
+      :root[data-locale="en"] [data-initial-locale="zh-CN"],
+      :root[data-locale="zh-CN"] [data-initial-locale="en"] {
+        display: none;
       }
 
       #workbench-loading {
@@ -111,20 +149,27 @@
     <div id="workbench-loading" role="status" aria-live="polite" aria-busy="true">
       <div class="workbench-loading-inner">
         <div class="workbench-loading-indicator" aria-hidden="true"></div>
-        <h1>正在打开仓库</h1>
-        <p>正在准备文档与工作区。</p>
+        <h1>
+          <span data-initial-locale="en">Opening repository</span>
+          <span data-initial-locale="zh-CN">正在打开仓库</span>
+        </h1>
+        <p>
+          <span data-initial-locale="en">Preparing documents and workspace.</span>
+          <span data-initial-locale="zh-CN">正在准备文档与工作区。</span>
+        </p>
       </div>
     </div>
     <div id="app-shell" class="app-shell">
-      <header class="app-toolbar" aria-label="窗口工具栏">
+      <header class="app-toolbar" aria-label="窗口工具栏" data-i18n-aria-label="aria.windowToolbar">
         <div class="toolbar-sidebar">
           <div class="mac-traffic-spacer" aria-hidden="true"></div>
-          <nav class="titlebar-navigation" aria-label="工作台导航">
+          <nav class="titlebar-navigation" aria-label="工作台导航" data-i18n-aria-label="aria.workspaceNavigation">
             <button
               id="sidebar-toggle"
               class="titlebar-icon-button"
               type="button"
               aria-label="收起侧边栏"
+              data-i18n-aria-label="action.collapseSidebar"
               aria-controls="workspace-sidebar"
               aria-expanded="true"
             >
@@ -134,10 +179,10 @@
                 <path class="sidebar-toggle-direction" d="m15 9-3 3 3 3"></path>
               </svg>
             </button>
-            <button id="history-back" class="titlebar-icon-button" type="button" aria-label="后退">
+            <button id="history-back" class="titlebar-icon-button" type="button" aria-label="后退" data-i18n-aria-label="action.back">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"></path></svg>
             </button>
-            <button id="history-forward" class="titlebar-icon-button" type="button" aria-label="前进">
+            <button id="history-forward" class="titlebar-icon-button" type="button" aria-label="前进" data-i18n-aria-label="action.forward">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg>
             </button>
           </nav>
@@ -145,12 +190,19 @@
         <div class="toolbar-divider" aria-hidden="true"></div>
         <div class="toolbar-main">
           <div class="document-tab-strip">
-            <nav id="document-tabs" class="document-tabs" aria-label="打开的文件"></nav>
-            <button id="document-new" class="document-new" type="button" aria-label="新建文档" title="新建文档">＋</button>
+            <nav
+              id="document-tabs"
+              class="document-tabs"
+              aria-label="Open files"
+              data-i18n-aria-label="aria.openFiles"
+              data-empty-label="No open documents"
+              data-i18n-data-empty-label="tabs.empty"
+            ></nav>
+            <button id="document-new" class="document-new" type="button" aria-label="新建文档" title="新建文档" data-i18n-aria-label="action.newDocument" data-i18n-title="action.newDocument">＋</button>
           </div>
           <div id="document-tab-tooltip" class="document-tab-tooltip" role="tooltip" hidden></div>
-          <div class="toolbar-system-controls" aria-label="系统操作">
-            <div class="mode-switch" aria-label="显示模式">
+          <div class="toolbar-system-controls" aria-label="系统操作" data-i18n-aria-label="aria.systemActions">
+            <div class="mode-switch" aria-label="显示模式" data-i18n-aria-label="aria.displayMode">
               <button id="mode-preview" type="button" data-mode="preview" aria-pressed="true">Preview</button>
               <button id="mode-source" type="button" data-mode="source" aria-pressed="false">Source</button>
               <button id="mode-live" type="button" data-mode="live" aria-pressed="false">Live</button>
@@ -160,6 +212,7 @@
               class="theme-toggle"
               type="button"
               aria-label="切换到深色模式"
+              data-i18n-aria-label="action.switchDark"
               aria-pressed="false"
               hidden
             ></button>
@@ -167,7 +220,7 @@
         </div>
       </header>
       <div class="app-workbench">
-        <aside id="workspace-sidebar" class="sidebar" aria-label="文件浏览器">
+        <aside id="workspace-sidebar" class="sidebar" aria-label="文件浏览器" data-i18n-aria-label="aria.fileBrowser">
           <div id="workspace-sidebar-header" class="workspace-sidebar-header">
             <div id="repository-title" class="toolbar-repository">Git Leaf</div>
             <div id="worktree-switcher" class="worktree-switcher" hidden>
@@ -190,6 +243,7 @@
                 class="worktree-switcher-menu"
                 role="listbox"
                 aria-label="Git 工作树"
+                data-i18n-aria-label="aria.gitWorktrees"
                 hidden
               ></div>
             </div>
@@ -197,59 +251,63 @@
           <div class="tree-controls">
             <div class="tree-search-row">
               <label class="search-box">
-                <input id="tree-filter" type="search" placeholder="搜索路径、文件名或 AI snippet">
+                <input id="tree-filter" type="search" placeholder="搜索路径、文件名或 AI snippet" data-i18n-placeholder="search.files">
               </label>
               <button
                 id="frontmatter-filter-toggle"
                 class="frontmatter-filter-toggle"
                 type="button"
                 aria-label="文档 Frontmatter 筛选"
+                data-i18n-aria-label="aria.frontmatterFilters"
                 aria-expanded="false"
                 aria-controls="frontmatter-filter-popover"
                 hidden
+                data-i18n="action.filter"
               >筛选</button>
             </div>
             <div
               id="frontmatter-active-filters"
               class="frontmatter-active-filters"
               aria-label="已启用的 Frontmatter 筛选"
+              data-i18n-aria-label="aria.activeFrontmatterFilters"
               hidden
             ></div>
             <div id="git-change-toolbar" class="git-change-toolbar" hidden>
               <button id="git-changes-toggle" type="button" aria-pressed="false">
-                本地改动 <span id="git-change-count">0</span>
+                <span data-i18n="git.localChanges">本地改动</span> <span id="git-change-count">0</span>
               </button>
-              <button id="git-sync-open" type="button">同步</button>
+              <button id="git-sync-open" type="button" data-i18n="action.sync">同步</button>
             </div>
             <div
               id="frontmatter-filter-popover"
               class="frontmatter-filter-popover"
               aria-label="文档 Frontmatter 筛选"
+              data-i18n-aria-label="aria.frontmatterFilters"
               hidden
             ></div>
           </div>
-          <nav id="file-tree" class="file-tree" aria-label="仓库文件"></nav>
-          <section id="desktop-update-panel" class="desktop-update-panel" aria-label="Git Leaf 更新" aria-live="polite" hidden>
+          <nav id="file-tree" class="file-tree" aria-label="仓库文件" data-i18n-aria-label="aria.repositoryFiles"></nav>
+          <section id="desktop-update-panel" class="desktop-update-panel" aria-label="Git Leaf 更新" data-i18n-aria-label="aria.gitLeafUpdates" aria-live="polite" hidden>
             <div class="desktop-update-copy">
               <strong id="desktop-update-title"></strong>
               <span id="desktop-update-detail"></span>
             </div>
             <button id="desktop-update-action" class="desktop-update-action" type="button"></button>
           </section>
-          <section id="agent-context-widget" class="agent-context-widget" aria-label="Agent 上下文">
+          <section id="agent-context-widget" class="agent-context-widget" aria-label="Agent 上下文" data-i18n-aria-label="aria.agentContext">
             <div id="agent-context-popover" class="agent-context-popover" hidden>
               <header class="agent-context-popover-header">
-                <strong class="agent-context-popover-title">Agent 上下文</strong>
-                <button id="agent-context-close" type="button" aria-label="收起 Agent 上下文">⌄</button>
+                <strong class="agent-context-popover-title" data-i18n="agentContext.title">Agent 上下文</strong>
+                <button id="agent-context-close" type="button" aria-label="收起 Agent 上下文" data-i18n-aria-label="action.collapseAgentContext">⌄</button>
               </header>
               <div id="agent-context-list" class="agent-context-list"></div>
               <div id="agent-context-empty" class="agent-context-empty" hidden>
-                <strong>还没有上下文片段</strong>
-                <span>在文档中选择行，再点击“加入上下文”。</span>
+                <strong data-i18n="agentContext.emptyTitle">还没有上下文片段</strong>
+                <span data-i18n="agentContext.emptyDetail">在文档中选择行，再点击“加入上下文”。</span>
               </div>
               <footer class="agent-context-popover-footer">
-                <button id="agent-context-clear" type="button">清空</button>
-                <button id="agent-context-copy" type="button">复制片段</button>
+                <button id="agent-context-clear" type="button" data-i18n="action.clear">清空</button>
+                <button id="agent-context-copy" type="button" data-i18n="action.copySnippets">复制片段</button>
               </footer>
             </div>
             <button
@@ -265,7 +323,7 @@
                   <path d="m3 12 9 5 9-5"></path>
                   <path d="m3 16 9 5 9-5"></path>
                 </svg>
-                <span>Agent 上下文</span>
+                <span data-i18n="agentContext.title">Agent 上下文</span>
               </span>
               <span id="agent-context-toggle-count" class="agent-context-count">0</span>
             </button>
@@ -276,40 +334,43 @@
           class="sidebar-resizer"
           role="separator"
           aria-label="调整文件浏览器宽度"
+          data-i18n-aria-label="aria.resizeFileBrowser"
           aria-orientation="vertical"
           tabindex="0"
         ></div>
 
         <main class="preview-pane">
-          <section id="document-search" class="document-search" role="search" aria-label="在当前文件中查找" hidden>
+          <section id="document-search" class="document-search" role="search" aria-label="在当前文件中查找" data-i18n-aria-label="aria.findInFile" hidden>
             <label class="document-search-field">
-              <span class="visually-hidden">查找内容</span>
+              <span class="visually-hidden" data-i18n="search.contents">查找内容</span>
               <input
                 id="document-search-input"
                 type="search"
                 placeholder="在当前文件中查找"
+                data-i18n-placeholder="search.currentFile"
                 autocomplete="off"
                 spellcheck="false"
               >
             </label>
             <output id="document-search-count" class="document-search-count" aria-live="polite">0 / 0</output>
-            <button id="document-search-previous" type="button" aria-label="上一个匹配" title="上一个匹配（Shift+Enter）">↑</button>
-            <button id="document-search-next" type="button" aria-label="下一个匹配" title="下一个匹配（Enter）">↓</button>
-            <button id="document-search-close" type="button" aria-label="关闭查找" title="关闭查找（Esc）">×</button>
+            <button id="document-search-previous" type="button" aria-label="上一个匹配" title="上一个匹配（Shift+Enter）" data-i18n-aria-label="action.previousMatch" data-i18n-title="action.previousMatchTitle">↑</button>
+            <button id="document-search-next" type="button" aria-label="下一个匹配" title="下一个匹配（Enter）" data-i18n-aria-label="action.nextMatch" data-i18n-title="action.nextMatchTitle">↓</button>
+            <button id="document-search-close" type="button" aria-label="关闭查找" title="关闭查找（Esc）" data-i18n-aria-label="action.closeSearch" data-i18n-title="action.closeSearchTitle">×</button>
           </section>
-          <div id="floating-document-actions" class="floating-document-actions" aria-label="文件操作" hidden>
+          <div id="floating-document-actions" class="floating-document-actions" aria-label="文件操作" data-i18n-aria-label="aria.fileActions" hidden>
             <span id="source-sync-status" class="source-sync-status" hidden></span>
-            <button id="copy-share-link" type="button">复制分享链接</button>
-            <button id="document-actions-more" type="button" aria-label="更多文件操作" aria-haspopup="menu" aria-expanded="false">···</button>
+            <button id="copy-share-link" type="button" data-i18n="action.copyShareLink">复制分享链接</button>
+            <button id="document-actions-more" type="button" aria-label="更多文件操作" data-i18n-aria-label="action.moreFileActions" aria-haspopup="menu" aria-expanded="false">···</button>
           </div>
           <div id="branch-status" class="branch-status" role="status" aria-live="polite" hidden></div>
           <div id="document-body" class="document-body">
-            <aside id="document-outline" class="document-outline" aria-label="文档内导航" hidden></aside>
+            <aside id="document-outline" class="document-outline" aria-label="文档内导航" data-i18n-aria-label="aria.documentNavigation" hidden></aside>
             <div
               id="document-outline-resizer"
               class="document-outline-resizer"
               role="separator"
               aria-label="调整文档导航宽度"
+              data-i18n-aria-label="aria.resizeDocumentNavigation"
               aria-orientation="vertical"
               tabindex="0"
               hidden
@@ -319,6 +380,7 @@
               class="document-outline-toggle"
               type="button"
               aria-label="隐藏目录"
+              data-i18n-aria-label="action.hideOutline"
               aria-controls="document-outline"
               aria-expanded="true"
               hidden
@@ -333,9 +395,9 @@
               <article id="document-content" class="document-content" tabindex="-1"></article>
               <div id="document-empty-state" class="document-empty-state" hidden>
                 <div class="document-empty-state-inner">
-                  <h1>未打开文件</h1>
-                  <p>从左侧目录树选择仓库文件。Markdown / MDX 支持编辑，其他文件只读查看。</p>
-                  <button id="empty-new-document" type="button">新建文档</button>
+                  <h1 data-i18n="document.emptyTitle">未打开文件</h1>
+                  <p data-i18n="document.emptyDetail">从左侧目录树选择仓库文件。Markdown / MDX 支持编辑，其他文件只读查看。</p>
+                  <button id="empty-new-document" type="button" data-i18n="action.newDocument">新建文档</button>
                 </div>
               </div>
               <div
@@ -343,56 +405,58 @@
                 class="source-splitter"
                 role="separator"
                 aria-label="调整预览和 Source 编辑器高度"
+                data-i18n-aria-label="aria.resizeSourcePreview"
                 aria-orientation="horizontal"
                 tabindex="0"
                 hidden
               ></div>
-              <section id="source-editor-pane" class="source-editor-pane" aria-label="Source 编辑器" hidden>
+              <section id="source-editor-pane" class="source-editor-pane" aria-label="Source 编辑器" data-i18n-aria-label="aria.sourceEditor" hidden>
                 <div id="source-editor" class="source-editor"></div>
               </section>
             </div>
           </div>
           <div id="selection-popover" class="selection-popover" hidden>
-            <button id="copy-selection-popover" type="button">复制内容</button>
-            <button id="add-selection-agent-context" type="button">加入上下文</button>
+            <button id="copy-selection-popover" type="button" data-i18n="action.copyContent">复制内容</button>
+            <button id="add-selection-agent-context" type="button" data-i18n="action.addToContext">加入上下文</button>
           </div>
           <div id="image-popover" class="image-popover" hidden>
-            <button type="button" data-image-action="align-left">左对齐</button>
-            <button type="button" data-image-action="align-center">居中</button>
-            <button type="button" data-image-action="shrink">缩小</button>
-            <button type="button" data-image-action="grow">放大</button>
-            <button type="button" data-image-action="caption">说明</button>
+            <button type="button" data-image-action="align-left" data-i18n="action.alignLeft">左对齐</button>
+            <button type="button" data-image-action="align-center" data-i18n="action.alignCenter">居中</button>
+            <button type="button" data-image-action="shrink" data-i18n="action.shrink">缩小</button>
+            <button type="button" data-image-action="grow" data-i18n="action.grow">放大</button>
+            <button type="button" data-image-action="caption" data-i18n="action.caption">说明</button>
           </div>
           <div id="link-popover" class="link-popover" hidden>
-            <button type="button" data-link-action="edit">修改链接</button>
-            <button type="button" data-link-action="open">打开链接</button>
-            <button type="button" data-link-action="open-tab">新标签页</button>
+            <button type="button" data-link-action="edit" data-i18n="action.editLink">修改链接</button>
+            <button type="button" data-link-action="open" data-i18n="action.openLink">打开链接</button>
+            <button type="button" data-link-action="open-tab" data-i18n="action.openInNewTab">新标签页</button>
           </div>
           <div
             id="frontmatter-field-popover"
             class="frontmatter-field-popover"
             aria-label="Frontmatter 字段操作"
+            data-i18n-aria-label="aria.frontmatterFieldActions"
             hidden
           ></div>
           <div id="copy-toast" class="copy-toast" role="status" aria-live="polite" hidden></div>
         </main>
       </div>
       <div id="overflow-tooltip" class="overflow-tooltip" role="tooltip" hidden></div>
-      <div id="file-action-menu" class="file-action-menu" role="menu" aria-label="文件操作" hidden></div>
+      <div id="file-action-menu" class="file-action-menu" role="menu" aria-label="文件操作" data-i18n-aria-label="aria.fileActions" hidden></div>
       <div id="git-sync-panel" class="git-sync-panel" role="dialog" aria-modal="true" aria-labelledby="git-sync-title" hidden>
         <section class="git-sync-dialog">
           <header class="git-sync-header">
             <div>
-              <h2 id="git-sync-title">需要 AI Agent 处理</h2>
-              <p>本地修改都已保留，可以交给 AI Agent 继续完成同步。</p>
+              <h2 id="git-sync-title" data-i18n="sync.agentTitle">需要 AI Agent 处理</h2>
+              <p data-i18n="sync.agentDetail">本地修改都已保留，可以交给 AI Agent 继续完成同步。</p>
             </div>
-            <button id="git-sync-close" type="button" aria-label="关闭同步面板">×</button>
+            <button id="git-sync-close" type="button" aria-label="关闭同步面板" data-i18n-aria-label="action.close">×</button>
           </header>
           <div id="git-sync-result" class="git-sync-result" hidden>
             <p id="git-sync-result-title"></p>
             <p id="git-sync-result-help"></p>
             <textarea id="git-sync-agent-prompt" rows="10" readonly></textarea>
-            <button id="git-sync-copy-prompt" type="button">复制提示词</button>
+            <button id="git-sync-copy-prompt" type="button" data-i18n="action.copyAgentPrompt">复制提示词</button>
           </div>
         </section>
       </div>
@@ -400,7 +464,7 @@
         <section id="app-dialog-card" class="app-dialog-card">
           <header class="app-dialog-header">
             <h2 id="app-dialog-title"></h2>
-            <button id="app-dialog-close" type="button" aria-label="关闭">×</button>
+            <button id="app-dialog-close" type="button" aria-label="关闭" data-i18n-aria-label="action.close">×</button>
           </header>
           <p id="app-dialog-message" class="app-dialog-message"></p>
           <div id="app-dialog-content" class="app-dialog-content" hidden></div>
@@ -410,8 +474,8 @@
           </label>
           <div id="app-dialog-fields" class="app-dialog-fields" hidden></div>
           <div id="app-dialog-actions" class="app-dialog-actions">
-            <button id="app-dialog-cancel" type="button">取消</button>
-            <button id="app-dialog-confirm" type="button">确定</button>
+            <button id="app-dialog-cancel" type="button" data-i18n="action.cancel">取消</button>
+            <button id="app-dialog-confirm" type="button" data-i18n="action.confirm">确定</button>
           </div>
         </section>
       </div>

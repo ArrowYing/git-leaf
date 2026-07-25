@@ -46,6 +46,7 @@ test("syncLabelForState only surfaces error states", () => {
   assert.equal(syncLabelForState("syncing"), "");
   assert.equal(syncLabelForState("external"), "");
   assert.equal(syncLabelForState("error"), "同步失败");
+  assert.equal(syncLabelForState("error", "en"), "Sync failed");
 });
 
 test("sourceLineForPreviewSync chooses the nearest rendered line at or before the source line", () => {
