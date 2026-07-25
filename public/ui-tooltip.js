@@ -1,6 +1,17 @@
 const DEFAULT_DELAY = 400;
 const DEFAULT_QUICK_DELAY = 80;
 const DEFAULT_WARM_DURATION = 1200;
+const EXPANSION_TYPOGRAPHY_PROPERTIES = Object.freeze([
+  "fontFamily",
+  "fontSize",
+  "fontStyle",
+  "fontStretch",
+  "fontVariant",
+  "fontWeight",
+  "lineHeight",
+  "letterSpacing",
+  "wordSpacing",
+]);
 
 export function createUiTooltip({
   tooltip,
@@ -15,6 +26,8 @@ export function createUiTooltip({
   setTimer = windowTarget?.setTimeout?.bind(windowTarget) ?? setTimeout,
   clearTimer = windowTarget?.clearTimeout?.bind(windowTarget) ?? clearTimeout,
   now = Date.now,
+  styleFromElement = windowTarget?.getComputedStyle?.bind(windowTarget)
+    ?? globalThis.getComputedStyle?.bind(globalThis),
 } = {}) {
   const normalizedSources = sources.filter((source) => source?.container);
   const root = eventRoot ?? boundsElement;
@@ -223,7 +236,7 @@ export function createUiTooltip({
       return;
     }
 
-    renderTooltip(tooltip, {
+    const titleElement = renderTooltip(tooltip, {
       name,
       path: String(details.path ?? details.detail ?? "").trim(),
       shortcut: String(details.shortcut ?? "").trim(),
@@ -234,6 +247,12 @@ export function createUiTooltip({
       : placement.startsWith("bottom") || placement.startsWith("top")
         ? (resolved.source.variant ?? "action")
         : (resolved.source.variant ?? "content");
+    applyExpansionTypography({
+      tooltip,
+      titleElement,
+      sourceElement: resolved.source.anchorElement?.(resolved.item) ?? resolved.item,
+      styleFromElement,
+    });
     tooltip.style.left = "0px";
     tooltip.style.top = "0px";
     tooltip.hidden = false;
@@ -416,6 +435,39 @@ function renderTooltip(tooltip, { name, path, shortcut }) {
     children.push(pathElement);
   }
   tooltip.replaceChildren(...children);
+  return nameElement;
+}
+
+function applyExpansionTypography({
+  tooltip,
+  titleElement,
+  sourceElement,
+  styleFromElement,
+}) {
+  if (tooltip.dataset.expansionTypography === "true") {
+    for (const property of EXPANSION_TYPOGRAPHY_PROPERTIES) {
+      tooltip.style[property] = "";
+    }
+    delete tooltip.dataset.expansionTypography;
+  }
+  if (tooltip.dataset.variant !== "expansion" || typeof styleFromElement !== "function") {
+    return;
+  }
+
+  let sourceStyle;
+  try {
+    sourceStyle = styleFromElement(sourceElement);
+  } catch {
+    return;
+  }
+  if (!sourceStyle) {
+    return;
+  }
+  for (const property of EXPANSION_TYPOGRAPHY_PROPERTIES) {
+    tooltip.style[property] = String(sourceStyle[property] ?? "");
+  }
+  titleElement.style.fontWeight = String(sourceStyle.fontWeight ?? "");
+  tooltip.dataset.expansionTypography = "true";
 }
 
 function itemKey(source, item) {

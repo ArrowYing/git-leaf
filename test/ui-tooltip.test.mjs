@@ -57,6 +57,90 @@ test("action tooltips center below controls and flip above near the lower edge",
   });
 });
 
+test("expansion tooltips preserve source typography without changing action prompts", () => {
+  const root = createEventTarget();
+  const windowTarget = {
+    ...createEventTarget(),
+    innerWidth: 1200,
+    innerHeight: 800,
+  };
+  const expansionItem = createElement({
+    id: "outline-item",
+    rect: { left: 100, top: 40, width: 160, height: 28 },
+  });
+  const actionItem = createElement({
+    id: "toolbar-action",
+    dataset: { uiTooltip: "Back" },
+    rect: { left: 300, top: 40, width: 32, height: 32 },
+  });
+  const tooltip = createElement({
+    id: "ui-tooltip",
+    hidden: true,
+    rect: { width: 260, height: 28 },
+  });
+  root.contains = (candidate) => (
+    candidate === expansionItem ||
+    candidate === actionItem ||
+    candidate === tooltip
+  );
+  tooltip.contains = (candidate) => candidate === tooltip;
+  const controller = createUiTooltip({
+    tooltip,
+    eventRoot: root,
+    boundsElement: {
+      getBoundingClientRect: () => ({ left: 0, top: 0, width: 1200, height: 800 }),
+    },
+    sources: [
+      {
+        name: "expansion",
+        container: root,
+        itemFromTarget: (target) => target === expansionItem ? expansionItem : null,
+        details: () => ({ name: "8.1 检索单元用 episode，不优先用任意文本块" }),
+        key: (target) => target.id,
+        placement: "expansion",
+        focusDelay: 0,
+      },
+      {
+        name: "action",
+        container: root,
+        itemFromTarget: (target) => target === actionItem ? actionItem : null,
+        details: (target) => ({ name: target.dataset.uiTooltip }),
+        key: (target) => target.id,
+        placement: "bottom",
+        focusDelay: 0,
+      },
+    ],
+    windowTarget,
+    styleFromElement: () => ({
+      fontFamily: "Inter, system-ui, sans-serif",
+      fontSize: "13px",
+      fontStyle: "normal",
+      fontStretch: "100%",
+      fontVariant: "normal",
+      fontWeight: "400",
+      lineHeight: "16.25px",
+      letterSpacing: "normal",
+      wordSpacing: "0px",
+    }),
+  });
+
+  root.emit("focusin", { target: expansionItem });
+  assert.equal(tooltip.dataset.variant, "expansion");
+  assert.equal(tooltip.style.fontFamily, "Inter, system-ui, sans-serif");
+  assert.equal(tooltip.style.fontSize, "13px");
+  assert.equal(tooltip.style.lineHeight, "16.25px");
+  assert.equal(tooltip.children[0].style.fontWeight, "400");
+
+  root.emit("focusout", { target: expansionItem, relatedTarget: null });
+  root.emit("focusin", { target: actionItem });
+  assert.equal(tooltip.dataset.variant, "action");
+  assert.equal(tooltip.style.fontFamily, "");
+  assert.equal(tooltip.style.fontSize, "");
+  assert.equal(tooltip.children[0].style.fontWeight, undefined);
+
+  controller.destroy();
+});
+
 test("one shared controller renders actions, exposes shortcuts, and remains hoverable", () => {
   const root = createEventTarget();
   const windowTarget = {
