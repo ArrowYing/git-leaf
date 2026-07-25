@@ -119,7 +119,7 @@ import {
 } from "../public/help-content.js";
 import { getKeyboardShortcutGroups } from "../public/keyboard-shortcuts.js";
 
-applyDevelopmentUserDataOverride({ app, isDevBuild: BUILD_INFO.dev || !app.isPackaged });
+applyDevelopmentUserDataOverride({ app });
 
 let mainWindow = null;
 let activeServer = null;

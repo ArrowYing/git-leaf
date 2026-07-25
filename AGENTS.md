@@ -88,22 +88,16 @@ interaction is clickable, visible, scrollable, or editable in the real DOM.
 After changing macOS packaging, signing, notarization, local installation, or icons, run at least
 `npm run test:ci:mac`. Run `make install-dev-mac` only when a local application update must be verified.
 
-`make install-dev-mac` installs or replaces a development build and uses stable, persistent development
-configuration for human inspection; it is not the entry point for automated UI smoke. The development
-build is still installed as `Git Leaf.app`, but the interface clearly identifies it as `Git Leaf dev` and
-it does not check for production updates. Agent-driven automated verification must use the isolated,
-one-time snapshot created by `make smoke-dev-mac`; it must not contaminate production configuration or
-the human-inspection environment.
+`make install-dev-mac` installs or replaces the same human-facing `Git Leaf.app` and therefore uses the
+same real, persistent configuration as the formal app. The interface identifies the embedded development
+build as `Git Leaf dev`, and that build does not check for production updates, but build identity must not
+select a different Profile. Replacing the app must preserve the repositories, sessions, appearance,
+typography, language, favorites, and sidebar state the user already uses.
 
-Isolation applies to the write location, not to the user's initial experience. When stable development
-configuration does not yet exist, initialize it completely from the current production configuration so
-that repository lists, the current repository, workspace sessions, appearance, typography, and sidebar
-state are inherited. Later development installations must preserve the familiar state established in the
-development profile and must not overwrite it from production again. Agent smoke should create a
-one-time, read-only-derived snapshot from stable development configuration. Only when stable development
-configuration does not exist may it initialize from production configuration. If existing development
-configuration lacks a valid marker, copying fails, or fingerprint verification fails, stop without
-changing either persistent configuration; never fall back to production or empty configuration.
+Agent-driven automated verification is a different launch intent. It must use the explicit, one-time
+snapshot created by `make smoke-dev-mac`; the snapshot is derived read-only from the real Profile, writes
+both `userData` and `sessionData` only inside its temporary directory, verifies the real Profile
+fingerprint after the run, and then removes only that temporary directory.
 
 The formal release process is defined in `docs/release.md`. Use `release:prepare` to create an independent
 release worktree at the frozen commit, then use the controller inside that worktree for build, candidate,
@@ -159,12 +153,11 @@ test fixture.
   `npm run desktop`, `open /Applications/Git\ Leaf.app`, or `make install-dev-mac` for smoke.
 - Isolated launch logs must show the temporary userData path for that run. Without this evidence, stop
   the smoke; do not try the production application as a fallback.
-- Treat production configuration as read-only during development. Do not write to it, copy changes back
-  to it, or clean it unless the user explicitly asks to repair or migrate production configuration.
-- On first use, initialize the human-inspection environment completely from production configuration.
-  Thereafter, preserve the repositories, sessions, and preferences the user develops in the stable
-  development profile. Isolation must not mean a fresh default configuration, and reinstalling must not
-  reset it. Automated smoke operates only on a one-time copy of that familiar state.
+- Human use of either the formal or development build reads and writes the same real Profile. Do not
+  append a development suffix or pass an isolated user-data argument merely because a build is marked
+  `dev`.
+- Treat the real Profile as read-only during Agent automation. Do not write to it, copy smoke changes
+  back to it, or clean it unless the user explicitly asks to repair or migrate real configuration.
 - Never "restore" configuration from defaults, the current normalized result, or memory. After isolated
   smoke, delete only the temporary configuration. If production configuration is touched accidentally,
   stop the relevant processes and preserve the evidence. Report the affected files and fields before
@@ -174,8 +167,9 @@ test fixture.
   sessions, appearance, and unrelated values. A parse failure must not continue by writing an empty
   configuration. Migration tests must use temporary userData and cover both legacy fixtures and a fresh
   installation.
-- To verify migration of a real legacy configuration, copy it read-only into a temporary directory.
-  Never run migration or UI operations in place against production configuration.
+- Verify migration logic with temporary fixtures first. A real legacy Profile migration additionally
+  requires an explicit user request, a stopped App, validated source and target markers, and rollback
+  backups before any in-place change.
 
 ## Documentation links in responses
 

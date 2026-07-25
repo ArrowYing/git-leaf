@@ -90,12 +90,12 @@ Git Leaf 由一个 Node.js 本地 HTTP 服务、一个 Web 前端和一个 Elect
 
 - 用户打开 App 后选择一个本机 Git 仓库目录；
 - 选择结果保存到 Electron `userData` 配置目录；
-- 正式构建使用正式 `userData`；开发构建和源码启动默认改用隔离的开发目录。`make install-dev-mac`
-  首次从正式配置初始化稳定的人工开发 profile，后续安装只替换 App 并保留这个 profile；`make smoke-dev-mac`
-  再从人工开发 profile 生成独立的一次性快照，二者都同时隔离 `userData` 与 `sessionData`；
-- 人工开发 profile 采用“熟悉配置、隔离写入、持续保留”模型：首次完整继承正式版已有的仓库、工作台、外观和布局状态，
-  开发版后续变更只写入该副本且不会在重新安装时被覆盖。人工 profile 尚不存在时，smoke 才直接以正式配置为基线；
-  已有 profile 无有效标记、复制或双源指纹校验失败时终止，不允许回退到正式或空配置继续启动；
+- 人工实际使用的正式构建、开发构建和源码启动默认使用同一个真实 Profile。`make install-dev-mac`
+  替换的也是同一个 `Git Leaf.app`，构建身份只控制开发标识、更新通道和遥测资格，不得自动给 `userData`
+  添加 `-dev` 后缀；
+- Agent 自动化是另一种启动意图。`make smoke-dev-mac` 从真实 Profile 只读生成一次性快照，通过显式参数同时隔离
+  `userData` 与 `sessionData`，运行后校验真实 Profile 指纹并只清理临时目录。快照准备、复制或指纹校验失败时终止，
+  不允许直接使用真实 Profile 或空配置继续自动化；
 - 后续启动默认打开上次选择的仓库；
 - 仓库不存在或不再是 Git 仓库时，重新提示用户选择；
 - 桌面版服务默认监听 `127.0.0.1:4317`，不把编辑服务暴露到内网。
@@ -503,7 +503,8 @@ macOS 使用 `Settings…`／`Command+,` 进入外观，Help 菜单使用 `Git L
 | `desktop/preference-sync.mjs` | 桌面偏好持久化、server 快照更新与 renderer 广播的可测试同步边界 |
 | `desktop/settings-center.mjs`、`desktop/settings/` | 全屏设置与帮助中心、受限 IPC、页面导航和偏好交互 |
 | `src/desktop-config.mjs` | 桌面仓库、窗口、工作台状态和全局个人偏好的串行、原子持久化；保留最近有效备份，损坏且无法恢复时拒绝覆盖 |
-| `src/desktop-user-data.mjs` | 正式、人工开发检查和 Agent smoke 三类配置目录的隔离边界 |
+| `src/desktop-user-data.mjs` | 人工使用默认共享真实 Profile、Agent smoke 仅可显式隔离的启动边界 |
+| `src/desktop-profile-migration.mjs` | 旧人工开发 Profile 向真实 Profile 的校验、合并、备份与回滚边界 |
 | `src/desktop-server.mjs` | 桌面版本机服务启动和端口回退 |
 | `src/cli.mjs` | CLI 入口、端口复用、服务启动 |
 | `src/server.mjs` | localhost HTTP API、文档读写、Git Leaf 页面服务 |

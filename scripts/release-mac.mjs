@@ -84,12 +84,10 @@ export const releaseSteps = [
 export const devInstallSteps = [
   "package",
   "quit-dev-app",
-  "prepare-dev-user-data",
   "install-dev-app",
   "cleanup-dev-package",
   "refresh-dev-app-icon",
   "launch-dev-app",
-  "verify-production-profile",
 ];
 
 export const devSmokeSteps = [
@@ -406,26 +404,6 @@ function readDevelopmentProfileMarker(isolatedPaths) {
   return marker;
 }
 
-export function selectDevelopmentSmokeSource({
-  productionUserDataDir,
-  manualDevUserDataDir,
-} = {}) {
-  const isolatedPaths = assertDevelopmentUserDataIsolation({
-    productionUserDataDir,
-    devUserDataDir: manualDevUserDataDir,
-  });
-  if (!existsSync(isolatedPaths.devUserDataDir)) {
-    return isolatedPaths.productionUserDataDir;
-  }
-  const marker = readDevelopmentProfileMarker(isolatedPaths);
-  if (marker.profileMode !== "manual") {
-    throw new Error(
-      `Expected a manual development profile marker: ${isolatedPaths.devUserDataDir}`,
-    );
-  }
-  return isolatedPaths.devUserDataDir;
-}
-
 function developmentProfileMarker({
   isolatedPaths,
   sourceIdentity,
@@ -468,8 +446,7 @@ function strictDescendant(parentPath, childPath) {
 }
 
 export function prepareDevelopmentUserData(paths, {
-  profileMode = "manual",
-  sourceUserDataDir,
+  profileMode = "smoke",
   copyEntry = (sourcePath, destinationPath) => cpSync(
     sourcePath,
     destinationPath,
@@ -477,8 +454,8 @@ export function prepareDevelopmentUserData(paths, {
   ),
   rename = renameSync,
 } = {}) {
-  if (profileMode !== "manual" && profileMode !== "smoke") {
-    throw new Error(`Unsupported development profile mode: ${profileMode}`);
+  if (profileMode !== "smoke") {
+    throw new Error(`Only one-time Agent smoke profiles may be prepared: ${profileMode}`);
   }
 
   const isolatedPaths = assertDevelopmentUserDataIsolation(paths);
@@ -489,7 +466,7 @@ export function prepareDevelopmentUserData(paths, {
 
   const sourceIdentity = assertDevelopmentSnapshotSource(
     isolatedPaths,
-    sourceUserDataDir || isolatedPaths.productionUserDataDir,
+    isolatedPaths.productionUserDataDir,
   );
   const sourceFingerprint = developmentProfileFingerprint({
     productionUserDataDir: sourceIdentity.logicalPath,
@@ -578,9 +555,8 @@ export function prepareDevelopmentUserData(paths, {
       }
     }
 
-    console.log(`Development profile: ${isolatedPaths.devUserDataDir}`);
-    console.log(`Snapshot source is read-only: ${sourceIdentity.logicalPath}`);
-    console.log(`Production profile is read-only: ${isolatedPaths.productionUserDataDir}`);
+    console.log(`Agent smoke profile: ${isolatedPaths.devUserDataDir}`);
+    console.log(`Real profile snapshot source is read-only: ${sourceIdentity.logicalPath}`);
     return {
       ...isolatedPaths,
       sourceUserDataDir: sourceIdentity.logicalPath,
@@ -595,57 +571,6 @@ export function prepareDevelopmentUserData(paths, {
       rmSync(pendingStagingDir, { recursive: true, force: true });
     }
   }
-}
-
-export function ensureManualDevelopmentUserData(paths) {
-  const isolatedPaths = assertDevelopmentUserDataIsolation(paths);
-  if (!existsSync(isolatedPaths.devUserDataDir)) {
-    return prepareDevelopmentUserData(isolatedPaths, { profileMode: "manual" });
-  }
-
-  const marker = readDevelopmentProfileMarker(isolatedPaths);
-  if (marker.profileMode !== "manual") {
-    throw new Error(
-      `Refusing to reuse a non-manual development profile: ${isolatedPaths.devUserDataDir}`,
-    );
-  }
-  const productionFingerprint = developmentProfileFingerprint(isolatedPaths);
-  const sourceIdentity = pathIdentity(isolatedPaths.productionUserDataDir, { rejectSymlink: true });
-  const copiedFingerprint = developmentProfileFingerprint({
-    productionUserDataDir: isolatedPaths.devUserDataDir,
-  });
-  const copiedEntries = DEVELOPMENT_PROFILE_COPY_ENTRIES.filter((entry) => (
-    existsSync(path.join(isolatedPaths.devUserDataDir, entry))
-  ));
-  writeDevelopmentProfileMarker(
-    isolatedPaths.devUserDataDir,
-    developmentProfileMarker({
-      isolatedPaths,
-      sourceIdentity,
-      profileMode: "manual",
-      sourceFingerprint: productionFingerprint,
-      productionFingerprint,
-      copiedFingerprint,
-      copiedEntries,
-    }),
-  );
-  const productionFingerprintAfterMarker = developmentProfileFingerprint(isolatedPaths);
-  if (productionFingerprintAfterMarker.sha256 !== productionFingerprint.sha256) {
-    throw new Error("Production profile changed while reusing development user data.");
-  }
-
-  console.log(`Reusing familiar development profile: ${isolatedPaths.devUserDataDir}`);
-  console.log(`Production profile is read-only: ${isolatedPaths.productionUserDataDir}`);
-  return {
-    ...isolatedPaths,
-    sourceUserDataDir: isolatedPaths.productionUserDataDir,
-    copiedEntries,
-    sourceFingerprint: productionFingerprint,
-    productionFingerprint,
-    copiedFingerprint,
-    profileMode: "manual",
-    reused: true,
-  };
 }
 
 export function cleanupDevelopmentSmokeUserData(paths, {
@@ -1236,9 +1161,10 @@ function refreshDevelopmentAppIcon(paths) {
 }
 
 function launchDevelopmentApp(options, paths, { wait = false } = {}) {
-  const userDataPaths = macDevelopmentUserDataPaths(options);
   const [command, args] = launchDevelopmentAppCommand(paths, {
-    userDataDir: userDataPaths.devUserDataDir,
+    userDataDir: options.smoke
+      ? macDevelopmentUserDataPaths(options).devUserDataDir
+      : "",
     wait,
     repoRoot: options.smoke ? options.smokeRepoRoot : "",
     file: options.smoke ? options.smokeFile : "",
@@ -1252,8 +1178,8 @@ export function launchDevelopmentAppCommand(paths, {
   repoRoot = "",
   file = "",
 } = {}) {
-  if (!userDataDir || !path.isAbsolute(userDataDir)) {
-    throw new Error("A safe absolute development user-data path is required before launch.");
+  if (userDataDir && !path.isAbsolute(userDataDir)) {
+    throw new Error("An isolated user-data path must be absolute.");
   }
   if (repoRoot && !path.isAbsolute(repoRoot)) {
     throw new Error("A smoke repository must use an absolute path.");
@@ -1277,8 +1203,10 @@ export function launchDevelopmentAppCommand(paths, {
       ...(wait ? ["-W"] : []),
       "-n",
       paths.installedAppDir,
-      "--args",
-      `--git-leaf-dev-user-data-dir=${path.resolve(userDataDir)}`,
+      ...(userDataDir ? [
+        "--args",
+        `--git-leaf-dev-user-data-dir=${path.resolve(userDataDir)}`,
+      ] : []),
       ...(repoRoot ? [`--repo=${path.resolve(repoRoot)}`] : []),
       ...(normalizedFile ? [`--file=${normalizedFile}`] : []),
     ],
@@ -1654,16 +1582,16 @@ Commands:
   release        Run the full release sequence
   quit-dev-app   Quit the local installed development app if it is running
   prepare-dev-user-data
-                 Reuse the manual profile, or initialize it from production once
+                 Prepare a one-time Agent smoke snapshot from the real profile
   install-dev-app
                  Copy the packaged app into /Applications for local development
   cleanup-dev-package
                  Remove the temporary dist app so macOS only indexes /Applications
   refresh-dev-app-icon
                  Refresh LaunchServices and Dock icon cache for the dev app
-  launch-dev-app Launch the local installed app with its isolated dev profile
-  dev-install    Install for manual checking with a stable isolated dev profile
-  dev-smoke      Run Agent smoke with a one-time profile and verify after app exit
+  launch-dev-app Launch the local installed app with the real human profile
+  dev-install    Install for manual checking with the real human profile
+  dev-smoke      Run Agent smoke with an isolated one-time profile
 
 Environment overrides:
   DEVELOPER_ID_APPLICATION
@@ -1797,18 +1725,9 @@ export function runReleaseCommand(command, options = releaseOptionsFromEnv()) {
     case "prepare-dev-user-data": {
       const userDataPaths = macDevelopmentUserDataPaths(options);
       if (!options.smoke) {
-        return ensureManualDevelopmentUserData(userDataPaths);
+        throw new Error("Profile snapshots are reserved for one-time Agent smoke.");
       }
-      const manualDevUserDataDir = options.manualDevUserDataDir
-        || macDevelopmentUserDataPaths({ ...options, devUserDataDir: undefined }).devUserDataDir;
-      const sourceUserDataDir = selectDevelopmentSmokeSource({
-        productionUserDataDir: userDataPaths.productionUserDataDir,
-        manualDevUserDataDir,
-      });
-      return prepareDevelopmentUserData(userDataPaths, {
-        profileMode: "smoke",
-        sourceUserDataDir,
-      });
+      return prepareDevelopmentUserData(userDataPaths);
     }
     case "install-dev-app":
       return installDevelopmentApp(paths);
@@ -1833,10 +1752,8 @@ export function runReleaseCommand(command, options = releaseOptionsFromEnv()) {
       }
       return;
     case "dev-smoke": {
-      const manualUserDataPaths = macDevelopmentUserDataPaths(options);
       const smokeOptions = macDevelopmentInstallOptions({
         ...options,
-        manualDevUserDataDir: manualUserDataPaths.devUserDataDir,
         devUserDataDir: options.smokeUserDataDir || DEFAULT_SMOKE_USER_DATA_DIR,
         smoke: true,
       });

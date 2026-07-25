@@ -100,14 +100,12 @@ export function applyDevelopmentUserDataOverride({
   app,
   argv = process.argv,
   env = process.env,
-  isDevBuild = false,
   makeDir = mkdirSync,
   log = console.log,
 } = {}) {
   const defaultDir = app.getPath("userData");
   const defaultSessionDir = app.getPath("sessionData");
-  const requestedDir = requestedDevelopmentUserDataDir({ argv, env })
-    || (isDevBuild ? `${defaultDir}-dev` : "");
+  const requestedDir = requestedDevelopmentUserDataDir({ argv, env });
   if (!requestedDir) {
     return { applied: false };
   }

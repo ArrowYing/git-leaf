@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { renameSync } from "node:fs";
-import { mkdir, mkdtemp, readFile, readdir, realpath, rm, stat, utimes, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, stat, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -24,7 +24,6 @@ import {
   electronCacheZipDir,
   electronPackagerArgs,
   ensureReleaseLoginKeychainSession,
-  ensureManualDevelopmentUserData,
   launchDevelopmentAppCommand,
   macCommandRequiresNewReleaseVersion,
   macDevelopmentInstallOptions,
@@ -40,7 +39,6 @@ import {
   dmgStagingVolumeName,
   nestedMachOSigningTargets,
   prepareDevelopmentUserData,
-  selectDevelopmentSmokeSource,
   releaseSteps,
   runReleaseCommand,
   runDevelopmentSmokeWorkflow,
@@ -579,12 +577,10 @@ test("dev install updates the local Applications app and launches it", () => {
   assert.deepEqual(devInstallSteps, [
     "package",
     "quit-dev-app",
-    "prepare-dev-user-data",
     "install-dev-app",
     "cleanup-dev-package",
     "refresh-dev-app-icon",
     "launch-dev-app",
-    "verify-production-profile",
   ]);
   assert.deepEqual(devSmokeSteps, [
     "validate-smoke-user-data",
@@ -609,11 +605,16 @@ test("dev install updates the local Applications app and launches it", () => {
   assert.equal(slashPath(paths.installedAppDir), "/Applications/Git Leaf.app");
 });
 
-test("manual dev install and Agent smoke use separate isolated profile paths", () => {
-  assert.deepEqual(macDevelopmentUserDataPaths({ homeDir: "/Users/test" }), {
-    productionUserDataDir: "/Users/test/Library/Application Support/git-leaf",
-    devUserDataDir: "/Users/test/Library/Application Support/git-leaf-dev",
+test("human dev launch shares the real profile while Agent smoke is explicitly isolated", () => {
+  const paths = macDevelopmentInstallPaths({
+    rootDir: "/repo",
+    appName: "Git Leaf",
+    applicationsDir: "/Applications",
   });
+  assert.deepEqual(launchDevelopmentAppCommand(paths), [
+    "open",
+    ["-n", "/Applications/Git Leaf.app"],
+  ]);
   assert.deepEqual(macDevelopmentUserDataPaths({
     homeDir: "/Users/test",
     devUserDataDir: "/tmp/git-leaf-agent-smoke",
@@ -682,140 +683,20 @@ test("development profile snapshot copies durable state and detects production m
   );
 });
 
-test("manual dev install preserves the familiar state already chosen in the development profile", async () => {
-  const homeDir = await mkdtempPath("git-leaf-mac-familiar-dev-profile-");
-  const paths = macDevelopmentUserDataPaths({ homeDir });
-  const productionConfig = {
-    repoRoot: "/repo/company-docs",
-    openRepoRoots: ["/repo/company-docs"],
-    preferences: {
-      colorMode: "light",
-      documentFontSize: 16,
-      sidebarCollapsed: false,
-    },
-  };
-  const familiarDevelopmentConfig = {
-    repoRoot: "/repo/git-leaf",
-    openRepoRoots: ["/repo/company-docs", "/repo/git-leaf", "/repo/content-repo"],
-    preferences: {
-      colorMode: "system",
-      documentFontSize: 18,
-      sidebarCollapsed: true,
-      workbenchSessions: {
-        "known-repo": {
-          tabs: [{ path: "AGENTS.md" }],
-          activeTabPath: "AGENTS.md",
-        },
-      },
-    },
-  };
-  await mkdir(paths.productionUserDataDir, { recursive: true });
-  await writeFile(
-    path.join(paths.productionUserDataDir, "desktop-config.json"),
-    `${JSON.stringify(productionConfig, null, 2)}\n`,
+test("Agent smoke snapshots the real profile and ignores a legacy manual dev profile", async () => {
+  const homeDir = await mkdtempPath("git-leaf-mac-real-profile-smoke-");
+  const productionUserDataDir = path.join(
+    homeDir,
+    "Library",
+    "Application Support",
+    "git-leaf",
   );
-
-  prepareDevelopmentUserData(paths, { profileMode: "manual" });
-  await writeFile(
-    path.join(paths.devUserDataDir, "desktop-config.json"),
-    `${JSON.stringify(familiarDevelopmentConfig, null, 2)}\n`,
+  const legacyDevUserDataDir = path.join(
+    homeDir,
+    "Library",
+    "Application Support",
+    "git-leaf-dev",
   );
-  await writeFile(path.join(paths.devUserDataDir, "familiar-dev-state"), "must survive reinstall");
-
-  const result = ensureManualDevelopmentUserData(paths);
-
-  assert.equal(result.reused, true);
-  assert.equal(
-    await readFile(path.join(paths.devUserDataDir, "desktop-config.json"), "utf8"),
-    `${JSON.stringify(familiarDevelopmentConfig, null, 2)}\n`,
-  );
-  assert.equal(
-    await readFile(path.join(paths.devUserDataDir, "familiar-dev-state"), "utf8"),
-    "must survive reinstall",
-  );
-  assert.equal(
-    await readFile(path.join(paths.productionUserDataDir, "desktop-config.json"), "utf8"),
-    `${JSON.stringify(productionConfig, null, 2)}\n`,
-  );
-});
-
-test("manual dev install initializes from production only when no development profile exists", async () => {
-  const homeDir = await mkdtempPath("git-leaf-mac-first-manual-profile-");
-  const paths = macDevelopmentUserDataPaths({ homeDir });
-  const productionConfig = {
-    openRepoRoots: ["/repo/company-docs", "/repo/git-leaf"],
-    preferences: { colorMode: "system", documentFontSize: 18 },
-  };
-  await mkdir(paths.productionUserDataDir, { recursive: true });
-  await writeFile(
-    path.join(paths.productionUserDataDir, "desktop-config.json"),
-    `${JSON.stringify(productionConfig, null, 2)}\n`,
-  );
-
-  const result = ensureManualDevelopmentUserData(paths);
-
-  assert.equal(result.reused, false);
-  assert.equal(
-    await readFile(path.join(paths.devUserDataDir, "desktop-config.json"), "utf8"),
-    `${JSON.stringify(productionConfig, null, 2)}\n`,
-  );
-});
-
-test("manual dev install upgrades a legacy profile marker without replacing familiar settings", async () => {
-  const homeDir = await mkdtempPath("git-leaf-mac-legacy-manual-profile-");
-  const paths = macDevelopmentUserDataPaths({ homeDir });
-  const productionConfig = {
-    openRepoRoots: ["/repo/company-docs"],
-    preferences: { colorMode: "light" },
-  };
-  const familiarDevelopmentConfig = {
-    openRepoRoots: ["/repo/company-docs", "/repo/git-leaf", "/repo/content-repo"],
-    preferences: { colorMode: "system" },
-  };
-  await mkdir(paths.productionUserDataDir, { recursive: true });
-  await mkdir(paths.devUserDataDir, { recursive: true });
-  await writeFile(
-    path.join(paths.productionUserDataDir, "desktop-config.json"),
-    `${JSON.stringify(productionConfig, null, 2)}\n`,
-  );
-  await writeFile(
-    path.join(paths.devUserDataDir, "desktop-config.json"),
-    `${JSON.stringify(familiarDevelopmentConfig, null, 2)}\n`,
-  );
-  const productionFingerprint = developmentProfileFingerprint(paths);
-  await writeFile(
-    path.join(paths.devUserDataDir, ".git-leaf-dev-smoke-profile.json"),
-    `${JSON.stringify({
-      kind: "git-leaf-development-profile",
-      schemaVersion: 1,
-      profileMode: "manual",
-      sourceUserDataDir: paths.productionUserDataDir,
-      devUserDataDir: paths.devUserDataDir,
-      sourcePhysicalUserDataDir: await realpath(paths.productionUserDataDir),
-      devPhysicalUserDataDir: await realpath(paths.devUserDataDir),
-      sourceFingerprint: productionFingerprint,
-      copiedFingerprint: productionFingerprint,
-      copiedEntries: ["desktop-config.json"],
-    }, null, 2)}\n`,
-  );
-
-  const result = ensureManualDevelopmentUserData(paths);
-  const upgradedMarker = JSON.parse(await readFile(
-    path.join(paths.devUserDataDir, ".git-leaf-dev-smoke-profile.json"),
-    "utf8",
-  ));
-
-  assert.equal(result.reused, true);
-  assert.equal(upgradedMarker.schemaVersion, 2);
-  assert.equal(
-    await readFile(path.join(paths.devUserDataDir, "desktop-config.json"), "utf8"),
-    `${JSON.stringify(familiarDevelopmentConfig, null, 2)}\n`,
-  );
-});
-
-test("development smoke clones the familiar manual profile instead of stale production settings", async () => {
-  const homeDir = await mkdtempPath("git-leaf-mac-familiar-smoke-profile-");
-  const stablePaths = macDevelopmentUserDataPaths({ homeDir });
   const smokePaths = macDevelopmentUserDataPaths({
     homeDir,
     devUserDataDir: path.join(homeDir, "smoke-profile"),
@@ -824,88 +705,32 @@ test("development smoke clones the familiar manual profile instead of stale prod
     openRepoRoots: ["/repo/company-docs"],
     preferences: { colorMode: "light" },
   };
-  const familiarDevelopmentConfig = {
+  const legacyDevelopmentConfig = {
     openRepoRoots: ["/repo/company-docs", "/repo/git-leaf", "/repo/content-repo"],
-    preferences: {
-      colorMode: "system",
-      workbenchSessions: {
-        "known-repo": {
-          tabs: [{ path: "AGENTS.md" }],
-          activeTabPath: "AGENTS.md",
-        },
-      },
-    },
+    preferences: { colorMode: "system" },
   };
-  await mkdir(stablePaths.productionUserDataDir, { recursive: true });
+  await mkdir(productionUserDataDir, { recursive: true });
+  await mkdir(legacyDevUserDataDir, { recursive: true });
   await writeFile(
-    path.join(stablePaths.productionUserDataDir, "desktop-config.json"),
+    path.join(productionUserDataDir, "desktop-config.json"),
     `${JSON.stringify(productionConfig, null, 2)}\n`,
   );
-  prepareDevelopmentUserData(stablePaths, { profileMode: "manual" });
   await writeFile(
-    path.join(stablePaths.devUserDataDir, "desktop-config.json"),
-    `${JSON.stringify(familiarDevelopmentConfig, null, 2)}\n`,
+    path.join(legacyDevUserDataDir, "desktop-config.json"),
+    `${JSON.stringify(legacyDevelopmentConfig, null, 2)}\n`,
   );
 
-  const sourceUserDataDir = selectDevelopmentSmokeSource({
-    productionUserDataDir: stablePaths.productionUserDataDir,
-    manualDevUserDataDir: stablePaths.devUserDataDir,
-  });
-  const productionBefore = developmentProfileFingerprint(stablePaths);
-  const manualBefore = developmentProfileFingerprint({
-    productionUserDataDir: stablePaths.devUserDataDir,
-  });
-  prepareDevelopmentUserData(smokePaths, {
-    profileMode: "smoke",
-    sourceUserDataDir,
-  });
+  const productionBefore = developmentProfileFingerprint(smokePaths);
+  prepareDevelopmentUserData(smokePaths);
 
-  assert.equal(sourceUserDataDir, stablePaths.devUserDataDir);
   assert.equal(
     await readFile(path.join(smokePaths.devUserDataDir, "desktop-config.json"), "utf8"),
-    `${JSON.stringify(familiarDevelopmentConfig, null, 2)}\n`,
+    `${JSON.stringify(productionConfig, null, 2)}\n`,
   );
-  assert.deepEqual(developmentProfileFingerprint(stablePaths), productionBefore);
-  assert.deepEqual(
-    developmentProfileFingerprint({ productionUserDataDir: stablePaths.devUserDataDir }),
-    manualBefore,
-  );
+  assert.deepEqual(developmentProfileFingerprint(smokePaths), productionBefore);
   const verification = verifyProductionProfileUnchanged(smokePaths);
   assert.deepEqual(verification.productionFingerprint, productionBefore);
-  assert.deepEqual(verification.sourceFingerprint, manualBefore);
-
-  await writeFile(
-    path.join(stablePaths.devUserDataDir, "desktop-config.json"),
-    `${JSON.stringify({ ...familiarDevelopmentConfig, changedDuringSmoke: true }, null, 2)}\n`,
-  );
-  assert.throws(
-    () => verifyProductionProfileUnchanged(smokePaths),
-    /snapshot source changed during smoke/i,
-  );
-});
-
-test("development smoke falls back to production only before a manual profile exists", async () => {
-  const homeDir = await mkdtempPath("git-leaf-mac-first-smoke-profile-");
-  const paths = macDevelopmentUserDataPaths({ homeDir });
-  await mkdir(paths.productionUserDataDir, { recursive: true });
-
-  assert.equal(selectDevelopmentSmokeSource({
-    productionUserDataDir: paths.productionUserDataDir,
-    manualDevUserDataDir: paths.devUserDataDir,
-  }), paths.productionUserDataDir);
-});
-
-test("development smoke fails closed when an existing manual profile is not a valid snapshot", async () => {
-  const homeDir = await mkdtempPath("git-leaf-mac-invalid-manual-profile-");
-  const paths = macDevelopmentUserDataPaths({ homeDir });
-  await mkdir(paths.productionUserDataDir, { recursive: true });
-  await mkdir(paths.devUserDataDir, { recursive: true });
-  await writeFile(path.join(paths.devUserDataDir, "desktop-config.json"), "{}");
-
-  assert.throws(() => selectDevelopmentSmokeSource({
-    productionUserDataDir: paths.productionUserDataDir,
-    manualDevUserDataDir: paths.devUserDataDir,
-  }), /development profile marker/i);
+  assert.deepEqual(verification.sourceFingerprint, productionBefore);
 });
 
 test("development profile isolation rejects symlink aliases into production", {
@@ -1023,33 +848,19 @@ test("one-time smoke cleanup requires a matching marker under the temporary root
   assert.equal(await readFile(path.join(paths.devUserDataDir, "keep.txt"), "utf8"), "no marker");
 });
 
-test("smoke cleanup verifies both production and the familiar manual source", async () => {
-  const temporaryRoot = await mkdtempPath("git-leaf-mac-dual-source-cleanup-");
+test("smoke cleanup preserves diagnostics if the real profile changes after verification", async () => {
+  const temporaryRoot = await mkdtempPath("git-leaf-mac-source-cleanup-");
   const productionUserDataDir = path.join(temporaryRoot, "production");
-  const manualDevUserDataDir = path.join(temporaryRoot, "manual-development");
-  const manualPaths = {
-    productionUserDataDir,
-    devUserDataDir: manualDevUserDataDir,
-  };
   await mkdir(productionUserDataDir);
   await writeFile(
     path.join(productionUserDataDir, "desktop-config.json"),
     JSON.stringify({ preferences: { colorMode: "light" } }),
   );
-  prepareDevelopmentUserData(manualPaths, { profileMode: "manual" });
-  await writeFile(
-    path.join(manualDevUserDataDir, "desktop-config.json"),
-    JSON.stringify({ preferences: { colorMode: "system" } }),
-  );
-
   const firstSmokePaths = {
     productionUserDataDir,
     devUserDataDir: path.join(temporaryRoot, "smoke-success"),
   };
-  prepareDevelopmentUserData(firstSmokePaths, {
-    profileMode: "smoke",
-    sourceUserDataDir: manualDevUserDataDir,
-  });
+  prepareDevelopmentUserData(firstSmokePaths);
   const firstVerification = verifyProductionProfileUnchanged(firstSmokePaths);
   assert.equal(cleanupDevelopmentSmokeUserData(firstSmokePaths, {
     temporaryRoot,
@@ -1061,13 +872,10 @@ test("smoke cleanup verifies both production and the familiar manual source", as
     productionUserDataDir,
     devUserDataDir: path.join(temporaryRoot, "smoke-preserved"),
   };
-  prepareDevelopmentUserData(secondSmokePaths, {
-    profileMode: "smoke",
-    sourceUserDataDir: manualDevUserDataDir,
-  });
+  prepareDevelopmentUserData(secondSmokePaths);
   const secondVerification = verifyProductionProfileUnchanged(secondSmokePaths);
   await writeFile(
-    path.join(manualDevUserDataDir, "desktop-config.json"),
+    path.join(productionUserDataDir, "desktop-config.json"),
     JSON.stringify({ preferences: { colorMode: "dark" } }),
   );
 
@@ -1076,7 +884,7 @@ test("smoke cleanup verifies both production and the familiar manual source", as
       temporaryRoot,
       verifiedProductionFingerprint: secondVerification,
     }),
-    /snapshot source changed after verification/i,
+    /Production profile changed after verification/i,
   );
   assert.equal((await stat(secondSmokePaths.devUserDataDir)).isDirectory(), true);
 });

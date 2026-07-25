@@ -19,6 +19,7 @@
     "desktop": "electron desktop/main.mjs",
     "docs:check": "node scripts/check-doc-links.mjs",
     "install:mac:dev": "node scripts/release-mac.mjs dev-install",
+    "migrate:mac:legacy-human-profile": "node scripts/migrate-legacy-human-profile.mjs",
     "package:mac": "node scripts/release-mac.mjs package",
     "package:win": "node scripts/release-windows.mjs package",
     "portable:win": "node scripts/release-windows.mjs portable",

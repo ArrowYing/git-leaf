@@ -93,13 +93,12 @@ test("formal builds keep Electron default paths without an explicit override", (
   assert.deepEqual(calls, []);
 });
 
-test("dev builds explicitly isolate both userData and sessionData", () => {
+test("human dev builds share Electron default userData and sessionData", () => {
   const calls = [];
   const made = [];
   const logs = [];
   const defaultDir = path.resolve("/profiles/git-leaf");
   const sessionDir = path.resolve("/sessions/git-leaf");
-  const developmentDir = `${defaultDir}-dev`;
   const result = applyDevelopmentUserDataOverride({
     app: {
       getPath: (name) => name === "userData" ? defaultDir : sessionDir,
@@ -112,18 +111,13 @@ test("dev builds explicitly isolate both userData and sessionData", () => {
     log: (message) => logs.push(message),
   });
 
-  assert.equal(result.userDataDir, developmentDir);
-  assert.deepEqual(made, [[developmentDir, { recursive: true }]]);
-  assert.deepEqual(calls, [
-    ["userData", developmentDir],
-    ["sessionData", developmentDir],
-  ]);
-  assert.deepEqual(logs, [
-    `[Git Leaf dev] Isolated userData/sessionData: ${developmentDir}`,
-  ]);
+  assert.deepEqual(result, { applied: false });
+  assert.deepEqual(made, []);
+  assert.deepEqual(calls, []);
+  assert.deepEqual(logs, []);
 });
 
-test("one-time smoke override replaces the stable dev default", () => {
+test("one-time Agent smoke explicitly isolates userData and sessionData", () => {
   const calls = [];
   const defaultDir = path.resolve("/profiles/git-leaf");
   const smokeDir = path.resolve("/tmp/git-leaf-agent-smoke");

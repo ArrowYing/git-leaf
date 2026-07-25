@@ -83,6 +83,28 @@ The public profile's `legacyInternalMigrationConfirmed` flag is a reviewed opera
 
 Normal `package:mac`, `package:win`, and `portable:win` commands work without a profile and produce source builds. A formal package, signature, publication, or release tag fails unless the frozen official profile and track are present.
 
+## Human and automation Profiles
+
+The installed formal app and a development build installed for human use are the same `Git Leaf.app`.
+They use the same real Electron Profile so replacing one build with the other preserves repositories,
+workbench sessions, favorites, language, and preferences. Development build metadata still disables
+production updates; it does not select a `git-leaf-dev` directory.
+
+Agent-driven automated UI verification, when run as a separate development task, is the only macOS flow
+that selects another Profile. It creates a one-time snapshot of the real Profile, passes its temporary
+path explicitly as both `userData` and `sessionData`, verifies the real Profile after the App exits, and
+then deletes only the snapshot. This automated UI verification remains outside the formal release gates.
+
+The historical persistent `git-leaf-dev` Profile can be merged once, with the App closed, using:
+
+```bash
+npm run migrate:mac:legacy-human-profile -- --apply
+```
+
+The migration validates the legacy manual marker, backs up both Profiles, merges repository and
+workbench state with the human development state taking precedence, and preserves the old directory as
+an additional recovery source.
+
 ## Verification
 
 Before preparing a release:
@@ -323,6 +345,7 @@ The public `/open` download page must ignore internal manifests even while the b
 - macOS official releases use Mango Future's Developer ID signature and notarization.
 - Windows is currently distributed as an unsigned Preview ZIP. Documentation and download surfaces must state this plainly until Authenticode signing is implemented.
 - Public and internal official builds share the existing application identity and userData location so updates preserve repositories, sessions, and preferences.
+- Human-installed development builds share that userData location too; only explicit Agent smoke uses a temporary Profile.
 - Source builds never join an official update channel.
 
 ## Package inspection

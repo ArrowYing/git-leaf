@@ -282,7 +282,7 @@ function invalidDesktopConfigError({ configPath, primary, backupPath, backup }) 
   return error;
 }
 
-function normalizeDesktopConfig(payload, { newInstall = false } = {}) {
+export function normalizeDesktopConfig(payload, { newInstall = false } = {}) {
   const source = objectRecord(payload);
   const unknownFields = { ...source };
   for (const key of [
