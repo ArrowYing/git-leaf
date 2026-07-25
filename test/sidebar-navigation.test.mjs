@@ -5,6 +5,7 @@ import {
   sidebarControlsForView,
   sidebarEmptyStateKind,
   normalizeSidebarTab,
+  shouldShowSparseFavoritesGuidance,
   sidebarTabFromKey,
   sidebarTreeForView,
 } from "../public/sidebar-navigation.js";
@@ -64,6 +65,29 @@ test("search and filters affect only the all view empty state", () => {
     view: "sync",
     frontmatterFilterCount: 1,
   }), "sync");
+});
+
+test("favorites guidance stays visible only while the saved list is sparse", () => {
+  assert.equal(shouldShowSparseFavoritesGuidance({
+    view: "favorites",
+    favoriteCount: 0,
+  }), false);
+  assert.equal(shouldShowSparseFavoritesGuidance({
+    view: "favorites",
+    favoriteCount: 1,
+  }), true);
+  assert.equal(shouldShowSparseFavoritesGuidance({
+    view: "favorites",
+    favoriteCount: 2,
+  }), true);
+  assert.equal(shouldShowSparseFavoritesGuidance({
+    view: "favorites",
+    favoriteCount: 3,
+  }), false);
+  assert.equal(shouldShowSparseFavoritesGuidance({
+    view: "all",
+    favoriteCount: 1,
+  }), false);
 });
 
 test("favorites view contains explicit folders and documents in saved order", () => {

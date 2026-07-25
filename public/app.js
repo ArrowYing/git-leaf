@@ -79,6 +79,7 @@ import {
   sidebarEmptyStateKind,
   sidebarTabFromKey,
   sidebarTreeForView,
+  shouldShowSparseFavoritesGuidance,
 } from "./sidebar-navigation.js";
 import {
   activateDocumentTab,
@@ -2640,8 +2641,26 @@ function renderTree() {
     list.append(renderNode(node, ""));
   }
   fileTree.append(list);
+  if (shouldShowSparseFavoritesGuidance({
+    view: state.sidebarTab,
+    favoriteCount: state.sidebarFavorites.length,
+  })) {
+    renderSparseFavoritesGuidance();
+  }
   restoreTreeFocus(previousTreeFocus);
   restoreWorkbenchTreeViewportIfPending();
+}
+
+function renderSparseFavoritesGuidance() {
+  const guidance = document.createElement("div");
+  guidance.className = "sidebar-favorites-guidance";
+  guidance.setAttribute("role", "note");
+  const title = document.createElement("strong");
+  title.textContent = t("favorites.sparseTitle");
+  const detail = document.createElement("span");
+  detail.textContent = t("favorites.sparseDetail");
+  guidance.append(title, detail);
+  fileTree.append(guidance);
 }
 
 function renderSidebarTreeEmpty() {

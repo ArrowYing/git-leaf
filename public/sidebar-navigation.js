@@ -1,6 +1,7 @@
 import { favoriteNodesFromTree } from "./sidebar-favorites.js";
 
 export const SIDEBAR_TABS = Object.freeze(["all", "favorites", "sync"]);
+const SPARSE_FAVORITES_LIMIT = 2;
 
 export function normalizeSidebarTab(value) {
   return SIDEBAR_TABS.includes(value) ? value : "all";
@@ -45,6 +46,17 @@ export function sidebarEmptyStateKind({
     Number(frontmatterFilterCount) > 0
   );
   return filtering ? "filtered" : normalizedView;
+}
+
+export function shouldShowSparseFavoritesGuidance({
+  view = "all",
+  favoriteCount = 0,
+} = {}) {
+  const count = Number(favoriteCount);
+  return normalizeSidebarTab(view) === "favorites"
+    && Number.isInteger(count)
+    && count > 0
+    && count <= SPARSE_FAVORITES_LIMIT;
 }
 
 export function sidebarTreeForView(nodes, {
