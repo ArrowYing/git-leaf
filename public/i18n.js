@@ -65,6 +65,7 @@ export function localizeDocument(root, translate) {
   }
   localizeAttribute(root, translate, "data-i18n", "textContent");
   localizeAttribute(root, translate, "data-i18n-title", "title");
+  localizeAttribute(root, translate, "data-i18n-data-ui-tooltip", "data-ui-tooltip");
   localizeAttribute(root, translate, "data-i18n-placeholder", "placeholder");
   localizeAttribute(root, translate, "data-i18n-aria-label", "aria-label");
   localizeAttribute(root, translate, "data-i18n-data-empty-label", "data-empty-label");

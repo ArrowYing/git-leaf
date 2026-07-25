@@ -179,12 +179,16 @@
                 <path class="sidebar-toggle-direction" d="m15 9-3 3 3 3"></path>
               </svg>
             </button>
-            <button id="history-back" class="titlebar-icon-button" type="button" aria-label="后退" data-i18n-aria-label="action.back">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"></path></svg>
-            </button>
-            <button id="history-forward" class="titlebar-icon-button" type="button" aria-label="前进" data-i18n-aria-label="action.forward">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg>
-            </button>
+            <span class="ui-tooltip-anchor" data-ui-tooltip-anchor>
+              <button id="history-back" class="titlebar-icon-button" type="button" aria-label="后退" data-i18n-aria-label="action.back">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"></path></svg>
+              </button>
+            </span>
+            <span class="ui-tooltip-anchor" data-ui-tooltip-anchor>
+              <button id="history-forward" class="titlebar-icon-button" type="button" aria-label="前进" data-i18n-aria-label="action.forward">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg>
+              </button>
+            </span>
           </nav>
         </div>
         <div class="toolbar-divider" aria-hidden="true"></div>
@@ -198,9 +202,8 @@
               data-empty-label="No open documents"
               data-i18n-data-empty-label="tabs.empty"
             ></nav>
-            <button id="document-new" class="document-new" type="button" aria-label="新建文档" title="新建文档" data-i18n-aria-label="action.newDocument" data-i18n-title="action.newDocument">＋</button>
+            <button id="document-new" class="document-new" type="button" aria-label="新建文档" data-ui-tooltip="新建文档" data-i18n-aria-label="action.newDocument" data-i18n-data-ui-tooltip="action.newDocument">＋</button>
           </div>
-          <div id="document-tab-tooltip" class="document-tab-tooltip" role="tooltip" hidden></div>
           <div class="toolbar-system-controls" aria-label="系统操作" data-i18n-aria-label="aria.systemActions">
             <div class="mode-switch" aria-label="显示模式" data-i18n-aria-label="aria.displayMode">
               <button id="mode-preview" type="button" data-mode="preview" aria-pressed="true">Preview</button>
@@ -316,7 +319,7 @@
             <div id="agent-context-popover" class="agent-context-popover" hidden>
               <header class="agent-context-popover-header">
                 <strong class="agent-context-popover-title" data-i18n="agentContext.title">Agent 上下文</strong>
-                <button id="agent-context-close" type="button" aria-label="收起 Agent 上下文" data-i18n-aria-label="action.collapseAgentContext">⌄</button>
+                <button id="agent-context-close" type="button" aria-label="收起 Agent 上下文" data-ui-tooltip="收起 Agent 上下文" data-i18n-aria-label="action.collapseAgentContext" data-i18n-data-ui-tooltip="action.collapseAgentContext">⌄</button>
               </header>
               <div id="agent-context-list" class="agent-context-list"></div>
               <div id="agent-context-empty" class="agent-context-empty" hidden>
@@ -371,13 +374,13 @@
               >
             </label>
             <output id="document-search-count" class="document-search-count" aria-live="polite">0 / 0</output>
-            <button id="document-search-previous" type="button" aria-label="上一个匹配" title="上一个匹配（Shift+Enter）" data-i18n-aria-label="action.previousMatch" data-i18n-title="action.previousMatchTitle">↑</button>
-            <button id="document-search-next" type="button" aria-label="下一个匹配" title="下一个匹配（Enter）" data-i18n-aria-label="action.nextMatch" data-i18n-title="action.nextMatchTitle">↓</button>
-            <button id="document-search-close" type="button" aria-label="关闭查找" title="关闭查找（Esc）" data-i18n-aria-label="action.closeSearch" data-i18n-title="action.closeSearchTitle">×</button>
+            <button id="document-search-previous" type="button" aria-label="上一个匹配" data-ui-tooltip="上一个匹配（Shift+Enter）" data-i18n-aria-label="action.previousMatch" data-i18n-data-ui-tooltip="action.previousMatchTitle">↑</button>
+            <button id="document-search-next" type="button" aria-label="下一个匹配" data-ui-tooltip="下一个匹配（Enter）" data-i18n-aria-label="action.nextMatch" data-i18n-data-ui-tooltip="action.nextMatchTitle">↓</button>
+            <button id="document-search-close" type="button" aria-label="关闭查找" data-ui-tooltip="关闭查找（Esc）" data-i18n-aria-label="action.closeSearch" data-i18n-data-ui-tooltip="action.closeSearchTitle">×</button>
           </section>
           <div id="floating-document-actions" class="floating-document-actions" aria-label="文件操作" data-i18n-aria-label="aria.fileActions" hidden>
             <span id="source-sync-status" class="source-sync-status" hidden></span>
-            <button id="document-favorite-toggle" class="document-favorite-toggle" type="button" aria-label="收藏文档" title="收藏文档" aria-pressed="false">
+            <button id="document-favorite-toggle" class="document-favorite-toggle" type="button" aria-label="收藏文档" data-ui-tooltip="收藏文档" aria-pressed="false">
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="m12 3.6 2.55 5.17 5.7.83-4.13 4.02.98 5.68L12 16.62 6.9 19.3l.98-5.68L3.75 9.6l5.7-.83L12 3.6Z"></path>
               </svg>
@@ -464,7 +467,7 @@
           <div id="copy-toast" class="copy-toast" role="status" aria-live="polite" hidden></div>
         </main>
       </div>
-      <div id="overflow-tooltip" class="overflow-tooltip" role="tooltip" hidden></div>
+      <div id="ui-tooltip" class="ui-tooltip" role="tooltip" aria-hidden="true" hidden></div>
       <div id="file-action-menu" class="file-action-menu" role="menu" aria-label="文件操作" data-i18n-aria-label="aria.fileActions" hidden></div>
       <div id="git-sync-panel" class="git-sync-panel" role="dialog" aria-modal="true" aria-labelledby="git-sync-title" hidden>
         <section class="git-sync-dialog">
@@ -473,7 +476,7 @@
               <h2 id="git-sync-title" data-i18n="sync.agentTitle">需要 AI Agent 处理</h2>
               <p data-i18n="sync.agentDetail">本地修改都已保留，可以交给 AI Agent 继续完成同步。</p>
             </div>
-            <button id="git-sync-close" type="button" aria-label="关闭同步面板" data-i18n-aria-label="action.close">×</button>
+            <button id="git-sync-close" type="button" aria-label="关闭同步面板" data-ui-tooltip="关闭" data-i18n-aria-label="action.close" data-i18n-data-ui-tooltip="action.close">×</button>
           </header>
           <div id="git-sync-result" class="git-sync-result" hidden>
             <p id="git-sync-result-title"></p>
@@ -487,7 +490,7 @@
         <section id="app-dialog-card" class="app-dialog-card">
           <header class="app-dialog-header">
             <h2 id="app-dialog-title"></h2>
-            <button id="app-dialog-close" type="button" aria-label="关闭" data-i18n-aria-label="action.close">×</button>
+            <button id="app-dialog-close" type="button" aria-label="关闭" data-ui-tooltip="关闭" data-i18n-aria-label="action.close" data-i18n-data-ui-tooltip="action.close">×</button>
           </header>
           <p id="app-dialog-message" class="app-dialog-message"></p>
           <div id="app-dialog-content" class="app-dialog-content" hidden></div>

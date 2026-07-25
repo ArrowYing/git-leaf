@@ -242,6 +242,14 @@ input {
   gap: 2px;
 }
 
+.ui-tooltip-anchor {
+  display: inline-flex;
+}
+
+.ui-tooltip-anchor > button:disabled {
+  pointer-events: none;
+}
+
 .titlebar-icon-button {
   display: inline-grid;
   place-items: center;
@@ -469,43 +477,6 @@ input {
 
 .document-tab.is-drop-after {
   box-shadow: inset -2px 0 0 var(--accent);
-}
-
-.document-tab-tooltip {
-  position: fixed;
-  z-index: 100;
-  max-width: min(520px, calc(100vw - 16px));
-  padding: 8px 10px;
-  border: 1px solid var(--panel-border);
-  border-radius: 6px;
-  background: var(--panel);
-  background-color: var(--panel);
-  box-shadow: 0 10px 28px color-mix(in srgb, #000 26%, transparent);
-  color: var(--text);
-  font-size: 12px;
-  line-height: 1.4;
-  opacity: 1;
-  pointer-events: none;
-  white-space: normal;
-  backdrop-filter: none;
-}
-
-.document-tab-tooltip[hidden] {
-  display: none;
-}
-
-.document-tab-tooltip-name {
-  color: var(--text-strong);
-  font-weight: 680;
-  overflow-wrap: anywhere;
-}
-
-.document-tab-tooltip-path {
-  margin-top: 3px;
-  color: var(--text-secondary);
-  font-family: var(--mono-font);
-  font-size: 11px;
-  overflow-wrap: anywhere;
 }
 
 .toolbar-system-controls {
@@ -1607,9 +1578,9 @@ summary.is-missing {
   font-weight: 600;
 }
 
-.overflow-tooltip {
+.ui-tooltip {
   position: absolute;
-  z-index: 100;
+  z-index: 120;
   width: max-content;
   max-width: min(520px, calc(100vw - 16px));
   padding: 8px 10px;
@@ -1622,21 +1593,43 @@ summary.is-missing {
   font-size: 12px;
   line-height: 1.4;
   opacity: 1;
-  pointer-events: none;
+  pointer-events: auto;
   white-space: normal;
 }
 
-.overflow-tooltip[hidden] {
+.ui-tooltip[hidden] {
   display: none;
 }
 
-.overflow-tooltip-name {
+.ui-tooltip[data-variant="action"] {
+  padding-block: 6px;
+}
+
+.ui-tooltip[data-variant="expansion"] {
+  padding-block: 5px;
+  pointer-events: none;
+}
+
+.ui-tooltip-title {
   color: var(--text-strong);
   font-weight: 680;
   overflow-wrap: anywhere;
 }
 
-.overflow-tooltip-path {
+.ui-tooltip-row {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+}
+
+.ui-tooltip-shortcut {
+  color: var(--text-secondary);
+  font-family: var(--mono-font);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.ui-tooltip-detail {
   margin-top: 3px;
   color: var(--text-secondary);
   font-family: var(--mono-font);
@@ -3823,7 +3816,7 @@ tr:last-child td {
   .sidebar,
   .sidebar-resizer,
   .agent-context-widget,
-  .overflow-tooltip,
+  .ui-tooltip,
   .floating-document-actions,
   .document-search,
   .document-outline,

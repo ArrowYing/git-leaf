@@ -24,12 +24,14 @@ test("system language resolution uses the first supported locale and defaults to
 test("document localization updates language, visible copy, and accessible attributes", () => {
   const textElement = fakeElement({ "data-i18n": "title" });
   const titleElement = fakeElement({ "data-i18n-title": "tooltip" });
+  const uiTooltipElement = fakeElement({ "data-i18n-data-ui-tooltip": "tooltip" });
   const placeholderElement = fakeElement({ "data-i18n-placeholder": "placeholder" });
   const ariaElement = fakeElement({ "data-i18n-aria-label": "aria" });
   const emptyLabelElement = fakeElement({ "data-i18n-data-empty-label": "empty" });
   const bySelector = new Map([
     ["[data-i18n]", [textElement]],
     ["[data-i18n-title]", [titleElement]],
+    ["[data-i18n-data-ui-tooltip]", [uiTooltipElement]],
     ["[data-i18n-placeholder]", [placeholderElement]],
     ["[data-i18n-aria-label]", [ariaElement]],
     ["[data-i18n-data-empty-label]", [emptyLabelElement]],
@@ -55,6 +57,7 @@ test("document localization updates language, visible copy, and accessible attri
   assert.equal(root.documentElement.dataset.locale, "en");
   assert.equal(textElement.textContent, "Title");
   assert.equal(titleElement.getAttribute("title"), "Tooltip");
+  assert.equal(uiTooltipElement.getAttribute("data-ui-tooltip"), "Tooltip");
   assert.equal(placeholderElement.getAttribute("placeholder"), "Search");
   assert.equal(ariaElement.getAttribute("aria-label"), "Search documents");
   assert.equal(emptyLabelElement.getAttribute("data-empty-label"), "No open documents");

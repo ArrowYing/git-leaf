@@ -26,7 +26,7 @@ import {
   sidebarCollapsedFromStorageValue,
   sidebarWidthFromStorageValue,
 } from "./layout.js";
-import { createOverflowTooltip } from "./overflow-tooltip.js";
+import { createUiTooltip, elementIsOverflowing } from "./ui-tooltip.js";
 import { attachHorizontalPointerResize } from "./pointer-resize.js";
 import {
   activeOutlineIdForSourceLine,
@@ -302,9 +302,6 @@ const state = {
   workbenchSessionTimer: null,
   pendingWorkbenchTreeViewportRestore: Boolean(initialWorkbenchSession),
   lastTreeFocus: initialWorkbenchSession?.treeFocus ?? null,
-  documentTabTooltipTimer: null,
-  documentTabTooltipPendingPath: "",
-  documentTabTooltipPath: "",
   documentSearchQuery: "",
   documentSearchMatches: [],
   documentSearchIndex: -1,
@@ -337,7 +334,6 @@ const historyBackButton = document.querySelector("#history-back");
 const historyForwardButton = document.querySelector("#history-forward");
 const documentTabs = document.querySelector("#document-tabs");
 const documentNewButton = document.querySelector("#document-new");
-const documentTabTooltip = document.querySelector("#document-tab-tooltip");
 const floatingDocumentActions = document.querySelector("#floating-document-actions");
 const documentFavoriteToggle = document.querySelector("#document-favorite-toggle");
 const copyShareLinkButton = document.querySelector("#copy-share-link");
@@ -355,7 +351,7 @@ const sourceSplitter = document.querySelector("#source-splitter");
 const sourceEditorPane = document.querySelector("#source-editor-pane");
 const sourceEditorHost = document.querySelector("#source-editor");
 const treeFilter = document.querySelector("#tree-filter");
-const overflowTooltip = document.querySelector("#overflow-tooltip");
+const uiTooltip = document.querySelector("#ui-tooltip");
 const worktreeSwitcher = document.querySelector("#worktree-switcher");
 const worktreeSwitcherToggle = document.querySelector("#worktree-switcher-toggle");
 const worktreeSwitcherMenu = document.querySelector("#worktree-switcher-menu");
@@ -419,18 +415,48 @@ const modeButtons = [...document.querySelectorAll("[data-mode]")];
 const themeToggle = document.querySelector("#theme-toggle");
 const chartTooltipController = attachChartTooltips(documentContent);
 const sourceChartTooltipController = attachChartTooltips(sourceEditorHost);
-const overflowTooltipController = createOverflowTooltip({
-  tooltip: overflowTooltip,
+const uiTooltipController = createUiTooltip({
+  tooltip: uiTooltip,
+  eventRoot: appShell,
   boundsElement: appShell,
-  isBlocked: () => !gitSyncPanel.hidden || !appDialog.hidden,
+  isBlocked: (source) => (
+    source.name !== "action" &&
+    (!gitSyncPanel.hidden || !appDialog.hidden)
+  ),
   sources: [
+    {
+      name: "action",
+      container: appShell,
+      itemFromTarget: actionTooltipItemFromEventTarget,
+      details: actionTooltipDetails,
+      key: actionTooltipKey,
+      placement: (item) => item.dataset.uiTooltipPlacement || "bottom",
+      variant: "action",
+      delay: 450,
+    },
+    {
+      name: "document-tab",
+      container: documentTabs,
+      itemFromTarget: documentTabItemFromEventTarget,
+      details: documentTabTooltipDetails,
+      key: (item) => item.dataset.documentTabPath,
+      describedElement: (item) => item.querySelector(".document-tab-title") || item,
+      placement: "bottom-start",
+      variant: "content",
+      delay: 300,
+    },
     {
       name: "file-tree",
       container: fileTree,
       itemFromTarget: treeItemFromEventTarget,
-      labelElement: treeItemLabelElement,
       details: treeItemTooltipDetails,
       key: treeItemTooltipKey,
+      anchorElement: treeItemLabelElement,
+      describedElement: (item) => item,
+      shouldShow: (item) => elementIsOverflowing(treeItemLabelElement(item)),
+      placement: "expansion",
+      variant: "expansion",
+      delay: 250,
     },
     {
       name: "document-outline",
@@ -438,6 +464,11 @@ const overflowTooltipController = createOverflowTooltip({
       itemFromTarget: outlineItemFromEventTarget,
       details: outlineItemTooltipDetails,
       key: (item) => item.dataset.outlineTarget,
+      shouldShow: elementIsOverflowing,
+      anchorElement: (item) => item,
+      placement: "expansion",
+      variant: "expansion",
+      delay: 250,
     },
   ],
 });
@@ -1624,7 +1655,7 @@ function updateDocumentFavoriteToggle() {
   const label = active ? t("action.removeFavorite") : t("action.addFavorite");
   documentFavoriteToggle.setAttribute("aria-pressed", String(active));
   documentFavoriteToggle.setAttribute("aria-label", label);
-  documentFavoriteToggle.title = label;
+  setUiTooltip(documentFavoriteToggle, label);
 }
 
 function ensureSourceEditor() {
@@ -1690,9 +1721,10 @@ function updateThemeToggle() {
     return;
   }
   const isDark = state.theme === "dark";
+  const label = isDark ? t("action.switchLight") : t("action.switchDark");
   themeToggle.textContent = isDark ? "☀" : "☾";
-  themeToggle.title = isDark ? t("action.switchLight") : t("action.switchDark");
-  themeToggle.setAttribute("aria-label", themeToggle.title);
+  setUiTooltip(themeToggle, label);
+  themeToggle.setAttribute("aria-label", label);
   themeToggle.setAttribute("aria-pressed", String(isDark));
 }
 
@@ -1764,16 +1796,17 @@ function applyShortcutTooltips() {
   setShortcutTooltip(sidebarToggle, t("action.collapseSidebar"), "Command+B");
   setShortcutTooltip(historyBackButton, t("action.back"), "Command+[");
   setShortcutTooltip(historyForwardButton, t("action.forward"), "Command+]");
+  setUiTooltip(documentNewButton, t("action.newDocument"));
   setShortcutButtonLabel(copyShareLinkButton, t("action.copyShareLink"), "Command+Shift+L");
-  copyShareLinkButton.title = t("share.tooltip", {
-    shortcut: shortcutTooltip(t("action.copyShareLink"), "Command+Shift+L"),
-  });
   updateDocumentFavoriteToggle();
-  documentActionsMore.title = t("action.moreFileActions");
+  setUiTooltip(documentActionsMore, t("action.moreFileActions"));
   setShortcutButtonLabel(document.querySelector("#mode-preview"), "Preview", "Command+P");
   setShortcutButtonLabel(document.querySelector("#mode-source"), "Source", "Command+S");
   setShortcutButtonLabel(document.querySelector("#mode-live"), "Live", "Command+L");
   setShortcutTooltip(treeFilter, t("search.filesTooltip"), "Command+K");
+  setShortcutTooltip(documentSearchPrevious, t("action.previousMatch"), "Shift+Enter");
+  setShortcutTooltip(documentSearchNext, t("action.nextMatch"), "Enter");
+  setShortcutTooltip(documentSearchClose, t("action.closeSearch"), "Escape");
   treeFilter.placeholder = t("search.short", {
     shortcut: platformShortcutLabel("Command+K"),
   });
@@ -1794,15 +1827,45 @@ function setShortcutButtonLabel(element, label, shortcut) {
 
   element.textContent = "";
   element.append(labelText, shortcutText);
-  element.title = shortcutTooltip(label, shortcut);
+  setShortcutTooltip(element, label, shortcut);
   element.setAttribute("aria-label", shortcutTooltip(label, shortcut));
 }
 
-function setShortcutTooltip(element, label, shortcut) {
+function setUiTooltip(element, label, {
+  shortcut = "",
+  detail = "",
+  placement = "",
+} = {}) {
   if (!element) {
     return;
   }
-  element.title = shortcutTooltip(label, shortcut);
+  const values = {
+    uiTooltip: label,
+    uiTooltipShortcut: shortcut,
+    uiTooltipDetail: detail,
+    uiTooltipPlacement: placement,
+  };
+  const anchor = element.parentElement?.matches?.("[data-ui-tooltip-anchor]")
+    ? element.parentElement
+    : null;
+  for (const target of [element, anchor].filter(Boolean)) {
+    for (const [key, value] of Object.entries(values)) {
+      const normalized = String(value || "").trim();
+      if (normalized) {
+        target.dataset[key] = normalized;
+      } else {
+        delete target.dataset[key];
+      }
+    }
+    target.removeAttribute("title");
+  }
+}
+
+function setShortcutTooltip(element, label, shortcut, options = {}) {
+  setUiTooltip(element, label, {
+    ...options,
+    shortcut: platformShortcutLabel(shortcut),
+  });
 }
 
 function shortcutTooltip(label, shortcut) {
@@ -2259,7 +2322,7 @@ function renderSidebarControls() {
 }
 
 function renderTree() {
-  overflowTooltipController.hide();
+  uiTooltipController.hide();
   renderSidebarTabs();
   const previousTreeFocus = treeFocusSnapshot();
   fileTree.innerHTML = "";
@@ -2423,7 +2486,7 @@ function replaceDocumentTabPath(fromPath, toPath) {
 }
 
 function renderDocumentTabs() {
-  hideDocumentTabTooltip();
+  uiTooltipController.hide();
   documentTabs.innerHTML = "";
   for (const { path } of state.documentTabs) {
     const isActive = path === state.activeTabPath;
@@ -2434,11 +2497,6 @@ function renderDocumentTabs() {
     tab.addEventListener("pointermove", handleDocumentTabPointerMove);
     tab.addEventListener("pointerup", finishDocumentTabPointerDrag);
     tab.addEventListener("pointercancel", cancelDocumentTabPointerDrag);
-    tab.addEventListener("mouseenter", (event) => scheduleDocumentTabTooltip(path, event.currentTarget));
-    tab.addEventListener("mousemove", (event) => handleDocumentTabTooltipPointerMove(path, event.currentTarget));
-    tab.addEventListener("mouseleave", hideDocumentTabTooltip);
-    tab.addEventListener("focusin", (event) => scheduleDocumentTabTooltip(path, event.currentTarget));
-    tab.addEventListener("focusout", hideDocumentTabTooltip);
 
     const title = document.createElement("button");
     title.type = "button";
@@ -2450,7 +2508,7 @@ function renderDocumentTabs() {
     const close = document.createElement("button");
     close.type = "button";
     close.className = "document-tab-close";
-    close.title = shortcutTooltip(t("action.closeCurrentTab"), "Command+W");
+    setShortcutTooltip(close, t("action.closeCurrentTab"), "Command+W");
     close.setAttribute("aria-label", t("action.closeNamedTab", {
       name: tabTitleFromPath(path),
     }));
@@ -2495,7 +2553,7 @@ function handleDocumentTabPointerMove(event) {
     drag.active = true;
     drag.element.setPointerCapture?.(event.pointerId);
     documentTabs.querySelector(`[data-document-tab-path="${cssEscape(drag.path)}"]`)?.classList.add("is-dragging");
-    hideDocumentTabTooltip();
+    uiTooltipController.hide();
     closeFileActionMenu({ restoreFocus: false });
   }
   event.preventDefault();
@@ -2595,7 +2653,7 @@ function handleDocumentTabsWheel(event) {
       : rawDelta;
   event.preventDefault();
   documentTabs.scrollLeft += delta;
-  hideDocumentTabTooltip();
+  uiTooltipController.hide();
 }
 
 async function openFileFromTab(filePath) {
@@ -2607,76 +2665,35 @@ async function openFileFromTab(filePath) {
   focusActiveDocumentSurface();
 }
 
-function scheduleDocumentTabTooltip(filePath, anchor) {
-  if (state.documentTabTooltipPendingPath === filePath && state.documentTabTooltipTimer) {
-    return;
-  }
-  window.clearTimeout(state.documentTabTooltipTimer);
-  state.documentTabTooltipPendingPath = filePath;
-  state.documentTabTooltipTimer = window.setTimeout(() => {
-    state.documentTabTooltipTimer = null;
-    state.documentTabTooltipPendingPath = "";
-    showDocumentTabTooltip(filePath, anchor);
-  }, 120);
+function actionTooltipItemFromEventTarget(target) {
+  const item = target?.closest?.("[data-ui-tooltip]");
+  return item && appShell.contains(item) ? item : null;
 }
 
-function showDocumentTabTooltip(filePath, anchor) {
-  if (!documentTabTooltip || !anchor) {
-    return;
-  }
-  const name = document.createElement("div");
-  name.className = "document-tab-tooltip-name";
-  name.textContent = tabTitleFromPath(filePath);
-
-  const fullPath = document.createElement("div");
-  fullPath.className = "document-tab-tooltip-path";
-  fullPath.textContent = documentTabDisplayPath(filePath);
-
-  documentTabTooltip.textContent = "";
-  documentTabTooltip.append(name, fullPath);
-  state.documentTabTooltipPath = filePath;
-  documentTabTooltip.hidden = false;
-  positionDocumentTabTooltip(anchor);
+function actionTooltipDetails(item) {
+  return {
+    name: item?.dataset.uiTooltip || "",
+    path: item?.dataset.uiTooltipDetail || "",
+    shortcut: item?.dataset.uiTooltipShortcut || "",
+  };
 }
 
-function handleDocumentTabTooltipPointerMove(filePath, anchor) {
-  if (!documentTabTooltip || !anchor) {
-    return;
-  }
-
-  if (documentTabTooltip.hidden || state.documentTabTooltipPath !== filePath) {
-    scheduleDocumentTabTooltip(filePath, anchor);
-    return;
-  }
-
-  positionDocumentTabTooltip(anchor);
+function actionTooltipKey(item) {
+  return item?.id
+    || `${item?.dataset.uiTooltip || ""}:${item?.dataset.uiTooltipShortcut || ""}`;
 }
 
-function positionDocumentTabTooltip(anchor) {
-  if (!documentTabTooltip || documentTabTooltip.hidden || !anchor) {
-    return;
-  }
-
-  const rect = anchor.getBoundingClientRect();
-  const tooltipRect = documentTabTooltip.getBoundingClientRect();
-  const viewportPadding = 8;
-  const top = rect.bottom + 8;
-  const idealLeft = rect.left;
-  const maxLeft = window.innerWidth - tooltipRect.width - viewportPadding;
-  const left = Math.max(viewportPadding, Math.min(idealLeft, maxLeft));
-  documentTabTooltip.style.left = `${left}px`;
-  documentTabTooltip.style.top = `${top}px`;
+function documentTabItemFromEventTarget(target) {
+  const item = target?.closest?.("[data-document-tab-path]");
+  return item && documentTabs.contains(item) ? item : null;
 }
 
-function hideDocumentTabTooltip() {
-  window.clearTimeout(state.documentTabTooltipTimer);
-  state.documentTabTooltipTimer = null;
-  state.documentTabTooltipPendingPath = "";
-  state.documentTabTooltipPath = "";
-  if (!documentTabTooltip) {
-    return;
-  }
-  documentTabTooltip.hidden = true;
+function documentTabTooltipDetails(item) {
+  const path = item?.dataset.documentTabPath || "";
+  return {
+    name: tabTitleFromPath(path),
+    path: documentTabDisplayPath(path),
+  };
 }
 
 function treeItemFromEventTarget(target) {
@@ -3201,7 +3218,6 @@ function renderNode(node, parentPath) {
     }
     button.dataset.fileCapability = capability.name;
     button.setAttribute("aria-label", `${node.path}，${capability.label}`);
-    button.title = capability.label;
     const label = document.createElement("span");
     label.className = "tree-file-label";
     label.textContent = node.name;
@@ -3218,7 +3234,7 @@ function renderNode(node, parentPath) {
       const badge = document.createElement("span");
       badge.className = `git-change-badge is-${change.status}`;
       badge.textContent = gitChangeBadgeLabel(change.status);
-      badge.title = gitChangeStatusLabel(change.status);
+      setUiTooltip(badge, gitChangeStatusLabel(change.status));
       button.append(badge);
     }
     if (node.missing !== true) {
@@ -3254,7 +3270,6 @@ function renderNode(node, parentPath) {
     summary.dataset.treeMissing = "true";
     summary.setAttribute("aria-disabled", "true");
     summary.setAttribute("aria-label", `${directoryPath}，${t("file.missing")}`);
-    summary.title = t("file.missing");
     summary.addEventListener("click", (event) => event.preventDefault());
   }
   summary.setAttribute("aria-expanded", String(details.open));
@@ -3370,13 +3385,13 @@ function setDocumentOutlineCollapsed(collapsed, { persist = true } = {}) {
   const label = state.documentOutlineCollapsed
     ? t("action.showOutline")
     : t("action.hideOutline");
-  documentOutlineToggle.title = shortcutTooltip(label, "Command+Shift+B");
+  setShortcutTooltip(documentOutlineToggle, label, "Command+Shift+B");
   documentOutlineToggle.setAttribute(
     "aria-label",
     shortcutTooltip(label, "Command+Shift+B"),
   );
   documentOutlineResizer.tabIndex = state.documentOutlineCollapsed ? -1 : 0;
-  overflowTooltipController.hide();
+  uiTooltipController.hide();
 
   if (persist) {
     try {
@@ -3403,14 +3418,14 @@ function setSidebarCollapsed(collapsed, { persist = true } = {}) {
   appShell.classList.toggle("is-sidebar-collapsed", state.sidebarCollapsed);
   sidebarToggle.setAttribute("aria-expanded", String(!state.sidebarCollapsed));
   const label = state.sidebarCollapsed ? t("action.expandSidebar") : t("action.collapseSidebar");
-  sidebarToggle.title = shortcutTooltip(label, "Command+B");
+  setShortcutTooltip(sidebarToggle, label, "Command+B");
   sidebarToggle.setAttribute("aria-label", shortcutTooltip(label, "Command+B"));
   sidebarResizer.tabIndex = state.sidebarCollapsed ? -1 : 0;
 
   if (state.sidebarCollapsed) {
     setAgentContextPopoverOpen(false);
     closeWorktreeSwitcher();
-    overflowTooltipController.hide();
+    uiTooltipController.hide();
     hideFrontmatterFilterPopover();
     const activeElement = document.activeElement;
     if (sidebar.contains(activeElement) || workspaceSidebarHeader.contains(activeElement)) {
@@ -3467,7 +3482,7 @@ function setSidebarWidth(width, { persist = true } = {}) {
   const nextWidth = clampSidebarWidth(width, window.innerWidth);
   appShell.style.setProperty("--sidebar-width", `${nextWidth}px`);
   sidebarResizer.setAttribute("aria-valuenow", String(nextWidth));
-  overflowTooltipController.hide();
+  uiTooltipController.hide();
   if (persist) {
     window.localStorage?.setItem(SIDEBAR_WIDTH_STORAGE_KEY, String(nextWidth));
     persistAppPreference("sidebarWidth", nextWidth);
@@ -3506,7 +3521,7 @@ function setDocumentOutlineWidth(width, { persist = true } = {}) {
   documentOutlineResizer.setAttribute("aria-valuemin", String(DOCUMENT_OUTLINE_MIN_WIDTH));
   documentOutlineResizer.setAttribute("aria-valuemax", String(DOCUMENT_OUTLINE_MAX_WIDTH));
   documentOutlineResizer.setAttribute("aria-valuenow", String(nextWidth));
-  overflowTooltipController.hide();
+  uiTooltipController.hide();
   if (persist) {
     window.localStorage?.setItem(DOCUMENT_OUTLINE_WIDTH_STORAGE_KEY, String(nextWidth));
     persistAppPreference("documentOutlineWidth", nextWidth);
@@ -3881,7 +3896,7 @@ function formatBytes(value) {
 }
 
 function renderDocumentOutline() {
-  overflowTooltipController.hide();
+  uiTooltipController.hide();
   outlineClickViewportGuard.end();
   const headings = [...documentContent.querySelectorAll("h1, h2, h3")].map((heading) => {
     const sourceLine = Number(heading.closest(".source-block")?.dataset.sourceStart);
@@ -4219,7 +4234,7 @@ async function submitGitSync() {
 }
 
 function showGitSyncFailure(payload) {
-  overflowTooltipController.hide();
+  uiTooltipController.hide();
   gitSyncPanel.hidden = false;
   gitSyncResult.hidden = false;
   gitSyncResultTitle.textContent = payload.resultTitle || t("sync.resultTitle");
@@ -4256,7 +4271,7 @@ function showAppDialog({
     closeAppDialog(false);
   }
 
-  overflowTooltipController.hide();
+  uiTooltipController.hide();
   appDialogTitle.textContent = title || t("dialog.confirmTitle");
   appDialogMessage.textContent = message;
   appDialogMessage.hidden = !message;
@@ -5153,7 +5168,7 @@ function focusTreeItem(item, { persist = true } = {}) {
   item.scrollIntoView({ block: "nearest" });
   window.requestAnimationFrame(() => {
     if (item.isConnected && document.activeElement === item) {
-      overflowTooltipController.showFor("file-tree", item);
+      uiTooltipController.showFor("file-tree", item);
     }
   });
   const snapshot = treeFocusSnapshot(item);
@@ -6086,8 +6101,9 @@ function addCurrentSelectionToAgentContext(event) {
 function renderAgentContext() {
   const count = state.agentContextItems.length;
   agentContextToggleCount.textContent = String(count);
-  agentContextToggle.title = t("agentContext.countTitle", { count });
-  agentContextToggle.setAttribute("aria-label", agentContextToggle.title);
+  const label = t("agentContext.countTitle", { count });
+  setUiTooltip(agentContextToggle, label);
+  agentContextToggle.setAttribute("aria-label", label);
   agentContextCopy.textContent = count > 0
     ? t("action.copySnippetCount", { count })
     : t("action.copySnippets");
