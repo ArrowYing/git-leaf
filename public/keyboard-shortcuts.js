@@ -43,9 +43,9 @@ const SHORTCUT_GROUPS = Object.freeze([
     titleKey: "shortcuts.navigation",
     shortcuts: [
       ["Command+B", "shortcut.toggleSidebar"],
-      ["Control+Shift+1", "shortcut.showAllView"],
-      ["Control+Shift+2", "shortcut.showFavoritesView"],
-      ["Control+Shift+3", "shortcut.showSyncView"],
+      ["Option+1", "shortcut.showAllView"],
+      ["Option+2", "shortcut.showFavoritesView"],
+      ["Option+3", "shortcut.showSyncView"],
       ["Command+Shift+B", "shortcut.toggleOutline"],
       ["Command+[", "shortcut.back"],
       ["Command+]", "shortcut.forward"],

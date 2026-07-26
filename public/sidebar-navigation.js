@@ -32,7 +32,7 @@ export function sidebarTabFromShortcut({
   shiftKey = false,
   altKey = false,
 } = {}) {
-  if (!ctrlKey || !shiftKey || metaKey || altKey) {
+  if (!altKey || metaKey || ctrlKey || shiftKey) {
     return "";
   }
   const physicalKeyMatch = /^(?:Digit|Numpad)([1-3])$/.exec(String(code));

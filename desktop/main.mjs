@@ -2002,19 +2002,19 @@ function installMenu() {
           submenu: [
             rendererShortcutMenuItem(
               translate("menu.sidebarAll"),
-              "Ctrl+Shift+1",
+              "Alt+1",
               { command: "switch-sidebar-tab", tab: "all" },
               { enabled: hasActiveRepository },
             ),
             rendererShortcutMenuItem(
               translate("menu.sidebarFavorites"),
-              "Ctrl+Shift+2",
+              "Alt+2",
               { command: "switch-sidebar-tab", tab: "favorites" },
               { enabled: hasActiveRepository },
             ),
             rendererShortcutMenuItem(
               translate("menu.sidebarSync"),
-              "Ctrl+Shift+3",
+              "Alt+3",
               { command: "switch-sidebar-tab", tab: "sync" },
               { enabled: hasActiveRepository },
             ),

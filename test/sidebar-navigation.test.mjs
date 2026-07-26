@@ -32,47 +32,49 @@ test("sidebar navigation defaults to all and supports tablist arrow keys", () =>
   assert.equal(sidebarTabFromKey("favorites", "Enter"), "");
 });
 
-test("sidebar views have direct non-conflicting control-shift number shortcuts", () => {
+test("sidebar views have direct non-conflicting option number shortcuts", () => {
   assert.equal(sidebarTabFromShortcut({
-    key: "!",
+    key: "¡",
     code: "Digit1",
-    ctrlKey: true,
-    shiftKey: true,
+    altKey: true,
   }), "all");
   assert.equal(sidebarTabFromShortcut({
-    key: "@",
+    key: "™",
     code: "Digit2",
-    ctrlKey: true,
-    shiftKey: true,
+    altKey: true,
   }), "favorites");
   assert.equal(sidebarTabFromShortcut({
-    key: "#",
+    key: "£",
     code: "Digit3",
-    ctrlKey: true,
-    shiftKey: true,
+    altKey: true,
   }), "sync");
   assert.equal(sidebarTabFromShortcut({
     key: "2",
     code: "Numpad2",
-    ctrlKey: true,
-    shiftKey: true,
+    altKey: true,
   }), "favorites");
   assert.equal(sidebarTabFromShortcut({
     key: "1",
     code: "Digit1",
     metaKey: true,
-    shiftKey: true,
+    altKey: true,
   }), "");
   assert.equal(sidebarTabFromShortcut({
     key: "4",
     code: "Digit4",
+    altKey: true,
+  }), "");
+  assert.equal(sidebarTabFromShortcut({
+    key: "1",
+    code: "Digit1",
     ctrlKey: true,
     shiftKey: true,
   }), "");
   assert.equal(sidebarTabFromShortcut({
     key: "1",
     code: "Digit1",
-    ctrlKey: true,
+    altKey: true,
+    shiftKey: true,
   }), "");
 });
 

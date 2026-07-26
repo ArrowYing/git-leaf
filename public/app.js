@@ -2075,9 +2075,9 @@ function applyShortcutTooltips() {
     const button = sidebarTabButtons.find(
       (candidate) => candidate.dataset.sidebarTab === sidebarTab,
     );
-    const shortcut = `Control+Shift+${index + 1}`;
+    const shortcut = `Option+${index + 1}`;
     setShortcutTooltip(button, t(`sidebar.${sidebarTab}`), shortcut);
-    button?.setAttribute("aria-keyshortcuts", shortcut);
+    button?.setAttribute("aria-keyshortcuts", `Alt+${index + 1}`);
   }
   setShortcutTooltip(historyBackButton, t("action.back"), "Command+[");
   setShortcutTooltip(historyForwardButton, t("action.forward"), "Command+]");
