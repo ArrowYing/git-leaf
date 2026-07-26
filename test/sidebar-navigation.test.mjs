@@ -7,6 +7,7 @@ import {
   normalizeSidebarTab,
   shouldShowSparseFavoritesGuidance,
   sidebarTabFromKey,
+  sidebarTabFromShortcut,
   sidebarTreeForView,
 } from "../public/sidebar-navigation.js";
 
@@ -29,6 +30,50 @@ test("sidebar navigation defaults to all and supports tablist arrow keys", () =>
   assert.equal(sidebarTabFromKey("sync", "Home"), "all");
   assert.equal(sidebarTabFromKey("all", "End"), "sync");
   assert.equal(sidebarTabFromKey("favorites", "Enter"), "");
+});
+
+test("sidebar views have direct non-conflicting control-shift number shortcuts", () => {
+  assert.equal(sidebarTabFromShortcut({
+    key: "!",
+    code: "Digit1",
+    ctrlKey: true,
+    shiftKey: true,
+  }), "all");
+  assert.equal(sidebarTabFromShortcut({
+    key: "@",
+    code: "Digit2",
+    ctrlKey: true,
+    shiftKey: true,
+  }), "favorites");
+  assert.equal(sidebarTabFromShortcut({
+    key: "#",
+    code: "Digit3",
+    ctrlKey: true,
+    shiftKey: true,
+  }), "sync");
+  assert.equal(sidebarTabFromShortcut({
+    key: "2",
+    code: "Numpad2",
+    ctrlKey: true,
+    shiftKey: true,
+  }), "favorites");
+  assert.equal(sidebarTabFromShortcut({
+    key: "1",
+    code: "Digit1",
+    metaKey: true,
+    shiftKey: true,
+  }), "");
+  assert.equal(sidebarTabFromShortcut({
+    key: "4",
+    code: "Digit4",
+    ctrlKey: true,
+    shiftKey: true,
+  }), "");
+  assert.equal(sidebarTabFromShortcut({
+    key: "1",
+    code: "Digit1",
+    ctrlKey: true,
+  }), "");
 });
 
 test("only the all view exposes search and frontmatter filters", () => {

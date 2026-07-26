@@ -581,6 +581,28 @@ input {
   background: var(--accent);
 }
 
+.sidebar-tree-tab.has-shortcut-feedback {
+  animation: sidebar-tree-tab-shortcut-feedback 420ms ease-out;
+}
+
+@keyframes sidebar-tree-tab-shortcut-feedback {
+  0%,
+  45% {
+    background: var(--accent-soft);
+  }
+
+  100% {
+    background: transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-tree-tab.has-shortcut-feedback {
+    animation: none;
+    background: var(--accent-soft);
+  }
+}
+
 .sidebar-tab-count {
   flex: 0 0 auto;
   display: inline-flex;

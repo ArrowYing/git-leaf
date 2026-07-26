@@ -74,10 +74,12 @@ import {
   sidebarFavoritesForScope,
 } from "./sidebar-favorites.js";
 import {
+  SIDEBAR_TABS,
   normalizeSidebarTab,
   sidebarControlsForView,
   sidebarEmptyStateKind,
   sidebarTabFromKey,
+  sidebarTabFromShortcut,
   sidebarTreeForView,
   shouldShowSparseFavoritesGuidance,
 } from "./sidebar-navigation.js";
@@ -313,6 +315,7 @@ const state = {
   frontmatterFacetsLoading: false,
   gitChanges: [],
   gitStatusTimer: null,
+  sidebarShortcutFeedbackTimer: null,
   lastToolStatusCheckAt: 0,
   toolRestartInFlight: false,
   toolFingerprint: "",
@@ -2068,6 +2071,14 @@ function handleSystemColorSchemeChange() {
 
 function applyShortcutTooltips() {
   setShortcutTooltip(sidebarToggle, t("action.collapseSidebar"), "Command+B");
+  for (const [index, sidebarTab] of SIDEBAR_TABS.entries()) {
+    const button = sidebarTabButtons.find(
+      (candidate) => candidate.dataset.sidebarTab === sidebarTab,
+    );
+    const shortcut = `Control+Shift+${index + 1}`;
+    setShortcutTooltip(button, t(`sidebar.${sidebarTab}`), shortcut);
+    button?.setAttribute("aria-keyshortcuts", shortcut);
+  }
   setShortcutTooltip(historyBackButton, t("action.back"), "Command+[");
   setShortcutTooltip(historyForwardButton, t("action.forward"), "Command+]");
   setUiTooltip(documentNewButton, t("action.newDocument"));
@@ -2149,6 +2160,8 @@ function platformShortcutLabel(shortcut) {
     return String(shortcut)
       .replace(/^Command/, "Ctrl")
       .replaceAll("+Command", "+Ctrl")
+      .replace(/^Control/, "Ctrl")
+      .replaceAll("+Control", "+Ctrl")
       .replace(/^Option/, "Alt")
       .replaceAll("+Option", "+Alt");
   }
@@ -2160,6 +2173,9 @@ function platformShortcutLabel(shortcut) {
       }
       if (part === "Shift") {
         return "⇧";
+      }
+      if (part === "Control") {
+        return "⌃";
       }
       if (part === "Option") {
         return "⌥";
@@ -2552,6 +2568,34 @@ function handleSidebarTabKeydown(event) {
   event.preventDefault();
   setSidebarTab(nextTab);
   sidebarTabButtons.find((candidate) => candidate.dataset.sidebarTab === nextTab)?.focus();
+}
+
+function switchSidebarTabFromShortcut(value) {
+  const nextTab = normalizeSidebarTab(value);
+  if (state.sidebarCollapsed) {
+    setSidebarCollapsed(false);
+  }
+  setSidebarTab(nextTab);
+  showSidebarTabShortcutFeedback(
+    sidebarTabButtons.find((candidate) => candidate.dataset.sidebarTab === nextTab),
+  );
+}
+
+function showSidebarTabShortcutFeedback(button) {
+  window.clearTimeout(state.sidebarShortcutFeedbackTimer);
+  for (const candidate of sidebarTabButtons) {
+    candidate.classList.remove("has-shortcut-feedback");
+  }
+  if (!button) {
+    return;
+  }
+  // Restart the feedback when the same shortcut is pressed repeatedly.
+  void button.offsetWidth;
+  button.classList.add("has-shortcut-feedback");
+  state.sidebarShortcutFeedbackTimer = window.setTimeout(() => {
+    button.classList.remove("has-shortcut-feedback");
+    state.sidebarShortcutFeedbackTimer = null;
+  }, 420);
 }
 
 function setSidebarTab(value) {
@@ -4721,6 +4765,18 @@ function shortcutActionFromKeyboardEvent(event) {
     return null;
   }
 
+  const sidebarTab = sidebarTabFromShortcut({
+    key,
+    code: event.code,
+    metaKey: event.metaKey,
+    ctrlKey: event.ctrlKey,
+    shiftKey: event.shiftKey,
+    altKey: event.altKey,
+  });
+  if (sidebarTab) {
+    return { command: "switch-sidebar-tab", tab: sidebarTab };
+  }
+
   if (event.altKey) {
     return null;
   }
@@ -4837,6 +4893,9 @@ async function runAppShortcut(action) {
       return;
     case "toggle-sidebar":
       toggleSidebar();
+      return;
+    case "switch-sidebar-tab":
+      switchSidebarTabFromShortcut(action.tab);
       return;
     case "toggle-document-outline":
       toggleDocumentOutline();

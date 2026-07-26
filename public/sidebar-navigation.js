@@ -24,6 +24,23 @@ export function sidebarTabFromKey(currentTab, key) {
   return "";
 }
 
+export function sidebarTabFromShortcut({
+  key = "",
+  code = "",
+  metaKey = false,
+  ctrlKey = false,
+  shiftKey = false,
+  altKey = false,
+} = {}) {
+  if (!ctrlKey || !shiftKey || metaKey || altKey) {
+    return "";
+  }
+  const physicalKeyMatch = /^(?:Digit|Numpad)([1-3])$/.exec(String(code));
+  const keyMatch = /^([1-3])$/.exec(String(key));
+  const index = Number((physicalKeyMatch ?? keyMatch)?.[1]) - 1;
+  return SIDEBAR_TABS[index] ?? "";
+}
+
 export function sidebarControlsForView(view) {
   const normalizedView = normalizeSidebarTab(view);
   if (normalizedView === "all") {

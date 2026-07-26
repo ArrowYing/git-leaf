@@ -48,6 +48,8 @@ test("desktop and application translators localize menus, status, and dialogs", 
   );
   assert.equal(english("menu.settings"), "Settings...");
   assert.equal(chinese("menu.settings"), "设置…");
+  assert.equal(english("menu.sidebarViews"), "Sidebar Views");
+  assert.equal(chinese("menu.sidebarFavorites"), "收藏");
   assert.equal(translatedFileCount(english, 1), "1 file");
   assert.equal(translatedFileCount(english, 3), "3 files");
   assert.equal(translatedFileCount(chinese, 3), "3 个");

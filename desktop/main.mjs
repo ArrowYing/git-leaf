@@ -118,6 +118,7 @@ import {
   getGitLeafHelpSections,
 } from "../public/help-content.js";
 import { getKeyboardShortcutGroups } from "../public/keyboard-shortcuts.js";
+import { sidebarTabFromShortcut } from "../public/sidebar-navigation.js";
 
 applyDevelopmentUserDataOverride({ app });
 
@@ -933,6 +934,17 @@ function desktopShortcutActionFromInput(input) {
   const ctrl = input.control === true;
   const shift = input.shift === true;
   const alt = input.alt === true;
+  const sidebarTab = sidebarTabFromShortcut({
+    key,
+    code,
+    metaKey: meta,
+    ctrlKey: ctrl,
+    shiftKey: shift,
+    altKey: alt,
+  });
+  if (sidebarTab) {
+    return { command: "switch-sidebar-tab", tab: sidebarTab };
+  }
   if (alt) {
     return null;
   }
@@ -1977,6 +1989,29 @@ function installMenu() {
         rendererShortcutMenuItem(translate("menu.toggleSidebar"), "CmdOrCtrl+B", { command: "toggle-sidebar" }, {
           enabled: hasActiveRepository,
         }),
+        {
+          label: translate("menu.sidebarViews"),
+          submenu: [
+            rendererShortcutMenuItem(
+              translate("menu.sidebarAll"),
+              "Ctrl+Shift+1",
+              { command: "switch-sidebar-tab", tab: "all" },
+              { enabled: hasActiveRepository },
+            ),
+            rendererShortcutMenuItem(
+              translate("menu.sidebarFavorites"),
+              "Ctrl+Shift+2",
+              { command: "switch-sidebar-tab", tab: "favorites" },
+              { enabled: hasActiveRepository },
+            ),
+            rendererShortcutMenuItem(
+              translate("menu.sidebarSync"),
+              "Ctrl+Shift+3",
+              { command: "switch-sidebar-tab", tab: "sync" },
+              { enabled: hasActiveRepository },
+            ),
+          ],
+        },
         rendererShortcutMenuItem(translate("menu.toggleOutline"), "CmdOrCtrl+Shift+B", { command: "toggle-document-outline" }, {
           enabled: hasActiveRepository,
         }),
