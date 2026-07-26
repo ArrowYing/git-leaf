@@ -46,19 +46,15 @@ test("release documentation exposes the dual-track build and publication boundar
   assert.match(exampleProfile.updateRemoteRoot, /^\/srv\//);
 });
 
-test("repository release skill delegates public policy without embedding private machine state", async () => {
-  const [releaseDoc, releaseSkill] = await Promise.all([
-    readFile("docs/release.md", "utf8"),
-    readFile(".agents/skills/git-leaf-release/SKILL.md", "utf8"),
-  ]);
+test("repository release skill remains a thin public router", async () => {
+  const releaseSkill = await readFile(".agents/skills/git-leaf-release/SKILL.md", "utf8");
+  const body = releaseSkill.replace(/^---\n[\s\S]*?\n---\n/, "");
+  const bodyWordCount = body.trim().split(/\s+/).length;
 
-  assert.match(releaseDoc, /\.agents\/skills\/git-leaf-release\/SKILL\.md/);
-  assert.match(releaseDoc, /this document remains the release policy/);
   assert.match(releaseSkill, /^---\nname: git-leaf-release\n/m);
-  assert.match(releaseSkill, /`docs\/release\.md` as policy/);
-  assert.match(releaseSkill, /`scripts\/release-worktree\.mjs` as the formal release state machine/);
-  assert.match(releaseSkill, /`npm run release:verify-update:mac`/);
-  assert.match(releaseSkill, /must not run after every release/);
+  assert.match(releaseSkill, /`docs\/release\.md` as the sole release policy/);
+  assert.match(releaseSkill, /`scripts\/release-worktree\.mjs` as the formal state machine/);
+  assert.ok(bodyWordCount <= 300, `release skill should remain a thin router, got ${bodyWordCount} words`);
   assert.doesNotMatch(releaseSkill, /\/Users\/|\/home\/|infra-ops|official-(?:public|internal)\.json/);
 });
 

@@ -101,12 +101,9 @@ snapshot created by `make smoke-dev-mac`; the snapshot is derived read-only from
 both `userData` and `sessionData` only inside its temporary directory, verifies the real Profile
 fingerprint after the run, and then removes only that temporary directory.
 
-The formal release process is defined in `docs/release.md`. Use `release:prepare` to create an independent
-release worktree at the frozen commit, then use the controller inside that worktree for build, candidate,
-stable, and tag stages. Do not use only `make release-mac` or `make release-win` to complete a formal
-stable release. Release packages must exclude development directories such as `test/`, `dist/`, and
-`.git/`. After changing Windows packaging, the portable ZIP, or release gates, run
-`npm run test:ci:win`.
+`make release-mac` and `make release-win` are component commands, not formal release entry points.
+Release packages must exclude development directories such as `test/`, `dist/`, and `.git/`. After
+changing Windows packaging, the portable ZIP, or release gates, run `npm run test:ci:win`.
 
 ## UI regression diagnosis and completion gates
 

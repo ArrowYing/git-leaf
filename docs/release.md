@@ -2,17 +2,6 @@
 
 This document defines the public release contract. Mango Future's host names, deployment directories, credentials, and private release profiles are maintained outside this repository.
 
-## Agent release entry point
-
-Repository-aware Agents may use
-[the Git Leaf release skill](../.agents/skills/git-leaf-release/SKILL.md) as an orchestration entry
-point. The skill is public and repository-owned; this document remains the release policy, and
-`scripts/release-worktree.mjs` remains the formal state machine.
-
-Machine-specific or company-private skills may locate an approved release profile and verify local
-prerequisites. They must not override this document, bypass controller gates, or copy personal paths,
-private profile locations, host details, or credentials into the public skill.
-
 ## Release tracks and build identities
 
 Every packaged app contains `git-leaf-build-info.json` with three independent fields:
@@ -300,6 +289,10 @@ than the first nonprivileged-only package, it uses the one-time `Contents` bridg
 that legacy package's defective privileged Helper path. Its mandatory `finally` cleanup removes only
 state owned by that run. It then proves the real Profile and real ShipIt cache fingerprints did not change.
 A failure never creates passing evidence.
+
+An update regression that requests system account credentials or starts a privileged Helper is a
+failure, not an installation step. Do not authorize it or manually load, unload, or boot out ShipIt jobs
+to force the gate to pass.
 
 Record the generated evidence through the release controller:
 
