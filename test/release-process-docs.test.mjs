@@ -47,7 +47,10 @@ test("release documentation exposes the dual-track build and publication boundar
 });
 
 test("repository release skill remains a thin public router", async () => {
-  const releaseSkill = await readFile(".agents/skills/git-leaf-release/SKILL.md", "utf8");
+  const releaseSkill = (await readFile(".agents/skills/git-leaf-release/SKILL.md", "utf8")).replace(
+    /\r\n?/g,
+    "\n",
+  );
   const body = releaseSkill.replace(/^---\n[\s\S]*?\n---\n/, "");
   const bodyWordCount = body.trim().split(/\s+/).length;
 
