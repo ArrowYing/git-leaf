@@ -41,6 +41,10 @@ import {
   RELEASE_PACKAGE_IGNORE_PATTERNS,
   withReleaseBuildInfoFile,
 } from "./release-shared.mjs";
+import {
+  patchSquirrelMacPolicy,
+  verifySquirrelMacPolicy,
+} from "./squirrel-mac-policy.mjs";
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const REPO_ROOT = path.dirname(path.dirname(SCRIPT_PATH));
@@ -1025,7 +1029,14 @@ function packageMac(options) {
   withReleaseBuildInfoFile({ rootDir: REPO_ROOT, buildInfo: options }, () => {
     run(packager.command, [...packager.args, ...electronPackagerArgs(options)]);
   });
+  patchSquirrelMacPolicy({
+    appDir: macReleasePaths(options).appDir,
+    rootDir: REPO_ROOT,
+  });
   applyMacBundleIcon(options, macDevelopmentInstallPaths(options));
+  verifySquirrelMacPolicy({
+    appDir: macReleasePaths(options).appDir,
+  });
 }
 
 export function applyMacBundleIcon(options, paths) {
@@ -1467,6 +1478,7 @@ function publishMacUpdates(options, paths) {
 function verifyRelease(paths) {
   const [architectureCommand, architectureArgs] = universalMachOVerificationCommand(paths.appDir);
   run(architectureCommand, architectureArgs);
+  verifySquirrelMacPolicy({ appDir: paths.appDir });
   run("codesign", ["--verify", "--deep", "--strict", "--verbose=2", paths.appDir]);
   run("codesign", ["--verify", "--verbose=2", paths.dmgPath]);
   run("xcrun", ["stapler", "validate", paths.dmgPath]);

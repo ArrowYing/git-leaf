@@ -124,7 +124,7 @@ test("mac update regression validates candidate identity and ZIP contract", () =
 test("mac update regression evidence binds installation and cleanup to the frozen release", () => {
   const fingerprint = { sha256: "a".repeat(64), fileCount: 3 };
   const evidence = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     source: "git-leaf-macos-update-regression",
     status: "passed",
     track: "internal",
@@ -133,10 +133,15 @@ test("mac update regression evidence binds installation and cleanup to the froze
     toVersion: "1.12.1",
     commit: "0123456789abcdef0123456789abcdef01234567",
     buildId: "0123456789ab.20260726T120000Z.internal",
-    currentUserDirectContentsWriteEnabled: true,
+    installMode: "contents-bridge",
     directContentsWrite: true,
     appDirectoryInodePreserved: true,
+    installParentWritable: false,
     privilegedShipItJobObserved: false,
+    squirrelPolicy: {
+      policy: "nonprivileged-only",
+      privilegedHelperAllowed: false,
+    },
     realProfileBefore: fingerprint,
     realProfileAfter: fingerprint,
     realShipItCacheBefore: fingerprint,

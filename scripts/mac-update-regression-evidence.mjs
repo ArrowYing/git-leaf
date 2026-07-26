@@ -5,7 +5,7 @@ export function validateMacUpdateRegressionEvidence(evidence, {
   buildId,
 } = {}) {
   if (
-    evidence?.schemaVersion !== 1
+    evidence?.schemaVersion !== 2
     || evidence.source !== "git-leaf-macos-update-regression"
     || evidence.status !== "passed"
     || evidence.track !== track
@@ -13,10 +13,13 @@ export function validateMacUpdateRegressionEvidence(evidence, {
     || evidence.toVersion !== version
     || evidence.commit !== commit
     || !String(evidence.buildId || "").startsWith(String(buildId || "missing"))
-    || evidence.currentUserDirectContentsWriteEnabled !== true
+    || !["contents-bridge", "in-app-update"].includes(evidence.installMode)
     || evidence.directContentsWrite !== true
     || evidence.appDirectoryInodePreserved !== true
+    || evidence.installParentWritable !== false
     || evidence.privilegedShipItJobObserved !== false
+    || evidence.squirrelPolicy?.policy !== "nonprivileged-only"
+    || evidence.squirrelPolicy?.privilegedHelperAllowed !== false
     || evidence.cleanup?.processesTerminated !== true
     || evidence.cleanup?.userShipItJobAbsent !== true
     || evidence.cleanup?.systemShipItJobAbsent !== true

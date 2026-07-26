@@ -4,6 +4,7 @@ import { spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
   appendFileSync,
+  chmodSync,
   closeSync,
   cpSync,
   createReadStream,
@@ -26,7 +27,9 @@ import { pipeline } from "node:stream/promises";
 import { fileURLToPath } from "node:url";
 
 import { compareAppVersions } from "../src/app-updates.mjs";
+import { replaceMacAppContents } from "./mac-update-bridge.mjs";
 import { developmentProfileFingerprint } from "./release-mac.mjs";
+import { verifySquirrelMacPolicy } from "./squirrel-mac-policy.mjs";
 export {
   validateMacUpdateRegressionEvidence,
 } from "./mac-update-regression-evidence.mjs";
@@ -40,6 +43,7 @@ export const SQUIRREL_DIRECT_CONTENTS_WRITE_KEY =
   "SquirrelMacEnableDirectContentsWrite";
 const PLATFORM_KEY = "darwin-universal";
 const DEFAULT_BASE_URL = "https://updates.mangofuture.com/git-leaf";
+const FIRST_NONPRIVILEGED_ONLY_VERSION = "1.12.3";
 
 export function updateRegressionChannels(track) {
   if (track === "public") {
@@ -272,7 +276,7 @@ function extractSingleApp(zipPath, destinationDir) {
     .filter((name) => name.endsWith(".app"))
     .map((name) => path.join(destinationDir, name));
   if (apps.length !== 1 || lstatSync(apps[0]).isSymbolicLink()) {
-    throw new Error("Baseline ZIP must contain exactly one non-symlink App bundle");
+    throw new Error("ZIP must contain exactly one non-symlink App bundle");
   }
   const probePath = path.join(apps[0], ".git-leaf-update-write-probe");
   writeFileSync(probePath, "write probe\n", { flag: "wx" });
@@ -396,33 +400,6 @@ function writeIsolatedSquirrelDefault(env) {
   if (stored !== "1") {
     throw new Error(`Could not store ${SQUIRREL_DIRECT_CONTENTS_WRITE_KEY}`);
   }
-}
-
-function enableCurrentUserDirectContentsWrite() {
-  runChecked(
-    "defaults",
-    [
-      "write",
-      "com.mangofuture.gitleaf",
-      SQUIRREL_DIRECT_CONTENTS_WRITE_KEY,
-      "-bool",
-      "true",
-    ],
-  );
-  const stored = runChecked(
-    "defaults",
-    [
-      "read",
-      "com.mangofuture.gitleaf",
-      SQUIRREL_DIRECT_CONTENTS_WRITE_KEY,
-    ],
-  );
-  if (stored !== "1") {
-    throw new Error(
-      `Could not enable ${SQUIRREL_DIRECT_CONTENTS_WRITE_KEY} for the installed App`,
-    );
-  }
-  return true;
 }
 
 function delay(milliseconds) {
@@ -573,8 +550,6 @@ async function runHarness({
 } = {}) {
   const host = assertCurrentHostSafe();
   const channels = updateRegressionChannels(track);
-  const currentUserDirectContentsWriteEnabled =
-    enableCurrentUserDirectContentsWrite();
   const temporaryRoot = mkdtempSync(
     path.join(tmpdir(), "git-leaf-mac-update-regression."),
   );
@@ -582,6 +557,7 @@ async function runHarness({
   const isolatedTmp = path.join(temporaryRoot, "tmp");
   const userDataDir = path.join(temporaryRoot, "user-data");
   const installDir = path.join(temporaryRoot, "install");
+  const candidateExtractDir = path.join(temporaryRoot, "candidate-app");
   const downloadsDir = path.join(temporaryRoot, "downloads");
   const serverRoot = path.join(temporaryRoot, "update-root");
   const telemetryRoot = path.join(temporaryRoot, "telemetry");
@@ -589,6 +565,7 @@ async function runHarness({
   let appProcess;
   let passedEvidence;
   let primaryError;
+  let installDirectoryLocked = false;
   const cleanupErrors = [];
 
   mkdirSync(isolatedHome, { recursive: true });
@@ -634,7 +611,15 @@ async function runHarness({
       candidateZipPath,
     );
     const appPath = extractSingleApp(baselineZipPath, installDir);
+    const candidateAppPath = extractSingleApp(
+      candidateZipPath,
+      candidateExtractDir,
+    );
     verifyAppSignature(appPath);
+    verifyAppSignature(candidateAppPath);
+    const squirrelPolicy = verifySquirrelMacPolicy({
+      appDir: candidateAppPath,
+    });
     const baselineVersion = readAppVersion(appPath);
     if (baselineVersion !== stableManifest.version) {
       throw new Error(
@@ -642,77 +627,94 @@ async function runHarness({
       );
     }
     const appDirectoryInode = statSync(appPath).ino;
+    chmodSync(installDir, 0o555);
+    installDirectoryLocked = true;
 
-    server = await startUpdateServer({ serverRoot, telemetryRoot, logPath });
-    rewriteCandidateForLocalStable({
-      manifest: candidateManifest,
-      channel: channels.stable,
-      serverRoot,
-      port: server.port,
-      candidateZipPath,
-    });
-
-    writeDesktopConfig(userDataDir, {
-      repoRoot: REPO_ROOT,
-      targetVersion: candidateManifest.version,
-    });
-    const appEnv = {
-      ...process.env,
-      HOME: isolatedHome,
-      CFFIXED_USER_HOME: isolatedHome,
-      TMPDIR: `${isolatedTmp}${path.sep}`,
-      GIT_LEAF_UPDATE_BASE_URL: `http://127.0.0.1:${server.port}/git-leaf`,
-      GIT_LEAF_DEV_USER_DATA_DIR: userDataDir,
-    };
-    writeIsolatedSquirrelDefault(appEnv);
-    const logDescriptor = openSync(logPath, "a");
-    appProcess = spawn(
-      path.join(appPath, "Contents", "MacOS", "Git Leaf"),
-      [
-        `--git-leaf-dev-user-data-dir=${userDataDir}`,
-        "--remote-debugging-port=0",
-        "--repo",
-        REPO_ROOT,
-      ],
-      {
-        env: appEnv,
-        detached: false,
-        stdio: ["ignore", logDescriptor, logDescriptor],
-      },
-    );
-    closeSync(logDescriptor);
-
-    const isolatedShipItCache = path.join(
-      isolatedHome,
-      "Library",
-      "Caches",
-      SHIPIT_JOB_LABEL,
-    );
-    await waitFor(() => (
-      existsSync(path.join(userDataDir, "DevToolsActivePort"))
-      && existsSync(path.join(isolatedShipItCache, "ShipItState.plist"))
-    ), {
-      timeoutMs: 240_000,
-      label: "the signed candidate to download and prepare",
-    });
-    if (launchctlJobExists({ domain: "system" })) {
-      throw new Error("The update attempted to register a privileged ShipIt job");
-    }
-
-    await waitFor(async () => {
-      if (readAppVersion(appPath) === candidateManifest.version) {
-        return true;
-      }
-      await evaluateInRenderer({
-        userDataDir,
-        expression: updateRegressionInstallExpression(),
+    let installMode;
+    if (
+      compareAppVersions(
+        stableManifest.version,
+        FIRST_NONPRIVILEGED_ONLY_VERSION,
+      ) < 0
+    ) {
+      installMode = replaceMacAppContents({
+        sourceAppPath: candidateAppPath,
+        targetAppPath: appPath,
+        expectedVersion: candidateManifest.version,
+      }).installMode;
+    } else {
+      installMode = "in-app-update";
+      server = await startUpdateServer({ serverRoot, telemetryRoot, logPath });
+      rewriteCandidateForLocalStable({
+        manifest: candidateManifest,
+        channel: channels.stable,
+        serverRoot,
+        port: server.port,
+        candidateZipPath,
       });
-      return false;
-    }, {
-      timeoutMs: 180_000,
-      intervalMs: 2_000,
-      label: `Git Leaf ${candidateManifest.version} to replace the baseline`,
-    });
+
+      writeDesktopConfig(userDataDir, {
+        repoRoot: REPO_ROOT,
+        targetVersion: candidateManifest.version,
+      });
+      const appEnv = {
+        ...process.env,
+        HOME: isolatedHome,
+        CFFIXED_USER_HOME: isolatedHome,
+        TMPDIR: `${isolatedTmp}${path.sep}`,
+        GIT_LEAF_UPDATE_BASE_URL: `http://127.0.0.1:${server.port}/git-leaf`,
+        GIT_LEAF_DEV_USER_DATA_DIR: userDataDir,
+      };
+      writeIsolatedSquirrelDefault(appEnv);
+      const logDescriptor = openSync(logPath, "a");
+      appProcess = spawn(
+        path.join(appPath, "Contents", "MacOS", "Git Leaf"),
+        [
+          `--git-leaf-dev-user-data-dir=${userDataDir}`,
+          "--remote-debugging-port=0",
+          "--repo",
+          REPO_ROOT,
+        ],
+        {
+          env: appEnv,
+          detached: false,
+          stdio: ["ignore", logDescriptor, logDescriptor],
+        },
+      );
+      closeSync(logDescriptor);
+
+      const isolatedShipItCache = path.join(
+        isolatedHome,
+        "Library",
+        "Caches",
+        SHIPIT_JOB_LABEL,
+      );
+      await waitFor(() => (
+        existsSync(path.join(userDataDir, "DevToolsActivePort"))
+        && existsSync(path.join(isolatedShipItCache, "ShipItState.plist"))
+      ), {
+        timeoutMs: 240_000,
+        label: "the signed candidate to download and prepare",
+      });
+      if (launchctlJobExists({ domain: "system" })) {
+        throw new Error("The update attempted to register a privileged ShipIt job");
+      }
+
+      await waitFor(async () => {
+        if (readAppVersion(appPath) === candidateManifest.version) {
+          return true;
+        }
+        await evaluateInRenderer({
+          userDataDir,
+          expression: updateRegressionInstallExpression(),
+        });
+        return false;
+      }, {
+        timeoutMs: 180_000,
+        intervalMs: 2_000,
+        label: `Git Leaf ${candidateManifest.version} to replace the baseline`,
+      });
+    }
 
     if (statSync(appPath).ino !== appDirectoryInode) {
       throw new Error(
@@ -723,9 +725,13 @@ async function runHarness({
     if (readAppVersion(appPath) !== candidateManifest.version) {
       throw new Error("The installed App version does not match the candidate");
     }
+    verifySquirrelMacPolicy({ appDir: appPath });
+    if (launchctlJobExists({ domain: "system" })) {
+      throw new Error("The update registered a privileged ShipIt job");
+    }
 
     passedEvidence = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       source: "git-leaf-macos-update-regression",
       status: "passed",
       track,
@@ -736,10 +742,12 @@ async function runHarness({
       buildId: candidateManifest.buildId,
       baseline: baselineContract,
       candidate: candidateContract,
+      installMode,
       directContentsWrite: true,
       appDirectoryInodePreserved: true,
+      installParentWritable: false,
       privilegedShipItJobObserved: false,
-      currentUserDirectContentsWriteEnabled,
+      squirrelPolicy,
       realProfileBefore: host.productionFingerprint,
       realShipItCacheBefore: host.realShipItFingerprint,
       completedAt: new Date().toISOString(),
@@ -747,6 +755,14 @@ async function runHarness({
   } catch (error) {
     primaryError = error;
   } finally {
+    try {
+      if (installDirectoryLocked) {
+        chmodSync(installDir, 0o755);
+        installDirectoryLocked = false;
+      }
+    } catch (error) {
+      cleanupErrors.push(error);
+    }
     try {
       terminateProcessesInside(temporaryRoot);
       await delay(2_000);

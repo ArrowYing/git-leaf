@@ -96,7 +96,7 @@ function completedPublish(platform, phase, track = "public") {
 function macosUpdateEvidence(state, overrides = {}) {
   const fingerprint = { sha256: "a".repeat(64), fileCount: 3 };
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     source: "git-leaf-macos-update-regression",
     status: "passed",
     track: state.track,
@@ -105,10 +105,15 @@ function macosUpdateEvidence(state, overrides = {}) {
     toVersion: state.version,
     commit: state.commit,
     buildId: `${state.buildId}.${state.track}`,
-    currentUserDirectContentsWriteEnabled: true,
+    installMode: "contents-bridge",
     directContentsWrite: true,
     appDirectoryInodePreserved: true,
+    installParentWritable: false,
     privilegedShipItJobObserved: false,
+    squirrelPolicy: {
+      policy: "nonprivileged-only",
+      privilegedHelperAllowed: false,
+    },
     realProfileBefore: fingerprint,
     realProfileAfter: fingerprint,
     realShipItCacheBefore: fingerprint,

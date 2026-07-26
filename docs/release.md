@@ -283,10 +283,12 @@ npm run release:verify-update:mac -- \
 ```
 
 The harness refuses to start while the installed Git Leaf App is running or any ShipIt launchd job
-already exists. It uses isolated HOME, temporary App and Electron Profile paths, and a localhost update
-feed. Its mandatory cleanup removes only a ShipIt job whose paths belong to that run, then proves that
-the real Profile and real ShipIt cache fingerprints did not change. A failure never creates passing
-evidence.
+already exists. It uses a temporary App location whose parent is deliberately not writable, plus
+isolated HOME and Electron Profile paths when exercising the in-App updater. For a stable version older
+than the first nonprivileged-only package, it uses the one-time `Contents` bridge instead of launching
+that legacy package's defective privileged Helper path. Its mandatory `finally` cleanup removes only
+state owned by that run. It then proves the real Profile and real ShipIt cache fingerprints did not change.
+A failure never creates passing evidence.
 
 Record the generated evidence through the release controller:
 
@@ -296,16 +298,20 @@ node scripts/release-worktree.mjs verify-macos-update-regression \
   --evidence "$RELEASE_WORKTREE/dist/macos-update-regression/release-gate.json"
 ```
 
-The controller validates the version, track, frozen commit, direct-`Contents` installation result,
-absence of privileged ShipIt, and cleanup proof. The former manual
+The controller validates the version, track, frozen commit, exact signed candidate, direct-`Contents`
+installation result, non-writable parent, packaged nonprivileged policy, absence of privileged ShipIt,
+and cleanup proof. The former manual
 `mark-update-regression-verified` command does not exist.
 
-Official packaged macOS builds persist Squirrel's
-`SquirrelMacEnableDirectContentsWrite` default before initializing the updater. This lets a user-owned
-`/Applications/Git Leaf.app` replace its signed `Contents` directory without requiring write access to
-the root-owned `/Applications` parent. The regression asserts this path by requiring the `.app`
-directory inode to remain unchanged. An App bundle that is not writable by its owner is an installation
-repair case and must not be disguised as a normal update.
+Official packaged macOS builds persist Squirrel's direct-`Contents` default and carry a build-verified
+Squirrel policy that never launches a privileged Helper. A user-owned `/Applications/Git Leaf.app`
+therefore replaces its signed `Contents` directory without write access to the root-owned
+`/Applications` parent; an App bundle that is itself not writable fails closed as an installation repair
+case. The regression requires the `.app` directory inode to remain unchanged.
+
+This gate validates installation of the final signed package and its cleanup contract. It is not a
+feature-by-feature UI test, and it is not repeated after releases whose recorded risk assessment does
+not require it.
 
 Publish both stable platforms:
 
