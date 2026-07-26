@@ -10,11 +10,12 @@
   --document-tab-min-width: 164px;
   --source-line-gutter-inset: 22px;
   --source-line-gutter-width: 44px;
-  --source-line-gutter-gap: 6px;
+  --source-line-gutter-gap: 10px;
   --source-line-number-padding: 5px;
   --source-line-number-height: calc(var(--document-font-size) + 6px);
   --source-line-number-line-height: calc(var(--document-font-size) + 6px);
-  --source-line-number-font-size: calc(var(--document-font-size) - 2px);
+  --source-line-number-font-size: clamp(11px, calc(var(--document-font-size) - 4px), 16px);
+  --source-line-number-color: color-mix(in srgb, var(--muted-soft) 62%, transparent);
   --source-line-number-gap: 2px;
   --source-line-content-inset: calc(var(--source-line-gutter-inset) + var(--source-line-gutter-width) + var(--source-line-gutter-gap));
   --source-editor-top-padding: 24px;
@@ -2351,7 +2352,7 @@ summary.is-missing {
   border: 0;
   border-radius: 4px;
   background: transparent;
-  color: var(--muted-soft);
+  color: var(--source-line-number-color);
   cursor: pointer;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
   font-size: var(--source-line-number-font-size);

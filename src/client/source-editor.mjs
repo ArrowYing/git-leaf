@@ -413,7 +413,7 @@ function sourceEditorThemeForTheme(theme) {
       backgroundColor: "transparent",
       borderRightColor: "transparent",
       boxSizing: "border-box",
-      color: "var(--muted)",
+      color: "var(--source-line-number-color)",
     },
     ".cm-lineNumbers": {
       boxSizing: "border-box",
@@ -511,7 +511,7 @@ function liveMarkdownThemeForTheme(theme) {
       backgroundColor: "transparent",
       borderRightColor: "transparent",
       boxSizing: "border-box",
-      color: "var(--muted)",
+      color: "var(--source-line-number-color)",
       minWidth: "var(--source-line-gutter-width)",
     },
     ".cm-line.cm-live-heading": {
