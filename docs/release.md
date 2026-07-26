@@ -265,15 +265,47 @@ The controller rejects stable publication when this evidence is missing, expired
 the wrong repository or workflow, or built from a different commit. A local `npm run test:ci:win` result
 does not satisfy this gate.
 
-Separately, update-sensitive changes can make the isolated real packaged-App update regression mandatory.
-When `prepare` marks that regression as required, complete it before stable publication and record it:
+### Local macOS update regression
+
+Update-sensitive changes can make a real packaged-App update regression mandatory. This regression is
+not a general UI acceptance pass and is not run after every release. `prepare` records the risk
+assessment; when it is required, the regression must run after both candidate packages have been
+published and verified. It must run on the release Mac because this gate verifies the final signed
+package against the local macOS installation and ShipIt behavior.
 
 ```bash
-node scripts/release-worktree.mjs mark-update-regression-verified
+cd "$RELEASE_WORKTREE"
+npm run release:verify-update:mac -- \
+  --track "$RELEASE_TRACK" \
+  --expected-version "$VERSION" \
+  --expected-commit "$RELEASE_COMMIT" \
+  --output dist/macos-update-regression/release-gate.json
 ```
 
-This regression verifies the installed App's upgrade mechanism with isolated userData. It is not a
-general UI acceptance pass and remains an independent risk gate for the update mechanism.
+The harness refuses to start while the installed Git Leaf App is running or any ShipIt launchd job
+already exists. It uses isolated HOME, temporary App and Electron Profile paths, and a localhost update
+feed. Its mandatory cleanup removes only a ShipIt job whose paths belong to that run, then proves that
+the real Profile and real ShipIt cache fingerprints did not change. A failure never creates passing
+evidence.
+
+Record the generated evidence through the release controller:
+
+```bash
+cd "$RELEASE_SOURCE_ROOT"
+node scripts/release-worktree.mjs verify-macos-update-regression \
+  --evidence "$RELEASE_WORKTREE/dist/macos-update-regression/release-gate.json"
+```
+
+The controller validates the version, track, frozen commit, direct-`Contents` installation result,
+absence of privileged ShipIt, and cleanup proof. The former manual
+`mark-update-regression-verified` command does not exist.
+
+Official packaged macOS builds persist Squirrel's
+`SquirrelMacEnableDirectContentsWrite` default before initializing the updater. This lets a user-owned
+`/Applications/Git Leaf.app` replace its signed `Contents` directory without requiring write access to
+the root-owned `/Applications` parent. The regression asserts this path by requiring the `.app`
+directory inode to remain unchanged. An App bundle that is not writable by its owner is an installation
+repair case and must not be disguised as a normal update.
 
 Publish both stable platforms:
 

@@ -79,10 +79,13 @@ test("release documentation delegates UI acceptance and keeps update regression 
   assert.match(releaseDoc, /before freezing the release commit/);
   assert.match(releaseDoc, /formal release operator does[\s\S]*not repeat it/);
   assert.doesNotMatch(releaseDoc, /make smoke-dev-mac|Computer Use/);
-  assert.match(releaseDoc, /update-sensitive changes can make the isolated real packaged-App update regression mandatory/);
-  assert.match(releaseDoc, /complete it before stable publication/);
-  assert.match(releaseDoc, /verifies the installed App's upgrade mechanism with isolated userData/);
-  assert.match(releaseDoc, /remains an independent risk gate for the update mechanism/);
+  assert.match(releaseDoc, /Update-sensitive changes can make a real packaged-App update regression mandatory/);
+  assert.match(releaseDoc, /must run on the release Mac/);
+  assert.match(releaseDoc, /npm run release:verify-update:mac/);
+  assert.match(releaseDoc, /refuses to start while the installed Git Leaf App is running/);
+  assert.match(releaseDoc, /real Profile and real ShipIt cache fingerprints did not change/);
+  assert.match(releaseDoc, /verify-macos-update-regression[\s\S]*--evidence/);
+  assert.doesNotMatch(releaseDoc, /mark-update-regression-verified\s*$/m);
 });
 
 test("release documentation verifies published artifacts end to end without duplicate workstation downloads", async () => {

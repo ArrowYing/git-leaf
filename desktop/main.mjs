@@ -9,6 +9,7 @@ import {
   nativeTheme,
   powerMonitor,
   shell,
+  systemPreferences,
   WebContentsView,
 } from "electron";
 import { access, realpath, writeFile } from "node:fs/promises";
@@ -17,6 +18,7 @@ import path from "node:path";
 import process from "node:process";
 
 import { createDesktopUpdateController } from "./updates.mjs";
+import { configureMacUpdateInstallation } from "./mac-update-installation.mjs";
 import { createSettingsCenterController } from "./settings-center.mjs";
 import {
   createDesktopTranslatorForLanguage,
@@ -121,6 +123,12 @@ import { getKeyboardShortcutGroups } from "../public/keyboard-shortcuts.js";
 import { sidebarTabFromShortcut } from "../public/sidebar-navigation.js";
 
 applyDevelopmentUserDataOverride({ app });
+configureMacUpdateInstallation({
+  platform: process.platform,
+  isPackaged: app.isPackaged,
+  buildInfo: BUILD_INFO,
+  systemPreferences,
+});
 
 let mainWindow = null;
 let activeServer = null;

@@ -21,6 +21,7 @@ import {
   releaseTagName,
 } from "./release-shared.mjs";
 import { archiveReleaseOutputs } from "./release-archive.mjs";
+import { validateMacUpdateRegressionEvidence } from "./mac-update-regression-evidence.mjs";
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const REPO_ROOT = path.dirname(path.dirname(SCRIPT_PATH));
@@ -83,6 +84,8 @@ const UPDATE_REGRESSION_RISK_PATHS = new Set([
   "public/update-ui.js",
   "scripts/gitleaf-update-server.py",
   "scripts/install-gitleaf-update-server.sh",
+  "scripts/mac-update-regression-evidence.mjs",
+  "scripts/mac-update-regression.mjs",
   "scripts/release-mac.mjs",
   "scripts/release-shared.mjs",
   "scripts/release-windows.mjs",
@@ -349,8 +352,11 @@ export function assertCandidateGateComplete(state) {
   }
   if (regression.required && regression.status !== "verified") {
     throw new Error(
-      "Update regression smoke is required but has not been recorded. Run mark-update-regression-verified before publishing stable.",
+      "macOS Update Regression is required but has not been verified. Run the local harness, then verify-macos-update-regression --evidence FILE before publishing stable.",
     );
+  }
+  if (regression.required) {
+    assertMacosUpdateRegressionVerified(state);
   }
   if (!regression.required && regression.status !== "not_required") {
     throw new Error("Update regression assessment is unresolved; prepare a new release");
@@ -465,6 +471,16 @@ export function assertWindowsReleaseSmokeVerified(state) {
       "Recorded Windows Release Smoke evidence does not match the frozen release commit and a successful workflow run.",
     );
   }
+}
+
+export function assertMacosUpdateRegressionVerified(state) {
+  const evidence = state.updateRegression?.evidence;
+  if (state.updateRegression?.status !== "verified" || !evidence) {
+    throw new Error(
+      "Recorded macOS Update Regression evidence is missing.",
+    );
+  }
+  validateMacUpdateRegressionEvidence(evidence, state);
 }
 
 export function assertReleaseRunAllowed({ state, platform, command, channel }) {
@@ -784,7 +800,7 @@ function prepareRelease({
   }
 
   const state = {
-    schemaVersion: 4,
+    schemaVersion: 5,
     status: "active",
     sourceRoot: REPO_ROOT,
     worktreePath: resolvedWorktreePath,
@@ -927,6 +943,55 @@ function verifyWindowsReleaseSmoke(runId) {
   );
 }
 
+function verifyMacosUpdateRegression(evidencePath) {
+  const { statePath, state } = readReleaseState();
+  validateReleaseState(state, { refreshRemote: true });
+  assertCandidateCanBeMarked(state);
+  if (!state.candidateArtifactsVerifiedAt) {
+    throw new Error(
+      "Verify candidate artifacts before verifying macOS Update Regression",
+    );
+  }
+  if (!state.updateRegression?.required) {
+    throw new Error("macOS Update Regression is not required for this release");
+  }
+  const resolvedEvidencePath = path.resolve(String(evidencePath || ""));
+  if (!evidencePath || !existsSync(resolvedEvidencePath)) {
+    throw new Error(
+      "verify-macos-update-regression requires an existing --evidence JSON file",
+    );
+  }
+  const evidenceBytes = readFileSync(resolvedEvidencePath);
+  let evidence;
+  try {
+    evidence = JSON.parse(evidenceBytes.toString("utf8"));
+  } catch (error) {
+    throw new Error("macOS update regression evidence is not valid JSON", {
+      cause: error,
+    });
+  }
+  validateMacUpdateRegressionEvidence(evidence, state);
+  state.updateRegression.status = "verified";
+  state.updateRegression.verifiedAt = new Date().toISOString();
+  state.updateRegression.evidence = evidence;
+  state.updateRegression.evidenceSha256 = createHash("sha256")
+    .update(evidenceBytes)
+    .digest("hex");
+  state.history.push({
+    action: "macos-update-regression",
+    track: state.track,
+    outcome: "completed",
+    completedAt: state.updateRegression.verifiedAt,
+    fromVersion: evidence.fromVersion,
+    toVersion: evidence.toVersion,
+    evidenceSha256: state.updateRegression.evidenceSha256,
+  });
+  writeReleaseState(statePath, state);
+  console.log(
+    `Recorded local macOS Update Regression ${evidence.fromVersion} -> ${evidence.toVersion}`,
+  );
+}
+
 function githubApiJson({ endpoint, cwd }) {
   const result = spawnSync("gh", ["api", endpoint], {
     cwd,
@@ -960,28 +1025,6 @@ function markPublicDownloadIsolationVerified() {
   console.log(
     `Recorded public download isolation verification for Git Leaf ${state.version} ${state.track}`,
   );
-}
-
-function markUpdateRegressionVerified() {
-  const { statePath, state } = readReleaseState();
-  validateReleaseState(state, { refreshRemote: true });
-  assertCandidateCanBeMarked(state);
-  if (!state.candidateArtifactsVerifiedAt) {
-    throw new Error("Verify candidate artifacts before recording update regression smoke");
-  }
-  if (!state.updateRegression?.required) {
-    throw new Error("Update regression smoke is not required for this release");
-  }
-  state.updateRegression.status = "verified";
-  state.updateRegression.verifiedAt = new Date().toISOString();
-  state.history.push({
-    action: "update-regression-smoke",
-    track: state.track,
-    outcome: "completed",
-    completedAt: state.updateRegression.verifiedAt,
-  });
-  writeReleaseState(statePath, state);
-  console.log(`Recorded update regression smoke for Git Leaf ${state.version}`);
 }
 
 function createReleaseTag() {
@@ -1122,6 +1165,8 @@ function printEnvironment() {
   validateReleaseState(state);
   const values = {
     RELEASE_WORKTREE: state.worktreePath,
+    RELEASE_SOURCE_ROOT: state.sourceRoot,
+    RELEASE_TRACK: state.track,
     ...releaseEnvironment(state),
   };
   for (const [key, value] of Object.entries(values)) {
@@ -1149,7 +1194,10 @@ function printReleaseSummary(state, heading) {
   }
   if (state.updateRegression) {
     const base = state.updateRegression.baseTag ? ` since ${state.updateRegression.baseTag}` : "";
-    console.log(`  update regression: ${state.updateRegression.required ? state.updateRegression.status : "not required"}${base}`);
+    const transition = state.updateRegression.evidence?.fromVersion
+      ? ` (${state.updateRegression.evidence.fromVersion} -> ${state.updateRegression.evidence.toVersion})`
+      : "";
+    console.log(`  update regression: ${state.updateRegression.required ? `${state.updateRegression.status}${transition}` : "not required"}${base}`);
     for (const reason of state.updateRegression.reasons) {
       console.log(`    - ${reason}`);
     }
@@ -1237,10 +1285,10 @@ Commands:
       Record candidate manifests, downloads, signatures, and packages as verified
   verify-windows-release-smoke --run-id ID
       Verify and record a successful Windows Release Smoke run for RELEASE_COMMIT
+  verify-macos-update-regression --evidence FILE
+      Verify and record local macOS Update Regression harness evidence
   mark-public-download-isolation-verified
       Record that the public download service hides the internal 1.11.3 stable bridge
-  mark-update-regression-verified
-      Record the real-App update smoke when prepare marked it as required
   tag
       Create the version tag after both stable packages were published
   push-tag
@@ -1277,10 +1325,10 @@ function main(args = process.argv.slice(2)) {
       return markCandidateVerified();
     case "verify-windows-release-smoke":
       return verifyWindowsReleaseSmoke(optionValue(args, "--run-id"));
+    case "verify-macos-update-regression":
+      return verifyMacosUpdateRegression(optionValue(args, "--evidence"));
     case "mark-public-download-isolation-verified":
       return markPublicDownloadIsolationVerified();
-    case "mark-update-regression-verified":
-      return markUpdateRegressionVerified();
     case "tag":
       return createReleaseTag();
     case "push-tag":

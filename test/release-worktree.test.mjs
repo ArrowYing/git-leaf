@@ -21,6 +21,7 @@ import {
   assertCandidateGateComplete,
   assertCandidateCanBeMarked,
   assertFrozenReleaseProfile,
+  assertMacosUpdateRegressionVerified,
   assertPublicDownloadIsolationCanBeMarked,
   assertReleaseCanBeTagged,
   assertReleaseRunAllowed,
@@ -89,6 +90,38 @@ function completedPublish(platform, phase, track = "public") {
     track,
     outcome: "completed",
     completedAt: "2026-07-15T09:00:00.000Z",
+  };
+}
+
+function macosUpdateEvidence(state, overrides = {}) {
+  const fingerprint = { sha256: "a".repeat(64), fileCount: 3 };
+  return {
+    schemaVersion: 1,
+    source: "git-leaf-macos-update-regression",
+    status: "passed",
+    track: state.track,
+    platform: "darwin-universal",
+    fromVersion: "1.10.0",
+    toVersion: state.version,
+    commit: state.commit,
+    buildId: `${state.buildId}.${state.track}`,
+    currentUserDirectContentsWriteEnabled: true,
+    directContentsWrite: true,
+    appDirectoryInodePreserved: true,
+    privilegedShipItJobObserved: false,
+    realProfileBefore: fingerprint,
+    realProfileAfter: fingerprint,
+    realShipItCacheBefore: fingerprint,
+    realShipItCacheAfter: fingerprint,
+    cleanup: {
+      processesTerminated: true,
+      userShipItJobAbsent: true,
+      systemShipItJobAbsent: true,
+      isolatedCacheRemovedWithTemporaryRoot: true,
+      realProfileUnchanged: true,
+      realShipItCacheUnchanged: true,
+    },
+    ...overrides,
   };
 }
 
@@ -554,11 +587,56 @@ test("required update regression blocks stable until its smoke is recorded", () 
       reasons: ["Update-sensitive files changed"],
     },
   });
-  assert.throws(() => assertCandidateGateComplete(pending), /Update regression smoke is required/);
+  assert.throws(
+    () => assertCandidateGateComplete(pending),
+    /macOS Update Regression is required/,
+  );
+  const evidence = macosUpdateEvidence(pending);
   assert.doesNotThrow(() => assertCandidateGateComplete({
     ...pending,
-    updateRegression: { ...pending.updateRegression, status: "verified" },
+    updateRegression: {
+      ...pending.updateRegression,
+      status: "verified",
+      evidence,
+    },
   }));
+});
+
+test("macOS Update Regression gate accepts only complete local harness evidence", () => {
+  const state = releaseState({
+    updateRegression: {
+      required: true,
+      status: "pending",
+      baseTag: "v1.10.0",
+      reasons: ["Update-sensitive files changed"],
+    },
+  });
+  const evidence = macosUpdateEvidence(state);
+  assert.doesNotThrow(() => assertMacosUpdateRegressionVerified({
+    ...state,
+    updateRegression: {
+      ...state.updateRegression,
+      status: "verified",
+      evidence,
+    },
+  }));
+  assert.throws(
+    () => assertMacosUpdateRegressionVerified({
+      ...state,
+      updateRegression: {
+        ...state.updateRegression,
+        status: "verified",
+        evidence: {
+          ...evidence,
+          cleanup: {
+            ...evidence.cleanup,
+            realProfileUnchanged: false,
+          },
+        },
+      },
+    }),
+    /mandatory cleanup contract/,
+  );
 });
 
 test("candidate verification requires both platform uploads from the active release", () => {
@@ -678,6 +756,7 @@ test("release controller prepares, validates, exports, and aborts an isolated wo
   mkdirSync(path.join(sourceRoot, "scripts"), { recursive: true });
   mkdirSync(path.join(sourceRoot, "src"), { recursive: true });
   cpSync(path.join(REPO_ROOT, "scripts", "release-archive.mjs"), path.join(sourceRoot, "scripts", "release-archive.mjs"));
+  cpSync(path.join(REPO_ROOT, "scripts", "mac-update-regression-evidence.mjs"), path.join(sourceRoot, "scripts", "mac-update-regression-evidence.mjs"));
   cpSync(path.join(REPO_ROOT, "scripts", "release-worktree.mjs"), path.join(sourceRoot, "scripts", "release-worktree.mjs"));
   cpSync(path.join(REPO_ROOT, "scripts", "release-shared.mjs"), path.join(sourceRoot, "scripts", "release-shared.mjs"));
   cpSync(path.join(REPO_ROOT, "src", "build-info.mjs"), path.join(sourceRoot, "src", "build-info.mjs"));
@@ -831,6 +910,7 @@ test("release controller finish preserves verified stable artifacts outside the 
   mkdirSync(path.join(sourceRoot, "scripts"), { recursive: true });
   mkdirSync(path.join(sourceRoot, "src"), { recursive: true });
   cpSync(path.join(REPO_ROOT, "scripts", "release-archive.mjs"), path.join(sourceRoot, "scripts", "release-archive.mjs"));
+  cpSync(path.join(REPO_ROOT, "scripts", "mac-update-regression-evidence.mjs"), path.join(sourceRoot, "scripts", "mac-update-regression-evidence.mjs"));
   cpSync(path.join(REPO_ROOT, "scripts", "release-worktree.mjs"), path.join(sourceRoot, "scripts", "release-worktree.mjs"));
   cpSync(path.join(REPO_ROOT, "scripts", "release-shared.mjs"), path.join(sourceRoot, "scripts", "release-shared.mjs"));
   cpSync(path.join(REPO_ROOT, "src", "build-info.mjs"), path.join(sourceRoot, "src", "build-info.mjs"));
