@@ -142,6 +142,7 @@ test("mac release package args exclude internal docs, release scripts, and dev-o
     "/.gitignore",
     "/.gitleaks.toml",
     "/.github/workflows/windows-release-smoke.yml",
+    "/.agents/skills/git-leaf-release/SKILL.md",
     "/assets/icons/git-leaf.png",
     "/node_modules/@electron/get/package.json",
     "/node_modules/@electron-internal/extract-zip/package.json",

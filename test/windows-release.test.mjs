@@ -73,6 +73,7 @@ test("windows release package args exclude internal docs, release scripts, and d
     "/.gitignore",
     "/.gitleaks.toml",
     "/.github/workflows/windows-release-smoke.yml",
+    "/.agents/skills/git-leaf-release/SKILL.md",
     "/node_modules/@electron/get/package.json",
     "/node_modules/@esbuild/win32-x64/esbuild.exe",
     "/node_modules/@types/node/index.d.ts",

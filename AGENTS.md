@@ -1,5 +1,5 @@
 ---
-last_updated: 2026-07-24
+last_updated: 2026-07-26
 ---
 
 # AGENTS.md - Git Leaf
@@ -35,7 +35,9 @@ configuration are all maintained here.
 - The sole source of truth for official desktop usage-analytics event semantics, fields, relationships,
   metric formulas, privacy boundaries, JSONL storage, and prohibited inferences is
   `docs/app-usage-analytics-spec.zh-CN.md`.
-- The release process is in `docs/release.md`; this file does not duplicate the full release procedure.
+- The release process is in `docs/release.md`. The repository-owned Agent entry point is
+  `.agents/skills/git-leaf-release/SKILL.md`; it routes to the document and controller without
+  duplicating the full release procedure.
 
 ## Repository layout
 

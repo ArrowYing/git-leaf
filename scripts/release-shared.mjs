@@ -12,6 +12,7 @@ export const RELEASE_PACKAGE_IGNORE_PATTERNS = [
   "^/dist($|/)",
   "^/\\.git($|/)",
   "^/\\.github($|/)",
+  "^/\\.agents($|/)",
   "^/\\.superpowers($|/)",
   "^/scripts($|/)",
   "^/assets($|/)",

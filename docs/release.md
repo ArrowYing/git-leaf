@@ -2,6 +2,17 @@
 
 This document defines the public release contract. Mango Future's host names, deployment directories, credentials, and private release profiles are maintained outside this repository.
 
+## Agent release entry point
+
+Repository-aware Agents may use
+[the Git Leaf release skill](../.agents/skills/git-leaf-release/SKILL.md) as an orchestration entry
+point. The skill is public and repository-owned; this document remains the release policy, and
+`scripts/release-worktree.mjs` remains the formal state machine.
+
+Machine-specific or company-private skills may locate an approved release profile and verify local
+prerequisites. They must not override this document, bypass controller gates, or copy personal paths,
+private profile locations, host details, or credentials into the public skill.
+
 ## Release tracks and build identities
 
 Every packaged app contains `git-leaf-build-info.json` with three independent fields:
@@ -394,7 +405,7 @@ Before publication:
 2. Search for private repository names, personal paths, private email addresses, internal IPs, host aliases, server directories, and release credentials.
 3. Build macOS and Windows candidates.
 4. Inspect the DMG, ZIP, and `app.asar` file lists and text content.
-5. Confirm packages exclude `marketing/`, `test/`, `dist/`, `.git/`, release profiles, signing material, and internal operations documents.
+5. Confirm packages exclude `.agents/`, `marketing/`, `test/`, `dist/`, `.git/`, release profiles, signing material, and internal operations documents.
 6. Verify source, official public, and official internal behavior independently.
 7. Confirm track, channel, manifest, SHA-256, tag, and public commit correspondence.
 
