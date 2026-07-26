@@ -1354,8 +1354,9 @@ def download_page_html(language, downloads):
         download["version"] for download in (mac, windows) if download
     })
     release_label = (
-        f'{copy["latest"]}: {" / ".join(public_versions)}'
-        if public_versions else copy["unavailable_title"]
+        f'<p class="release-label">{html.escape(copy["latest"])}: '
+        f'{html.escape(" / ".join(public_versions))}</p>'
+        if public_versions else ""
     )
 
     def platform_card(identifier, title, status, action, unavailable, download, detail=""):
@@ -1447,7 +1448,7 @@ def download_page_html(language, downloads):
         <p class="lead">{html.escape(copy["value"])}</p>
         <p class="collaboration">{html.escape(copy["collaboration"])}</p>
       </section>
-      <p class="release-label">{html.escape(release_label)}</p>
+      {release_label}
       {empty_state}
       <section class="platforms" aria-label="{html.escape(copy["latest"], quote=True)}">
         {platform_card("macos", "macOS", copy["mac_status"], copy["mac_button"], copy["mac_unavailable"], mac)}
