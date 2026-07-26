@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import vm from "node:vm";
 
 import {
   assertSafeMacUpdateRegressionHost,
+  updateRegressionInstallExpression,
   updateRegressionChannels,
   validateMacUpdateRegressionEvidence,
   validateUpdateRegressionManifest,
@@ -36,6 +38,53 @@ test("mac update regression refuses conflicting local updater state before launc
     userShipItJobExists: false,
     systemShipItJobExists: false,
   }));
+});
+
+test("mac update regression uses the real enabled update action", () => {
+  const runWithAction = (action) => vm.runInNewContext(
+    updateRegressionInstallExpression(),
+    {
+      document: {
+        querySelector: () => action,
+      },
+    },
+  );
+
+  assert.deepEqual(
+    { ...runWithAction(null) },
+    { clicked: false, reason: "missing" },
+  );
+
+  let clickCount = 0;
+  assert.deepEqual(
+    {
+      ...runWithAction({
+        hidden: false,
+        disabled: true,
+        textContent: "Preparing",
+        click: () => {
+          clickCount += 1;
+        },
+      }),
+    },
+    { clicked: false, reason: "disabled", label: "Preparing" },
+  );
+  assert.equal(clickCount, 0);
+
+  assert.deepEqual(
+    {
+      ...runWithAction({
+        hidden: false,
+        disabled: false,
+        textContent: "Install",
+        click: () => {
+          clickCount += 1;
+        },
+      }),
+    },
+    { clicked: true, reason: "action-clicked", label: "Install" },
+  );
+  assert.equal(clickCount, 1);
 });
 
 test("mac update regression validates candidate identity and ZIP contract", () => {

@@ -450,6 +450,28 @@ async function waitFor(check, {
   );
 }
 
+export function updateRegressionInstallExpression() {
+  return `(() => {
+    const action = document.querySelector("#desktop-update-action");
+    if (!action) {
+      return { clicked: false, reason: "missing" };
+    }
+    if (action.hidden || action.disabled) {
+      return {
+        clicked: false,
+        reason: action.hidden ? "hidden" : "disabled",
+        label: action.textContent || "",
+      };
+    }
+    action.click();
+    return {
+      clicked: true,
+      reason: "action-clicked",
+      label: action.textContent || "",
+    };
+  })()`;
+}
+
 async function evaluateInRenderer({ userDataDir, expression }) {
   const portFile = path.join(userDataDir, "DevToolsActivePort");
   const port = Number(readFileSync(portFile, "utf8").split(/\r?\n/, 1)[0]);
@@ -470,7 +492,11 @@ async function evaluateInRenderer({ userDataDir, expression }) {
       socket.send(JSON.stringify({
         id: 1,
         method: "Runtime.evaluate",
-        params: { expression, awaitPromise: true },
+        params: {
+          expression,
+          awaitPromise: true,
+          returnByValue: true,
+        },
       }));
     });
     socket.addEventListener("message", (event) => {
@@ -481,7 +507,7 @@ async function evaluateInRenderer({ userDataDir, expression }) {
       if (message.error || message.result?.exceptionDetails) {
         reject(new Error("The renderer rejected the update action"));
       } else {
-        resolve();
+        resolve(message.result?.result?.value);
       }
     });
     socket.addEventListener("error", () => {
@@ -679,7 +705,7 @@ async function runHarness({
       }
       await evaluateInRenderer({
         userDataDir,
-        expression: "window.location.href = 'git-leaf://install-update'; true",
+        expression: updateRegressionInstallExpression(),
       });
       return false;
     }, {
