@@ -451,28 +451,44 @@ test("gitleaf update server launches the app without binding to a repository", a
   }
 });
 
-test("gitleaf open page keeps legacy macOS and Windows manifests downloadable", async () => {
-  const root = await mkdtemp(path.join(tmpdir(), "gitleaf-open-downloads-"));
+test("gitleaf download page renders validated public macOS and Windows releases in both languages", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "gitleaf-public-downloads-"));
   const macDir = path.join(root, "git-leaf", "stable", "darwin-universal");
   const windowsDir = path.join(root, "git-leaf", "stable", "win32-x64");
   await mkdir(macDir, { recursive: true });
   await mkdir(windowsDir, { recursive: true });
+  const macArtifact = "mac package";
+  const windowsArtifact = "windows package";
+  await writeFile(path.join(macDir, "GitLeaf-1.4.0.dmg"), macArtifact);
+  await writeFile(path.join(windowsDir, "GitLeaf-1.4.0.zip"), windowsArtifact);
   await writeFile(path.join(macDir, "latest.json"), JSON.stringify({
     version: "1.4.0",
+    releaseTrack: "public",
+    channel: "stable",
+    platform: "darwin-universal",
     files: {
       dmg: {
         url: "https://updates.mangofuture.com/git-leaf/stable/darwin-universal/GitLeaf-1.4.0.dmg",
+        sha256: "a".repeat(64),
+        size: Buffer.byteLength(macArtifact),
       },
       zip: {
         url: "https://updates.mangofuture.com/git-leaf/stable/darwin-universal/GitLeaf-1.4.0.zip",
+        sha256: "b".repeat(64),
+        size: 10485760,
       },
     },
   }));
   await writeFile(path.join(windowsDir, "latest.json"), JSON.stringify({
     version: "1.4.0",
+    releaseTrack: "public",
+    channel: "stable",
+    platform: "win32-x64",
     files: {
       zip: {
         url: "https://updates.mangofuture.com/git-leaf/stable/win32-x64/GitLeaf-1.4.0.zip",
+        sha256: "c".repeat(64),
+        size: Buffer.byteLength(windowsArtifact),
       },
     },
   }));
@@ -491,40 +507,86 @@ test("gitleaf open page keeps legacy macOS and Windows manifests downloadable", 
   });
   try {
     const port = await waitForServerPort(server);
-    const response = await fetch(`http://127.0.0.1:${port}/open`);
-    const html = await response.text();
+    const response = await fetch(`http://127.0.0.1:${port}/download`, {
+      headers: { "Accept-Language": "en-US,en;q=0.9,zh-CN;q=0.8" },
+    });
+    const english = await response.text();
 
     assert.equal(response.status, 200);
-    assert.match(html, /尚未安装 Git Leaf？/);
+    assert.equal(response.headers.get("content-language"), "en");
+    assert.equal(response.headers.get("vary"), "Accept-Language");
+    assert.equal(response.headers.get("cache-control"), "no-store");
+    assert.match(response.headers.get("content-security-policy"), /default-src 'none'/);
+    assert.doesNotMatch(response.headers.get("content-security-policy"), /script-src/);
+    assert.match(english, /A desktop app for Git-based knowledge bases\./);
+    assert.match(english, /Open and maintain your knowledge base without working directly in Git or Markdown\./);
+    assert.match(english, /Anyone can use Git Leaf, while AI agents work with the same files directly in Git\./);
+    assert.match(english, /Developer ID signed and Apple notarized/);
+    assert.match(english, /Unsigned Preview/);
     assert.match(
-      html,
-      /href="https:\/\/updates\.mangofuture\.com\/git-leaf\/stable\/darwin-universal\/GitLeaf-1\.4\.0\.dmg\?source=download-page"[^>]*>下载 macOS 版 1\.4\.0</,
+      english,
+      /href="https:\/\/updates\.mangofuture\.com\/git-leaf\/stable\/darwin-universal\/GitLeaf-1\.4\.0\.dmg\?source=download-page"[^>]*>Download for macOS 1\.4\.0</,
     );
     assert.match(
-      html,
-      /href="https:\/\/updates\.mangofuture\.com\/git-leaf\/stable\/win32-x64\/GitLeaf-1\.4\.0\.zip\?source=download-page"[^>]*>下载 Windows 版 1\.4\.0</,
+      english,
+      /href="https:\/\/updates\.mangofuture\.com\/git-leaf\/stable\/win32-x64\/GitLeaf-1\.4\.0\.zip\?source=download-page"[^>]*>Download Windows Preview 1\.4\.0</,
     );
-    assert.doesNotMatch(html, />下载 macOS 版[^<]*zip</i);
+    assert.match(english, new RegExp("a{64}"));
+    assert.match(english, new RegExp("c{64}"));
+    assert.doesNotMatch(english, /git-leaf:\/\//);
+    assert.doesNotMatch(english, /<script/i);
+
+    const chineseResponse = await fetch(`http://127.0.0.1:${port}/download?lang=zh-CN`, {
+      headers: { "Accept-Language": "en-US" },
+    });
+    const chinese = await chineseResponse.text();
+    assert.equal(chineseResponse.headers.get("content-language"), "zh-CN");
+    assert.match(chinese, /面向 Git 知识库的桌面应用。/);
+    assert.match(chinese, /无需直接操作 Git 或 Markdown，即可打开并维护知识库。/);
+    assert.match(chinese, /任何人都可以使用 Git Leaf，AI Agent 则直接使用 Git 中的同一份文件。/);
+    assert.match(chinese, /Windows 会显示未知发布者警告/);
+
+    const head = await fetch(`http://127.0.0.1:${port}/download`, {
+      method: "HEAD",
+      headers: { "Accept-Language": "zh-CN" },
+    });
+    assert.equal(head.status, 200);
+    assert.equal(head.headers.get("content-language"), "zh-CN");
+    assert.equal(await head.text(), "");
+
+    const openPage = await (await fetch(`http://127.0.0.1:${port}/open`)).text();
+    assert.match(openPage, /git-leaf:\/\/open/);
+    assert.doesNotMatch(openPage, /source=download-page|Download for macOS|下载 macOS/);
+
+    const sharePage = await (await fetch(
+      `http://127.0.0.1:${port}/share?v=1&repo=ExampleOrg%2Fknowledge&path=README.md&rev=${"1".repeat(40)}`,
+    )).text();
+    assert.match(sharePage, /git-leaf:\/\/open-shared/);
+    assert.doesNotMatch(sharePage, /source=download-page|Download for macOS|下载 macOS/);
   } finally {
     server.kill("SIGTERM");
   }
 });
 
-test("gitleaf open page rejects every explicit non-public release track", async () => {
-  const root = await mkdtemp(path.join(tmpdir(), "gitleaf-open-internal-hidden-"));
+test("gitleaf download page rejects legacy, internal, and malformed public manifests", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "gitleaf-download-internal-hidden-"));
   for (const [platform, releaseTrack, artifact, extension] of [
     ["darwin-universal", "internal", "dmg", "dmg"],
-    ["darwin-arm64", "invalid", "dmg", "dmg"],
-    ["win32-x64", null, "zip", "zip"],
+    ["darwin-arm64", "public", "dmg", "dmg"],
+    ["win32-x64", undefined, "zip", "zip"],
   ]) {
     const platformDir = path.join(root, "git-leaf", "stable", platform);
     await mkdir(platformDir, { recursive: true });
     await writeFile(path.join(platformDir, "latest.json"), JSON.stringify({
       version: "1.11.3",
       releaseTrack,
+      channel: "stable",
+      platform,
       files: {
         [artifact]: {
           url: `https://updates.mangofuture.com/git-leaf/stable/${platform}/GitLeaf-1.11.3-internal-${platform}.${extension}`,
+          sha256: releaseTrack === "public" ? "not-a-sha256" : "d".repeat(64),
+          size: 1024,
         },
       },
     }));
@@ -544,19 +606,23 @@ test("gitleaf open page rejects every explicit non-public release track", async 
   });
   try {
     const port = await waitForServerPort(server);
-    const response = await fetch(`http://127.0.0.1:${port}/open`);
+    const response = await fetch(`http://127.0.0.1:${port}/download`);
     const html = await response.text();
 
     assert.equal(response.status, 200);
+    assert.match(html, /Public builds are not available yet/);
+    assert.match(html, /internal distributions are never shown here/);
+    assert.match(html, /View source and run instructions/);
     assert.doesNotMatch(html, /GitLeaf-1\.11\.3-internal/);
-    assert.doesNotMatch(html, />下载 macOS 版 1\.11\.3</);
-    assert.doesNotMatch(html, />下载 Windows 版 1\.11\.3</);
+    assert.doesNotMatch(html, /Download for macOS 1\.11\.3/);
+    assert.doesNotMatch(html, /Download Windows Preview 1\.11\.3/);
+    assert.doesNotMatch(html, /internal-stable/);
   } finally {
     server.kill("SIGTERM");
   }
 });
 
-test("gitleaf update server logs completed legacy download-page artifacts without request identity", async () => {
+test("gitleaf update server logs completed public download-page artifacts without request identity", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "gitleaf-download-log-"));
   const telemetryRoot = path.join(root, "telemetry");
   const platformDir = path.join(root, "git-leaf", "stable", "darwin-universal");
@@ -565,9 +631,14 @@ test("gitleaf update server logs completed legacy download-page artifacts withou
   const manifestPath = path.join(platformDir, "latest.json");
   const manifest = {
     version: "1.4.0",
+    releaseTrack: "public",
+    channel: "stable",
+    platform: "darwin-universal",
     files: {
       dmg: {
         url: `https://updates.mangofuture.com/git-leaf/stable/darwin-universal/${artifactName}`,
+        sha256: "e".repeat(64),
+        size: 20,
       },
     },
   };
@@ -627,16 +698,22 @@ test("gitleaf update server logs completed legacy download-page artifacts withou
   }
 });
 
-test("gitleaf open page falls back to the last ARM download before the first universal release", async () => {
-  const root = await mkdtemp(path.join(tmpdir(), "gitleaf-open-arm-fallback-"));
+test("gitleaf download page falls back to the last ARM release before the first universal release", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "gitleaf-download-arm-fallback-"));
   const macDir = path.join(root, "git-leaf", "stable", "darwin-arm64");
   await mkdir(macDir, { recursive: true });
+  const armArtifact = "arm package";
+  await writeFile(path.join(macDir, "GitLeaf-1.8.1.dmg"), armArtifact);
   await writeFile(path.join(macDir, "latest.json"), JSON.stringify({
     version: "1.8.1",
     releaseTrack: "public",
+    channel: "stable",
+    platform: "darwin-arm64",
     files: {
       dmg: {
         url: "https://updates.mangofuture.com/git-leaf/stable/darwin-arm64/GitLeaf-1.8.1.dmg",
+        sha256: "f".repeat(64),
+        size: Buffer.byteLength(armArtifact),
       },
     },
   }));
@@ -655,7 +732,7 @@ test("gitleaf open page falls back to the last ARM download before the first uni
   });
   try {
     const port = await waitForServerPort(server);
-    const response = await fetch(`http://127.0.0.1:${port}/open`);
+    const response = await fetch(`http://127.0.0.1:${port}/download`);
     const html = await response.text();
 
     assert.equal(response.status, 200);

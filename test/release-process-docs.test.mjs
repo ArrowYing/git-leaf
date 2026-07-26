@@ -27,7 +27,11 @@ test("release documentation exposes the dual-track build and publication boundar
   assert.match(releaseDoc, /Internal 1\.11\.3 migration bridge/);
   assert.match(releaseDoc, /mark-public-download-isolation-verified/);
   assert.match(releaseDoc, /exact same signed internal artifacts to legacy `stable`/);
-  assert.match(releaseDoc, /public `\/open` download page must ignore internal manifests/);
+  assert.match(
+    releaseDoc,
+    /public `\/download` page must require an explicit public release track and ignore internal or legacy/,
+  );
+  assert.match(releaseDoc, /`\/open` and `\/share` pages remain deep-link transit/);
   assert.match(releaseDoc, /legacyInternalMigrationConfirmed/);
   assert.match(releaseDoc, /Windows is currently distributed as an unsigned Preview ZIP/);
   assert.match(releaseDoc, /secret scanner/);

@@ -1,19 +1,30 @@
 ---
-last_updated: 2026-07-25
+last_updated: 2026-07-26
 ---
 
 # Git Leaf
 
 English | [简体中文](README.zh-CN.md)
 
-A human-friendly workspace for Git-based company knowledge.
+A desktop app for Git-based knowledge bases.
 
-Git Leaf is a local desktop workspace for company knowledge stored in Git repositories. It lets people
-read, search, edit, and sync Markdown and MDX without hiding the underlying file paths, line numbers,
-branches, or worktrees that developers and AI agents rely on.
+Open and maintain your knowledge base without working directly in Git or Markdown.
 
-Git Leaf does not migrate documents into a database or hosted editor. The files in the repository you
-open remain the source of truth.
+Anyone can use Git Leaf, while AI agents work with the same files directly in Git.
+
+[**Download for macOS**](https://gitleaf.mangofuture.com/download#macos) ·
+[Windows Preview](https://gitleaf.mangofuture.com/download#windows) ·
+[Run from source](#run-from-source)
+
+![Git Leaf showing a Git-based knowledge base, local changes, and Agent Context](marketing/assets/git-leaf-product.png)
+
+[![CI](https://github.com/MangoFuture1210/git-leaf/actions/workflows/ci.yml/badge.svg)](https://github.com/MangoFuture1210/git-leaf/actions/workflows/ci.yml)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+
+Git Leaf is the app. The local Git repository you open is the knowledge base and remains its source of
+truth. Git Leaf gives people a familiar interface for reading, searching, editing, and syncing its
+Markdown and MDX files, while preserving the paths, revisions, branches, and worktrees that developers,
+automation, and AI agents use directly.
 
 ## What Git Leaf does
 
@@ -40,18 +51,20 @@ open remain the source of truth.
   environment status in a full-screen Settings & Help view. The interface follows the operating-system
   language by default and can be fixed to English or Simplified Chinese.
 
-## Install and run
+## Download
 
 Use the installed Git Leaf desktop app for normal work. On first launch, choose a local Git repository;
 later launches restore your repositories, worktrees, and workspace state.
 
 Official public builds are available from the
-[Git Leaf open page](https://gitleaf.mangofuture.com/open). Company-internal builds use a separate
+[Git Leaf download page](https://gitleaf.mangofuture.com/download). Company-internal builds use a separate
 distribution channel and are not published there.
 
 Official Mango Future macOS builds are signed with Developer ID and notarized. Windows is currently an
 explicitly labeled unsigned Preview; verify the published SHA-256 checksum before running it. See the
 [Windows Preview guide](docs/windows-portable-guide.md).
+
+### Run from source
 
 Running from source requires Node.js 22 or newer and Git:
 

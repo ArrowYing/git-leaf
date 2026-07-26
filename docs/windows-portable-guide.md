@@ -12,7 +12,7 @@ Because the executable is not Authenticode-signed, Windows can show an unknown p
 
 ## Install
 
-1. Open `https://gitleaf.mangofuture.com/open`.
+1. Open `https://gitleaf.mangofuture.com/download#windows`.
 2. Download `GitLeaf-<version>-public-win32-x64.zip`.
 3. Compare the ZIP's SHA-256 with the checksum published for that release.
 4. Fully exit an older Git Leaf process.

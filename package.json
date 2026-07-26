@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "main": "desktop/main.mjs",
-  "description": "Git-native docs for teams: local Markdown and MDX preview for Git repositories.",
+  "description": "Desktop app for Git-based knowledge bases: read, edit, and sync Markdown and MDX.",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",

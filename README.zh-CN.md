@@ -1,18 +1,29 @@
 ---
-last_updated: 2026-07-25
+last_updated: 2026-07-26
 ---
 
 # Git Leaf
 
 [English](README.md) | 简体中文
 
-A human-friendly workspace for Git-based company knowledge.
+面向 Git 知识库的桌面应用。
 
-Git Leaf 是面向本机 Git 仓库的公司知识工作台。它让非技术同事可以在桌面 App 中阅读、搜索、编辑和同步
-Markdown／MDX 内容，同时保留源文件路径、行号、分支和 worktree 等 Git 语义，方便员工与 AI Agent 在同一份
-文本事实源上协作。
+无需直接操作 Git 或 Markdown，即可打开并维护知识库。
 
-Git Leaf 不把文档迁移到数据库或云端编辑器。权威内容始终是用户选择的 Git 仓库中的文件。
+任何人都可以使用 Git Leaf，AI Agent 则直接使用 Git 中的同一份文件。
+
+[**下载 macOS 版**](https://gitleaf.mangofuture.com/download?lang=zh-CN#macos) ·
+[Windows Preview](https://gitleaf.mangofuture.com/download?lang=zh-CN#windows) ·
+[从源码运行](#从源码运行)
+
+![Git Leaf 展示 Git 知识库、本地改动和 Agent 上下文](marketing/assets/git-leaf-product.png)
+
+[![CI](https://github.com/MangoFuture1210/git-leaf/actions/workflows/ci.yml/badge.svg)](https://github.com/MangoFuture1210/git-leaf/actions/workflows/ci.yml)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+
+Git Leaf 是 App；用户打开的本机 Git 仓库才是知识库，也是它的内容事实源。Git Leaf 为人提供熟悉的界面，用来阅读、
+搜索、编辑和同步其中的 Markdown／MDX 文件，同时保留开发者、自动化和 AI Agent 直接使用的路径、revision、分支和
+worktree。
 
 ## 当前能力
 
@@ -31,14 +42,16 @@ Git Leaf 不把文档迁移到数据库或云端编辑器。权威内容始终�
 - “复制分享链接”会把主工作目录 `main` 中尚未发布的改动完整提交、推送并复核 `origin/main`，成功后才复制版本化链接；失败会保留本地内容并提供发布重试。链接不携带正文、本机路径或 `ai_snippet`。
 - 全屏“设置与帮助”页面集中管理界面语言、明暗模式、文档字体、文档字号和目录树内容，并展示帮助、快捷键、版本、环境与仓库状态。界面语言默认跟随系统，也可以固定为英语或简体中文。
 
-## 安装与使用
+## 下载
 
 普通用户使用已安装的 Git Leaf 桌面 App。首次打开时选择本机 Git 仓库；之后 App 会恢复已打开仓库和各
-worktree 的工作台状态。官方公开安装包由 [Git Leaf 打开页](https://gitleaf.mangofuture.com/open) 提供；
+worktree 的工作台状态。官方公开安装包由 [Git Leaf 下载页](https://gitleaf.mangofuture.com/download?lang=zh-CN) 提供；
 公司内部正式包通过公司发布渠道提供，不会出现在公开下载页。
 
 Mango Future 官方 macOS 安装包使用 Developer ID 签名和公证。Windows 当前是明确标记的 unsigned Preview；
 下载后应核对发布版本的 SHA-256，具体见 [Windows Preview](docs/windows-portable-guide.md)。
+
+### 从源码运行
 
 从源码运行需要 Node.js 22 或更高版本，并且本机已安装 Git：
 

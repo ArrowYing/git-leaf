@@ -70,7 +70,7 @@ MDX-lite 组件语法说明。
 
 ## 系统定位
 
-Git Leaf 是面向 Git 仓库知识库的独立本地 Markdown / MDX 文档工作台。
+Git Leaf 是一个用于打开和维护 Git 知识库的独立本地桌面 App，主要处理 Markdown／MDX 文档。
 
 它解决三个问题：
 
@@ -78,8 +78,8 @@ Git Leaf 是面向 Git 仓库知识库的独立本地 Markdown / MDX 文档工�
 - 让 AI Agent 能通过源文件路径、行号和原始 Markdown 精确理解用户选中的内容；
 - 让用户在同一 Git 仓库的多个 worktree 之间切换，并清楚看到每个工作区所在分支。
 
-Git Leaf 不把文档迁移到数据库、CMS 或云端服务。权威源文件始终是用户选择的 Git 仓库里的 `.md` / `.mdx`
-文件；Git Leaf 只是这些文件的本地工作台。仓库中同时存在的图片、附件、代码和其他文件不会被隐藏，
+Git Leaf 不把文档迁移到数据库、CMS 或云端服务。用户选择的 Git 仓库是知识库的内容容器，仓库中的 `.md`／`.mdx`
+文件始终是权威源文件；Git Leaf 是打开和维护这套知识库的工具，不是另一套知识库。仓库中同时存在的图片、附件、代码和其他文件不会被隐藏，
 但不因此把 Git Leaf 扩展成通用代码编辑器。
 
 ## 运行模型
@@ -162,9 +162,12 @@ macOS 与 Windows 使用同一套用户可见状态和意图边界：
 `repo=<owner/repo>&path=<relative.md>`。同一台机器上的精确预览可以再附加 `worktree=<id>`。
 静态跳转页只把参数转换为本机深链，不读取仓库内容，也不保存本机路径。
 跳转页不会按固定时间关闭，也不再用浏览器失焦或页面隐藏推断成功。官方服务 为每次打开生成短期有效的一次性 `handoff` ID；Git Leaf 完成目标仓库和文档打开后向固定确认接口提交该 ID，跳转页轮询到 `opened` 后才尝试自行关闭。APP 未启动、找不到仓库或文档打开失败时不会确认，页面继续保留；自动协议调用失败后，用户点击按钮仍复用同一个 handoff。目标仓库尚未出现在 Git Leaf 的本机仓库列表时，桌面端直接允许用户选择本机目录，核对 GitHub origin 和目标工作树后继续原链接，不要求用户退出当前流程再从菜单手工添加。桌面端把 `received`、`opened`、`confirmed`、`failed` 等事件写入用户数据目录的 `deep-link.log`，用于定位跨应用交接问题。浏览器只允许脚本关闭特定来源的标签页，因此确认成功但被 Safari、Chrome 等拦截时，页面保留明确的手动关闭提示。
-浏览器不能直接判断本机是否已安装 Git Leaf，因此跳转页长期展示公开安装入口：macOS 指向
-`releaseTrack=public` 的 stable `latest.json` 中的 DMG，Windows 指向对应的 ZIP；发布新版本后链接随清单
-自动更新，不在页面中写死版本号。内部轨道制品即使为兼容旧客户端临时发布到 stable，也不得出现在公开下载页。
+`/open` 和 `/share` 只承担本机协议启动与分享中转，不展示安装包。普通下载使用独立的
+`https://gitleaf.mangofuture.com/download` 页面；该页面不会生成或触发 `git-leaf://`，根据浏览器语言展示英语或
+简体中文，并提供手动语言切换。macOS 下载来自 `releaseTrack=public` 的 stable `latest.json` 中的 DMG，Windows
+来自对应 ZIP；页面同时显示版本、签名状态、SHA-256、文件大小和源码入口，不写死版本号。下载页只接受显式 public
+且 channel、platform、HTTPS URL、SHA-256 和大小自洽的 manifest；缺失轨道的旧清单及内部轨道制品即使为兼容旧
+客户端临时发布到 stable，也不得出现在页面中。
 浏览器兼容验收以 macOS Chrome 为主、Safari 为辅；Windows 同时覆盖 Edge 和 Chrome。浏览器层只负责把同一个 `git-leaf://` URL 交给操作系统，文档优先级由 Git Leaf App 统一处理。
 
 ### 文档分享链接

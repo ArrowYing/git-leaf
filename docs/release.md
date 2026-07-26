@@ -365,7 +365,8 @@ The installed official `1.11.2` build predates release tracks and reads only the
 1. Publish and verify both platforms on `internal-candidate`.
 2. Complete the real packaged-App update regression.
 3. Publish and verify both platforms on `internal-stable`.
-4. Deploy and verify the update server version that excludes internal manifests from `/open`, then record the live isolation check:
+4. Deploy and verify the update server version that excludes internal manifests from the public download
+   surface, then record the live isolation check:
 
 ```bash
 node scripts/release-worktree.mjs mark-public-download-isolation-verified
@@ -380,7 +381,11 @@ node scripts/release-worktree.mjs run windows publish-updates --channel legacy-s
 
 The controller permits `legacy-stable` only for the internal `1.11.3` migration release, only for `publish-updates`, and only after both internal stable platforms, candidate gates, and the public-download isolation check have completed. It also refuses to tag or finish `1.11.3` until both legacy platform publishes are recorded.
 
-The public `/open` download page must ignore internal manifests even while the bridge occupies `stable`. Do not publish a newer public build to legacy `stable` until the company migration is confirmed; lagging `1.11.2` installations would otherwise miss the bridge. After upgrading, the embedded `internal` track reads only `internal-stable`.
+The public `/download` page must require an explicit public release track and ignore internal or legacy
+manifests even while the bridge occupies `stable`. The `/open` and `/share` pages remain deep-link transit
+pages and must not expose distribution artifacts. Do not publish a newer public build to legacy `stable`
+until the company migration is confirmed; lagging `1.11.2` installations would otherwise miss the bridge.
+After upgrading, the embedded `internal` track reads only `internal-stable`.
 
 ## Platform status
 

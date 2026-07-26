@@ -412,6 +412,8 @@ class GitLeafUpdateHandler(SimpleHTTPRequestHandler):
             return
         if self._handle_open_status():
             return
+        if self._handle_download_page(send_body=True):
+            return
         if self._handle_share_page(send_body=True):
             return
         if self._handle_open_page(send_body=True):
@@ -440,6 +442,8 @@ class GitLeafUpdateHandler(SimpleHTTPRequestHandler):
         self.send_error(HTTPStatus.NOT_FOUND)
 
     def do_HEAD(self):
+        if self._handle_download_page(send_body=False):
+            return
         if self._handle_share_page(send_body=False):
             return
         if self._handle_open_page(send_body=False):
@@ -455,6 +459,37 @@ class GitLeafUpdateHandler(SimpleHTTPRequestHandler):
         elif re.search(r"\.(zip|dmg|blockmap)$", parsed_path):
             self.send_header("Cache-Control", "public, max-age=31536000, immutable")
         super().end_headers()
+
+    def _handle_download_page(self, send_body):
+        parsed = urlparse(self.path)
+        if parsed.path != "/download":
+            return False
+
+        language = download_page_language(
+            parse_qs(parsed.query, keep_blank_values=True),
+            self.headers.get("Accept-Language", ""),
+        )
+        body = download_page_html(
+            language,
+            latest_public_downloads(self.directory),
+        ).encode("utf-8")
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Content-Language", language)
+        self.send_header("Vary", "Accept-Language")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header(
+            "Content-Security-Policy",
+            "default-src 'none'; style-src 'unsafe-inline'; "
+            "base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+        )
+        self.send_header("Referrer-Policy", "no-referrer")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.end_headers()
+        if send_body:
+            self.wfile.write(body)
+        return True
 
     def _handle_open_page(self, send_body):
         parsed = urlparse(self.path)
@@ -507,7 +542,6 @@ class GitLeafUpdateHandler(SimpleHTTPRequestHandler):
             detail,
             deep_link,
             handoff_id,
-            latest_download_links(self.directory),
         ).encode("utf-8")
         self.send_response(HTTPStatus.OK)
         self._send_open_headers(len(body))
@@ -573,7 +607,6 @@ class GitLeafUpdateHandler(SimpleHTTPRequestHandler):
             detail,
             deep_link,
             handoff_id,
-            latest_download_links(self.directory),
             status_endpoint="/share/status",
             preview_title=preview_title or "正在 Git Leaf 中打开分享文档",
             preview_description=preview_snippet or detail,
@@ -1113,33 +1146,99 @@ def single_handoff_id(query):
     return values[0]
 
 
-def latest_download_links(root, channel="stable"):
+def download_page_language(query, accept_language):
+    requested = query.get("lang", [])
+    if len(requested) == 1:
+        normalized = requested[0].strip().lower()
+        if normalized in {"zh", "zh-cn", "zh-hans"}:
+            return "zh-CN"
+        if normalized == "en" or normalized.startswith("en-"):
+            return "en"
+    for language_range in str(accept_language or "").split(","):
+        normalized = language_range.split(";", 1)[0].strip().lower()
+        if normalized == "zh" or normalized.startswith("zh-"):
+            return "zh-CN"
+        if normalized == "en" or normalized.startswith("en-"):
+            return "en"
+    return "en"
+
+
+def latest_public_downloads(root, channel="stable"):
     targets = (
-        ("macOS", ("darwin-universal", "darwin-arm64"), "dmg"),
-        ("Windows", ("win32-x64",), "zip"),
+        ("macos", ("darwin-universal", "darwin-arm64"), "dmg"),
+        ("windows", ("win32-x64",), "zip"),
     )
-    downloads = []
-    for label, platforms, artifact_kind in targets:
+    downloads = {}
+    for product_key, platforms, artifact_kind in targets:
         for platform in platforms:
             manifest_path = Path(root) / "git-leaf" / channel / platform / "latest.json"
             try:
                 manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
             except (FileNotFoundError, json.JSONDecodeError, OSError):
                 continue
-            if not is_public_download_manifest(manifest):
+            artifact = public_download_artifact(
+                manifest,
+                root=root,
+                channel=channel,
+                platform=platform,
+                artifact_kind=artifact_kind,
+            )
+            if not artifact:
                 continue
-            artifact = (manifest.get("files") or {}).get(artifact_kind) or {}
-            url = str(artifact.get("url", "")).strip()
-            parsed_url = urlparse(url)
-            if parsed_url.scheme != "https" or not parsed_url.netloc:
-                continue
-            downloads.append({
-                "label": label,
-                "version": str(manifest.get("version", "")).strip(),
-                "url": download_page_url(url),
-            })
+            downloads[product_key] = artifact
             break
     return downloads
+
+
+def public_download_artifact(manifest, root, channel, platform, artifact_kind):
+    if not is_public_download_manifest(manifest):
+        return None
+    if manifest.get("channel") != channel or manifest.get("platform") != platform:
+        return None
+    version = manifest.get("version")
+    if not valid_semver(version):
+        return None
+    artifact = (manifest.get("files") or {}).get(artifact_kind)
+    if not isinstance(artifact, dict):
+        return None
+    url = str(artifact.get("url", "")).strip()
+    sha256 = str(artifact.get("sha256", "")).strip().lower()
+    size = artifact.get("size")
+    parsed_url = urlparse(url)
+    expected_prefix = f"/git-leaf/{channel}/{platform}/"
+    if (
+        parsed_url.scheme != "https"
+        or parsed_url.netloc != "updates.mangofuture.com"
+        or parsed_url.params
+        or parsed_url.query
+        or parsed_url.fragment
+        or not unquote(parsed_url.path).startswith(expected_prefix)
+        or "/" in unquote(parsed_url.path)[len(expected_prefix):]
+        or not unquote(parsed_url.path).lower().endswith(f".{artifact_kind}")
+        or not re.fullmatch(r"[a-f0-9]{64}", sha256)
+        or isinstance(size, bool)
+        or not isinstance(size, int)
+        or size < 0
+    ):
+        return None
+    artifact_path = (Path(root) / unquote(parsed_url.path).lstrip("/")).resolve()
+    root_path = Path(root).resolve()
+    try:
+        if (
+            not artifact_path.is_relative_to(root_path)
+            or not artifact_path.is_file()
+            or artifact_path.stat().st_size != size
+        ):
+            return None
+    except OSError:
+        return None
+    return {
+        "platform": platform,
+        "version": version,
+        "url": download_page_url(url),
+        "sha256": sha256,
+        "size": size,
+    }
 
 
 def download_page_url(url):
@@ -1198,11 +1297,170 @@ def distribution_download_record(root, request_target):
 
 
 def is_public_download_manifest(manifest):
-    if not isinstance(manifest, dict):
-        return False
-    if "releaseTrack" not in manifest:
-        return True
-    return manifest.get("releaseTrack") == "public"
+    return isinstance(manifest, dict) and manifest.get("releaseTrack") == "public"
+
+
+def format_download_size(size):
+    value = float(size)
+    for unit in ("B", "KB", "MB", "GB"):
+        if value < 1024 or unit == "GB":
+            precision = 0 if unit == "B" else 1
+            return f"{value:.{precision}f} {unit}"
+        value /= 1024
+    return f"{size} B"
+
+
+def download_page_html(language, downloads):
+    is_chinese = language == "zh-CN"
+    copy = {
+        "title": "Git Leaf 下载" if is_chinese else "Download Git Leaf",
+        "category": "面向 Git 知识库的桌面应用。" if is_chinese
+        else "A desktop app for Git-based knowledge bases.",
+        "value": "无需直接操作 Git 或 Markdown，即可打开并维护知识库。" if is_chinese
+        else "Open and maintain your knowledge base without working directly in Git or Markdown.",
+        "collaboration": "任何人都可以使用 Git Leaf，AI Agent 则直接使用 Git 中的同一份文件。" if is_chinese
+        else "Anyone can use Git Leaf, while AI agents work with the same files directly in Git.",
+        "latest": "最新公开版本" if is_chinese else "Latest public release",
+        "unavailable_title": "公开安装包暂不可用" if is_chinese else "Public builds are not available yet",
+        "unavailable_detail": (
+            "当前没有通过公开发布验证的安装包。你仍然可以查看源码并从源码运行；内部发行版不会出现在这里。"
+            if is_chinese else
+            "No installer has passed the public release gate yet. You can still inspect and run the source; "
+            "internal distributions are never shown here."
+        ),
+        "mac_status": "Developer ID 签名并通过 Apple 公证" if is_chinese
+        else "Developer ID signed and Apple notarized",
+        "mac_button": "下载 macOS 版" if is_chinese else "Download for macOS",
+        "mac_unavailable": "macOS 版暂不可用" if is_chinese else "macOS build unavailable",
+        "windows_status": "未签名 Preview" if is_chinese else "Unsigned Preview",
+        "windows_detail": (
+            "Windows 会显示未知发布者警告。运行前请核对下方 SHA-256。"
+            if is_chinese else
+            "Windows will show an unknown-publisher warning. Verify the SHA-256 below before running."
+        ),
+        "windows_button": "下载 Windows Preview" if is_chinese else "Download Windows Preview",
+        "windows_unavailable": "Windows Preview 暂不可用" if is_chinese else "Windows Preview unavailable",
+        "sha": "SHA-256",
+        "source": "查看源码与运行说明" if is_chinese else "View source and run instructions",
+        "privacy": (
+            "下载页只展示明确标记为 public 的 stable 版本。"
+            if is_chinese else
+            "This page only shows stable releases explicitly marked public."
+        ),
+    }
+    mac = downloads.get("macos")
+    windows = downloads.get("windows")
+    public_versions = sorted({
+        download["version"] for download in (mac, windows) if download
+    })
+    release_label = (
+        f'{copy["latest"]}: {" / ".join(public_versions)}'
+        if public_versions else copy["unavailable_title"]
+    )
+
+    def platform_card(identifier, title, status, action, unavailable, download, detail=""):
+        safe_detail = f'<p class="warning">{html.escape(detail)}</p>' if detail else ""
+        if download:
+            button = (
+                f'<a class="button" href="{html.escape(download["url"], quote=True)}" '
+                f'rel="noopener noreferrer">{html.escape(action)} {html.escape(download["version"])}</a>'
+            )
+            metadata = (
+                f'<dl><div><dt>{copy["sha"]}</dt><dd><code>{download["sha256"]}</code></dd></div>'
+                f'<div><dt>{"大小" if is_chinese else "Size"}</dt>'
+                f'<dd>{html.escape(format_download_size(download["size"]))}</dd></div></dl>'
+            )
+        else:
+            button = f'<span class="button disabled" aria-disabled="true">{html.escape(unavailable)}</span>'
+            metadata = ""
+        return (
+            f'<article id="{identifier}" class="platform-card">'
+            f'<div><p class="platform-status">{html.escape(status)}</p><h2>{html.escape(title)}</h2>'
+            f'{safe_detail}</div>{button}{metadata}</article>'
+        )
+
+    empty_state = ""
+    if not downloads:
+        empty_state = (
+            f'<aside class="notice"><strong>{html.escape(copy["unavailable_title"])}</strong>'
+            f'<p>{html.escape(copy["unavailable_detail"])}</p></aside>'
+        )
+    alternate_language = (
+        '<a href="/download?lang=en" lang="en">English</a>'
+        if is_chinese else
+        '<a href="/download?lang=zh-CN" lang="zh-CN">简体中文</a>'
+    )
+    return f"""<!doctype html>
+<html lang="{language}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="{html.escape(copy["category"], quote=True)}">
+  <title>{html.escape(copy["title"])}</title>
+  <style>
+    :root {{ color-scheme: light dark; font-family: Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }}
+    * {{ box-sizing: border-box; }}
+    body {{ margin: 0; background: #f5f7f3; color: #172019; }}
+    a {{ color: inherit; }}
+    .shell {{ width: min(1040px,calc(100% - 40px)); margin: 0 auto; }}
+    header {{ display: flex; align-items: center; justify-content: space-between; padding: 28px 0; }}
+    .brand {{ font-weight: 760; letter-spacing: -.02em; text-decoration: none; }}
+    .language {{ color: #526158; font-size: 14px; text-underline-offset: 3px; }}
+    .hero {{ padding: 62px 0 46px; max-width: 830px; }}
+    .eyebrow {{ color: #237a50; font-size: 13px; font-weight: 760; letter-spacing: .08em; text-transform: uppercase; }}
+    h1 {{ margin: 14px 0 18px; font-size: clamp(40px,7vw,72px); line-height: .98; letter-spacing: -.055em; }}
+    .lead {{ margin: 0 0 12px; max-width: 720px; font-size: clamp(19px,2.5vw,27px); line-height: 1.4; }}
+    .collaboration {{ margin: 0; max-width: 760px; color: #58665e; font-size: 17px; line-height: 1.6; }}
+    .release-label {{ margin: 0 0 18px; font-size: 14px; color: #526158; }}
+    .notice {{ margin-bottom: 18px; padding: 18px 20px; border: 1px solid #d9e2dc; border-radius: 14px; background: #fff; }}
+    .notice p {{ margin: 6px 0 0; color: #5a675f; line-height: 1.55; }}
+    .platforms {{ display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 18px; }}
+    .platform-card {{ min-height: 310px; display: flex; flex-direction: column; align-items: flex-start; padding: 28px; border: 1px solid #d9e2dc; border-radius: 20px; background: #fff; box-shadow: 0 20px 55px rgba(36,70,49,.08); }}
+    .platform-card h2 {{ margin: 8px 0 0; font-size: 30px; letter-spacing: -.035em; }}
+    .platform-status {{ margin: 0; color: #237a50; font-size: 13px; font-weight: 720; }}
+    .warning {{ margin: 10px 0 0; color: #6c5945; line-height: 1.5; }}
+    .button {{ margin-top: auto; display: inline-block; padding: 12px 18px; border-radius: 10px; background: #237a50; color: #fff; font-weight: 720; text-decoration: none; }}
+    .button.disabled {{ background: #dfe5e1; color: #68736c; cursor: not-allowed; }}
+    dl {{ width: 100%; margin: 22px 0 0; color: #5a675f; font-size: 13px; }}
+    dl div {{ display: grid; grid-template-columns: 66px minmax(0,1fr); gap: 12px; margin-top: 9px; }}
+    dt {{ font-weight: 720; }} dd {{ margin: 0; overflow-wrap: anywhere; }} code {{ font-size: 11px; }}
+    .source {{ display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 28px 0 52px; color: #526158; }}
+    .source a {{ color: #176b43; font-weight: 720; text-underline-offset: 4px; }}
+    .source p {{ margin: 0; font-size: 13px; }}
+    @media (max-width: 700px) {{ .hero {{ padding-top: 36px; }} .platforms {{ grid-template-columns: 1fr; }} .source {{ align-items: flex-start; flex-direction: column; }} }}
+    @media (prefers-color-scheme: dark) {{
+      body {{ background: #101511; color: #eef4ef; }}
+      .language,.collaboration,.release-label,.source,dl {{ color: #aeb9b1; }}
+      .notice,.platform-card {{ background: #171e19; border-color: #2e3a32; box-shadow: none; }}
+      .notice p {{ color: #aeb9b1; }} .button.disabled {{ background: #313a34; color: #aeb9b1; }}
+      .warning {{ color: #d2b994; }} .source a {{ color: #70d3a4; }}
+    }}
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header><a class="brand" href="/download">Git Leaf</a><span class="language">{alternate_language}</span></header>
+    <main>
+      <section class="hero">
+        <p class="eyebrow">{html.escape(copy["category"])}</p>
+        <h1>{html.escape(copy["title"])}</h1>
+        <p class="lead">{html.escape(copy["value"])}</p>
+        <p class="collaboration">{html.escape(copy["collaboration"])}</p>
+      </section>
+      <p class="release-label">{html.escape(release_label)}</p>
+      {empty_state}
+      <section class="platforms" aria-label="{html.escape(copy["latest"], quote=True)}">
+        {platform_card("macos", "macOS", copy["mac_status"], copy["mac_button"], copy["mac_unavailable"], mac)}
+        {platform_card("windows", "Windows", copy["windows_status"], copy["windows_button"], copy["windows_unavailable"], windows, copy["windows_detail"])}
+      </section>
+      <footer class="source">
+        <a href="https://github.com/MangoFuture1210/git-leaf#run-from-source" rel="noopener noreferrer">{html.escape(copy["source"])}</a>
+        <p>{html.escape(copy["privacy"])}</p>
+      </footer>
+    </main>
+  </div>
+</body>
+</html>"""
 
 
 def normalize_share_preview_text(value, max_length):
@@ -1219,7 +1477,6 @@ def open_page_html(
         detail,
         deep_link,
         handoff_id,
-        downloads=(),
         status_endpoint="/open/status",
         preview_title="",
         preview_description="",
@@ -1241,7 +1498,6 @@ def open_page_html(
         )
     launch_script = ""
     button = ""
-    download_section = ""
     if deep_link:
         status_path = status_endpoint + "?" + urlencode({"id": handoff_id})
         launch_script = (
@@ -1275,21 +1531,6 @@ def open_page_html(
             "})();</script>"
         )
         button = f'<a id="launch-link" class="button" href="{safe_deep_link}">在 Git Leaf 中打开</a>'
-    if downloads:
-        download_links = "".join(
-            '<a class="download-link" '
-            f'href="{html.escape(download["url"], quote=True)}" '
-            'rel="noopener noreferrer">下载 '
-            f'{html.escape(download["label"])} 版'
-            f'{" " + html.escape(download["version"]) if download["version"] else ""}</a>'
-            for download in downloads
-        )
-        download_section = (
-            '<section class="downloads" aria-label="下载 Git Leaf">'
-            '<p class="download-label">尚未安装 Git Leaf？</p>'
-            f'<div class="download-links">{download_links}</div>'
-            '</section>'
-        )
     return f"""<!doctype html>
 <html lang="zh-CN">
 <head>
@@ -1303,14 +1544,10 @@ def open_page_html(
     h1 {{ margin: 0 0 12px; font-size: 25px; }} p {{ margin: 0 0 26px; color: #5c6861; line-height: 1.6; }}
     .button {{ display: inline-block; padding: 11px 18px; border-radius: 9px; background: #238a5a; color: #fff; font-weight: 650; text-decoration: none; }}
     .status {{ margin: 18px 0 0; font-size: 13px; }}
-    .downloads {{ margin-top: 26px; padding-top: 22px; border-top: 1px solid #e4ebe7; }}
-    .download-label {{ margin: 0 0 10px; font-size: 13px; }}
-    .download-links {{ display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 14px; }}
-    .download-link {{ color: #1f7650; font-size: 13px; font-weight: 600; text-underline-offset: 3px; }}
-    @media (prefers-color-scheme: dark) {{ body {{ background:#101512;color:#edf4f0; }} main {{ background:#17201b;border-color:#2a3830; }} p {{ color:#a9b8b0; }} .downloads {{ border-color:#2a3830; }} .download-link {{ color:#70d3a4; }} }}
+    @media (prefers-color-scheme: dark) {{ body {{ background:#101512;color:#edf4f0; }} main {{ background:#17201b;border-color:#2a3830; }} p {{ color:#a9b8b0; }} }}
   </style>
 </head>
-<body><main><h1>{safe_title}</h1><p>{safe_detail}</p>{button}<p id="handoff-status" class="status">如果应用没有自动打开，请点击按钮。</p>{download_section}</main>{launch_script}</body>
+<body><main><h1>{safe_title}</h1><p>{safe_detail}</p>{button}<p id="handoff-status" class="status">如果应用没有自动打开，请点击按钮。</p></main>{launch_script}</body>
 </html>"""
 
 
