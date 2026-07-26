@@ -20,7 +20,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlencode, urlparse
 
 # Event semantics and allowed analytical claims are defined by
-# docs/app-usage-analytics-spec.zh-CN.md. Update the spec before changing this contract.
+# docs/app-usage-analytics-spec.md. Update the spec before changing this contract.
 
 
 HANDOFF_ID_PATTERN = re.compile(r"[A-Za-z0-9_-]{20,64}")

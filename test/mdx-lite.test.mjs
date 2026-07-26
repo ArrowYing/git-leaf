@@ -88,13 +88,13 @@ month,revenue,expense
 });
 
 test("renderMarkdown renders the MDX-lite demo without component errors", async () => {
-  const demo = await readFile(new URL("../docs/mdx-lite-components-demo.zh-CN.mdx", import.meta.url), "utf8");
+  const demo = await readFile(new URL("../docs/mdx-lite-components-demo.mdx", import.meta.url), "utf8");
   const html = renderMarkdown(demo);
 
   assert.doesNotMatch(html, /mdx-component-error/);
   assert.equal((html.match(/data-mdx-component="Chart"/g) ?? []).length, 3);
-  assert.match(html, /新增与完课学生趋势/);
-  assert.match(html, /新增学生与完课率/);
+  assert.match(html, /New and completed items/);
+  assert.match(html, /Volume and completion rate/);
 });
 
 test("renderMarkdown groups chart tooltip data by x-axis value", () => {

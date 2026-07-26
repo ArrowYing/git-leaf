@@ -18,17 +18,22 @@ Supported identities:
 
 | Identity | Update channel | Analytics default | Purpose |
 | --- | --- | --- | --- |
-| `source + source` | none | `false` | Community or local source build |
+| `source + source` | none | `false` | Community Build or local source build |
 | `official + public` | `stable` | `false` | Public Mango Future release |
 | `official + internal` | `internal-stable` | `true` | Company-internal Mango Future release |
 
 `distribution` identifies the publisher class. `releaseTrack` identifies which official release lane an installed app follows. The two official tracks use separate manifests and artifacts; a packaged app trusts its embedded track and cannot be moved to another track by an environment variable.
 
-The safe default is always `source + source + false`. Build metadata is informational and can be changed by anyone compiling the source. Official identity is established by the Mango Future code signature, official download channel, SHA-256, release tag, and matching public commit.
+The safe default is always `source + source + false`. A Community Build uses
+`org.gitleaf.community` as its macOS bundle identifier and `Git Leaf Community` as its Windows company
+name. Official profiles select `com.mangofuture.gitleaf` and Mango Future's legal publisher identity.
+Build metadata is informational and can be changed by anyone compiling the source. Official identity is
+established by the Mango Future code signature, official download channel, SHA-256, release tag, and
+matching public commit.
 
 The analytics default is used only when initializing a new local setting. Once `usageAnalyticsEnabled` exists in userData, an update must preserve it. Release-track selection and telemetry eligibility are separate contracts: an internal official build remains an official stable build even though its update channel is `internal-stable`.
 
-Telemetry event fields, version capability boundaries, privacy requirements, storage, and retention rules are defined only by `docs/app-usage-analytics-spec.zh-CN.md`.
+Telemetry event fields, version capability boundaries, privacy requirements, storage, and retention rules are defined only by `docs/app-usage-analytics-spec.md`.
 
 ## Versioning across tracks
 
@@ -81,7 +86,9 @@ A release profile may contain non-secret environment parameters, but it must nev
 
 The public profile's `legacyInternalMigrationConfirmed` flag is a reviewed operations gate, not a build default. It must remain `false` until company devices have completed the `1.11.2` to internal-track migration. Public `prepare` fails unless the frozen profile records `true`, preventing a later public release from replacing the legacy bridge prematurely.
 
-Normal `package:mac`, `package:win`, and `portable:win` commands work without a profile and produce source builds. A formal package, signature, publication, or release tag fails unless the frozen official profile and track are present.
+Normal `package:mac`, `package:win`, and `portable:win` commands work without a profile and produce
+Community Builds. A formal package, signature, publication, or release tag fails unless the frozen
+official profile and track are present.
 
 ## Human and automation Profiles
 
@@ -132,9 +139,10 @@ UI-specific acceptance for UI changes and user-reported UI bugs is governed by `
 acceptance in the development task before freezing the release commit. The formal release operator does
 not repeat it.
 
-## Source packages
+## Community Builds
 
-Community builds:
+The concise contributor entry point is [Build Git Leaf from source](build-from-source.md). The commands
+below are the packaging subset of that guide:
 
 ```bash
 npm run package:mac
@@ -151,7 +159,9 @@ Verify that packaged `git-leaf-build-info.json` contains:
 }
 ```
 
-A source build must not query or download from Mango Future's update service and must not create telemetry state or send telemetry requests.
+A Community Build must not query or download from Mango Future's update service and must not create
+telemetry state or send telemetry requests. It must also retain the Community Build operating-system
+identity documented above; official identity is available only through a validated official profile.
 
 ## Formal official release
 
@@ -393,7 +403,7 @@ After upgrading, the embedded `internal` track reads only `internal-stable`.
 - Windows is currently distributed as an unsigned Preview ZIP. Documentation and download surfaces must state this plainly until Authenticode signing is implemented.
 - Public and internal official builds share the existing application identity and userData location so updates preserve repositories, sessions, and preferences.
 - Human-installed development builds share that userData location too; only explicit Agent smoke uses a temporary Profile.
-- Source builds never join an official update channel.
+- Community Builds never join an official update channel.
 
 ## Package inspection
 

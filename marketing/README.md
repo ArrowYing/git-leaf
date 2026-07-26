@@ -1,10 +1,8 @@
 ---
-last_updated: 2026-07-26
+last_updated: 2026-07-27
 ---
 
 # Git Leaf marketing
-
-English | [简体中文](README.zh-CN.md)
 
 This directory is the long-term documentation workspace for Git Leaf positioning and open-source
 promotion. It records the product direction that is already established. Campaign execution and agent
@@ -26,9 +24,9 @@ the product category.
 
 | Document | Purpose |
 | --- | --- |
-| [Positioning](positioning.zh-CN.md) | Product category, object model, audiences, boundaries, and comparison with Obsidian (Simplified Chinese) |
-| [Go to market](go-to-market.zh-CN.md) | External narrative, README hero, product visual, demo, download page, and campaign hierarchy (Simplified Chinese) |
-| [Agent-led promotion](agent-loop.zh-CN.md) | Future direction for agent-executed promotion; operating strategy is not yet defined (Simplified Chinese) |
+| [Positioning](positioning.md) | Product category, object model, audiences, boundaries, and comparison with Obsidian |
+| [Go to market](go-to-market.md) | External narrative, README hero, product visual, demo, download page, and campaign hierarchy |
+| [Agent-led promotion](agent-loop.md) | Future direction for agent-executed promotion; operating strategy is not yet defined |
 
 Current product capabilities and usage boundaries are defined by the repository
 [README](../README.md). Marketing documents explain why Git Leaf exists, who it is for, and how it may

@@ -84,7 +84,7 @@ export function buildDistributionLabel(buildInfo, { language = "en" } = {}) {
     return isChinese ? "开发构建" : "Development build";
   }
   if (!isOfficialDistribution(buildInfo)) {
-    return isChinese ? "源码构建" : "Source build";
+    return isChinese ? "社区构建" : "Community build";
   }
   const releaseTrack = releaseTrackForBuildInfo(buildInfo);
   if (releaseTrack === "internal") {

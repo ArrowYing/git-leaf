@@ -1,5 +1,5 @@
 ---
-last_updated: 2026-07-26
+last_updated: 2026-07-27
 ---
 
 # Git Leaf
@@ -14,12 +14,15 @@ last_updated: 2026-07-26
 
 [**下载 macOS 版**](https://gitleaf.mangofuture.com/download?lang=zh-CN#macos) ·
 [Windows Preview](https://gitleaf.mangofuture.com/download?lang=zh-CN#windows) ·
-[从源码运行](#从源码运行)
+[从源码构建](docs/build-from-source.md)
 
 ![Git Leaf 展示 Git 知识库、本地改动和 Agent 上下文](marketing/assets/git-leaf-product.png)
 
 [![CI](https://github.com/MangoFuture1210/git-leaf/actions/workflows/ci.yml/badge.svg)](https://github.com/MangoFuture1210/git-leaf/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+
+安装 Git Leaf 后，可以直接[打开公开示例知识库](https://gitleaf.mangofuture.com/open?repo=mangofuture1210%2Fgit-leaf-example-knowledge-base&path=README.md)，
+也可以先克隆到本机，完成一次完全本地的首次体验。
 
 Git Leaf 是 App；用户打开的本机 Git 仓库才是知识库，也是它的内容事实源。Git Leaf 为人提供熟悉的界面，用来阅读、
 搜索、编辑和同步其中的 Markdown／MDX 文件，同时保留开发者、自动化和 AI Agent 直接使用的路径、revision、分支和
@@ -60,6 +63,10 @@ npm ci
 npm run desktop -- --repo /path/to/docs-repo
 ```
 
+[从源码构建指南](docs/build-from-source.md)说明了依赖、打包方式、Community Build 身份，以及它与
+Mango Future 官方发行版的区别。[公开示例知识库](https://github.com/MangoFuture1210/git-leaf-example-knowledge-base)
+提供了一组可以直接打开的 Markdown／MDX 内容。
+
 CLI／Web 入口主要用于本机开发和浏览器工作台：
 
 ```bash
@@ -78,11 +85,12 @@ npm start -- /path/to/docs-repo/README.md --no-open
 | Mango Future 官方公开包 | `stable` | 关闭 |
 | Mango Future 官方内部包 | `internal-stable` | 开启 |
 
-Settings 会显示当前是“源码构建”“官方公开构建”“官方内部构建”还是“开发构建”，并显示实际使用统计状态。
+Settings 会显示当前是“社区构建”“官方公开构建”“官方内部构建”还是“开发构建”，并显示实际使用统计状态。
 构建包里的默认值只用于首次初始化；后续更新不会覆盖 userData 中已经存在的 `usageAnalyticsEnabled`。
 
 使用统计只在公司管理的官方构建且本机设置已启用时运行。它不发送仓库名、路径、文件名、搜索词、文档内容或
-Git 身份。完整事件语义与禁止推断项见 [使用统计规范](docs/app-usage-analytics-spec.zh-CN.md)。
+Git 身份。完整事件语义与禁止推断项见英文技术文档
+[Usage analytics specification](docs/app-usage-analytics-spec.md)。
 
 ## 产品边界
 
@@ -91,20 +99,25 @@ Git 身份。完整事件语义与禁止推断项见 [使用统计规范](docs/a
 - 文件树的显示偏好不改变 Git 文件发现、状态统计、同步或提交范围。
 - 正常分支都可以编辑；Detached worktree 在第一次实际写入前自动创建保护分支。
 - Source／Live 实时写回、localhost 绑定、MDX-lite 白名单、分享 revision 门禁和 Git 历史安全不是个人设置。
+- 公开 `/open`、`/share` 页面由 Mango Future 托管，只承担打开和分享中转。它们会接收仓库标识和文档元数据，
+  不接收 Git 凭证或文档正文；完整说明见[托管链接的元数据与隐私](docs/hosted-links.zh-CN.md)。
 
 ## 文档职责
 
 | 文档 | 维护内容 |
 | --- | --- |
 | 本文 | 产品定位、当前能力、使用入口和文档索引 |
-| [docs/README.zh-CN.md](docs/README.zh-CN.md) | 中文文档索引、语言状态和文件命名约定 |
-| [docs/architecture.zh-CN.md](docs/architecture.zh-CN.md) | 当前系统架构、跨模块行为协议和不可绕过的产品边界 |
-| [docs/mdx-lite-guide.zh-CN.md](docs/mdx-lite-guide.zh-CN.md) | MDX-lite 语法、组件白名单和渲染契约 |
-| [docs/mdx-lite-components-demo.zh-CN.mdx](docs/mdx-lite-components-demo.zh-CN.mdx) | MDX-lite 完整开发与视觉回归样例 |
+| [docs/README.md](docs/README.md) | 英文文档索引和读者路线 |
+| [docs/build-from-source.md](docs/build-from-source.md) | Community Build 的环境、运行、打包和身份 |
+| [CHANGELOG.md](CHANGELOG.md) | 版本变化、兼容性和安装包校验方式 |
+| [docs/architecture.md](docs/architecture.md) | 当前系统架构、跨模块行为协议和不可绕过的产品边界 |
+| [docs/mdx-lite-guide.md](docs/mdx-lite-guide.md) | MDX-lite 语法、组件白名单和渲染契约 |
+| [docs/mdx-lite-components-demo.mdx](docs/mdx-lite-components-demo.mdx) | MDX-lite 完整开发与视觉回归样例 |
 | [docs/release.md](docs/release.md) | 正式发布、candidate／stable、签名、公证和 tag 流程（英文） |
-| [docs/windows-portable-guide.md](docs/windows-portable-guide.md) | Windows unsigned Preview 的安装、更新和安全说明（英文） |
-| [docs/app-usage-analytics-spec.zh-CN.md](docs/app-usage-analytics-spec.zh-CN.md) | 正式版使用统计、隐私、事件和指标的唯一口径 |
-| [marketing/README.zh-CN.md](marketing/README.zh-CN.md) | 产品传播定位、开源推广方向和未来 Agent 推广设想 |
+| [docs/windows-portable-guide.zh-CN.md](docs/windows-portable-guide.zh-CN.md) | Windows unsigned Preview 的安装、更新和安全说明 |
+| [docs/hosted-links.zh-CN.md](docs/hosted-links.zh-CN.md) | `/open`、`/share` 传输的仓库元数据和隐私边界 |
+| [docs/app-usage-analytics-spec.md](docs/app-usage-analytics-spec.md) | 正式版使用统计、隐私、事件和指标的唯一口径（英文） |
+| [marketing/README.md](marketing/README.md) | 产品传播定位、开源推广方向和未来 Agent 推广设想（英文） |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | 贡献方式、开发验证和 Pull Request 要求 |
 | [SECURITY.md](SECURITY.md) | 安全边界和漏洞报告方式 |
 | [AGENTS.md](AGENTS.md) | Agent 的阅读路由、安全红线、验证门槛和交付流程；不维护功能清单 |

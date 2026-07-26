@@ -200,7 +200,7 @@ test("desktop updater disables stable updates for packaged development builds", 
   assert.match(dialog.calls[0][0].message, /does not check for production updates/);
 });
 
-test("desktop updater never contacts the official feed for source builds", async () => {
+test("desktop updater never contacts the official feed for Community Builds", async () => {
   const autoUpdater = fakeAutoUpdater();
   const dialog = fakeDialog();
   const fetch = fakeMacManifestFetch();
@@ -217,7 +217,7 @@ test("desktop updater never contacts the official feed for source builds", async
   assert.equal(await controller.checkForUpdates({ manual: true }), "disabled");
   assert.equal(autoUpdater.checked, false);
   assert.deepEqual(fetch.urls, []);
-  assert.match(dialog.calls[0][0].message, /Source builds/);
+  assert.match(dialog.calls[0][0].message, /Community Builds/);
 });
 
 test("desktop updater resolves its dynamic translator when feedback is shown", async () => {

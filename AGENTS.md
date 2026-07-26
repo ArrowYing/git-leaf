@@ -1,5 +1,5 @@
 ---
-last_updated: 2026-07-26
+last_updated: 2026-07-27
 ---
 
 # AGENTS.md - Git Leaf
@@ -15,7 +15,7 @@ configuration are all maintained here.
   an agent must know when entering the repository.
 - User-visible capabilities and usage belong in the English entry point `README.md`, with
   `README.zh-CN.md` as its Simplified Chinese counterpart. Cross-module design and long-lived behavioral
-  contracts belong in `docs/architecture.zh-CN.md`. Specific regression scenarios, fixtures, and
+  contracts belong in `docs/architecture.md`. Specific regression scenarios, fixtures, and
   acceptance details belong in the corresponding tests or scripts.
 - Do not maintain a feature-by-feature catalog, individual interaction specifications, one-off bug root
   causes, or design-discussion history in this file.
@@ -28,13 +28,15 @@ configuration are all maintained here.
 - Product positioning, open-source promotion, and future agent-led promotion:
   `marketing/README.md`.
 - Architecture, service boundaries, worktrees, local editing, and the desktop wrapper:
-  `docs/architecture.zh-CN.md`.
-- MDX-lite implementation and component boundaries: `docs/mdx-lite-guide.zh-CN.md`. The complete
-  development and visual-regression fixture is `docs/mdx-lite-components-demo.zh-CN.mdx`.
+  `docs/architecture.md`.
+- MDX-lite implementation and component boundaries: `docs/mdx-lite-guide.md`. The complete
+  development and visual-regression fixture is `docs/mdx-lite-components-demo.mdx`.
+- Community Build prerequisites and commands: `docs/build-from-source.md`.
+- Hosted `/open` and `/share` metadata and privacy boundary: `docs/hosted-links.md`.
 - Windows unsigned Preview installation and launch guidance: `docs/windows-portable-guide.md`.
 - The sole source of truth for official desktop usage-analytics event semantics, fields, relationships,
   metric formulas, privacy boundaries, JSONL storage, and prohibited inferences is
-  `docs/app-usage-analytics-spec.zh-CN.md`.
+  `docs/app-usage-analytics-spec.md`.
 - The release process is in `docs/release.md`. The repository-owned Agent entry point is
   `.agents/skills/git-leaf-release/SKILL.md`; it routes to the document and controller without
   duplicating the full release procedure.
@@ -51,7 +53,8 @@ configuration are all maintained here.
 - `assets/`: packaging assets such as application icons. The macOS icon source is
   `assets/icons/git-leaf.*`.
 - `docs/`: architecture, release instructions, platform guides, renderer references, and specifications.
-  Unsuffixed files are English; Simplified Chinese uses `.zh-CN`.
+  Maintainer-facing technical documents are English-only. End-user documents may add Simplified Chinese
+  with `.zh-CN`.
 - `test/`: Node test runner tests.
 - `dist/`: local build artifacts; never commit this directory.
 
@@ -204,7 +207,7 @@ node <git-leaf-repo>/scripts/generate-open-link.mjs \
 ## Non-bypassable boundaries
 
 - User-visible capabilities use the English `README.md` and Simplified Chinese `README.zh-CN.md` as entry
-  points. Cross-module behavior and boundaries are defined by `docs/architecture.zh-CN.md`. Do not copy
+  points. Cross-module behavior and boundaries are defined by `docs/architecture.md`. Do not copy
   feature lists or one-off implementation details into this file.
 - Desktop and CLI/web entry points bind to localhost only. No change may expose repository content,
   editing endpoints, or local paths to the LAN or public internet.

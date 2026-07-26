@@ -129,15 +129,16 @@ test("mac release package args exclude internal docs, release scripts, and dev-o
     "/Makefile",
     "/AGENTS.md",
     "/CLAUDE.md",
+    "/CHANGELOG.md",
     "/CONTRIBUTING.md",
     "/README.zh-CN.md",
     "/SECURITY.md",
-    "/docs/architecture.zh-CN.md",
+    "/docs/architecture.md",
     "/docs/release.md",
-    "/docs/mdx-lite-guide.zh-CN.md",
-    "/docs/mdx-lite-components-demo.zh-CN.mdx",
+    "/docs/mdx-lite-guide.md",
+    "/docs/mdx-lite-components-demo.mdx",
     "/docs/windows-portable-guide.md",
-    "/docs/app-usage-analytics-spec.zh-CN.md",
+    "/docs/app-usage-analytics-spec.md",
     "/.superpowers/brainstorm/demo/content/index.html",
     "/.gitignore",
     "/.gitleaks.toml",
@@ -1052,12 +1053,12 @@ test("dev install removes the temporary packaged app after copying into Applicat
 test("dev install marks the same app identity as a development build", () => {
   const options = macDevelopmentInstallOptions({
     appName: "Git Leaf",
-    bundleId: "com.mangofuture.gitleaf",
+    bundleId: "org.gitleaf.community",
   });
 
   assert.deepEqual(options, {
     appName: "Git Leaf",
-    bundleId: "com.mangofuture.gitleaf",
+    bundleId: "org.gitleaf.community",
     dev: true,
   });
   assert.equal(
@@ -1079,6 +1080,7 @@ test("default release options use the Mango Future Developer ID profile", () => 
   assert.equal(DEFAULT_RELEASE_OPTIONS.iconPath, "assets/icons/git-leaf");
   assert.equal(DEFAULT_RELEASE_OPTIONS.entitlementsPath, "assets/entitlements.mac.plist");
   assert.equal(DEFAULT_RELEASE_OPTIONS.arch, "universal");
+  assert.equal(DEFAULT_RELEASE_OPTIONS.bundleId, "org.gitleaf.community");
 });
 
 test("mac release version follows package.json", async () => {

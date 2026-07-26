@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
 import { createGunzip } from "node:zlib";
 
 // Metric meanings and logical consistency rules are defined by
-// docs/app-usage-analytics-spec.zh-CN.md. Update the spec before changing this report contract.
+// docs/app-usage-analytics-spec.md. Update the spec before changing this report contract.
 
 const EVENT_NAMES = new Set([
   "git_leaf.installation.observed",

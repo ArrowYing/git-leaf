@@ -1,0 +1,174 @@
+---
+title: MDX-lite component demo
+domain: tools
+type: demo
+owner: maintainer
+last_updated: 2026-07-27
+source: git-leaf
+canonical: false
+ai_snippet: "[Demo] Git Leaf MDX-lite component preview | DataTable Timeline Chart DecisionBox MetricGrid FlowDiagram | sample data is not a source of truth"
+---
+
+# MDX-lite component demo
+
+[Documentation index](README.md)
+
+This fixture exercises every MDX-lite component currently supported by Git Leaf. Its numbers and flows
+are sample data for visual validation, not business facts. See the
+[MDX-lite renderer reference](mdx-lite-guide.md) for syntax and boundaries.
+
+| Component | What this fixture checks |
+| --- | --- |
+| `DataTable` | Structured detail and wide-table behavior |
+| `Timeline` | Milestones, progress, and risk states |
+| `Chart` | Line, bar, grouped, stacked, and combo charts |
+| `DecisionBox` | Decision, rationale, tradeoffs, reconsideration |
+| `MetricGrid` | Small headline metric sets |
+| `FlowDiagram` | Main processes and agent handoffs |
+
+## 1. DataTable
+
+Git Leaf chooses search, frozen columns, sticky headers, and Copy CSV from table complexity.
+
+<DataTable title="Document governance fields" columns="field,purpose,required,example,note">
+```csv
+field,purpose,required,example,note
+title,Document title,yes,Git Leaf system architecture,Used for the page title and search
+domain,Owning domain,yes,ai,Helps agents route facts
+type,Document type,yes,architecture,Determines maintenance expectations
+owner,Maintainer,yes,maintainer,Role or account responsible for the document
+last_updated,Last maintenance date,yes,2026-07-27,Use YYYY-MM-DD
+source,Source system,no,git-leaf,Explains where the material is maintained
+canonical,Authority marker,no,false,Only true documents are current authority
+ai_snippet,Routing summary,yes,[Demo] ...,Supports search and routing
+change_log,Change history,conditional,,Required when repository policy says so
+```
+</DataTable>
+
+## 2. Timeline
+
+Statuses provide visual cues; prose remains authoritative.
+
+<Timeline title="Git Leaf evolution">
+```json
+[
+  {
+    "date": "2026-07-03",
+    "title": "Converged on a local knowledge workbench",
+    "body": "The repository remains the source of truth and Git Leaf provides the local interface.",
+    "status": "done"
+  },
+  {
+    "date": "2026-07-04",
+    "title": "Added Source and Live",
+    "body": "CodeMirror 6 became the shared source model with short-delay disk writeback.",
+    "status": "done"
+  },
+  {
+    "date": "2026-07-05",
+    "title": "Moved into a standalone desktop app",
+    "body": "Users choose any local Git knowledge repository after launching Git Leaf.",
+    "status": "active"
+  },
+  {
+    "date": "2026-07-27",
+    "title": "Published English architecture contracts",
+    "body": "Contributor-facing technical documentation now uses English as its single source.",
+    "status": "active"
+  }
+]
+```
+</Timeline>
+
+## 3. Chart
+
+Hovering a chart combines all series for one x value in a shared tooltip.
+
+<Chart title="Knowledge workbench usage" type="line" x="month" series="preview,source,live" unit="sessions" highlight="2026-07" previewLabel="Preview" sourceLabel="Source" liveLabel="Live">
+```csv
+month,preview,source,live
+2026-04,42,0,0
+2026-05,68,0,0
+2026-06,96,12,0
+2026-07,138,58,41
+```
+</Chart>
+
+<Chart title="New and completed items" type="combo" x="month" series="newItems,completedItems" bars="newItems" lines="completedItems" unit="items" newItemsLabel="New" completedItemsLabel="Completed" highlight="2026-07">
+```csv
+month,newItems,completedItems
+2026-04,152,23
+2026-05,120,18
+2026-06,150,24
+2026-07,486,48
+```
+</Chart>
+
+<Chart title="Volume and completion rate" type="combo-dual-axis" x="month" series="volume,completionRate" bars="volume" lines="completionRate" rightSeries="completionRate" leftUnit="items" rightUnit="%" volumeLabel="Volume" completionRateLabel="Completion rate" highlight="2026-07">
+```csv
+month,volume,completionRate
+2026-04,152,15.1
+2026-05,120,8.5
+2026-06,150,9.1
+2026-07,486,9.9
+```
+</Chart>
+
+## 4. DecisionBox
+
+<DecisionBox title="Keep Git as the knowledge source of truth" status="accepted" owner="maintainer" source="docs/architecture.md">
+```csv
+label,value
+Decision,"Git Leaf is a local desktop app over a Git knowledge base, not a hosted documentation site."
+Rationale,"People need a friendly way to read, edit, sync, and review the same files used by agents."
+Tradeoff,"Git Leaf does not provide accounts, remote access, or a public knowledge portal."
+Reconsider,"Evaluate a separate hosted surface only if a real use case requires long-lived public access."
+```
+</DecisionBox>
+
+## 5. MetricGrid
+
+<MetricGrid title="Git Leaf capability summary">
+```csv
+label,value,delta,note,status
+Document modes,3,,Preview Source Live,good
+MDX-lite components,6,,DataTable Timeline Chart DecisionBox MetricGrid FlowDiagram,good
+Default port,4317,,A compatible service is reused,neutral
+Local access,editable,,Desktop and browser service bind to localhost,watch
+Editing scope,normal branches,,Detached writes create a protective branch,good
+Desktop shell,Electron,,Open any local Git repository,good
+```
+</MetricGrid>
+
+## 6. FlowDiagram
+
+<FlowDiagram title="Local Git knowledge workflow" note="Main path only; see docs/architecture.md for the complete contract.">
+```json
+{
+  "nodes": [
+    {"id": "desktop", "label": "Open Git Leaf", "type": "start"},
+    {"id": "repo", "label": "Choose a local Git repository", "type": "action"},
+    {"id": "server", "label": "Start or reuse localhost service", "type": "action"},
+    {"id": "worktree", "label": "Choose worktree", "type": "action"},
+    {"id": "mode", "label": "Preview / Source / Live", "type": "decision"},
+    {"id": "protect", "label": "Protect detached writes with a branch", "type": "gate"},
+    {"id": "edit", "label": "Write source files", "type": "end"}
+  ],
+  "edges": [
+    {"from": "desktop", "to": "repo"},
+    {"from": "repo", "to": "worktree"},
+    {"from": "worktree", "to": "server"},
+    {"from": "server", "to": "mode"},
+    {"from": "mode", "to": "protect", "label": "first write"},
+    {"from": "protect", "to": "edit"}
+  ]
+}
+```
+</FlowDiagram>
+
+## Acceptance
+
+- All six components render without an MDX component error.
+- Chart hover shows the combined tooltip for one x value.
+- FlowDiagram renders as static SVG.
+- Syntax and new-component policy remain defined by [MDX-lite renderer reference](mdx-lite-guide.md).

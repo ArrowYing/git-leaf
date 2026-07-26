@@ -9,7 +9,9 @@ test("release documentation exposes the dual-track build and publication boundar
   );
 
   assert.match(releaseDoc, /safe default is always `source \+ source \+ false`/);
-  assert.match(releaseDoc, /source build must not query or download from Mango Future's update service/);
+  assert.match(releaseDoc, /Community Build must not query or download from Mango Future's update service/);
+  assert.match(releaseDoc, /`org\.gitleaf\.community`/);
+  assert.match(releaseDoc, /`Git Leaf Community`/);
   assert.match(releaseDoc, /`official \+ public` \| `stable` \| `false`/);
   assert.match(releaseDoc, /`official \+ internal` \| `internal-stable` \| `true`/);
   assert.match(releaseDoc, /Versions and Git tags are global across both official tracks/);

@@ -21,6 +21,7 @@ export const RELEASE_PACKAGE_IGNORE_PATTERNS = [
   "^/Makefile$",
   "^/AGENTS\\.md$",
   "^/CLAUDE\\.md$",
+  "^/CHANGELOG\\.md$",
   "^/CONTRIBUTING\\.md$",
   "^/README(?:\\.zh-CN)?\\.md$",
   "^/SECURITY\\.md$",
@@ -45,6 +46,24 @@ export const RELEASE_PACKAGE_IGNORE_PATTERNS = [
 
 const RELEASE_TRACKS = new Set(["source", "public", "internal"]);
 const OFFICIAL_RELEASE_TRACKS = new Set(["public", "internal"]);
+
+export const COMMUNITY_PACKAGE_IDENTITY = Object.freeze({
+  macBundleId: "org.gitleaf.community",
+  windowsCompanyName: "Git Leaf Community",
+  windowsProductName: "Git Leaf Community Build",
+});
+
+export const OFFICIAL_PACKAGE_IDENTITY = Object.freeze({
+  macBundleId: "com.mangofuture.gitleaf",
+  windowsCompanyName: "Shenzhen Mango Future Technology Co., Ltd.",
+  windowsProductName: "Git Leaf",
+});
+
+export function releasePackageIdentity(buildInfo = {}) {
+  return buildInfo.distribution === "official"
+    ? OFFICIAL_PACKAGE_IDENTITY
+    : COMMUNITY_PACKAGE_IDENTITY;
+}
 
 export function releaseBuildInfoFromEnv({
   rootDir,

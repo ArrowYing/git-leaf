@@ -42,7 +42,7 @@ test("appDisplayName marks development builds with dev", () => {
   assert.equal(appDisplayName({}), "Git Leaf");
 });
 
-test("build identity defaults to source with usage analytics disabled", async () => {
+test("build identity defaults to a community build with usage analytics disabled", async () => {
   const rootDir = await mkdtemp(path.join(tmpdir(), "git-leaf-build-info-"));
   await writeFile(
     path.join(rootDir, "package.json"),
@@ -58,8 +58,8 @@ test("build identity defaults to source with usage analytics disabled", async ()
   assert.equal(buildInfo.releaseTrack, "source");
   assert.equal(buildInfo.usageAnalyticsDefault, false);
   assert.equal(isOfficialDistribution(buildInfo), false);
-  assert.equal(buildDistributionLabel(buildInfo), "Source build");
-  assert.equal(buildDistributionLabel(buildInfo, { language: "zh-CN" }), "源码构建");
+  assert.equal(buildDistributionLabel(buildInfo), "Community build");
+  assert.equal(buildDistributionLabel(buildInfo, { language: "zh-CN" }), "社区构建");
 });
 
 test("official legacy build identity without a release track remains on the public track", async () => {

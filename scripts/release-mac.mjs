@@ -36,6 +36,7 @@ import {
   releaseArtifactFileName,
   releaseBuildId,
   releaseBuildInfoFromEnv,
+  releasePackageIdentity,
   releaseProfileFromEnv,
   releaseUpdateChannel,
   RELEASE_PACKAGE_IGNORE_PATTERNS,
@@ -52,7 +53,7 @@ const REPO_ROOT = path.dirname(path.dirname(SCRIPT_PATH));
 export const DEFAULT_RELEASE_OPTIONS = {
   appName: "Git Leaf",
   arch: "universal",
-  bundleId: "com.mangofuture.gitleaf",
+  bundleId: "org.gitleaf.community",
   identity:
     "Developer ID Application: Shenzhen Mango Future Technology Co., Ltd. (HN6X79BUSR)",
   notaryProfile: "",
@@ -894,9 +895,11 @@ function releaseOptionsFromEnv() {
     rootDir: REPO_ROOT,
     fallbackVersion: DEFAULT_RELEASE_OPTIONS.version,
   });
+  const packageIdentity = releasePackageIdentity(buildInfo);
   return {
     ...DEFAULT_RELEASE_OPTIONS,
     ...buildInfo,
+    bundleId: packageIdentity.macBundleId,
     identity:
       process.env.DEVELOPER_ID_APPLICATION
       || profile.developerIdApplication

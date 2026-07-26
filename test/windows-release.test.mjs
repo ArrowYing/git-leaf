@@ -61,14 +61,15 @@ test("windows release package args exclude internal docs, release scripts, and d
     "/Makefile",
     "/AGENTS.md",
     "/CLAUDE.md",
+    "/CHANGELOG.md",
     "/CONTRIBUTING.md",
     "/README.zh-CN.md",
     "/SECURITY.md",
-    "/docs/architecture.zh-CN.md",
+    "/docs/architecture.md",
     "/docs/release.md",
-    "/docs/mdx-lite-guide.zh-CN.md",
+    "/docs/mdx-lite-guide.md",
     "/docs/windows-portable-guide.md",
-    "/docs/app-usage-analytics-spec.zh-CN.md",
+    "/docs/app-usage-analytics-spec.md",
     "/.superpowers/brainstorm/demo/content/index.html",
     "/.gitignore",
     "/.gitleaks.toml",
@@ -142,8 +143,9 @@ test("windows release sequence creates an unsigned portable package", () => {
   ]);
   assert.equal(
     DEFAULT_WINDOWS_RELEASE_OPTIONS.companyName,
-    "Shenzhen Mango Future Technology Co., Ltd.",
+    "Git Leaf Community",
   );
+  assert.equal(DEFAULT_WINDOWS_RELEASE_OPTIONS.productName, "Git Leaf Community Build");
   assert.equal(DEFAULT_ELECTRON_MIRROR, "https://npmmirror.com/mirrors/electron/");
 });
 

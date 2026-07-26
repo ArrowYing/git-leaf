@@ -7,13 +7,16 @@ import test from "node:test";
 
 import {
   assertOfficialReleaseProfile,
+  COMMUNITY_PACKAGE_IDENTITY,
   electronPackagerCommand,
   assertReleaseVersionIsNew,
   ensureReleaseGitTag,
+  OFFICIAL_PACKAGE_IDENTITY,
   RELEASE_PACKAGE_IGNORE_PATTERNS,
   releaseArtifactFileName,
   releaseBuildId,
   releaseBuildInfoFromEnv,
+  releasePackageIdentity,
   releaseTrackUpdateChannel,
   releaseUpdateChannel,
   withReleaseBuildInfoFile,
@@ -62,8 +65,9 @@ test("release package ignores third-party test files from app.asar", () => {
 
   for (const filePath of [
     "/.gitleaks.toml",
+    "/CHANGELOG.md",
     "/README.zh-CN.md",
-    "/marketing/positioning.zh-CN.md",
+    "/marketing/positioning.md",
     "/node_modules/@lezer/css/test/test-css.js",
     "/node_modules/@lezer/html/tests/fixture.txt",
     "/node_modules/example/__tests__/fixture.js",
@@ -93,6 +97,28 @@ test("release build identity defaults to source with analytics disabled", () => 
     () => assertOfficialReleaseProfile(buildInfo),
     /GIT_LEAF_RELEASE_PROFILE/,
   );
+});
+
+test("package metadata separates community builds from Mango Future official builds", () => {
+  assert.deepEqual(
+    releasePackageIdentity({ distribution: "source" }),
+    COMMUNITY_PACKAGE_IDENTITY,
+  );
+  assert.deepEqual(COMMUNITY_PACKAGE_IDENTITY, {
+    macBundleId: "org.gitleaf.community",
+    windowsCompanyName: "Git Leaf Community",
+    windowsProductName: "Git Leaf Community Build",
+  });
+
+  assert.deepEqual(
+    releasePackageIdentity({ distribution: "official" }),
+    OFFICIAL_PACKAGE_IDENTITY,
+  );
+  assert.deepEqual(OFFICIAL_PACKAGE_IDENTITY, {
+    macBundleId: "com.mangofuture.gitleaf",
+    windowsCompanyName: "Shenzhen Mango Future Technology Co., Ltd.",
+    windowsProductName: "Git Leaf",
+  });
 });
 
 test("release profile selects official public or internal track defaults", async () => {

@@ -24,6 +24,7 @@ import {
   releaseArtifactFileName,
   releaseBuildId,
   releaseBuildInfoFromEnv,
+  releasePackageIdentity,
   releaseProfileFromEnv,
   releaseUpdateChannel,
   RELEASE_PACKAGE_IGNORE_PATTERNS,
@@ -36,8 +37,8 @@ export const DEFAULT_ELECTRON_MIRROR = "https://npmmirror.com/mirrors/electron/"
 
 export const DEFAULT_WINDOWS_RELEASE_OPTIONS = {
   appName: "Git Leaf",
-  companyName: "Shenzhen Mango Future Technology Co., Ltd.",
-  productName: "Git Leaf",
+  companyName: "Git Leaf Community",
+  productName: "Git Leaf Community Build",
   version: packageVersion({ rootDir: REPO_ROOT, fallbackVersion: "0.1.1" }),
   outDir: "dist",
   updateBaseUrl: "https://updates.mangofuture.com/git-leaf",
@@ -153,9 +154,12 @@ function windowsReleaseOptionsFromEnv() {
     rootDir: REPO_ROOT,
     fallbackVersion: DEFAULT_WINDOWS_RELEASE_OPTIONS.version,
   });
+  const packageIdentity = releasePackageIdentity(buildInfo);
   return {
     ...DEFAULT_WINDOWS_RELEASE_OPTIONS,
     ...buildInfo,
+    companyName: packageIdentity.windowsCompanyName,
+    productName: packageIdentity.windowsProductName,
     updateBaseUrl:
       process.env.UPDATE_BASE_URL
       || profile.updateBaseUrl

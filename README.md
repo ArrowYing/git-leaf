@@ -1,5 +1,5 @@
 ---
-last_updated: 2026-07-26
+last_updated: 2026-07-27
 ---
 
 # Git Leaf
@@ -14,12 +14,15 @@ Anyone can use Git Leaf, while AI agents work with the same files directly in Gi
 
 [**Download for macOS**](https://gitleaf.mangofuture.com/download#macos) ·
 [Windows Preview](https://gitleaf.mangofuture.com/download#windows) ·
-[Run from source](#run-from-source)
+[Build from source](docs/build-from-source.md)
 
 ![Git Leaf showing a Git-based knowledge base, local changes, and Agent Context](marketing/assets/git-leaf-product.png)
 
 [![CI](https://github.com/MangoFuture1210/git-leaf/actions/workflows/ci.yml/badge.svg)](https://github.com/MangoFuture1210/git-leaf/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+
+[Open the public example knowledge base](https://gitleaf.mangofuture.com/open?repo=mangofuture1210%2Fgit-leaf-example-knowledge-base&path=README.md)
+after installing Git Leaf, or clone it for a completely local first run.
 
 Git Leaf is the app. The local Git repository you open is the knowledge base and remains its source of
 truth. Git Leaf gives people a familiar interface for reading, searching, editing, and syncing its
@@ -73,6 +76,11 @@ npm ci
 npm run desktop -- --repo /path/to/docs-repo
 ```
 
+The complete [build-from-source guide](docs/build-from-source.md) explains source packaging, Community
+Build identity, and the difference from an official Mango Future distribution. The
+[public example knowledge base](https://github.com/MangoFuture1210/git-leaf-example-knowledge-base)
+provides a ready-to-open repository with Markdown and MDX content.
+
 The CLI and browser workspace are primarily for local development:
 
 ```bash
@@ -98,8 +106,7 @@ preserve an existing `usageAnalyticsEnabled` value in user data.
 
 Usage analytics run only in company-managed official builds when enabled locally. They do not send
 repository names, paths, file names, search terms, document content, or Git identity. The current
-normative specification is available in
-[Simplified Chinese](docs/app-usage-analytics-spec.zh-CN.md).
+normative contract is the [usage analytics specification](docs/app-usage-analytics-spec.md).
 
 ## Product boundaries
 
@@ -109,21 +116,27 @@ normative specification is available in
 - Normal branches are editable; the first write in a detached worktree creates a protective branch.
 - Localhost binding, source-backed Live editing, the MDX-lite whitelist, share-revision checks, and Git
   history safety are not user-configurable.
+- The public `/open` and `/share` pages are Mango Future-hosted handoff services. They receive repository
+  identifiers and document metadata, but never Git credentials or document content. See
+  [Hosted link metadata and privacy](docs/hosted-links.md).
 
 ## Documentation
 
-The [documentation index](docs/README.md) records language availability and the localization convention.
-English uses the unsuffixed file name; Simplified Chinese uses `.zh-CN`.
+Technical and maintainer documentation is English-only. End-user documents may also provide a Simplified
+Chinese counterpart when it materially helps installation, privacy, or first-run use.
 
 | Document | Purpose |
 | --- | --- |
-| [Documentation index](docs/README.md) | Documentation map, language availability, and naming rules |
+| [Documentation index](docs/README.md) | Documentation map and audience guide |
+| [Build from source](docs/build-from-source.md) | Community Build setup, packaging, and identity |
+| [Changelog](CHANGELOG.md) | Version changes, compatibility, and artifact verification |
 | [Release process](docs/release.md) | Official builds, candidate/stable promotion, signing, notarization, and tags |
 | [Windows Preview](docs/windows-portable-guide.md) | Installation, updates, security warnings, and removal |
-| [Architecture](docs/architecture.zh-CN.md) | Current architecture and cross-module contracts (Simplified Chinese) |
-| [MDX-lite reference](docs/mdx-lite-guide.zh-CN.md) | Syntax, component whitelist, and rendering contracts (Simplified Chinese) |
-| [MDX-lite demo](docs/mdx-lite-components-demo.zh-CN.mdx) | Complete visual and development fixture (Simplified Chinese) |
-| [Usage analytics specification](docs/app-usage-analytics-spec.zh-CN.md) | Normative privacy, event, and metric contract (Simplified Chinese) |
+| [Hosted link metadata and privacy](docs/hosted-links.md) | Data sent through Mango Future-hosted `/open` and `/share` |
+| [Architecture](docs/architecture.md) | Current architecture and cross-module contracts |
+| [MDX-lite reference](docs/mdx-lite-guide.md) | Syntax, component whitelist, and rendering contracts |
+| [MDX-lite demo](docs/mdx-lite-components-demo.mdx) | Complete visual and development fixture |
+| [Usage analytics specification](docs/app-usage-analytics-spec.md) | Normative privacy, event, and metric contract |
 | [Marketing workspace](marketing/README.md) | Positioning, open-source promotion, and future agent-led promotion |
 | [Contributing](CONTRIBUTING.md) | Contribution workflow and validation expectations |
 | [Security](SECURITY.md) | Security boundaries and vulnerability reporting |

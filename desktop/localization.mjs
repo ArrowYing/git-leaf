@@ -125,7 +125,7 @@ export const DESKTOP_MESSAGES = Object.freeze({
     "updates.disabledDevBuild":
       "Git Leaf dev does not check for production updates. Rebuild and install the development version.",
     "updates.disabledSourceBuild":
-      "Source builds do not connect to the official Git Leaf update service. Install a signed official build to receive updates.",
+      "Community Builds do not connect to the official Git Leaf update service. Install a signed official build to receive updates.",
     "updates.disabledNoTrack": "This build does not have an official update track.",
     "updates.disabledDevelopmentMode": "Development mode does not check for automatic updates.",
     "updates.checkIncomplete": "The update check did not finish. Choose Retry.",
@@ -264,7 +264,7 @@ export const DESKTOP_MESSAGES = Object.freeze({
     "updates.disabledDevBuild":
       "Git Leaf dev 不会检查正式版本更新。请重新构建并安装开发版本。",
     "updates.disabledSourceBuild":
-      "源码构建不会连接 Git Leaf 官方更新服务。请从官方渠道安装签名版本以接收更新。",
+      "社区构建不会连接 Git Leaf 官方更新服务。请从官方渠道安装签名版本以接收更新。",
     "updates.disabledNoTrack": "当前构建没有可用的正式更新轨道。",
     "updates.disabledDevelopmentMode": "开发模式不会检查自动更新。",
     "updates.checkIncomplete": "更新检查未完成，点击重试。",
