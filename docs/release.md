@@ -218,6 +218,12 @@ node scripts/release-worktree.mjs run windows verify
 node scripts/release-worktree.mjs run windows stage-updates --channel candidate
 ```
 
+The macOS `check-prereqs` gate resolves the exact Developer ID identity through the active Keychain
+search list and signs a disposable local Mach-O probe with its private key. It does not assume that the
+certificate and private key live in one fixed keychain, and it never unlocks, repairs, or rewrites
+Keychain state. A visible certificate or an unrelated unlocked keychain is not sufficient evidence that
+the release identity can sign.
+
 For a public release, logical `candidate` and `stable` map to the physical `candidate` and `stable` channels. For an internal release they map to `internal-candidate` and `internal-stable`. Operators always pass the logical channel to the controller.
 
 Publish both candidate platforms:

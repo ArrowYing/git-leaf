@@ -23,7 +23,7 @@ import {
   developmentAppProcessQueries,
   electronCacheZipDir,
   electronPackagerArgs,
-  ensureReleaseLoginKeychainSession,
+  ensureReleaseSigningIdentityAccess,
   launchDevelopmentAppCommand,
   macCommandRequiresNewReleaseVersion,
   macDevelopmentInstallOptions,
@@ -47,45 +47,76 @@ import {
   verifyProductionProfileUnchanged,
 } from "../scripts/release-mac.mjs";
 
-test("mac release prerequisites never attempt an automatic empty-password unlock", () => {
+test("mac release prerequisites prove the exact identity can sign without unlocking keychains", async () => {
+  const temporaryRoot = await mkdtemp(path.join(tmpdir(), "git-leaf-signing-prereq-test-"));
+  const probeSource = path.join(temporaryRoot, "probe-source");
+  await writeFile(probeSource, "probe");
   const calls = [];
-  assert.throws(
-    () => ensureReleaseLoginKeychainSession({
-      homeDir: "/Users/release",
-      runCommand(command, args) {
-        calls.push([command, args]);
-        return { status: 51, stderr: "locked" };
-      },
-    }),
-    /approved secure mechanism/,
-  );
-  assert.deepEqual(calls, [
-    ["security", ["show-keychain-info", "/Users/release/Library/Keychains/login.keychain-db"]],
-  ]);
-});
-
-test("mac release prerequisites leave an available login keychain unchanged", () => {
-  const calls = [];
-  const result = ensureReleaseLoginKeychainSession({
-    homeDir: "/Users/release",
+  const identity = "Developer ID Application: Example Corp (EXAMPLE123)";
+  const result = ensureReleaseSigningIdentityAccess({
+    identity,
+    probeSource,
+    temporaryRoot,
     runCommand(command, args) {
       calls.push([command, args]);
-      return { status: 0, stderr: "" };
+      if (command === "security") {
+        return { status: 0, stdout: `1) HASH "${identity}"\n`, stderr: "" };
+      }
+      return { status: 0, stdout: "", stderr: "" };
     },
   });
 
-  assert.equal(result.unlocked, false);
-  assert.equal(calls.length, 1);
+  assert.equal(result.identity, identity);
+  assert.equal(result.probeVerified, true);
+  assert.deepEqual(calls[0], [
+    "security",
+    ["find-identity", "-v", "-p", "codesigning"],
+  ]);
+  assert.deepEqual(calls[1].slice(0, 1), ["codesign"]);
+  assert.deepEqual(calls[1][1].slice(0, -1), ["--force", "--sign", identity]);
+  assert.match(calls[1][1].at(-1), /git-leaf-release-signing-.*\/codesign-probe$/);
+  assert.deepEqual(calls[2].slice(0, 1), ["codesign"]);
+  assert.deepEqual(
+    calls[2][1].slice(0, -1),
+    ["--verify", "--strict", "--verbose=2"],
+  );
+  assert.equal(calls[2][1].at(-1), calls[1][1].at(-1));
+  assert.deepEqual(await readdir(temporaryRoot), ["probe-source"]);
+  await rm(temporaryRoot, { recursive: true, force: true });
 });
 
-test("mac release prerequisites fail before signing when keychain recovery is unavailable", () => {
+test("mac release prerequisites reject a missing signing identity before probing", () => {
   assert.throws(
-    () => ensureReleaseLoginKeychainSession({
-      homeDir: "/Users/release",
-      runCommand: () => ({ status: 51, stderr: "keychain authentication failed" }),
+    () => ensureReleaseSigningIdentityAccess({
+      identity: "Developer ID Application: Missing",
+      runCommand: () => ({ status: 0, stdout: "0 valid identities found\n", stderr: "" }),
     }),
-    /approved secure mechanism/,
+    /identity not found/,
   );
+});
+
+test("mac release prerequisites report private-key denial and remove the temporary probe", async () => {
+  const temporaryRoot = await mkdtemp(path.join(tmpdir(), "git-leaf-signing-prereq-test-"));
+  const probeSource = path.join(temporaryRoot, "probe-source");
+  await writeFile(probeSource, "probe");
+  const identity = "Developer ID Application: Example Corp (EXAMPLE123)";
+
+  assert.throws(
+    () => ensureReleaseSigningIdentityAccess({
+      identity,
+      probeSource,
+      temporaryRoot,
+      runCommand(command) {
+        if (command === "security") {
+          return { status: 0, stdout: `1) HASH "${identity}"\n`, stderr: "" };
+        }
+        return { status: 1, stdout: "", stderr: "errSecInternalComponent" };
+      },
+    }),
+    /private key could not sign.*errSecInternalComponent/,
+  );
+  assert.deepEqual(await readdir(temporaryRoot), ["probe-source"]);
+  await rm(temporaryRoot, { recursive: true, force: true });
 });
 
 test("mac release package args exclude tests and generated outputs", () => {

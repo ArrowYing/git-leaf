@@ -977,39 +977,77 @@ function requirePath(filePath) {
   }
 }
 
-export function ensureReleaseLoginKeychainSession({
-  homeDir = homedir(),
+export function ensureReleaseSigningIdentityAccess({
+  identity,
+  probeSource = "/usr/bin/true",
+  temporaryRoot = tmpdir(),
   runCommand = spawnSync,
 } = {}) {
-  const keychainPath = path.join(homeDir, "Library", "Keychains", "login.keychain-db");
+  if (!String(identity || "").trim()) {
+    throw new Error("A Developer ID signing identity is required.");
+  }
+
   const commandOptions = {
     cwd: REPO_ROOT,
     encoding: "utf8",
     env: process.env,
   };
-  const inspect = () => runCommand(
+  const identities = runCommand(
     "security",
-    ["show-keychain-info", keychainPath],
+    ["find-identity", "-v", "-p", "codesigning"],
     commandOptions,
   );
-
-  if (inspect().status === 0) {
-    return { keychainPath, unlocked: false };
+  if (identities.status !== 0) {
+    const details = String(
+      identities.stderr || identities.stdout || identities.error?.message || "unknown security error",
+    ).trim();
+    throw new Error(`Unable to inspect Developer ID signing identities: ${details}`);
+  }
+  if (!String(identities.stdout || "").includes(`"${identity}"`)) {
+    throw new Error(`Developer ID identity not found in the active Keychain search list: ${identity}`);
   }
 
-  throw new Error(
-    "The release keychain is locked. Unlock it through the release host's approved secure mechanism, then rerun check-prereqs.",
-  );
+  const probeDir = mkdtempSync(path.join(temporaryRoot, "git-leaf-release-signing-"));
+  const probePath = path.join(probeDir, "codesign-probe");
+  try {
+    copyFileSync(probeSource, probePath);
+    const sign = runCommand(
+      "codesign",
+      ["--force", "--sign", identity, probePath],
+      commandOptions,
+    );
+    if (sign.status !== 0) {
+      const details = String(
+        sign.stderr || sign.stdout || sign.error?.message || "unknown codesign error",
+      ).trim();
+      throw new Error(
+        `The Developer ID identity exists, but its private key could not sign a temporary probe: ${details}. `
+        + "Keep the release Mac unlocked and grant the existing signing key access through the approved Keychain mechanism; "
+        + "the release controller will not unlock or rewrite Keychain state.",
+      );
+    }
+
+    const verify = runCommand(
+      "codesign",
+      ["--verify", "--strict", "--verbose=2", probePath],
+      commandOptions,
+    );
+    if (verify.status !== 0) {
+      const details = String(
+        verify.stderr || verify.stdout || verify.error?.message || "unknown codesign verification error",
+      ).trim();
+      throw new Error(`The temporary Developer ID signature could not be verified: ${details}`);
+    }
+    return { identity, probeVerified: true };
+  } finally {
+    rmSync(probeDir, { recursive: true, force: true });
+  }
 }
 
 function checkPrereqs(options) {
-  ensureReleaseLoginKeychainSession();
   requireReleaseSetting(options.identity, "developerIdApplication");
   requireReleaseSetting(options.notaryProfile, "notaryProfile");
-  const identities = output("security", ["find-identity", "-v", "-p", "codesigning"]);
-  if (!identities.includes(options.identity)) {
-    throw new Error(`Developer ID identity not found in Keychain: ${options.identity}`);
-  }
+  ensureReleaseSigningIdentityAccess({ identity: options.identity });
 
   run("xcrun", [
     "notarytool",
