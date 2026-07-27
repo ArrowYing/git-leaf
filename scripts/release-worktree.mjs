@@ -87,7 +87,6 @@ const UPDATE_REGRESSION_RISK_PATHS = new Set([
   "scripts/mac-update-bridge.mjs",
   "scripts/mac-update-regression-evidence.mjs",
   "scripts/mac-update-regression.mjs",
-  "scripts/release-mac.mjs",
   "scripts/release-shared.mjs",
   "scripts/release-windows.mjs",
   "scripts/squirrel-mac-policy.mjs",
@@ -100,6 +99,7 @@ const UPDATE_REGRESSION_RISK_PATHS = new Set([
 ]);
 const UPDATE_REGRESSION_CONTENT_RISK_PATTERNS = new Map([
   ["desktop/main.mjs", /\b(?:autoUpdater|checkForUpdates|createDesktopUpdateController|createUpdateCheckScheduler|desktopUpdateStatus|DESKTOP_INSTALL_UPDATE_ACTION|git-leaf-desktop-update-status|hasPendingUpdateOnQuit|installPendingUpdateOnQuit|preparePendingUpdateOnQuit|requestQuitForUpdate|restoreKnownUpdate|updateCheckScheduler|updateController)\b|desktop\/(?:update-check-schedule|updates)\.mjs/],
+  ["scripts/release-mac.mjs", /\b(?:buildUpdateManifest|createZip|electronPackagerArgs|macReleasePaths|macUpdateMetadataPaths|packageMac|patchSquirrelMacPolicy|publishMacUpdates|releaseBuildInfoFromEnv|releaseOptionsFromEnv|releasePackageIdentity|releaseTrack|Squirrel|ShipIt|stageMacUpdateMetadata|updateChannel|verifySquirrelMacPolicy|withReleaseBuildInfoFile|writeUpdateManifests)\b/],
 ]);
 const UPDATE_REGRESSION_DEPENDENCIES = [
   "@electron/packager",
@@ -664,7 +664,10 @@ function changedFileDiffsSince({ sourceRoot, baseTag, commit, changedFiles }) {
         filePath,
       ], { cwd: sourceRoot });
       const changedLines = patch.split(/\r?\n/)
-        .filter((line) => (/^[+-]/.test(line) && !/^(?:---|\+\+\+)/.test(line)))
+        .filter((line) => (
+          /^@@/.test(line)
+          || (/^[+-]/.test(line) && !/^(?:---|\+\+\+)/.test(line))
+        ))
         .join("\n");
       return [filePath, changedLines];
     }));

@@ -291,6 +291,18 @@ test("update regression risk is limited to update, install, packaging, and confi
   assert.equal(updateRegressionRiskForPath("desktop/main.mjs", {
     changedLines: "+ updateController = createDesktopUpdateController();",
   }), true);
+  assert.equal(updateRegressionRiskForPath("scripts/release-mac.mjs", {
+    changedLines: [
+      "@@ export function ensureReleaseSigningIdentityAccess({",
+      "+ const sign = runCommand(\"codesign\", [\"--force\", \"--sign\", identity, probePath]);",
+    ].join("\n"),
+  }), false);
+  assert.equal(updateRegressionRiskForPath("scripts/release-mac.mjs", {
+    changedLines: [
+      "@@ function packageMac(options) {",
+      "+ run(packager.command, electronPackagerArgs(options));",
+    ].join("\n"),
+  }), true);
   assert.equal(updateRegressionRiskForPath("public/app.js"), false);
   assert.equal(updateRegressionRiskForPath("README.md"), false);
 });

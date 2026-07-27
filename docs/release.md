@@ -289,6 +289,9 @@ assessment; when it is required, the regression must run after both candidate pa
 published and verified. It must run on the release Mac because this gate verifies the final signed
 package against the local macOS installation and ShipIt behavior.
 
+The assessment is limited to changed update, installation, package-identity, or configuration behavior.
+Release-controller bookkeeping and signing-prerequisite changes alone do not require this regression.
+
 ```bash
 cd "$RELEASE_WORKTREE"
 npm run release:verify-update:mac -- \
