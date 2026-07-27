@@ -34864,13 +34864,13 @@ function createRenderer(options) {
   };
   renderer.renderer.rules.heading_close = (tokens, index, rendererOptions, env, self) => self.renderToken(tokens, index, rendererOptions) + sourceBlockClose();
   renderer.renderer.rules.paragraph_open = (tokens, index, rendererOptions, env, self) => {
-    if (tokens[index].hidden || env.listDepth > 0 || env.blockquoteDepth > 0) {
+    if (tokens[index].hidden || env.listDepth > 0) {
       return self.renderToken(tokens, index, rendererOptions);
     }
     return sourceBlockOpen(tokens[index], env) + self.renderToken(tokens, index, rendererOptions);
   };
   renderer.renderer.rules.paragraph_close = (tokens, index, rendererOptions, env, self) => {
-    if (tokens[index].hidden || env.listDepth > 0 || env.blockquoteDepth > 0) {
+    if (tokens[index].hidden || env.listDepth > 0) {
       return self.renderToken(tokens, index, rendererOptions);
     }
     return self.renderToken(tokens, index, rendererOptions) + sourceBlockClose();
@@ -34928,12 +34928,10 @@ function createRenderer(options) {
     return originalListItemOpen(tokens, index, rendererOptions, env, self);
   };
   renderer.renderer.rules.blockquote_open = (tokens, index, rendererOptions, env, self) => {
-    const shouldWrapBlockquote = beginBlockquote(env, tokens[index]);
-    return (shouldWrapBlockquote ? sourceBlockOpen(tokens[index], env) : "") + originalBlockquoteOpen(tokens, index, rendererOptions, env, self);
+    return originalBlockquoteOpen(tokens, index, rendererOptions, env, self);
   };
   renderer.renderer.rules.blockquote_close = (tokens, index, rendererOptions, env, self) => {
-    const shouldWrapBlockquote = endBlockquote(env);
-    return originalBlockquoteClose(tokens, index, rendererOptions, env, self) + (shouldWrapBlockquote ? sourceBlockClose() : "");
+    return originalBlockquoteClose(tokens, index, rendererOptions, env, self);
   };
   renderer.renderer.rules.table_open = (tokens, index, rendererOptions, env) => {
     const shape = tableShapeFromTokens(tokens, index);
@@ -35224,18 +35222,6 @@ function endList(env) {
   env.listDepth = Math.max((env.listDepth ?? 1) - 1, 0);
   return env.listWrapStack?.pop() ?? false;
 }
-function beginBlockquote(env, token) {
-  const depth = env.blockquoteDepth ?? 0;
-  const shouldWrapBlockquote = depth === 0 && (env.listDepth ?? 0) === 0 && Boolean(token.map);
-  env.blockquoteDepth = depth + 1;
-  env.blockquoteWrapStack ??= [];
-  env.blockquoteWrapStack.push(shouldWrapBlockquote);
-  return shouldWrapBlockquote;
-}
-function endBlockquote(env) {
-  env.blockquoteDepth = Math.max((env.blockquoteDepth ?? 1) - 1, 0);
-  return env.blockquoteWrapStack?.pop() ?? false;
-}
 function renderToken2(renderer, tokenName) {
   return (tokens, index, options, env, self) => self.renderToken(tokens, index, options);
 }
@@ -35464,6 +35450,11 @@ var WORKBENCH_MESSAGES = Object.freeze({
     "action.filter": "Filter",
     "action.sync": "Sync",
     "action.syncing": "Syncing\u2026",
+    "action.syncAndPublish": "Sync and publish",
+    "action.checkRemote": "Check now",
+    "action.checkingRemote": "Checking\u2026",
+    "action.mergeRemote": "Merge remote changes",
+    "action.mergingRemote": "Merging\u2026",
     "action.addFavorite": "Add to favorites",
     "action.removeFavorite": "Remove from favorites",
     "action.collapseAgentContext": "Collapse Agent Context",
@@ -35511,6 +35502,18 @@ var WORKBENCH_MESSAGES = Object.freeze({
     "search.currentFile": "Find in current file",
     "search.contents": "Search text",
     "git.localChanges": "Local changes",
+    "git.remote": "Remote",
+    "git.noLocalChanges": "No unpublished changes",
+    "git.localChangeOne": "1 unpublished",
+    "git.localChangeCount": "{count} unpublished",
+    "remote.checking": "Checking\u2026",
+    "remote.current": "Up to date",
+    "remote.incomingOne": "1 incoming file",
+    "remote.incoming": "{count} incoming files",
+    "remote.diverged": "Local and remote have diverged",
+    "remote.unavailable": "Temporarily unavailable",
+    "remote.lastChecked": "Last checked {time}",
+    "remote.lastUpdated": "Updated {time}",
     "sidebar.all": "All",
     "sidebar.favorites": "Favorites",
     "sidebar.sync": "Sync",
@@ -35519,7 +35522,7 @@ var WORKBENCH_MESSAGES = Object.freeze({
     "favorites.sparseTitle": "Add more favorites",
     "favorites.sparseDetail": "Use the star on an open document, or right-click a folder or document and choose Add to favorites.",
     "sync.emptyTitle": "No local changes",
-    "sync.emptyDetail": "This worktree is already in sync.",
+    "sync.emptyDetail": "There are no unpublished local files. Remote status is shown above.",
     "tree.emptyTitle": "No matching files",
     "tree.emptyDetail": "Try a different search or filter.",
     "agentContext.title": "Agent Context",
@@ -35615,7 +35618,10 @@ var WORKBENCH_MESSAGES = Object.freeze({
     "git.modified": "Modified",
     "error.syncInvalidResponse": "The sync service returned an unreadable response.",
     "error.sync": "Sync failed.",
+    "error.editorStillSaving": "The current edit is still saving. Try merging again in a moment.",
     "toast.syncComplete": "Sync complete",
+    "toast.remoteMerged": "Remote changes merged; local edits remain unpublished",
+    "toast.remoteAutoMerged": "Remote changes updated automatically",
     "toast.favoriteAdded": "Added to favorites",
     "toast.favoriteRemoved": "Removed from favorites",
     "error.favoriteSave": "Could not update favorites.",
@@ -35747,9 +35753,9 @@ var WORKBENCH_MESSAGES = Object.freeze({
     "help.worktrees.3": "\u201CNo branch\u201D means the worktree does not have a working branch yet. Git Leaf creates a protective branch before the first write so changes never remain on detached HEAD.",
     "help.worktrees.4": "Most people do not need to create or switch worktrees manually. When unsure, stay in the primary working directory or ask an AI Agent to confirm.",
     "help.sync.title": "Sync",
-    "help.sync.1": "When local changes appear in the sidebar, Sync processes all repository changes at once, including documents, images, attachments, and deletions. You do not need to choose files, write a commit message, or know Git commands.",
-    "help.sync.2": "The button shows \u201CSyncing\u2026\u201D during the operation and \u201CSync complete\u201D afterward. New changes made during sync remain local and are never silently overwritten.",
-    "help.sync.3": "Git Leaf stops dangerous operations on divergence, conflicts, or continuous changes and preserves local content. Copy the displayed prompt to the AI Agent of your choice.",
+    "help.sync.1": "Git Leaf checks the remote when the repository opens and every 10 minutes. A clean worktree fast-forwards automatically; Check now remains available.",
+    "help.sync.2": "When both remote updates and unpublished local edits exist, Merge remote changes incorporates the remote version while leaving every local edit uncommitted. Sync and publish is the separate manual action that commits and pushes all repository changes.",
+    "help.sync.3": "Git Leaf does not rewrite diverged history or put an unresolved merge into the real workspace. Conflicts and unexpected Git states stop safely; use the displayed AI Agent prompt only as the fallback.",
     "help.sharing.title": "Share documents",
     "help.sharing.1": "\u201CCopy share link\u201D shares only Markdown and MDX on main in the primary workspace. It never shares a local path or feature worktree. For an unpublished document, \u201CSync and copy\u201D commits, pushes, verifies the remote revision, and copies the link.",
     "help.sharing.2": "Chat previews use only the published document title. The share URL does not carry ai_snippet and falls back to repository and document path for its description. A preview does not grant access.",
@@ -35853,6 +35859,11 @@ var WORKBENCH_MESSAGES = Object.freeze({
     "action.filter": "\u7B5B\u9009",
     "action.sync": "\u540C\u6B65",
     "action.syncing": "\u6B63\u5728\u540C\u6B65\u2026",
+    "action.syncAndPublish": "\u540C\u6B65\u5E76\u53D1\u5E03",
+    "action.checkRemote": "\u7ACB\u5373\u68C0\u67E5",
+    "action.checkingRemote": "\u6B63\u5728\u68C0\u67E5\u2026",
+    "action.mergeRemote": "\u5408\u5E76\u8FDC\u7AEF\u4FEE\u6539",
+    "action.mergingRemote": "\u6B63\u5728\u5408\u5E76\u2026",
     "action.addFavorite": "\u6536\u85CF",
     "action.removeFavorite": "\u53D6\u6D88\u6536\u85CF",
     "action.collapseAgentContext": "\u6536\u8D77 Agent \u4E0A\u4E0B\u6587",
@@ -35900,6 +35911,18 @@ var WORKBENCH_MESSAGES = Object.freeze({
     "search.currentFile": "\u5728\u5F53\u524D\u6587\u4EF6\u4E2D\u67E5\u627E",
     "search.contents": "\u67E5\u627E\u5185\u5BB9",
     "git.localChanges": "\u672C\u5730\u6539\u52A8",
+    "git.remote": "\u8FDC\u7AEF",
+    "git.noLocalChanges": "\u6CA1\u6709\u672A\u53D1\u5E03\u4FEE\u6539",
+    "git.localChangeOne": "1 \u9879\u5C1A\u672A\u53D1\u5E03",
+    "git.localChangeCount": "{count} \u9879\u5C1A\u672A\u53D1\u5E03",
+    "remote.checking": "\u6B63\u5728\u68C0\u67E5\u2026",
+    "remote.current": "\u5DF2\u662F\u6700\u65B0",
+    "remote.incomingOne": "1 \u4E2A\u6587\u4EF6\u6709\u66F4\u65B0",
+    "remote.incoming": "{count} \u4E2A\u6587\u4EF6\u6709\u66F4\u65B0",
+    "remote.diverged": "\u672C\u5730\u4E0E\u8FDC\u7AEF\u5DF2\u5206\u53C9",
+    "remote.unavailable": "\u6682\u65F6\u65E0\u6CD5\u68C0\u67E5",
+    "remote.lastChecked": "\u4E0A\u6B21\u68C0\u67E5 {time}",
+    "remote.lastUpdated": "\u66F4\u65B0\u4E8E {time}",
     "sidebar.all": "\u5168\u90E8",
     "sidebar.favorites": "\u6536\u85CF",
     "sidebar.sync": "\u540C\u6B65",
@@ -35908,7 +35931,7 @@ var WORKBENCH_MESSAGES = Object.freeze({
     "favorites.sparseTitle": "\u6DFB\u52A0\u66F4\u591A\u6536\u85CF",
     "favorites.sparseDetail": "\u6253\u5F00\u6587\u6863\u540E\u70B9\u51FB\u53F3\u4E0A\u89D2\u7684\u661F\u6807\uFF0C\u6216\u53F3\u952E\u76EE\u5F55\uFF0F\u6587\u6863\u9009\u62E9\u300C\u6536\u85CF\u300D\u3002",
     "sync.emptyTitle": "\u6CA1\u6709\u672C\u5730\u6539\u52A8",
-    "sync.emptyDetail": "\u5F53\u524D\u5DE5\u4F5C\u6811\u5DF2\u7ECF\u540C\u6B65\u3002",
+    "sync.emptyDetail": "\u672C\u5730\u6CA1\u6709\u672A\u53D1\u5E03\u6587\u4EF6\uFF1B\u8FDC\u7AEF\u72B6\u6001\u89C1\u4E0A\u65B9\u3002",
     "tree.emptyTitle": "\u6CA1\u6709\u5339\u914D\u7684\u6587\u4EF6",
     "tree.emptyDetail": "\u8BF7\u5C1D\u8BD5\u5176\u4ED6\u641C\u7D22\u8BCD\u6216\u7B5B\u9009\u6761\u4EF6\u3002",
     "agentContext.title": "Agent \u4E0A\u4E0B\u6587",
@@ -36004,7 +36027,10 @@ var WORKBENCH_MESSAGES = Object.freeze({
     "git.modified": "\u5DF2\u4FEE\u6539",
     "error.syncInvalidResponse": "\u540C\u6B65\u63A5\u53E3\u8FD4\u56DE\u4E86\u4E0D\u53EF\u89E3\u6790\u7684\u7ED3\u679C\u3002",
     "error.sync": "\u540C\u6B65\u5931\u8D25\u3002",
+    "error.editorStillSaving": "\u5F53\u524D\u7F16\u8F91\u4ECD\u5728\u4FDD\u5B58\uFF0C\u8BF7\u7A0D\u540E\u91CD\u65B0\u5408\u5E76\u3002",
     "toast.syncComplete": "\u540C\u6B65\u5B8C\u6210",
+    "toast.remoteMerged": "\u5DF2\u5408\u5E76\u8FDC\u7AEF\u4FEE\u6539\uFF0C\u672C\u5730\u7F16\u8F91\u4ECD\u672A\u53D1\u5E03",
+    "toast.remoteAutoMerged": "\u5DF2\u81EA\u52A8\u66F4\u65B0\u8FDC\u7AEF\u4FEE\u6539",
     "toast.favoriteAdded": "\u5DF2\u6DFB\u52A0\u5230\u6536\u85CF",
     "toast.favoriteRemoved": "\u5DF2\u53D6\u6D88\u6536\u85CF",
     "error.favoriteSave": "\u65E0\u6CD5\u66F4\u65B0\u6536\u85CF\u3002",
@@ -36136,9 +36162,9 @@ var WORKBENCH_MESSAGES = Object.freeze({
     "help.worktrees.3": "\u663E\u793A\u201C\u65E0\u5206\u652F\u201D\u8868\u793A\u5F53\u524D worktree \u8FD8\u6CA1\u6709\u5DE5\u4F5C\u5206\u652F\u3002\u7B2C\u4E00\u6B21\u5B9E\u9645\u5199\u5165\u524D\uFF0CGit Leaf \u4F1A\u81EA\u52A8\u521B\u5EFA\u4FDD\u62A4\u5206\u652F\uFF0C\u907F\u514D\u4FEE\u6539\u505C\u7559\u5728 Detached HEAD\u3002",
     "help.worktrees.4": "\u666E\u901A\u540C\u4E8B\u901A\u5E38\u4E0D\u9700\u8981\u4E3B\u52A8\u521B\u5EFA\u6216\u5207\u6362 worktree\uFF1B\u4E0D\u786E\u5B9A\u5F53\u524D\u5DE5\u4F5C\u76EE\u5F55\u7528\u9014\u65F6\uFF0C\u5148\u4FDD\u6301\u4E3B\u5DE5\u4F5C\u76EE\u5F55\uFF0C\u6216\u4EA4\u7ED9 AI Agent \u786E\u8BA4\u3002",
     "help.sync.title": "\u540C\u6B65",
-    "help.sync.1": "\u5DE6\u4FA7\u51FA\u73B0\u672C\u5730\u6539\u52A8\u6570\u91CF\u65F6\uFF0C\u70B9\u51FB\u201C\u540C\u6B65\u201D\u4F1A\u4E00\u6B21\u540C\u6B65\u5F53\u524D\u4ED3\u5E93\u7684\u5168\u90E8\u6539\u52A8\uFF0C\u5305\u62EC\u6587\u6863\u3001\u56FE\u7247\u3001\u9644\u4EF6\u548C\u5220\u9664\uFF1B\u4E0D\u9700\u8981\u9009\u62E9\u6587\u4EF6\u3001\u586B\u5199\u63D0\u4EA4\u8BF4\u660E\u6216\u7406\u89E3 Git \u547D\u4EE4\u3002",
-    "help.sync.2": "\u540C\u6B65\u65F6\u6309\u94AE\u4F1A\u663E\u793A\u201C\u6B63\u5728\u540C\u6B65\u2026\u201D\uFF0C\u5B8C\u6210\u540E\u63D0\u793A\u201C\u540C\u6B65\u5B8C\u6210\u201D\u3002\u540C\u6B65\u671F\u95F4\u540E\u6765\u4EA7\u751F\u7684\u65B0\u4FEE\u6539\u4ECD\u4FDD\u7559\u5728\u672C\u673A\uFF0C\u4E0D\u4F1A\u88AB\u6084\u6084\u8986\u76D6\u3002",
-    "help.sync.3": "\u9047\u5230\u5206\u652F\u5206\u53C9\u3001\u51B2\u7A81\u6216\u6301\u7EED\u53D8\u5316\u65F6\uFF0CGit Leaf \u4F1A\u505C\u6B62\u5371\u9669\u64CD\u4F5C\u5E76\u4FDD\u7559\u672C\u5730\u5185\u5BB9\uFF1B\u590D\u5236\u754C\u9762\u91CC\u7684\u63D0\u793A\u8BCD\u4EA4\u7ED9\u4F60\u9009\u62E9\u7684 AI Agent \u7EE7\u7EED\u5904\u7406\u5373\u53EF\u3002",
+    "help.sync.1": "Git Leaf \u4F1A\u5728\u6253\u5F00\u4ED3\u5E93\u65F6\u53CA\u6BCF\u9694 10 \u5206\u949F\u68C0\u67E5\u8FDC\u7AEF\u3002\u5DE5\u4F5C\u533A\u5E72\u51C0\u65F6\u81EA\u52A8\u5FEB\u8FDB\u66F4\u65B0\uFF0C\u540C\u65F6\u4FDD\u7559\u201C\u7ACB\u5373\u68C0\u67E5\u201D\u3002",
+    "help.sync.2": "\u8FDC\u7AEF\u6709\u66F4\u65B0\u4E14\u672C\u5730\u4E5F\u6709\u672A\u53D1\u5E03\u7F16\u8F91\u65F6\uFF0C\u70B9\u51FB\u201C\u5408\u5E76\u8FDC\u7AEF\u4FEE\u6539\u201D\u53EA\u628A\u8FDC\u7AEF\u7248\u672C\u5408\u5165\u672C\u5730\uFF0C\u5168\u90E8\u672C\u5730\u7F16\u8F91\u4ECD\u4FDD\u6301\u672A\u63D0\u4EA4\uFF1B\u201C\u540C\u6B65\u5E76\u53D1\u5E03\u201D\u662F\u53E6\u4E00\u4E2A\u4EBA\u5DE5\u64CD\u4F5C\uFF0C\u624D\u4F1A\u63D0\u4EA4\u5E76\u63A8\u9001\u6574\u4E2A\u4ED3\u5E93\u7684\u6539\u52A8\u3002",
+    "help.sync.3": "Git Leaf \u4E0D\u4F1A\u6539\u5199\u5DF2\u7ECF\u5206\u53C9\u7684\u5386\u53F2\uFF0C\u4E5F\u4E0D\u4F1A\u628A\u672A\u89E3\u51B3\u51B2\u7A81\u7559\u5728\u771F\u5B9E\u5DE5\u4F5C\u533A\u3002\u9047\u5230\u51B2\u7A81\u6216\u5F02\u5E38 Git \u72B6\u6001\u65F6\u4F1A\u5B89\u5168\u505C\u6B62\uFF0C\u53EA\u6709\u4E07\u4E0D\u5F97\u5DF2\u624D\u4F7F\u7528\u754C\u9762\u63D0\u4F9B\u7684 AI Agent \u63D0\u793A\u8BCD\u3002",
     "help.sharing.title": "\u5206\u4EAB\u6587\u6863",
     "help.sharing.1": "\u53F3\u4E0A\u89D2\u201C\u590D\u5236\u5206\u4EAB\u94FE\u63A5\u201D\u53EA\u5206\u4EAB\u4E3B\u5DE5\u4F5C\u533A main \u4E2D\u7684 Markdown / MDX \u6587\u6863\uFF0C\u4E0D\u4F1A\u5206\u4EAB\u672C\u673A\u8DEF\u5F84\u6216 feature worktree\u3002\u6587\u6863\u5C1A\u672A\u53D1\u5E03\u65F6\uFF0C\u786E\u8BA4\u201C\u540C\u6B65\u5E76\u590D\u5236\u201D\u4F1A\u5B8C\u6210\u63D0\u4EA4\u3001\u63A8\u9001\u548C\u8FDC\u7AEF\u590D\u6838\uFF0C\u6210\u529F\u540E\u76F4\u63A5\u628A\u94FE\u63A5\u5199\u5165\u526A\u8D34\u677F\u3002",
     "help.sharing.2": "\u628A\u94FE\u63A5\u53D1\u5230\u98DE\u4E66\u7B49\u804A\u5929\u5DE5\u5177\u65F6\uFF0C\u5361\u7247\u53EA\u4F7F\u7528\u5DF2\u53D1\u5E03\u7248\u672C\u7684\u6587\u6863\u6807\u9898\uFF0C\u5206\u4EAB URL \u4E0D\u643A\u5E26 ai_snippet\uFF1B\u5361\u7247\u63CF\u8FF0\u56DE\u9000\u663E\u793A\u4ED3\u5E93\u4E0E\u6587\u6863\u8DEF\u5F84\u3002\u5361\u7247\u53EA\u662F\u9884\u89C8\uFF0C\u4E0D\u4F1A\u6388\u4E88\u6587\u6863\u8BBF\u95EE\u6743\u9650\u3002",
@@ -36953,8 +36979,10 @@ function createSourceEditor({
   let suppressChange = false;
   let currentMode = "source";
   let currentTheme = themeFromInput(theme2);
+  let currentEditable = true;
   const themeCompartment = new Compartment();
   const liveModeCompartment = new Compartment();
+  const editableCompartment = new Compartment();
   function liveModeExtensions() {
     return currentMode === "live" ? [
       liveRenderOptionsFacet.of(getRenderOptions()),
@@ -36973,6 +37001,10 @@ function createSourceEditor({
       documentSearchDecorations,
       themeCompartment.of(editorThemeExtensions(currentTheme)),
       liveModeCompartment.of([]),
+      editableCompartment.of([
+        EditorState.readOnly.of(false),
+        EditorView.editable.of(true)
+      ]),
       autocompletion({
         override: [
           slashCommandCompletionSource({
@@ -37147,6 +37179,19 @@ function createSourceEditor({
       currentMode = mode;
       view.dispatch({
         effects: liveModeCompartment.reconfigure(liveModeExtensions())
+      });
+    },
+    setEditable(editable2) {
+      const nextEditable = editable2 !== false;
+      if (nextEditable === currentEditable) {
+        return;
+      }
+      currentEditable = nextEditable;
+      view.dispatch({
+        effects: editableCompartment.reconfigure([
+          EditorState.readOnly.of(!currentEditable),
+          EditorView.editable.of(currentEditable)
+        ])
       });
     },
     setTheme(theme3) {

@@ -28,9 +28,11 @@ test("Git Leaf help explains stable filtering and all repository files", () => {
   assert.match(text, /正常分支都可以使用 Preview、Source 和 Live/);
   assert.match(text, /无分支/);
   assert.match(text, /自动创建保护分支/);
-  assert.match(text, /同步完成/);
-  assert.match(text, /不需要选择文件、填写提交说明/);
-  assert.match(text, /后来产生的新修改仍保留在本机/);
+  assert.match(text, /每隔 10 分钟检查远端/);
+  assert.match(text, /合并远端修改/);
+  assert.match(text, /全部本地编辑仍保持未提交/);
+  assert.match(text, /同步并发布/);
+  assert.match(text, /只有万不得已才使用.*AI Agent 提示词/);
   assert.match(text, /分享文档/);
   assert.match(text, /复制分享链接/);
   assert.match(text, /主工作区 main/);

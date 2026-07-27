@@ -545,7 +545,7 @@ export function syncStateDriftKind(baseline, current) {
   return "none";
 }
 
-async function readCurrentHead(repo, gitRunner) {
+export async function readCurrentHead(repo, gitRunner) {
   const result = await gitRunner(repo.root, ["rev-parse", "--verify", "HEAD"]);
   const head = String(result.stdout ?? "").trim();
   if (!/^[0-9a-f]{40,64}$/i.test(head)) {
@@ -582,7 +582,7 @@ async function preflightGitSync(context, gitRunner, operationPathExists) {
   return { name, email, origin };
 }
 
-async function assertNoGitOperationInProgress(context, gitRunner, operationPathExists) {
+export async function assertNoGitOperationInProgress(context, gitRunner, operationPathExists) {
   const translate = gitSyncTranslator(context);
   const conflicts = await runStep(context, "preflight", gitRunner, [
     "ls-files",
@@ -643,7 +643,7 @@ async function assertNoGitOperationInProgress(context, gitRunner, operationPathE
   }
 }
 
-async function gitOperationPathExists(filePath) {
+export async function gitOperationPathExists(filePath) {
   try {
     await access(filePath);
     return true;
@@ -673,7 +673,7 @@ async function hasUpstreamBranch(context, gitRunner) {
   }
 }
 
-function remoteCommitCounts(output) {
+export function remoteCommitCounts(output) {
   const value = String(output ?? "").trim();
   if (!/^\d+\s+\d+$/.test(value)) {
     const error = new ExternalCommandOutputError(
@@ -889,7 +889,7 @@ function gitSyncTranslator({ locale, language } = {}) {
   return createTranslator(GIT_SYNC_MESSAGES, locale ?? language);
 }
 
-function commandErrorText(error, { locale, language } = {}) {
+export function commandErrorText(error, { locale, language } = {}) {
   const stderr = typeof error?.stderr === "string" ? error.stderr.trim() : "";
   const stdout = typeof error?.stdout === "string" ? error.stdout.trim() : "";
   const message = error instanceof Error ? error.message : String(error ?? "");

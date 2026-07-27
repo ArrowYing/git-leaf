@@ -971,8 +971,12 @@ input {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   align-items: stretch;
-  gap: 8px;
+  gap: 10px;
   margin-top: 8px;
+  padding: 10px;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--panel) 72%, transparent);
 }
 
 .git-change-toolbar[hidden] {
@@ -991,12 +995,18 @@ input {
   font-size: 12px;
   font-weight: 720;
   padding: 0 9px;
+  white-space: nowrap;
 }
 
-.git-change-toolbar button:hover {
+.git-change-toolbar button:hover,
+.git-change-toolbar button.is-primary {
   border-color: var(--warning-border);
   background: var(--warning-bg);
   color: var(--warning-text);
+}
+
+.git-change-toolbar button.is-primary:hover {
+  filter: brightness(1.04);
 }
 
 .git-change-toolbar button:disabled {
@@ -1015,18 +1025,55 @@ input {
   font-weight: 700;
 }
 
-#git-change-count {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 18px;
-  height: 18px;
-  margin-left: 4px;
-  border-radius: 999px;
-  background: var(--selection-bg);
-  color: var(--selection-text);
+#git-change-label {
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-weight: 720;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.git-remote-status {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.git-sync-status-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+#git-remote-status {
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-weight: 760;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.git-remote-detail {
+  overflow: hidden;
+  color: var(--muted);
   font-size: 11px;
-  font-weight: 800;
+  line-height: 1.35;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.git-sync-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 7px;
 }
 
 .frontmatter-filter-popover {

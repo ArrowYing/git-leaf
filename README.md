@@ -34,7 +34,8 @@ automation, and AI agents use directly.
 - Opens any local Git repository and preserves a stable list of repositories and worktrees.
 - Shows either content-focused files or the full repository tree without changing Git discovery or sync scope.
 - Organizes the sidebar into All, Favorites, and Sync views: All is the regular repository tree, Favorites
-  collects favorite folders and Markdown/MDX documents, and Sync shows local changes.
+  collects favorite folders and Markdown/MDX documents, and Sync shows both unpublished local changes and
+  the latest checked remote state.
 - Stores favorites per repository and shares them across its worktrees. Use the file-tree context menu for
   folders or Markdown/MDX documents, or the star beside the open document.
 - Supports Preview, Source, and Live modes for Markdown and MDX.
@@ -47,8 +48,11 @@ automation, and AI agents use directly.
 - Collects selected lines from Preview, Source, or Live into portable Markdown context for any AI agent.
 - Uses one CodeMirror source model for Source and Live, so Live never creates a second rich-text data model.
 - Renders a restricted MDX-lite component set without executing arbitrary JSX, JavaScript, imports, or scripts.
-- Keeps the repository-wide Sync action in the Sync view. It commits and pushes all current repository
-  changes, stopping safely on divergence, conflicts, or an in-progress Git operation.
+- Checks the remote when a repository opens and every 10 minutes. A clean worktree fast-forwards
+  automatically; when local edits also exist, **Merge remote changes** incorporates the remote version
+  while keeping every local edit uncommitted.
+- Keeps publishing manual: **Sync and publish** commits and pushes all current repository changes, stopping
+  safely on divergence, conflicts, or an in-progress Git operation.
 - Publishes versioned share links only after pushing and verifying the exact revision on `origin/main`.
 - Keeps language, appearance, typography, repository-tree preferences, shortcuts, version details, and
   environment status in a full-screen Settings & Help view. The interface follows the operating-system

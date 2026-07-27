@@ -137,7 +137,11 @@ import {
   frontmatterKeysFromSource,
   frontmatterLineForValue,
 } from "./frontmatter-edit.js";
-import { hasGitChangesChanged } from "./git-sync-ui.js";
+import {
+  REMOTE_SYNC_INTERVAL_MS,
+  hasGitChangesChanged,
+  remoteSyncDecision,
+} from "./git-sync-ui.js";
 import { sidebarUpdateView } from "./update-ui.js";
 import {
   normalizeTreeDirectoryStates,
@@ -315,6 +319,21 @@ const state = {
   frontmatterFacetsLoading: false,
   gitChanges: [],
   gitStatusTimer: null,
+  remoteSync: {
+    ok: null,
+    state: "checking",
+    checkedAt: "",
+    updatedAt: "",
+    ahead: 0,
+    behind: 0,
+    incomingCount: 0,
+    incomingFiles: [],
+    error: "",
+  },
+  remoteSyncTimer: null,
+  remoteSyncOperation: "",
+  remoteSyncRequestId: 0,
+  lastRemoteSyncAttemptAt: 0,
   sidebarShortcutFeedbackTimer: null,
   lastToolStatusCheckAt: 0,
   toolRestartInFlight: false,
@@ -386,7 +405,10 @@ const frontmatterFilterToggle = document.querySelector("#frontmatter-filter-togg
 const frontmatterActiveFilters = document.querySelector("#frontmatter-active-filters");
 const frontmatterFilterPopover = document.querySelector("#frontmatter-filter-popover");
 const gitChangeToolbar = document.querySelector("#git-change-toolbar");
-const gitChangeCount = document.querySelector("#git-change-count");
+const gitChangeLabel = document.querySelector("#git-change-label");
+const gitRemoteStatus = document.querySelector("#git-remote-status");
+const gitRemoteDetail = document.querySelector("#git-remote-detail");
+const gitMergeRemote = document.querySelector("#git-merge-remote");
 const gitSyncOpen = document.querySelector("#git-sync-open");
 const gitSyncPanel = document.querySelector("#git-sync-panel");
 const gitSyncClose = document.querySelector("#git-sync-close");
@@ -550,7 +572,8 @@ frontmatterFieldPopover.addEventListener("change", handleFrontmatterFieldPopover
 frontmatterFilterToggle.addEventListener("click", toggleFrontmatterFilterPopover);
 frontmatterActiveFilters.addEventListener("click", handleActiveFrontmatterFilterClick);
 frontmatterFilterPopover.addEventListener("click", handleFrontmatterFilterPopoverClick);
-gitSyncOpen.addEventListener("click", submitGitSync);
+gitSyncOpen.addEventListener("click", handlePrimaryGitSyncAction);
+gitMergeRemote.addEventListener("click", () => mergeRemoteIntoWorkspace({ automatic: false }));
 gitSyncClose.addEventListener("click", closeGitSyncPanel);
 gitSyncPanel.addEventListener("click", handleGitSyncPanelBackdropClick);
 gitSyncCopyPrompt.addEventListener("click", copyGitSyncAgentPrompt);
@@ -578,6 +601,7 @@ document.addEventListener("keydown", handleAppShortcutKeydown, true);
 document.addEventListener("keydown", handleDocumentKeydown, true);
 document.addEventListener("keydown", handleOutlineContentNavigationIntent, true);
 document.addEventListener("keydown", handleToolStatusActivity);
+document.addEventListener("visibilitychange", handleRemoteSyncVisibilityChange);
 window.addEventListener("git-leaf-desktop-shortcut", handleDesktopShortcutEvent);
 window.addEventListener("git-leaf-desktop-update-status", handleDesktopUpdateStatusEvent);
 window.addEventListener("git-leaf-desktop-preferences", handleDesktopPreferencesEvent);
@@ -663,6 +687,8 @@ try {
   }
   setMode(state.mode, { persist: false, focus: false });
   resetTreePolling();
+  resetRemoteSyncPolling();
+  void loadRemoteSyncStatus({ autoApply: true });
 } catch (error) {
   showStartupError(error);
 } finally {
@@ -1074,6 +1100,218 @@ async function loadGitStatus() {
 function scheduleGitStatusRefresh() {
   window.clearTimeout(state.gitStatusTimer);
   state.gitStatusTimer = window.setTimeout(loadGitStatus, GIT_STATUS_REFRESH_DELAY_MS);
+}
+
+function resetRemoteSyncPolling() {
+  if (state.remoteSyncTimer) {
+    window.clearInterval(state.remoteSyncTimer);
+  }
+  state.remoteSyncTimer = window.setInterval(() => {
+    void loadRemoteSyncStatus({ autoApply: true });
+  }, REMOTE_SYNC_INTERVAL_MS);
+}
+
+function handleRemoteSyncVisibilityChange() {
+  if (
+    document.visibilityState === "visible" &&
+    Date.now() - state.lastRemoteSyncAttemptAt >= REMOTE_SYNC_INTERVAL_MS
+  ) {
+    void loadRemoteSyncStatus({ autoApply: true });
+  }
+}
+
+async function loadRemoteSyncStatus({ autoApply = false } = {}) {
+  if (!canEditCurrentRepo() || state.remoteSyncOperation) {
+    return;
+  }
+
+  const requestId = ++state.remoteSyncRequestId;
+  const scope = remoteSyncScope();
+  state.lastRemoteSyncAttemptAt = Date.now();
+  state.remoteSyncOperation = "check";
+  if (state.remoteSync.ok === null) {
+    state.remoteSync = {
+      ...state.remoteSync,
+      state: "checking",
+      error: "",
+    };
+  }
+  renderGitChangeToolbar();
+
+  let payload;
+  try {
+    const response = await fetch(apiUrl("/api/git-remote-status", {
+      refresh: "1",
+      locale: state.locale,
+    }), { cache: "no-store" });
+    payload = await response.json().catch(() => ({
+      ok: false,
+      state: "unavailable",
+      error: t("error.syncInvalidResponse"),
+      checkedAt: new Date().toISOString(),
+    }));
+  } catch (error) {
+    payload = {
+      ok: false,
+      state: "unavailable",
+      error: error instanceof Error ? error.message : t("error.sync"),
+      checkedAt: new Date().toISOString(),
+    };
+  }
+
+  if (requestId !== state.remoteSyncRequestId || scope !== remoteSyncScope()) {
+    if (requestId === state.remoteSyncRequestId && state.remoteSyncOperation === "check") {
+      state.remoteSyncOperation = "";
+      renderGitChangeToolbar();
+    }
+    return;
+  }
+  state.remoteSync = normalizeRemoteSyncPayload({
+    ...state.remoteSync,
+    ...payload,
+  });
+  state.remoteSyncOperation = "";
+  await loadGitStatus();
+  renderGitChangeToolbar();
+
+  const decision = currentRemoteSyncDecision();
+  if (autoApply && decision.shouldAutoMerge) {
+    await mergeRemoteIntoWorkspace({ automatic: true });
+  }
+}
+
+async function mergeRemoteIntoWorkspace({ automatic = false } = {}) {
+  if (state.remoteSyncOperation) {
+    return;
+  }
+  const initialDecision = currentRemoteSyncDecision();
+  if (
+    automatic
+      ? !initialDecision.shouldAutoMerge
+      : !initialDecision.canMergeRemote
+  ) {
+    return;
+  }
+
+  const scope = remoteSyncScope();
+  state.remoteSyncOperation = "merge";
+  setRemoteMergeLock(true);
+  renderGitChangeToolbar();
+  try {
+    await flushPendingSourceSync();
+    if (state.sourceWriteInFlight) {
+      if (!automatic) {
+        showCopyToast(t("error.editorStillSaving"));
+      }
+      return;
+    }
+    await loadGitStatus();
+    if (scope !== remoteSyncScope()) {
+      return;
+    }
+    if (automatic && state.gitChanges.length > 0) {
+      return;
+    }
+
+    const response = await fetch(apiUrl("/api/git-merge-remote", {
+      locale: state.locale,
+    }), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        allowLocalChanges: !automatic,
+      }),
+    });
+    const payload = await response.json().catch(() => ({
+      ok: false,
+      step: "merge remote",
+      error: t("error.syncInvalidResponse"),
+    }));
+    if (scope !== remoteSyncScope()) {
+      return;
+    }
+    await applyBranchProtectionPayload(payload);
+    state.remoteSync = normalizeRemoteSyncPayload({
+      ...state.remoteSync,
+      ...payload,
+    });
+
+    if (!response.ok || payload.ok === false) {
+      await loadGitStatus();
+      if (payload.agentPrompt) {
+        showGitSyncFailure(payload);
+      } else if (!automatic && payload.error) {
+        showCopyToast(payload.error);
+      }
+      return;
+    }
+
+    closeGitSyncPanel();
+    await loadTree({ force: true });
+    await loadGitStatus();
+    await refreshCurrentDocument();
+    showCopyToast(automatic ? t("toast.remoteAutoMerged") : t("toast.remoteMerged"));
+  } catch (error) {
+    if (!automatic) {
+      showCopyToast(error instanceof Error ? error.message : t("error.sync"));
+    }
+  } finally {
+    if (state.remoteSyncOperation === "merge") {
+      state.remoteSyncOperation = "";
+      setRemoteMergeLock(false);
+      renderGitChangeToolbar();
+    }
+  }
+}
+
+function handlePrimaryGitSyncAction() {
+  const decision = currentRemoteSyncDecision();
+  if (!decision.canRunPrimary) {
+    return;
+  }
+  if (decision.primaryAction === "publish") {
+    void submitGitSync();
+    return;
+  }
+  void loadRemoteSyncStatus({ autoApply: true });
+}
+
+function currentRemoteSyncDecision() {
+  return remoteSyncDecision({
+    remote: state.remoteSync,
+    localChangeCount: state.gitChanges.length,
+    canEdit: canEditCurrentRepo(),
+    operation: state.remoteSyncOperation,
+  });
+}
+
+function normalizeRemoteSyncPayload(payload = {}) {
+  return {
+    ok: payload.remoteOk === true
+      ? true
+      : payload.ok === true
+        ? true
+        : payload.ok === false
+          ? false
+          : null,
+    state: String(payload.state || (payload.ok === false ? "unavailable" : "checking")),
+    checkedAt: String(payload.checkedAt || ""),
+    updatedAt: String(payload.updatedAt || ""),
+    ahead: Math.max(0, Number(payload.ahead) || 0),
+    behind: Math.max(0, Number(payload.behind) || 0),
+    incomingCount: Math.max(0, Number(payload.incomingCount) || 0),
+    incomingFiles: Array.isArray(payload.incomingFiles) ? payload.incomingFiles : [],
+    error: String(payload.error || ""),
+  };
+}
+
+function remoteSyncScope() {
+  return `${state.currentRepo || ""}\0${state.currentWorktreeId || ""}`;
+}
+
+function setRemoteMergeLock(locked) {
+  state.sourceEditor?.setEditable?.(!locked);
+  documentWorkspace.setAttribute("aria-busy", String(locked));
 }
 
 async function fetchDocumentData(filePath, { repoId = state.currentRepo } = {}) {
@@ -4374,15 +4612,90 @@ function filterNodesByFrontmatter(nodes) {
 
 function renderGitChangeToolbar() {
   const hasChanges = state.gitChanges.length > 0;
-  const canUseGitSync = canEditCurrentRepo() && hasChanges;
+  const decision = currentRemoteSyncDecision();
   gitChangeToolbar.hidden = state.sidebarTab !== "sync";
-  gitChangeCount.textContent = String(state.gitChanges.length);
-  sidebarSyncCount.textContent = String(state.gitChanges.length);
-  sidebarSyncCount.hidden = !hasChanges;
-  gitSyncOpen.disabled = !canUseGitSync;
-  if (!canUseGitSync) {
-    closeGitSyncPanel();
+  gitChangeLabel.textContent = hasChanges
+    ? t(state.gitChanges.length === 1 ? "git.localChangeOne" : "git.localChangeCount", {
+        count: state.gitChanges.length,
+      })
+    : t("git.noLocalChanges");
+  gitChangeLabel.title = gitChangeLabel.textContent;
+  sidebarSyncCount.textContent = decision.badge;
+  sidebarSyncCount.hidden = !decision.badge;
+
+  gitRemoteStatus.textContent = remoteSyncStatusLabel();
+  gitRemoteStatus.title = state.remoteSync.error;
+  gitRemoteDetail.textContent = remoteSyncDetailLabel();
+  gitRemoteDetail.title = state.remoteSync.error;
+
+  gitMergeRemote.hidden = !decision.showMergeRemote;
+  gitMergeRemote.disabled = !decision.canMergeRemote;
+  gitMergeRemote.textContent = state.remoteSyncOperation === "merge"
+    ? t("action.mergingRemote")
+    : t("action.mergeRemote");
+  gitSyncOpen.disabled = !decision.canRunPrimary;
+  if (state.remoteSyncOperation === "publish") {
+    gitSyncOpen.textContent = t("action.syncing");
+  } else if (state.remoteSyncOperation === "check") {
+    gitSyncOpen.textContent = t("action.checkingRemote");
+  } else {
+    gitSyncOpen.textContent = decision.primaryAction === "publish"
+      ? t("action.syncAndPublish")
+      : t("action.checkRemote");
   }
+}
+
+function remoteSyncStatusLabel() {
+  if (state.remoteSyncOperation === "check") {
+    return t("remote.checking");
+  }
+  if (state.remoteSyncOperation === "merge") {
+    return t("action.mergingRemote");
+  }
+  if (state.remoteSync.ok !== true) {
+    return state.remoteSync.state === "checking"
+      ? t("remote.checking")
+      : t("remote.unavailable");
+  }
+  if (state.remoteSync.state === "diverged") {
+    return t("remote.diverged");
+  }
+  if (state.remoteSync.behind > 0) {
+    const count = state.remoteSync.incomingCount || state.remoteSync.behind;
+    return t(count === 1 ? "remote.incomingOne" : "remote.incoming", {
+      count,
+    });
+  }
+  return t("remote.current");
+}
+
+function remoteSyncDetailLabel() {
+  if (state.remoteSync.updatedAt) {
+    return t("remote.lastUpdated", {
+      time: formatRemoteSyncTime(state.remoteSync.updatedAt),
+    });
+  }
+  if (state.remoteSync.checkedAt) {
+    return t("remote.lastChecked", {
+      time: formatRemoteSyncTime(state.remoteSync.checkedAt),
+    });
+  }
+  return "";
+}
+
+function formatRemoteSyncTime(value) {
+  const timestamp = new Date(value);
+  if (!Number.isFinite(timestamp.getTime())) {
+    return "";
+  }
+  const now = new Date();
+  const sameDay = timestamp.getFullYear() === now.getFullYear()
+    && timestamp.getMonth() === now.getMonth()
+    && timestamp.getDate() === now.getDate();
+  return new Intl.DateTimeFormat(state.locale, sameDay
+    ? { hour: "2-digit", minute: "2-digit" }
+    : { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }
+  ).format(timestamp);
 }
 
 function gitChangedPaths() {
@@ -4451,8 +4764,8 @@ async function submitGitSync() {
 
   const files = state.gitChanges.map((change) => change.path);
   const startedAt = performance.now();
-  gitSyncOpen.disabled = true;
-  gitSyncOpen.textContent = t("action.syncing");
+  state.remoteSyncOperation = "publish";
+  renderGitChangeToolbar();
   gitSyncResult.hidden = true;
   try {
     await flushPendingSourceSync();
@@ -4506,6 +4819,18 @@ async function submitGitSync() {
     showCopyToast(t("toast.syncComplete"));
     await loadTree({ force: true });
     await loadGitStatus();
+    state.remoteSync = normalizeRemoteSyncPayload({
+      ...state.remoteSync,
+      ok: true,
+      state: "current",
+      ahead: 0,
+      behind: 0,
+      incomingCount: 0,
+      incomingFiles: [],
+      error: "",
+      checkedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
   } catch (error) {
     recordTelemetryFeature("git.sync", {
       strategy: "guarded_live_v1",
@@ -4527,8 +4852,8 @@ async function submitGitSync() {
       }),
     });
   } finally {
-    gitSyncOpen.textContent = t("action.sync");
-    gitSyncOpen.disabled = !canEditCurrentRepo() || state.gitChanges.length === 0;
+    state.remoteSyncOperation = "";
+    renderGitChangeToolbar();
   }
 }
 
@@ -6567,7 +6892,7 @@ async function handleWatchedDocumentChange(event, request = currentDocumentReque
   }
   applyRepositoryStatus(payload);
   enforceCurrentRepoEditCapability();
-  if (state.sourceWriteInFlight) {
+  if (state.sourceWriteInFlight || state.remoteSyncOperation === "merge") {
     return;
   }
   if (payload.sourceHash === state.currentDocument.sourceHash) {
@@ -6610,7 +6935,7 @@ async function checkDocumentStatus() {
   }
   applyRepositoryStatus(status);
   enforceCurrentRepoEditCapability();
-  if (state.sourceWriteInFlight) {
+  if (state.sourceWriteInFlight || state.remoteSyncOperation === "merge") {
     return;
   }
   if (

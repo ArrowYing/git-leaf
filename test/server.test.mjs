@@ -1189,6 +1189,113 @@ test("git status API returns local changes for every file type", async () => {
   }
 });
 
+test("remote status API fetches origin and reports incoming files separately from local changes", async () => {
+  const repoRoot = await mkdtemp(path.join(tmpdir(), "git-leaf-remote-status-"));
+  await writeFile(path.join(repoRoot, "sample.md"), "# Sample\n");
+  const initialFile = await resolvePreviewPath(repoRoot, "sample.md");
+  const head = "a".repeat(40);
+  const remoteHead = "b".repeat(40);
+  const calls = [];
+  const server = createPreviewServer({
+    repoRoot,
+    initialFile,
+    gitRunner: async (_cwd, args) => {
+      calls.push(args);
+      const command = args.join(" ");
+      if (command === "remote get-url origin") {
+        return { stdout: "git@example.test:docs/repo.git\n", stderr: "" };
+      }
+      if (command === "rev-parse --verify HEAD") {
+        return { stdout: `${head}\n`, stderr: "" };
+      }
+      if (command === "rev-parse --verify refs/remotes/origin/main") {
+        return { stdout: `${remoteHead}\n`, stderr: "" };
+      }
+      if (command.startsWith("rev-list --left-right --count")) {
+        return { stdout: "0 1\n", stderr: "" };
+      }
+      if (command.startsWith("status --porcelain")) {
+        return { stdout: " M sample.md\0", stderr: "" };
+      }
+      if (command.startsWith("diff --name-only")) {
+        return { stdout: "remote.md\0", stderr: "" };
+      }
+      return { stdout: "", stderr: "" };
+    },
+  });
+  const baseUrl = await listen(server);
+
+  try {
+    const payload = await getJson(`${baseUrl}/api/git-remote-status?refresh=1`);
+
+    assert.equal(payload.ok, true);
+    assert.equal(payload.state, "remote_ahead");
+    assert.equal(payload.localChangeCount, 1);
+    assert.deepEqual(payload.incomingFiles, ["remote.md"]);
+    assert.equal(payload.incomingCount, 1);
+    assert.ok(calls.some((args) => args[0] === "fetch" && args.includes("origin")));
+  } finally {
+    await close(server);
+    await rm(repoRoot, { recursive: true, force: true });
+  }
+});
+
+test("merge-remote API keeps dirty local edits uncommitted while advancing to origin", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "git-leaf-merge-remote-api-"));
+  const bare = path.join(root, "remote.git");
+  const repoRoot = path.join(root, "repo");
+  const coworker = path.join(root, "coworker");
+  await mkdir(bare, { recursive: true });
+  await execFileAsync("git", ["init", "--bare", "--initial-branch=main"], { cwd: bare });
+  await execFileAsync("git", ["clone", bare, repoRoot], { cwd: root });
+  await execFileAsync("git", ["config", "user.name", "Git Leaf Tests"], { cwd: repoRoot });
+  await execFileAsync("git", ["config", "user.email", "git-leaf@example.test"], { cwd: repoRoot });
+  await writeFile(path.join(repoRoot, "sample.md"), "before\n");
+  await writeFile(path.join(repoRoot, "remote.md"), "remote before\n");
+  await execFileAsync("git", ["add", "-A"], { cwd: repoRoot });
+  await execFileAsync("git", ["commit", "-m", "Initial"], { cwd: repoRoot });
+  await execFileAsync("git", ["push", "-u", "origin", "main"], { cwd: repoRoot });
+  await execFileAsync("git", ["clone", bare, coworker], { cwd: root });
+  await execFileAsync("git", ["config", "user.name", "Git Leaf Tests"], { cwd: coworker });
+  await execFileAsync("git", ["config", "user.email", "git-leaf@example.test"], { cwd: coworker });
+  await writeFile(path.join(coworker, "remote.md"), "remote after\n");
+  await execFileAsync("git", ["add", "-A"], { cwd: coworker });
+  await execFileAsync("git", ["commit", "-m", "Remote update"], { cwd: coworker });
+  await execFileAsync("git", ["push", "origin", "main"], { cwd: coworker });
+  await writeFile(path.join(repoRoot, "sample.md"), "local draft\n");
+
+  const initialFile = await resolvePreviewPath(repoRoot, "sample.md");
+  const repository = await createRepositoryInfo({ repoRoot, initialFile });
+  const server = createPreviewServer({ repoRoot, initialFile, repository });
+  const baseUrl = await listen(server);
+
+  try {
+    const response = await fetch(`${baseUrl}/api/git-merge-remote?locale=zh-CN`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ allowLocalChanges: true }),
+    });
+    const payload = await response.json();
+
+    assert.equal(response.status, 200, payload.error);
+    assert.equal(payload.ok, true);
+    assert.equal(payload.mode, "preserve_local_changes");
+    assert.equal(
+      (await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: repoRoot })).stdout.trim(),
+      (await execFileAsync("git", ["rev-parse", "main"], { cwd: bare })).stdout.trim(),
+    );
+    assert.equal(await readFile(path.join(repoRoot, "sample.md"), "utf8"), "local draft\n");
+    assert.equal(await readFile(path.join(repoRoot, "remote.md"), "utf8"), "remote after\n");
+    assert.equal(
+      (await execFileAsync("git", ["status", "--porcelain"], { cwd: repoRoot })).stdout,
+      " M sample.md\n",
+    );
+  } finally {
+    await close(server);
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("git sync API returns an Agent prompt when the fixed Git flow fails", async () => {
   const repoRoot = await mkdtemp(path.join(tmpdir(), "git-leaf-"));
   await writeFile(path.join(repoRoot, "sample.md"), "# Sample\n");

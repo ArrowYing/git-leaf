@@ -14,44 +14,25 @@ import process from "node:process";
 import { performance } from "node:perf_hooks";
 import { fileURLToPath } from "node:url";
 
+import {
+  createImmutableGitSnapshot as createProductionSnapshot,
+  rebaseImmutableGitSnapshot as rebaseProductionSnapshot,
+} from "../src/git-immutable-snapshot.mjs";
+
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
-const OID_PATTERN = /^[0-9a-f]{40,64}$/i;
 
 export async function createImmutableGitSnapshot({
   repoRoot,
   indexPath,
   message = "Git Leaf immutable snapshot prototype",
 }) {
-  const environment = {
-    ...process.env,
-    GIT_INDEX_FILE: indexPath,
-    GIT_OPTIONAL_LOCKS: "0",
-  };
-  const timingsMs = {};
-
-  await measure(timingsMs, "read_tree", () => runGit(repoRoot, ["read-tree", "HEAD"], environment));
-  await measure(timingsMs, "stage_worktree", () => runGit(repoRoot, ["add", "-A", "--", "."], environment));
-  const tree = parseOid((await measure(
-    timingsMs,
-    "write_tree",
-    () => runGit(repoRoot, ["write-tree"], environment),
-  )).stdout, "snapshot tree");
-  const baseCommit = parseOid(
-    (await runGit(repoRoot, ["rev-parse", "--verify", "HEAD"])).stdout,
-    "base commit",
-  );
-  const snapshotCommit = parseOid((await measure(
-    timingsMs,
-    "commit_tree",
-    () => runGit(repoRoot, ["commit-tree", tree, "-p", baseCommit, "-m", message]),
-  )).stdout, "snapshot commit");
-
+  const startedAt = performance.now();
+  const snapshot = await createProductionSnapshot({ repoRoot, indexPath, message });
+  const totalMs = performance.now() - startedAt;
   return {
-    baseCommit,
-    tree,
-    snapshotCommit,
-    timingsMs,
-    totalMs: sumTimings(timingsMs),
+    ...snapshot,
+    timingsMs: { immutable_snapshot: totalMs },
+    totalMs,
   };
 }
 
@@ -61,40 +42,18 @@ export async function rebaseImmutableGitSnapshot({
   remoteCommit,
   message = "Git Leaf immutable snapshot prototype",
 }) {
-  const timingsMs = {};
-  let mergeResult;
-  try {
-    mergeResult = await measure(
-      timingsMs,
-      "merge_tree",
-      () => runGit(repoRoot, ["merge-tree", "--write-tree", remoteCommit, snapshotCommit]),
-    );
-  } catch (error) {
-    if (Number(error?.code) === 1) {
-      return {
-        ok: false,
-        conflict: true,
-        timingsMs,
-        totalMs: sumTimings(timingsMs),
-      };
-    }
-    throw error;
-  }
-
-  const tree = parseOid(String(mergeResult.stdout).split(/\r?\n/, 1)[0], "merged tree");
-  const rebasedCommit = parseOid((await measure(
-    timingsMs,
-    "commit_tree",
-    () => runGit(repoRoot, ["commit-tree", tree, "-p", remoteCommit, "-m", message]),
-  )).stdout, "rebased snapshot commit");
-
+  const startedAt = performance.now();
+  const result = await rebaseProductionSnapshot({
+    repoRoot,
+    snapshotCommit,
+    remoteCommit,
+    message,
+  });
+  const totalMs = performance.now() - startedAt;
   return {
-    ok: true,
-    conflict: false,
-    tree,
-    rebasedCommit,
-    timingsMs,
-    totalMs: sumTimings(timingsMs),
+    ...result,
+    timingsMs: { object_merge: totalMs },
+    totalMs,
   };
 }
 
@@ -148,19 +107,6 @@ export async function benchmarkGitSnapshotStrategies({
   }
 }
 
-async function measure(timings, name, operation) {
-  const startedAt = performance.now();
-  try {
-    return await operation();
-  } finally {
-    timings[name] = performance.now() - startedAt;
-  }
-}
-
-function sumTimings(timings) {
-  return Object.values(timings).reduce((sum, value) => sum + value, 0);
-}
-
 function summarizeDurations(values) {
   const sorted = [...values].sort((left, right) => left - right);
   const total = sorted.reduce((sum, value) => sum + value, 0);
@@ -181,14 +127,6 @@ function percentile(sorted, ratio) {
 
 function round(value) {
   return Math.round(value * 100) / 100;
-}
-
-function parseOid(output, label) {
-  const value = String(output ?? "").trim();
-  if (!OID_PATTERN.test(value)) {
-    throw new Error(`Git returned an invalid ${label}: ${value || "<empty>"}`);
-  }
-  return value;
 }
 
 function runGit(cwd, args, extraEnvironment = {}) {

@@ -237,10 +237,32 @@ Editor assistance must remain explainable from source:
 
 ## Git synchronization
 
-Sync is a repository-level helper, not a fourth document mode. It processes every Git status change,
-including attachments, code, renames, and deletions. Users do not select files or write commit messages.
+Sync is a repository-level helper, not a fourth document mode. The Sync view presents two independent
+facts: the last checked remote state and the unpublished local changes. It processes every Git status
+change, including attachments, code, renames, and deletions.
 
-The guarded live-worktree strategy:
+Remote checking starts after the repository opens and repeats every ten minutes. Returning to a visible
+window after a missed interval also triggers a check. Fetching only updates the remote-tracking ref:
+
+- when the current branch is behind and the worktree is clean, Git Leaf applies a safe fast-forward
+  automatically and refreshes the open document without changing its tab or mode;
+- when the worktree has local changes, Git Leaf reports the incoming paths but does not mutate the
+  worktree in the background;
+- **Merge remote changes** is an explicit down-only action. It advances the local branch to the fetched
+  remote commit while preserving the user's complete local workspace as uncommitted changes. It neither
+  commits nor pushes;
+- **Sync and publish** remains the explicit up action. It includes any required remote integration, then
+  commits and pushes all local changes.
+
+For a dirty down-only merge, Git Leaf freezes the complete click-time workspace with an alternate Git
+index and an immutable snapshot commit. It merges that snapshot with the fetched remote commit in Git's
+object layer. Only a conflict-free result may be applied to the real files, and a final tree comparison
+must match the verified object-layer result. The branch ref advances with a compare-and-swap update, the
+real index resets to the remote commit, and the combined workspace therefore remains uncommitted. A
+short-lived recovery ref protects the frozen snapshot during application. Workspace drift stops before
+mutation; an object-layer conflict leaves the real branch, index, and files unchanged.
+
+The guarded publish strategy:
 
 1. Fetch and compare local and upstream history when an upstream exists.
 2. Stop before staging if local and remote both have unique commits.
@@ -253,9 +275,10 @@ The guarded live-worktree strategy:
 8. Push the verified commit OID, fetch again, and prove the remote branch contains it before reporting
    success.
 
-Sync must not start during merge, rebase, cherry-pick, revert, or an existing conflict. A failed
-automatic rebase attempts `rebase --abort`. Divergence, conflicts, repeated workspace drift, and
-unexpected Git state stop with a copyable prompt for the user's chosen AI agent.
+Neither action starts during merge, rebase, cherry-pick, revert, or an existing conflict. A failed
+publish rebase attempts `rebase --abort`. Divergence, conflicts, repeated workspace drift, and
+unexpected Git state stop safely. A copyable prompt for the user's chosen AI agent is the final fallback,
+and the down-only prompt explicitly requires an uncommitted, unpushed result.
 
 ## Deep links and hosted handoff
 
@@ -376,6 +399,8 @@ installer. Failed preparation remains retryable and must not masquerade as an ac
 | `src/markdown.mjs`, `src/mdx-lite.mjs` | Markdown and allowlisted MDX-lite rendering |
 | `src/client/source-editor.mjs` | Shared CodeMirror Source/Live editing model |
 | `src/git-sync.mjs` | Guarded repository-wide sync |
+| `src/git-remote-sync.mjs` | Periodic remote status and down-only merge transaction |
+| `src/git-immutable-snapshot.mjs` | Alternate-index workspace snapshots and object-layer merge |
 | `src/telemetry.mjs` | Official-build analytics state and event contract |
 
 Rendering, editing, repository safety, the desktop shell, and Git synchronization must not absorb one

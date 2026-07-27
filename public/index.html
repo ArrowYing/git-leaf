@@ -293,11 +293,22 @@
               data-i18n-aria-label="aria.activeFrontmatterFilters"
               hidden
             ></div>
-            <div id="git-change-toolbar" class="git-change-toolbar" hidden>
+            <div id="git-change-toolbar" class="git-change-toolbar" aria-live="polite" hidden>
+              <div class="git-remote-status">
+                <span class="git-sync-status-row">
+                  <span data-i18n="git.remote">远端</span>
+                  <strong id="git-remote-status">正在检查…</strong>
+                </span>
+                <span id="git-remote-detail" class="git-remote-detail"></span>
+              </div>
               <span class="git-change-summary">
-                <span data-i18n="git.localChanges">本地改动</span> <span id="git-change-count">0</span>
+                <span data-i18n="git.localChanges">本地改动</span>
+                <span id="git-change-label">没有未发布修改</span>
               </span>
-              <button id="git-sync-open" type="button" data-i18n="action.sync">同步</button>
+              <div class="git-sync-actions">
+                <button id="git-merge-remote" type="button" data-i18n="action.mergeRemote" hidden>合并远端修改</button>
+                <button id="git-sync-open" class="is-primary" type="button" data-i18n="action.syncAndPublish">同步并发布</button>
+              </div>
             </div>
             <div
               id="frontmatter-filter-popover"

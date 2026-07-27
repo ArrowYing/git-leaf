@@ -39,6 +39,10 @@ import {
   runGitCommand,
   syncSelectedFiles,
 } from "./git-sync.mjs";
+import {
+  inspectRemoteSync,
+  mergeRemoteChanges,
+} from "./git-remote-sync.mjs";
 import { createGitLeafShareLink } from "./git-leaf-open-link.mjs";
 import { publishGitLeafShareLink } from "./git-share-publish.mjs";
 import { sourceLinesFromMarkdown } from "../public/line-selection.js";
@@ -289,6 +293,26 @@ async function handleRequest(request, response, context) {
     return;
   }
 
+  if (requestUrl.pathname === "/api/git-remote-status") {
+    requireLocalRequest(request, context);
+    if (request.method !== "GET") {
+      sendText(response, 405, "Method Not Allowed");
+      return;
+    }
+    const repo = await requestRepository(requestUrl, context);
+    const payload = await inspectRemoteSync({
+      repo,
+      refresh: requestUrl.searchParams.get("refresh") !== "0",
+      locale: previewLocaleFromRequest(requestUrl),
+      gitRunner: context.gitRunner,
+    });
+    sendJson(response, 200, {
+      ...payload,
+      canEdit: canEditRepository({ repo, isLocalRequest: canEditRequest(request, context) }),
+    });
+    return;
+  }
+
   if (requestUrl.pathname === "/api/share-link") {
     requireLocalRequest(request, context);
     const repo = await requestRepository(requestUrl, context);
@@ -340,6 +364,29 @@ async function handleRequest(request, response, context) {
       files: body.files,
       note: body.note,
       allChanges: body.allChanges === true,
+      locale: previewLocaleFromRequest(requestUrl),
+      gitRunner: context.gitRunner,
+    });
+    sendJson(response, payload.ok ? 200 : 409, {
+      ...payload,
+      ...branchStatePayload(branchState),
+    });
+    return;
+  }
+
+  if (requestUrl.pathname === "/api/git-merge-remote") {
+    let repo = await requestRepository(requestUrl, context);
+    requireEditableRequest(request, context, repo);
+    if (request.method !== "POST") {
+      sendText(response, 405, "Method Not Allowed");
+      return;
+    }
+    const branchState = await ensureRepositoryWriteBranch(repo, context);
+    repo = branchState.repo;
+    const body = await readJsonRequest(request);
+    const payload = await mergeRemoteChanges({
+      repo,
+      allowLocalChanges: body.allowLocalChanges === true,
       locale: previewLocaleFromRequest(requestUrl),
       gitRunner: context.gitRunner,
     });

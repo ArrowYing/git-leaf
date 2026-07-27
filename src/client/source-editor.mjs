@@ -745,8 +745,10 @@ export function createSourceEditor({
   let suppressChange = false;
   let currentMode = "source";
   let currentTheme = themeFromInput(theme);
+  let currentEditable = true;
   const themeCompartment = new Compartment();
   const liveModeCompartment = new Compartment();
+  const editableCompartment = new Compartment();
   function liveModeExtensions() {
     return currentMode === "live"
       ? [
@@ -768,6 +770,10 @@ export function createSourceEditor({
       documentSearchDecorations,
       themeCompartment.of(editorThemeExtensions(currentTheme)),
       liveModeCompartment.of([]),
+      editableCompartment.of([
+        EditorState.readOnly.of(false),
+        EditorView.editable.of(true),
+      ]),
       autocompletion({
         override: [
           slashCommandCompletionSource({
@@ -961,6 +967,19 @@ export function createSourceEditor({
       currentMode = mode;
       view.dispatch({
         effects: liveModeCompartment.reconfigure(liveModeExtensions()),
+      });
+    },
+    setEditable(editable) {
+      const nextEditable = editable !== false;
+      if (nextEditable === currentEditable) {
+        return;
+      }
+      currentEditable = nextEditable;
+      view.dispatch({
+        effects: editableCompartment.reconfigure([
+          EditorState.readOnly.of(!currentEditable),
+          EditorView.editable.of(currentEditable),
+        ]),
       });
     },
     setTheme(theme) {
