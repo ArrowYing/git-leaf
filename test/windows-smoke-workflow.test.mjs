@@ -67,8 +67,14 @@ test("Windows smoke script starts the packaged app, checks health, captures UI, 
   assert.match(script, /ExpectedInitialFile/);
   assert.match(script, /activeTabPath/);
   assert.match(script, /Deep link opened requested document/);
-  assert.match(script, /api\/health\?check=1/);
+  assert.match(script, /api\/health"/);
+  assert.doesNotMatch(script, /api\/health\?check=1/);
   assert.match(script, /Invoke-WebRequest/);
+  assert.match(script, /Invoke-WebRequest[^\n]+-TimeoutSec 10/);
+  const expectedVersionIndex = script.indexOf("$expectedVersion =");
+  const guardedRunIndex = script.indexOf("\ntry {");
+  assert.ok(expectedVersionIndex >= 0 && expectedVersionIndex < guardedRunIndex);
+  assert.equal(script.match(/\$expectedVersion\s*=/g)?.length, 1);
   assert.match(script, /System\.Windows\.Forms/);
   assert.match(script, /CopyFromScreen/);
   assert.match(script, /Stop-Process/);

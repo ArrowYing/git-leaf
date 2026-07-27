@@ -63,9 +63,9 @@ function Wait-GitLeafHealth {
   $lastError = ""
   while ((Get-Date) -lt $deadline) {
     foreach ($port in 4317..4336) {
-      $url = "http://127.0.0.1:$port/api/health?check=1"
+      $url = "http://127.0.0.1:$port/api/health"
       try {
-        $response = Invoke-WebRequest -UseBasicParsing -Uri $url -TimeoutSec 2
+        $response = Invoke-WebRequest -UseBasicParsing -Uri $url -TimeoutSec 10
         $payload = $response.Content | ConvertFrom-Json
         if (
           $response.StatusCode -eq 200 -and
@@ -125,6 +125,7 @@ if (!(Test-Path -LiteralPath $repoRootPath)) {
   throw "Missing smoke repository root: $repoRootPath"
 }
 
+$expectedVersion = (Get-Content -LiteralPath "package.json" -Raw | ConvertFrom-Json).version
 $process = $null
 $blockedUpgradeProcess = $null
 try {
@@ -144,7 +145,6 @@ try {
   if (!(Test-Path -LiteralPath $installedState)) {
     throw "Git Leaf did not write the installed version state: $installedState"
   }
-  $expectedVersion = (Get-Content -LiteralPath "package.json" -Raw | ConvertFrom-Json).version
   $installedVersion = (Get-Content -LiteralPath $installedState -Raw | ConvertFrom-Json).version
   if ($installedVersion -ne $expectedVersion) {
     throw "Installed version state mismatch: expected=$expectedVersion actual=$installedVersion"

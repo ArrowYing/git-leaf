@@ -21,6 +21,7 @@ the [Git Leaf download page](https://gitleaf.mangofuture.com/download).
 - Community packages now use `org.gitleaf.community` on macOS and `Git Leaf Community` publisher metadata
   on Windows instead of Mango Future's official package identity.
 - Non-official packages are labeled `Community build` in the app.
+- The Windows release smoke now uses a bounded non-forced health probe and failure-safe cleanup.
 
 ### Security
 
