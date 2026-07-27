@@ -1026,12 +1026,15 @@ input {
 }
 
 #git-change-label {
-  overflow: hidden;
+  min-width: 0;
+  overflow: visible;
+  overflow-wrap: anywhere;
   color: var(--text-secondary);
   font-weight: 720;
+  line-height: 1.25;
   text-align: right;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  text-overflow: clip;
+  white-space: normal;
 }
 
 .git-remote-status {
@@ -1052,12 +1055,15 @@ input {
 }
 
 #git-remote-status {
-  overflow: hidden;
+  min-width: 0;
+  overflow: visible;
+  overflow-wrap: anywhere;
   color: var(--text-secondary);
   font-weight: 760;
+  line-height: 1.25;
   text-align: right;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  text-overflow: clip;
+  white-space: normal;
 }
 
 .git-remote-detail {
