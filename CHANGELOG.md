@@ -4,6 +4,18 @@ Git Leaf follows Semantic Versioning for its shared app version. Git tags identi
 official public artifacts, signatures, checksums, and platform availability are authoritative only on
 the [Git Leaf download page](https://gitleaf.mangofuture.com/download).
 
+## 1.14.0 — 2026-07-27
+
+### Added
+
+- Periodic remote checks, automatic clean-worktree fast-forwarding, and an explicit guarded merge that
+  incorporates remote changes while preserving every local edit as uncommitted work.
+
+### Fixed
+
+- Duplicate line numbers on block quotes and incorrect source anchors for selected Preview lines.
+- Sync status text wrapping in narrow sidebars.
+
 ## 1.13.0 — 2026-07-27
 
 ### Added

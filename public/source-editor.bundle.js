@@ -34807,10 +34807,12 @@ var FRONT_MATTER_RE = /^---[ \t]*\r?\n[\s\S]*?\r?\n---[ \t]*\r?\n?/;
 var MARKDOWN_MESSAGES = Object.freeze({
   en: Object.freeze({
     "sourceLine.select": "Select line {line}",
+    "sourceLine.selectRange": "Select lines {start}-{end}",
     "sourceLine.gutter": "Source line numbers"
   }),
   "zh-CN": Object.freeze({
     "sourceLine.select": "\u9009\u62E9\u7B2C {line} \u884C",
+    "sourceLine.selectRange": "\u9009\u62E9\u7B2C {start}-{end} \u884C",
     "sourceLine.gutter": "\u6E90\u6587\u4EF6\u884C\u53F7"
   })
 });
@@ -34838,6 +34840,7 @@ function createRenderer(options) {
   const originalOrderedListOpen = renderer.renderer.rules.ordered_list_open ?? renderToken2(renderer, "ordered_list_open");
   const originalOrderedListClose = renderer.renderer.rules.ordered_list_close ?? renderToken2(renderer, "ordered_list_close");
   const originalListItemOpen = renderer.renderer.rules.list_item_open ?? renderToken2(renderer, "list_item_open");
+  const originalTableRowOpen = renderer.renderer.rules.tr_open ?? renderToken2(renderer, "tr_open");
   const originalBlockquoteOpen = renderer.renderer.rules.blockquote_open ?? renderToken2(renderer, "blockquote_open");
   const originalBlockquoteClose = renderer.renderer.rules.blockquote_close ?? renderToken2(renderer, "blockquote_close");
   renderer.block.ruler.before("paragraph", "mdx_lite_component", mdxLiteBlockRule, {
@@ -34867,7 +34870,9 @@ function createRenderer(options) {
     if (tokens[index].hidden || env.listDepth > 0) {
       return self.renderToken(tokens, index, rendererOptions);
     }
-    return sourceBlockOpen(tokens[index], env) + self.renderToken(tokens, index, rendererOptions);
+    return sourceBlockOpen(tokens[index], env, {
+      ranges: [tokenSourceRange(tokens[index], env)]
+    }) + self.renderToken(tokens, index, rendererOptions);
   };
   renderer.renderer.rules.paragraph_close = (tokens, index, rendererOptions, env, self) => {
     if (tokens[index].hidden || env.listDepth > 0) {
@@ -34933,12 +34938,25 @@ function createRenderer(options) {
   renderer.renderer.rules.blockquote_close = (tokens, index, rendererOptions, env, self) => {
     return originalBlockquoteClose(tokens, index, rendererOptions, env, self);
   };
+  renderer.renderer.rules.tr_open = (tokens, index, rendererOptions, env, self) => {
+    const range = tableRowSourceRange(tokens, index, env);
+    if (range) {
+      tokens[index].attrSet("data-source-table-line", String(range.start));
+      if (range.end > range.start) {
+        tokens[index].attrSet("data-source-table-end", String(range.end));
+      }
+    }
+    return originalTableRowOpen(tokens, index, rendererOptions, env, self);
+  };
   renderer.renderer.rules.table_open = (tokens, index, rendererOptions, env) => {
     const shape = tableShapeFromTokens(tokens, index);
     const attributes = tableComplexityAttributes(shape);
     const layout = tableLayoutAttributes(shape);
     return [
-      sourceBlockOpen(tokens[index], env),
+      sourceBlockOpen(tokens[index], env, {
+        lineLayout: "table",
+        ranges: tableRowSourceRanges(tokens, index, env)
+      }),
       `<div ${tableCardAttributeString(attributes, layout)}>`,
       renderTableToolbar(attributes, { locale: options.locale }),
       `<div ${tableScrollAttributeString(layout)}><table>`,
@@ -35081,21 +35099,32 @@ function normalizeImageHeight(value) {
 function normalizeImageCaption(value) {
   return String(value ?? "").trim().replace(/\s+/g, " ").slice(0, 240);
 }
-function sourceBlockOpen(token, env, { lineLayout = "", lines = null } = {}) {
+function sourceBlockOpen(token, env, {
+  lineLayout = "",
+  lines = null,
+  ranges = null
+} = {}) {
   if (!token.map) {
     return "";
   }
   const fallbackStart = token.map[0] + (env.lineOffset ?? 0) + 1;
   const fallbackEnd = token.map[1] + (env.lineOffset ?? 0);
   const lineNumbers2 = Array.isArray(lines) && lines.length > 0 ? [...new Set(lines)].filter(Number.isInteger).sort((left, right) => left - right) : Array.from({ length: fallbackEnd - fallbackStart + 1 }, (_, index) => fallbackStart + index);
-  const start = lineNumbers2[0] ?? fallbackStart;
-  const end = lineNumbers2.at(-1) ?? fallbackEnd;
+  const lineRanges = Array.isArray(ranges) && ranges.length > 0 ? ranges.filter((range) => Number.isInteger(range?.start) && Number.isInteger(range?.end)).map((range) => ({
+    start: Math.min(range.start, range.end),
+    end: Math.max(range.start, range.end)
+  })).sort((left, right) => left.start - right.start) : lineNumbers2.map((line) => ({ start: line, end: line }));
+  const start = lineRanges[0]?.start ?? fallbackStart;
+  const end = lineRanges.at(-1)?.end ?? fallbackEnd;
   const buttons = [];
   const translate = typeof env.translate === "function" ? env.translate : createTranslator(MARKDOWN_MESSAGES, "en");
-  for (const line of lineNumbers2) {
-    const lineLabel = escapeAttribute3(translate("sourceLine.select", { line }));
+  for (const range of lineRanges) {
+    const isRange = range.end > range.start;
+    const lineLabel = escapeAttribute3(isRange ? translate("sourceLine.selectRange", range) : translate("sourceLine.select", { line: range.start }));
+    const endAttribute = isRange ? ` data-source-end="${range.end}"` : "";
+    const displayLabel = isRange ? `${range.start}\u2013${range.end}` : String(range.start);
     buttons.push(
-      `<button type="button" class="source-line-button" data-source-line="${line}" title="${lineLabel}" aria-label="${lineLabel}">${line}</button>`
+      `<button type="button" class="source-line-button" data-source-line="${range.start}"${endAttribute} title="${lineLabel}" aria-label="${lineLabel}">${displayLabel}</button>`
     );
   }
   const lineLayoutAttribute = lineLayout ? ` data-source-line-layout="${escapeAttribute3(lineLayout)}"` : "";
@@ -35135,6 +35164,43 @@ function listItemSourceLines(tokens, startIndex, env) {
 }
 function listItemSourceLine(token, env) {
   return token.type === "list_item_open" && token.map ? token.map[0] + (env.lineOffset ?? 0) + 1 : null;
+}
+function tokenSourceRange(token, env) {
+  if (!token?.map) {
+    return null;
+  }
+  return {
+    start: token.map[0] + (env.lineOffset ?? 0) + 1,
+    end: token.map[1] + (env.lineOffset ?? 0)
+  };
+}
+function tableRowSourceRanges(tokens, startIndex, env) {
+  const ranges = [];
+  for (let index = startIndex + 1; index < tokens.length; index += 1) {
+    if (tokens[index].type === "table_close") {
+      break;
+    }
+    if (tokens[index].type !== "tr_open") {
+      continue;
+    }
+    const range = tokenSourceRange(tokens[index], env);
+    if (range) {
+      ranges.push({ ...range, tokenIndex: index });
+    }
+  }
+  if (ranges.length > 1 && ranges[1].start > ranges[0].end) {
+    ranges[0].end = ranges[1].start - 1;
+  }
+  return ranges;
+}
+function tableRowSourceRange(tokens, rowIndex, env) {
+  for (let index = rowIndex - 1; index >= 0; index -= 1) {
+    if (tokens[index].type !== "table_open") {
+      continue;
+    }
+    return tableRowSourceRanges(tokens, index, env).find((range) => range.tokenIndex === rowIndex) ?? null;
+  }
+  return tokenSourceRange(tokens[rowIndex], env);
 }
 function tableShapeFromTokens(tokens, startIndex) {
   let rowCount = 0;
