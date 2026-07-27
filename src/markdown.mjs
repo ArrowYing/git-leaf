@@ -152,14 +152,14 @@ function createRenderer(options) {
     self.renderToken(tokens, index, rendererOptions) + sourceBlockClose();
 
   renderer.renderer.rules.paragraph_open = (tokens, index, rendererOptions, env, self) => {
-    if (tokens[index].hidden || env.listDepth > 0 || env.blockquoteDepth > 0) {
+    if (tokens[index].hidden || env.listDepth > 0) {
       return self.renderToken(tokens, index, rendererOptions);
     }
     return sourceBlockOpen(tokens[index], env) + self.renderToken(tokens, index, rendererOptions);
   };
 
   renderer.renderer.rules.paragraph_close = (tokens, index, rendererOptions, env, self) => {
-    if (tokens[index].hidden || env.listDepth > 0 || env.blockquoteDepth > 0) {
+    if (tokens[index].hidden || env.listDepth > 0) {
       return self.renderToken(tokens, index, rendererOptions);
     }
     return self.renderToken(tokens, index, rendererOptions) + sourceBlockClose();
@@ -237,15 +237,11 @@ function createRenderer(options) {
   };
 
   renderer.renderer.rules.blockquote_open = (tokens, index, rendererOptions, env, self) => {
-    const shouldWrapBlockquote = beginBlockquote(env, tokens[index]);
-    return (shouldWrapBlockquote ? sourceBlockOpen(tokens[index], env) : "") +
-      originalBlockquoteOpen(tokens, index, rendererOptions, env, self);
+    return originalBlockquoteOpen(tokens, index, rendererOptions, env, self);
   };
 
   renderer.renderer.rules.blockquote_close = (tokens, index, rendererOptions, env, self) => {
-    const shouldWrapBlockquote = endBlockquote(env);
-    return originalBlockquoteClose(tokens, index, rendererOptions, env, self) +
-      (shouldWrapBlockquote ? sourceBlockClose() : "");
+    return originalBlockquoteClose(tokens, index, rendererOptions, env, self);
   };
 
   renderer.renderer.rules.table_open = (tokens, index, rendererOptions, env) => {
@@ -581,20 +577,6 @@ function beginList(env, token) {
 function endList(env) {
   env.listDepth = Math.max((env.listDepth ?? 1) - 1, 0);
   return env.listWrapStack?.pop() ?? false;
-}
-
-function beginBlockquote(env, token) {
-  const depth = env.blockquoteDepth ?? 0;
-  const shouldWrapBlockquote = depth === 0 && (env.listDepth ?? 0) === 0 && Boolean(token.map);
-  env.blockquoteDepth = depth + 1;
-  env.blockquoteWrapStack ??= [];
-  env.blockquoteWrapStack.push(shouldWrapBlockquote);
-  return shouldWrapBlockquote;
-}
-
-function endBlockquote(env) {
-  env.blockquoteDepth = Math.max((env.blockquoteDepth ?? 1) - 1, 0);
-  return env.blockquoteWrapStack?.pop() ?? false;
 }
 
 function renderToken(renderer, tokenName) {

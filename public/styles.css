@@ -33,6 +33,9 @@
   --document-heading-3-size: calc(var(--document-font-size) + 3px);
   --document-heading-2-padding-bottom: 6px;
   --document-heading-border: 1px solid var(--panel-border);
+  --document-blockquote-border-width: 4px;
+  --document-blockquote-content-padding: 16px;
+  --document-blockquote-inset: calc(var(--document-blockquote-border-width) + var(--document-blockquote-content-padding));
   --document-list-marker-gap: 0.36em;
   --document-list-unordered-marker-font-size: 0.72em;
   --document-list-ordered-marker-font-size: 0.96em;
@@ -2345,6 +2348,10 @@ summary.is-missing {
   height: 100%;
 }
 
+.document-content blockquote .source-line-gutter {
+  right: calc(100% + var(--source-line-gutter-gap) + var(--document-blockquote-inset));
+}
+
 .source-line-button {
   box-sizing: border-box;
   width: 100%;
@@ -3229,9 +3236,9 @@ summary.is-missing {
 }
 
 .document-content blockquote {
-  border-left: 4px solid var(--accent);
+  border-left: var(--document-blockquote-border-width) solid var(--accent);
   margin-left: 0;
-  padding: 1px 0 1px 16px;
+  padding: 1px 0 1px var(--document-blockquote-content-padding);
   color: var(--text-secondary);
   background: var(--panel-weak);
 }

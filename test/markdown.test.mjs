@@ -122,13 +122,21 @@ test("renderMarkdown wraps list blocks outside the list so gutters stay before b
   assert.doesNotMatch(html, /<li><div class="source-block"/);
 });
 
-test("renderMarkdown wraps blockquotes outside the quoted content so gutters stay aligned", () => {
-  const html = renderMarkdown(`> Quoted note with a source line
+test("renderMarkdown gives compound blockquote source lines one control each", () => {
+  const html = renderMarkdown(`> Quoted note
+>
+> # Quoted heading
+>
+> Continued quote
 `);
 
-  assert.match(html, /<div class="source-block"[^>]*><div class="source-line-gutter"/);
-  assert.match(html, /<div class="source-block-content"><blockquote>/);
-  assert.doesNotMatch(html, /<blockquote>\s*<div class="source-block"/);
+  for (const line of [1, 3, 5]) {
+    assert.equal(
+      html.match(new RegExp(`data-source-line="${line}"`, "g"))?.length,
+      1,
+      `expected source line ${line} to have exactly one control`,
+    );
+  }
 });
 
 test("renderMarkdown maps list gutters to list item source lines", () => {
