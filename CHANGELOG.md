@@ -4,7 +4,7 @@ Git Leaf follows Semantic Versioning for its shared app version. Git tags identi
 official public artifacts, signatures, checksums, and platform availability are authoritative only on
 the [Git Leaf download page](https://gitleaf.mangofuture.com/download).
 
-## Unreleased
+## 1.13.0 — 2026-07-27
 
 ### Added
 
