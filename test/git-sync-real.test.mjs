@@ -122,7 +122,12 @@ test("remote status finds incoming commits and a clean worktree fast-forwards wi
       (await git(fixture.repoRoot, ["rev-parse", "HEAD"])).stdout.trim(),
       (await git(fixture.bare, ["rev-parse", "main"])).stdout.trim(),
     );
-    assert.equal(await readFile(path.join(fixture.repoRoot, "remote.md"), "utf8"), "remote after\n");
+    assert.equal(
+      normalizeCheckoutLineEndings(
+        await readFile(path.join(fixture.repoRoot, "remote.md"), "utf8"),
+      ),
+      "remote after\n",
+    );
   } finally {
     await rm(fixture.root, { recursive: true, force: true });
   }
@@ -153,7 +158,12 @@ test("explicit remote merge preserves dirty local files as uncommitted changes",
     assert.equal(result.mode, "preserve_local_changes");
     assert.equal((await git(fixture.repoRoot, ["rev-parse", "HEAD"])).stdout.trim(), remoteHead);
     assert.equal(await readFile(path.join(fixture.repoRoot, "document.md"), "utf8"), "local draft\n");
-    assert.equal(await readFile(path.join(fixture.repoRoot, "remote.md"), "utf8"), "remote after\n");
+    assert.equal(
+      normalizeCheckoutLineEndings(
+        await readFile(path.join(fixture.repoRoot, "remote.md"), "utf8"),
+      ),
+      "remote after\n",
+    );
     assert.equal((await git(fixture.repoRoot, ["show", "HEAD:document.md"])).stdout, "before\n");
     const localStatus = (await git(fixture.repoRoot, ["status", "--porcelain"])).stdout;
     assert.match(localStatus, / M asset\.bin/);
@@ -225,7 +235,9 @@ test("explicit remote merge combines non-overlapping edits in one file and leave
 
     assert.equal(result.ok, true, result.error);
     assert.equal(
-      await readFile(path.join(fixture.repoRoot, "document.md"), "utf8"),
+      normalizeCheckoutLineEndings(
+        await readFile(path.join(fixture.repoRoot, "document.md"), "utf8"),
+      ),
       "local first\nmiddle\nremote last\n",
     );
     assert.equal(
@@ -416,4 +428,8 @@ function git(cwd, args, { encoding = "utf8" } = {}) {
       reject(error);
     });
   });
+}
+
+function normalizeCheckoutLineEndings(value) {
+  return value.replaceAll("\r\n", "\n");
 }

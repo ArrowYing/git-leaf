@@ -1285,7 +1285,12 @@ test("merge-remote API keeps dirty local edits uncommitted while advancing to or
       (await execFileAsync("git", ["rev-parse", "main"], { cwd: bare })).stdout.trim(),
     );
     assert.equal(await readFile(path.join(repoRoot, "sample.md"), "utf8"), "local draft\n");
-    assert.equal(await readFile(path.join(repoRoot, "remote.md"), "utf8"), "remote after\n");
+    assert.equal(
+      normalizeCheckoutLineEndings(
+        await readFile(path.join(repoRoot, "remote.md"), "utf8"),
+      ),
+      "remote after\n",
+    );
     assert.equal(
       (await execFileAsync("git", ["status", "--porcelain"], { cwd: repoRoot })).stdout,
       " M sample.md\n",
@@ -1866,4 +1871,8 @@ function fakeToolVersionMonitor({ startupFingerprint }) {
       stale: false,
     }),
   };
+}
+
+function normalizeCheckoutLineEndings(value) {
+  return value.replaceAll("\r\n", "\n");
 }
