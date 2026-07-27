@@ -12,6 +12,56 @@ export function rangesFromLines(lines) {
   return ranges;
 }
 
+export function selectionForSourceRange({
+  selectedLines = [],
+  selectionAnchor = null,
+  start,
+  end = start,
+  extend = false,
+  toggle = false,
+}) {
+  if (!Number.isInteger(start) || !Number.isInteger(end)) {
+    return {
+      selectedLines: [...new Set(selectedLines)].sort((left, right) => left - right),
+      selectionAnchor,
+    };
+  }
+
+  const lower = Math.min(start, end);
+  const upper = Math.max(start, end);
+  const rangeLines = inclusiveLines(lower, upper);
+  if (extend && Number.isInteger(selectionAnchor)) {
+    return {
+      selectedLines: inclusiveLines(
+        Math.min(selectionAnchor, lower),
+        Math.max(selectionAnchor, upper),
+      ),
+      selectionAnchor,
+    };
+  }
+
+  if (toggle) {
+    const next = new Set(selectedLines);
+    const remove = rangeLines.every((line) => next.has(line));
+    for (const line of rangeLines) {
+      if (remove) {
+        next.delete(line);
+      } else {
+        next.add(line);
+      }
+    }
+    return {
+      selectedLines: [...next].sort((left, right) => left - right),
+      selectionAnchor: upper,
+    };
+  }
+
+  return {
+    selectedLines: rangeLines,
+    selectionAnchor: upper,
+  };
+}
+
 export function sourceLinesFromMarkdown(source) {
   const normalized = source.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
   const parts = normalized.split("\n");
@@ -23,6 +73,10 @@ export function sourceLinesFromMarkdown(source) {
     number: index + 1,
     text,
   }));
+}
+
+function inclusiveLines(start, end) {
+  return Array.from({ length: end - start + 1 }, (_, index) => start + index);
 }
 
 export function formatLineRange(lines) {

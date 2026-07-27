@@ -2396,7 +2396,8 @@ summary.is-missing {
   cursor: pointer;
 }
 
-.source-line-gutter[data-source-line-layout="list"] {
+.source-line-gutter[data-source-line-layout="list"],
+.source-line-gutter[data-source-line-layout="table"] {
   display: block;
   height: 100%;
 }
@@ -2421,10 +2422,18 @@ summary.is-missing {
   text-align: right;
 }
 
-.source-line-gutter[data-source-line-layout="list"] .source-line-button {
+.source-line-gutter[data-source-line-layout="list"] .source-line-button,
+.source-line-gutter[data-source-line-layout="table"] .source-line-button {
   position: absolute;
   left: 0;
   top: var(--source-line-top, 0px);
+}
+
+.source-line-button[data-source-end] {
+  width: max-content;
+  min-width: 100%;
+  margin-left: auto;
+  white-space: nowrap;
 }
 
 .source-line-button:hover,

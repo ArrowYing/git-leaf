@@ -10,6 +10,7 @@ import {
   lineFromSelectionPoint,
   parseLineHash,
   rangesFromLines,
+  selectionForSourceRange,
   sourceLinesFromMarkdown,
 } from "../public/line-selection.js";
 
@@ -104,4 +105,38 @@ test("shouldClearLineSelection clears on non-interactive document whitespace", (
   assert.equal(shouldClearLineSelection({ selectedCount: 1, isInteractive: false, hasLineTarget: true, gutterLine: null }), false);
   assert.equal(shouldClearLineSelection({ selectedCount: 1, isInteractive: false, hasLineTarget: false, gutterLine: 12 }), false);
   assert.equal(shouldClearLineSelection({ selectedCount: 1, isInteractive: false, hasLineTarget: false, gutterLine: null }), true);
+});
+
+test("selectionForSourceRange selects and toggles every source line represented by one Preview control", () => {
+  assert.deepEqual(selectionForSourceRange({
+    selectedLines: [],
+    selectionAnchor: null,
+    start: 15,
+    end: 17,
+  }), {
+    selectedLines: [15, 16, 17],
+    selectionAnchor: 17,
+  });
+
+  assert.deepEqual(selectionForSourceRange({
+    selectedLines: [15, 16, 17, 20],
+    selectionAnchor: 20,
+    start: 15,
+    end: 17,
+    toggle: true,
+  }), {
+    selectedLines: [20],
+    selectionAnchor: 17,
+  });
+
+  assert.deepEqual(selectionForSourceRange({
+    selectedLines: [10],
+    selectionAnchor: 10,
+    start: 15,
+    end: 17,
+    extend: true,
+  }), {
+    selectedLines: [10, 11, 12, 13, 14, 15, 16, 17],
+    selectionAnchor: 10,
+  });
 });

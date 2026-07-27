@@ -4,6 +4,7 @@ import {
   hashFromLines,
   lineFromGutterPoint,
   parseLineHash,
+  selectionForSourceRange,
   sourceLinesFromMarkdown,
   shouldClearLineSelection,
 } from "./line-selection.js";
@@ -609,7 +610,7 @@ window.addEventListener("focus", handleToolStatusActivity);
 window.addEventListener("focus", refreshWorktreesOnWindowFocus);
 window.addEventListener("resize", positionFrontmatterFilterPopover);
 window.addEventListener("resize", positionWorktreeSwitcherMenu);
-window.addEventListener("resize", scheduleListSourceLineGutterSync);
+window.addEventListener("resize", scheduleAnchoredSourceLineGutterSync);
 window.addEventListener("resize", () => closeFileActionMenu({ restoreFocus: false }));
 window.addEventListener("pagehide", flushWorkbenchSessionPreference);
 window.addEventListener("pagehide", () => {
@@ -4127,7 +4128,7 @@ function renderDocumentContent(documentData) {
       || `<p class="empty-message">${escapeHtml(t("document.empty"))}</p>`;
     enhanceImageLoadStates(documentContent, { locale: state.locale });
     enhanceTables();
-    scheduleListSourceLineGutterSync();
+    scheduleAnchoredSourceLineGutterSync();
     renderDocumentOutline();
     return;
   }
@@ -6391,7 +6392,11 @@ function handleDocumentClick(event) {
     focusPreviewDocumentContent();
     clearActiveImage();
     clearActiveLink();
-    selectSourceLine(Number(button.dataset.sourceLine), event);
+    selectSourceRange(
+      Number(button.dataset.sourceLine),
+      Number(button.dataset.sourceEnd ?? button.dataset.sourceLine),
+      event,
+    );
     return;
   }
 
@@ -6491,25 +6496,26 @@ function gitLeafOpenableLinkFromClick(event) {
 }
 
 function selectSourceLine(line, event) {
-  if (!Number.isInteger(line)) {
+  selectSourceRange(line, line, event);
+}
+
+function selectSourceRange(start, end, event) {
+  if (!Number.isInteger(start) || !Number.isInteger(end)) {
     return;
   }
 
   clearActiveImage();
   clearActiveLink();
-  if (event.shiftKey && state.selectionAnchor) {
-    state.selectedLines = new Set(linesBetween(state.selectionAnchor, line));
-  } else if (event.metaKey || event.ctrlKey) {
-    if (state.selectedLines.has(line)) {
-      state.selectedLines.delete(line);
-    } else {
-      state.selectedLines.add(line);
-    }
-    state.selectionAnchor = line;
-  } else {
-    state.selectedLines = new Set([line]);
-    state.selectionAnchor = line;
-  }
+  const selection = selectionForSourceRange({
+    selectedLines: [...state.selectedLines],
+    selectionAnchor: state.selectionAnchor,
+    start,
+    end,
+    extend: event.shiftKey,
+    toggle: event.metaKey || event.ctrlKey,
+  });
+  state.selectedLines = new Set(selection.selectedLines);
+  state.selectionAnchor = selection.selectionAnchor;
 
   updateLineSelectionUi();
 }
@@ -6518,8 +6524,15 @@ function updateLineSelectionUi() {
   const selected = [...state.selectedLines].sort((left, right) => left - right);
   state.sourceEditor?.setSelectedLines(selected);
   for (const button of documentContent.querySelectorAll("[data-source-line]")) {
-    const line = Number(button.dataset.sourceLine);
-    button.classList.toggle("is-selected", state.selectedLines.has(line));
+    const start = Number(button.dataset.sourceLine);
+    const end = Number(button.dataset.sourceEnd ?? start);
+    button.classList.toggle(
+      "is-selected",
+      Number.isInteger(start)
+        && Number.isInteger(end)
+        && Array.from({ length: Math.max(end - start + 1, 0) }, (_, index) => start + index)
+          .every((line) => state.selectedLines.has(line)),
+    );
   }
 
   if (selected.length === 0) {
@@ -6548,7 +6561,7 @@ function scrollToHashSelectedLine() {
     return;
   }
 
-  const target = documentContent.querySelector(`[data-source-line="${line}"]`);
+  const target = sourceLineButtonForLine(line);
   if (!target) {
     return;
   }
@@ -8232,7 +8245,7 @@ function positionSelectionPopover() {
     : null;
   const previewAnchor = sourceAnchorRect
     ? null
-    : documentContent.querySelector(`[data-source-line="${anchorLine}"]`);
+    : sourceLineButtonForLine(anchorLine);
   const anchorRect = sourceAnchorRect ?? previewAnchor?.getBoundingClientRect();
   if (!anchorRect) {
     selectionPopover.hidden = true;
@@ -8247,28 +8260,35 @@ function positionSelectionPopover() {
   selectionPopover.style.top = `${anchorRect.top - paneRect.top + anchorRect.height / 2}px`;
 }
 
-function scheduleListSourceLineGutterSync() {
+function scheduleAnchoredSourceLineGutterSync() {
   if (state.listSourceLineGutterFrame) {
     return;
   }
 
   state.listSourceLineGutterFrame = window.requestAnimationFrame(() => {
     state.listSourceLineGutterFrame = null;
-    syncListSourceLineGutters();
+    syncAnchoredSourceLineGutters();
   });
 }
 
-function syncListSourceLineGutters() {
-  for (const gutter of documentContent.querySelectorAll('.source-line-gutter[data-source-line-layout="list"]')) {
+function syncAnchoredSourceLineGutters() {
+  const gutters = documentContent.querySelectorAll([
+    '.source-line-gutter[data-source-line-layout="list"]',
+    '.source-line-gutter[data-source-line-layout="table"]',
+  ].join(","));
+  for (const gutter of gutters) {
     const block = gutter.closest(".source-block");
     const blockRect = block?.getBoundingClientRect();
     if (!blockRect) {
       continue;
     }
 
+    const anchorAttribute = gutter.dataset.sourceLineLayout === "table"
+      ? "data-source-table-line"
+      : "data-source-list-line";
     for (const button of gutter.querySelectorAll("[data-source-line]")) {
       const line = button.dataset.sourceLine;
-      const anchor = block.querySelector(`[data-source-list-line="${line}"]`);
+      const anchor = block.querySelector(`[${anchorAttribute}="${line}"]`);
       const anchorRect = anchor?.getBoundingClientRect();
       if (!anchorRect) {
         continue;
@@ -8314,10 +8334,18 @@ function isInteractiveClick(event) {
   return Boolean(event.target.closest?.("a, button, input, textarea, select, label, summary"));
 }
 
-function linesBetween(start, end) {
-  const lower = Math.min(start, end);
-  const upper = Math.max(start, end);
-  return Array.from({ length: upper - lower + 1 }, (_, index) => lower + index);
+function sourceLineButtonForLine(line) {
+  if (!Number.isInteger(line)) {
+    return null;
+  }
+  for (const button of documentContent.querySelectorAll("[data-source-line]")) {
+    const start = Number(button.dataset.sourceLine);
+    const end = Number(button.dataset.sourceEnd ?? start);
+    if (line >= start && line <= end) {
+      return button;
+    }
+  }
+  return null;
 }
 
 function frontmatterFilterCountBucket(count) {

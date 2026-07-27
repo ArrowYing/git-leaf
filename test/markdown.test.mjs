@@ -70,6 +70,12 @@ test("renderMarkdown renders small markdown tables without table tools", () => {
 | Alpha | Ready |
 `);
 
+  assert.match(html, /data-source-line-layout="table"/);
+  assert.match(html, /data-source-line="1"[^>]*data-source-end="2"[^>]*>1–2<\/button>/);
+  assert.match(html, /<tr data-source-table-line="1" data-source-table-end="2">/);
+  assert.match(html, /data-source-line="3"/);
+  assert.match(html, /<tr data-source-table-line="3">/);
+  assert.doesNotMatch(html, /data-source-line="2"/);
   assert.match(html, /<div class="table-card is-simple-table" data-table-complexity="simple" data-table-layout="fit" style="--table-preferred-width: \d+px; --table-min-width: \d+px;">/);
   assert.doesNotMatch(html, /<div class="table-toolbar">/);
   assert.doesNotMatch(html, /data-table-search/);
@@ -79,6 +85,16 @@ test("renderMarkdown renders small markdown tables without table tools", () => {
   assert.match(html, /<colgroup><col style="width: \d+px"><col style="width: \d+px"><\/colgroup>/);
   assert.match(html, /<th>Name<\/th>/);
   assert.match(html, /<td>Ready<\/td>/);
+});
+
+test("renderMarkdown represents a visually merged paragraph as one selectable source range", () => {
+  const html = renderMarkdown(`First source line
+second source line
+third source line
+`);
+
+  assert.equal(html.match(/data-source-line="/g)?.length, 1);
+  assert.match(html, /data-source-line="1"[^>]*data-source-end="3"[^>]*>1–3<\/button>/);
 });
 
 test("renderMarkdown enables table tools for complex markdown tables", () => {
@@ -180,7 +196,7 @@ Paragraph line two
   assert.match(html, /data-source-line="1"/);
   assert.match(html, /data-source-start="3"/);
   assert.match(html, /data-source-end="4"/);
-  assert.match(html, /data-source-line="4"/);
+  assert.match(html, /data-source-line="3"[^>]*data-source-end="4"/);
   assert.match(html, /title="Select line 1" aria-label="Select line 1"/);
   assert.match(html, /aria-label="Source line numbers"/);
 });
