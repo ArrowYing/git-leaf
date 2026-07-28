@@ -112,18 +112,72 @@ Git Leaf 内只有 Markdown 和 MDX 可以编辑。其他仓库文件提供只�
 
 ## 把准确上下文交给 AI Agent
 
-Agent Context 用来收集准确段落，不需要在 Git Leaf 内置一个 Agent 对话框：
+根据问题只涉及当前文档，还是分散在多个文档中，可以使用两种不同的复制方式。
+
+### 单个文档：直接复制选中的行
+
+如果只是对眼前文档中的几行提问：
+
+1. 在 Preview、Source 或 Live 中选中相关源文件行。
+2. 点击“复制内容”。
+3. 直接粘贴到 Codex、Claude 或其他 Agent 工具。
+
+例如，选中 `context/project-context.md` 的第 8–9 行，复制结果是：
+
+````markdown
+context/project-context.md:8-9
+
+```markdown
+8 | Lighthouse Garden is a fictional shared garden beside a neighborhood library. This document gives
+9 | volunteers and AI agents the stable context they need before changing a plan, decision, or playbook.
+```
+````
+
+其中已经包含仓库相对路径、选中行范围、原始行号和原始 Markdown，可以直接粘贴，不必先放进 Agent
+Context。
+
+### 多个文档：整理成 Agent Context
+
+如果一个任务需要同时参考多个文件：
 
 1. 在 Preview、Source 或 Live 中选择带来源的行。
 2. 点击“加入上下文”。
-3. 需要时继续从其他文档选择。
+3. 打开其他文档，继续加入每一段相关内容。
 4. 打开左侧栏底部的 Agent Context，检查或移除选择内容。
 5. 复制整个集合，粘贴到 Codex、Claude 或其他 Agent 工具。
 
-![从 Agent Context 检查并复制一段带来源的内容](assets/user-guide/agent-context.jpg)
+![在跨文件 Agent Context 中检查一段带来源的内容](assets/user-guide/agent-context.jpg)
 
-复制结果是通用 Markdown，带有仓库相对路径和行号范围。Agent Context 只是当前仓库和工作目录的临时
-会话状态，不是长期内容数据库，也不会自动发送给任何 AI 服务商。
+包含两个文件时，复制结果会是这样的结构：
+
+````markdown
+# Agent Context
+
+Repository: lighthouse-garden
+Worktree: main checkout
+Branch: main
+Revision: 0123456789abcdef
+
+## context/project-context.md:L8-L9
+
+```markdown
+8 | Lighthouse Garden is a fictional shared garden beside a neighborhood library. This document gives
+9 | volunteers and AI agents the stable context they need before changing a plan, decision, or playbook.
+```
+
+## decisions/0001-git-is-the-source-of-truth.md:L11-L12
+
+```markdown
+11 | The files in this repository are the team's authoritative shared context. Git Leaf is the human
+12 | interface used to read and maintain them; automation and AI agents work with the same files through Git.
+```
+````
+
+仓库、worktree、分支和 revision 只在顶部出现一次；之后每一段内容分别带有文件路径和行号范围。上面的
+元数据只是示例，Git Leaf 实际复制的是当前工作目录的真实信息。
+
+Agent Context 是按仓库和 worktree 隔离的临时会话状态。它可以收集当前工作目录中的多个文件，但不能跨
+仓库，也不是长期内容数据库，更不会自动发送给任何 AI 服务商。
 
 ## 检查本地和远端改动
 
@@ -146,6 +200,62 @@ Sync 刻意采用仓库级操作：它不让用户逐个暂存文件，也不要
 如果本地和远端历史已经分叉、出现冲突，或另一个 Git 操作正在进行，Git Leaf 会停止，不会改写历史，也
 不会把未解决的合并留在真实工作目录。需要开发者级 Git 修复时，失败界面可以提供一段交给 AI Agent 的
 提示词。
+
+## 用 URL 打开本机对应文档
+
+在线文档让协作显得简单，其中一个重要原因是：一个 URL 就能打开正确的文档。Git Leaf 保留这种点击即达
+的便利，但文件与事实源仍然位于本地优先的 Git 仓库中。
+
+Agent 把文档交给人检查时，完整流程是：
+
+1. 仓库提示词要求 Agent 为需要检查的 Markdown／MDX 文件运行可信的链接生成器。
+2. Agent 在最终回复中给出 HTTPS **Open in Git Leaf** 链接，而不是只给一个本机路径。
+3. 浏览器打开 Mango Future 托管的 `/open` 中转页；第一次使用时，浏览器可能询问是否允许启动
+   Git Leaf。
+4. Git Leaf 根据 GitHub 仓库标识匹配本机 checkout，必要时请用户选择本机目录，然后打开指定文档。
+   如果链接来自 linked worktree，还会在同一台机器上选择那个准确的 worktree。
+
+安装 Git Leaf，并让公开示例仓库在本机可用后，可以直接体验完整中转：
+
+Open in Git Leaf：
+[Lighthouse Garden 项目上下文](https://gitleaf.mangofuture.com/open?repo=mangofuture1210%2Fgit-leaf-example-knowledge-base&path=context%2Fproject-context.md)
+
+### 让 Agent 在交付时返回链接
+
+Git Leaf 源码仓库提供了用于自身文档的
+[参考链接生成器](../scripts/generate-open-link.mjs)。其他内容仓库应在稳定、可信的路径中维护一个兼容的
+小型生成器。Mango OS 在仓库提示词中采用了下面的写法；使用时把脚本路径调整为自己仓库的生成器：
+
+```markdown
+## Git Leaf 文档预览链接
+
+最终回复需要让用户预览 Markdown 或 MDX 文件时，运行仓库自带的 Git Leaf 链接生成器：
+
+node "$(git rev-parse --show-toplevel)/tools/generate-git-leaf-open-link.mjs" \
+  --repo-root "$(git rev-parse --show-toplevel)" \
+  --file "<仓库相对路径.md-or-mdx>"
+
+把生成器返回的 HTTPS URL 原样放进 Markdown 链接：
+`Open in Git Leaf: [<文档标题>](<返回的 HTTPS URL>)`
+
+不要只返回本机绝对路径，也不要手工拼接 `/open`、`/share` 或 `git-leaf://` URL。`/open` 只用于本机
+定位和预览，不证明文件已经发布。需要把链接发送给其他人时，先把文档发布到 `main`，再使用 Git Leaf
+的“复制分享链接”。
+```
+
+需要注意这些边界：
+
+- 仓库需要有可识别的 GitHub `origin`。URL 会标识仓库和仓库内 `.md`／`.mdx` 相对路径，但不包含
+  文档正文或 Git 凭证。
+- 从主工作目录生成的 `/open` 链接可以在另一份有权限的本机 checkout 中使用；linked worktree 生成的
+  链接会包含本机 worktree ID，只能在创建它的机器上使用。
+- 链接不会自动克隆仓库，也不会授予访问权限；接收方必须原本就有权使用一份本机 checkout。
+- 打开 `/open` 不会同步、发布或验证 revision。需要把已发布结果交给其他人时，应使用 App 内的分享流程。
+
+| 链接 | 最适合的用途 | 它保证什么 |
+| --- | --- | --- |
+| `/open` | Agent 返回本机预览或导航目标 | 打开匹配的本机文件；不保证已经发布，也不保证 revision |
+| `/share` | 把已经发布的文档发送给其他人 | 复制前携带已经在 `origin/main` 复核的 revision |
 
 ## 分享已经发布的文档
 

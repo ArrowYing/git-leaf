@@ -13,6 +13,9 @@ last_updated: 2026-07-28
 AI Agent 直接使用 Git 仓库；人通过 Git Leaf 阅读、检查并做范围明确的小修改，无需直接操作 Git 或
 Markdown。
 
+Git Leaf 把在线文档的关键便利带回本地优先的文件库：用易读界面维护内容，通过 Git 共享更新，也能用
+一个 URL 直接打开本机对应文档。
+
 [**下载 macOS 版**](https://gitleaf.mangofuture.com/download?lang=zh-CN#macos) ·
 [Windows Preview](https://gitleaf.mangofuture.com/download?lang=zh-CN#windows) ·
 [从源码构建](docs/build-from-source.md)
@@ -37,7 +40,8 @@ Git 仓库是持久的共享上下文事实源：其中可以保存知识、指�
 
 ## 人参与的工作闭环
 
-1. **找到并阅读相关上下文。** 沿仓库原有目录浏览或直接搜索；Preview 是默认阅读界面。
+1. **找到并阅读相关上下文。** 沿仓库原有目录浏览、直接搜索，或打开 Agent 返回的链接；Preview 是
+   默认阅读界面。
 2. **检查发生了什么变化。** Sync 显示尚未发布的本地文件和远端状态；打开相关文档，理解 Agent、开发者或
    其他团队成员带来的更新。
 3. **把准确上下文交回 Agent。** 在 Preview、Source 或 Live 中选择保留源文件位置的行，整理成通用
@@ -46,6 +50,19 @@ Git 仓库是持久的共享上下文事实源：其中可以保存知识、指�
    Markdown／MDX 文件；需要精确控制文本时再使用 Source。
 5. **保持共享仓库最新。** Git Leaf 可以在保留未完成编辑的同时引入远端变化；“同步并发布”由人主动
    提交和推送，“复制分享链接”只在复核已发布 revision 后返回版本化链接。
+
+## 本地优先的文件，也能像在线文档一样打开
+
+在线文档之所以方便，其中一个重要原因是：发出一个 URL，别人就能直接到达正确的页面。Git Leaf 把这种
+交互带到本地优先、由 Git 支撑的文件库；协作与发布通过 Git 完成，而不是依赖另一个托管编辑数据库。
+
+AI Agent 可以为 Markdown／MDX 文件返回一个 HTTPS **Open in Git Leaf** 链接。浏览器把链接交给
+已经安装的 App，由 Git Leaf 打开匹配的本机仓库、worktree 和文档。需要把已经发布的结果发给同事时，
+“复制分享链接”会先同步并复核 `origin/main`，再生成带 revision 的 URL。链接本身不会授予仓库权限，
+每个人仍然使用自己原本有权访问的本机 checkout。
+
+[用户手册](docs/user-guide.zh-CN.md#用-url-打开本机对应文档)展示了完整流程，以及如何用仓库提示词要求
+Agent 在交付时返回这类链接。
 
 ## 同一份数据，Agent 直接读写，人直接看图表
 

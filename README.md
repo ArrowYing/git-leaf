@@ -13,6 +13,9 @@ One repository for agents. A familiar interface for people.
 AI agents work directly in Git. People use Git Leaf to read, inspect, and make focused edits without
 working directly in Git or Markdown.
 
+Git Leaf brings the convenience people expect from online documents to local-first files: a readable
+interface, shared updates through Git, and URLs that open the right local document.
+
 [**Download for macOS**](https://gitleaf.mangofuture.com/download#macos) ·
 [Windows Preview](https://gitleaf.mangofuture.com/download#windows) ·
 [Build from source](docs/build-from-source.md)
@@ -42,7 +45,7 @@ part of that repository, but the repository's operational role is broader than h
 ## The human loop
 
 1. **Find and read the relevant context.** Browse the repository in its existing folder structure or
-   search directly. Preview is the default reading surface.
+   search directly, or follow a link returned by an Agent. Preview is the default reading surface.
 2. **Inspect what changed.** Sync shows unpublished local files and remote status. Open the affected
    document to understand an update made by an agent, developer, or teammate.
 3. **Hand exact context back to an agent.** Select source-backed lines in Preview, Source, or Live and
@@ -53,6 +56,21 @@ part of that repository, but the repository's operational role is broader than h
 5. **Keep the shared repository current.** Git Leaf can bring in remote changes while preserving
    unfinished local edits. **Sync and publish** commits and pushes intentionally; **Copy share link**
    returns a versioned link only after verifying the published revision.
+
+## Local-first files, links that open like online documents
+
+Online document tools are convenient partly because a URL takes someone straight to the right page.
+Git Leaf brings that interaction to a local-first, Git-backed file library. Collaboration and
+publication happen through Git instead of a hosted editing database.
+
+An AI agent can return an HTTPS **Open in Git Leaf** link for a Markdown or MDX file. The browser hands
+it to the installed app, which opens the matching local repository, worktree, and document. For a
+published result sent to a teammate, **Copy share link** syncs and verifies `origin/main` before
+creating a versioned URL. A link grants no repository access; each person still uses an authorized
+local checkout.
+
+The [user guide](docs/user-guide.md#open-the-right-local-document-from-a-url) shows the complete flow
+and a repository instruction that teaches an Agent to return these links.
 
 ## Data for agents, visuals for people
 

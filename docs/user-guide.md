@@ -129,18 +129,74 @@ rendered result.
 
 ## Give exact context to an AI agent
 
-Agent Context collects selected passages without requiring an agent chat inside Git Leaf:
+There are two ways to copy source-backed context, depending on whether the answer is in one document or
+spread across several documents.
+
+### One document: copy selected lines
+
+For a quick question about the document in front of you:
+
+1. Select the relevant source lines in Preview, Source, or Live.
+2. Choose **Copy content**.
+3. Paste the result directly into Codex, Claude, or another agent tool.
+
+For example, selecting lines 8–9 in `context/project-context.md` produces:
+
+````markdown
+context/project-context.md:8-9
+
+```markdown
+8 | Lighthouse Garden is a fictional shared garden beside a neighborhood library. This document gives
+9 | volunteers and AI agents the stable context they need before changing a plan, decision, or playbook.
+```
+````
+
+The copy includes the repository-relative path, selected line range, original line numbers, and original
+Markdown. It is ready to paste without first adding anything to the Agent Context basket.
+
+### Several documents: build an Agent Context collection
+
+When one task depends on passages from several files:
 
 1. Select source-backed lines in Preview, Source, or Live.
 2. Choose **Add to context**.
-3. Repeat in other documents if needed.
+3. Open another document and repeat for every relevant passage.
 4. Open **Agent Context** at the bottom of the sidebar to inspect or remove what you selected.
 5. Copy the collection and paste it into Codex, Claude, or another agent tool.
 
-![A source-backed passage collected and copied from Agent Context](assets/user-guide/agent-context.jpg)
+![A source-backed passage collected as part of a multi-file Agent Context](assets/user-guide/agent-context.jpg)
 
-The copied result is portable Markdown with repository-relative paths and line ranges. Agent Context is
-temporary session state for the current repository and working directory; it is not a long-term
+A two-file collection is copied in this form:
+
+````markdown
+# Agent Context
+
+Repository: lighthouse-garden
+Worktree: main checkout
+Branch: main
+Revision: 0123456789abcdef
+
+## context/project-context.md:L8-L9
+
+```markdown
+8 | Lighthouse Garden is a fictional shared garden beside a neighborhood library. This document gives
+9 | volunteers and AI agents the stable context they need before changing a plan, decision, or playbook.
+```
+
+## decisions/0001-git-is-the-source-of-truth.md:L11-L12
+
+```markdown
+11 | The files in this repository are the team's authoritative shared context. Git Leaf is the human
+12 | interface used to read and maintain them; automation and AI agents work with the same files through Git.
+```
+````
+
+The repository, worktree, branch, and revision appear once at the top; every selected passage then has
+its own path and line range. The values above are illustrative—Git Leaf copies the actual metadata from
+the current working directory.
+
+Agent Context is temporary session state and is isolated by repository and worktree. It can collect
+several files from the current working directory, but it is not a cross-repository or long-term
 database and is not sent automatically to any AI provider.
 
 ## Inspect local and remote changes
@@ -169,6 +225,69 @@ If local and remote history have diverged, a conflict appears, or another Git op
 Git Leaf stops instead of rewriting history or leaving an unresolved merge in the real working
 directory. The failure screen can provide a prompt to hand to an AI agent when developer-level Git
 repair is required.
+
+## Open the right local document from a URL
+
+Online document tools make collaboration feel simple partly because one URL opens the right document.
+Git Leaf provides the same click-to-open convenience while the files and source of truth remain in a
+local-first Git repository.
+
+The normal Agent-to-person flow is:
+
+1. A repository instruction tells the Agent to run a trusted link generator for the Markdown or MDX
+   file it wants the user to inspect.
+2. The Agent returns an HTTPS **Open in Git Leaf** link instead of only a local path.
+3. The browser opens Mango Future's `/open` handoff page and, on the first use, may ask permission to
+   launch Git Leaf.
+4. Git Leaf matches the GitHub repository identity to a local checkout, asks the user to choose one
+   when necessary, and opens the requested document. A linked-worktree URL also selects that exact
+   worktree on the same machine.
+
+After installing Git Leaf and making the public example available locally, try the complete handoff:
+
+Open in Git Leaf:
+[Lighthouse Garden project context](https://gitleaf.mangofuture.com/open?repo=mangofuture1210%2Fgit-leaf-example-knowledge-base&path=context%2Fproject-context.md)
+
+### Teach an Agent to return the link
+
+The Git Leaf source repository includes a
+[reference link generator](../scripts/generate-open-link.mjs) for its own documents. A different
+content repository should keep a small compatible generator at a stable, trusted path. Mango OS uses
+this pattern in its repository instructions; adapt the script path to your own generator:
+
+```markdown
+## Git Leaf document previews
+
+When the final response should let the user preview a Markdown or MDX file, run the repository-owned
+Git Leaf link generator:
+
+node "$(git rev-parse --show-toplevel)/tools/generate-git-leaf-open-link.mjs" \
+  --repo-root "$(git rev-parse --show-toplevel)" \
+  --file "<repository-relative.md-or-mdx>"
+
+Use the returned HTTPS URL exactly in a Markdown link:
+`Open in Git Leaf: [<document title>](<returned HTTPS URL>)`
+
+Do not return only a local absolute path, and do not handcraft `/open`, `/share`, or `git-leaf://`
+URLs. `/open` is for local navigation and preview; it does not prove the file is published. For a link
+sent to another person, first publish the document to `main`, then use Git Leaf's Copy share link.
+```
+
+Keep these boundaries in mind:
+
+- The repository needs a recognizable GitHub `origin`. The URL identifies the repository and the
+  repository-relative `.md` or `.mdx` path; it does not contain the document body or Git credentials.
+- A primary-worktree `/open` link is portable to another authorized local checkout. A link generated
+  from a linked worktree includes a local worktree ID and works only on the machine that created it.
+- The link does not clone the repository or grant access. The recipient must already be authorized to
+  use a local checkout.
+- Opening an `/open` link does not sync, publish, or verify a revision. Use the in-app sharing workflow
+  for a published result intended for another person.
+
+| Link | Best used for | What it guarantees |
+| --- | --- | --- |
+| `/open` | An Agent returning a local preview or navigation target | Opens the matching local file; no publication or revision guarantee |
+| `/share` | Sending a published document to another person | Carries a revision verified on `origin/main` before the link is copied |
 
 ## Share a published document
 
