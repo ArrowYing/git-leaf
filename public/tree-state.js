@@ -42,6 +42,20 @@ export function normalizeTreeDirectoryStates(value) {
   return states;
 }
 
+export function treeDirectoryStateForView({
+  view = "all",
+  directoryState,
+} = {}) {
+  const normalizedState = normalizeTreeDirectoryState(directoryState);
+  if (view === "sync") {
+    return {
+      expanded: [],
+      collapsed: [],
+    };
+  }
+  return normalizedState;
+}
+
 export function treeDirectoryStatesFromPreference({ preferences, fallbackValue } = {}) {
   if (preferences && typeof preferences === "object" && !Array.isArray(preferences)) {
     return normalizeTreeDirectoryStates(preferences.treeDirectories);

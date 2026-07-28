@@ -8,6 +8,7 @@ import {
   shouldOpenTreeDirectory,
   treeAncestorDirectories,
   treeDirectoryPath,
+  treeDirectoryStateForView,
   treeDirectoryStatesFromPreference,
   treeDirectoryStateScope,
 } from "../public/tree-state.js";
@@ -87,6 +88,46 @@ test("shouldOpenTreeDirectory preserves manual collapse while broad filters are 
       collapsedDirectories: new Set(["growth"]),
     }),
     false,
+  );
+});
+
+test("sync view enters with every changed-file directory open despite saved collapse state", () => {
+  const directoryState = treeDirectoryStateForView({
+    view: "sync",
+    directoryState: {
+      expanded: ["research"],
+      collapsed: ["product", "research/projects"],
+    },
+  });
+
+  assert.deepEqual(directoryState, {
+    expanded: [],
+    collapsed: [],
+  });
+  assert.equal(
+    shouldOpenTreeDirectory({
+      directoryPath: "product",
+      hasBroadTreeFilter: true,
+      expandedDirectories: new Set(directoryState.expanded),
+      collapsedDirectories: new Set(directoryState.collapsed),
+    }),
+    true,
+  );
+});
+
+test("all and favorites views keep their saved directory state", () => {
+  const directoryState = {
+    expanded: ["research"],
+    collapsed: ["product"],
+  };
+
+  assert.deepEqual(
+    treeDirectoryStateForView({ view: "all", directoryState }),
+    directoryState,
+  );
+  assert.deepEqual(
+    treeDirectoryStateForView({ view: "favorites", directoryState }),
+    directoryState,
   );
 });
 

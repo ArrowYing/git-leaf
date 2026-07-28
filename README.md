@@ -40,8 +40,9 @@ automation, and AI agents use directly.
   folders or Markdown/MDX documents, or the star beside the open document.
 - Supports Preview, Source, and Live modes for Markdown and MDX.
 - Previews images, PDFs, CSV, JSON, YAML, HTML, code, and other attachments according to file capability.
-- Restores document tabs, scroll positions, and focus independently for each worktree, with separate folder
-  expansion state for the All, Favorites, and Sync views.
+- Restores document tabs, scroll positions, and focus independently for each worktree. All and Favorites
+  preserve separate folder expansion state; entering Sync automatically expands every directory leading
+  to an unpublished file.
 - Keeps Back and Forward history inside the active tab: a normal internal document link replaces that tab,
   while Command/Ctrl-click opens a separate tab without changing the current one.
 - Preserves source line numbers in Preview and copies selections with repository-relative paths and line ranges.

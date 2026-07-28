@@ -91,8 +91,8 @@ Repository identity and worktree state follow these rules:
   fallback used only when the installed Git explicitly rejects `-z`;
 - a stable 16-character worktree ID is derived from the canonical local worktree path;
 - the ID is local-machine metadata, not a branch name and not a portable repository identifier;
-- each worktree restores its own tabs, navigation history, scroll, focus, and All/Favorites/Sync tree
-  expansion state;
+- each worktree restores its own tabs, navigation history, scroll, focus, and separate All/Favorites tree
+  expansion state; entering Sync starts with every changed-file directory ancestry expanded;
 - favorites are scoped to the canonical primary repository and shared by that repository's worktrees.
 
 Normal branches are editable. A detached worktree can be read and can enter an editing mode, but the
@@ -239,7 +239,8 @@ Editor assistance must remain explainable from source:
 
 Sync is a repository-level helper, not a fourth document mode. The Sync view presents two independent
 facts: the last checked remote state and the unpublished local changes. It processes every Git status
-change, including attachments, code, renames, and deletions.
+change, including attachments, code, renames, and deletions. Each time the user enters Sync, every
+directory chain leading to a changed file starts expanded; a manual collapse affects only that visit.
 
 Remote checking starts after the repository opens and repeats every ten minutes. Returning to a visible
 window after a missed interval also triggers a check. Fetching only updates the remote-tracking ref:

@@ -1,7 +1,8 @@
 export const SIDEBAR_MIN_WIDTH = 120;
 export const SIDEBAR_MAX_WIDTH = 560;
 export const CONTENT_MIN_WIDTH = 520;
-export const DOCUMENT_OUTLINE_MIN_WIDTH = 176;
+export const DOCUMENT_OUTLINE_DEFAULT_WIDTH = 176;
+export const DOCUMENT_OUTLINE_MIN_WIDTH = 88;
 export const DOCUMENT_OUTLINE_MAX_WIDTH = 480;
 export const DOCUMENT_OUTLINE_RESIZER_WIDTH = 6;
 
@@ -33,7 +34,7 @@ export function clampDocumentOutlineWidth(width, containerWidth) {
 
 export function documentOutlineWidthFromStorageValue(
   value,
-  defaultWidth = DOCUMENT_OUTLINE_MIN_WIDTH,
+  defaultWidth = DOCUMENT_OUTLINE_DEFAULT_WIDTH,
 ) {
   if (!value) {
     return defaultWidth;

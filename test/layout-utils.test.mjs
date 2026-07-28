@@ -23,17 +23,19 @@ test("sidebarWidthFromStorageValue falls back only when storage is empty or inva
   assert.equal(sidebarWidthFromStorageValue("420"), 420);
 });
 
-test("document outline resize keeps today's width as the minimum and preserves document space", () => {
-  assert.equal(clampDocumentOutlineWidth(120, 1400), 176);
+test("document outline resize permits half the previous minimum and preserves document space", () => {
+  assert.equal(clampDocumentOutlineWidth(40, 1400), 88);
+  assert.equal(clampDocumentOutlineWidth(120, 1400), 120);
   assert.equal(clampDocumentOutlineWidth(320, 1400), 320);
   assert.equal(clampDocumentOutlineWidth(700, 1400), 480);
   assert.equal(clampDocumentOutlineWidth(700, 800), 274);
 });
 
-test("documentOutlineWidthFromStorageValue restores valid widths and defaults to today's width", () => {
+test("documentOutlineWidthFromStorageValue keeps the established default while restoring narrow widths", () => {
   assert.equal(documentOutlineWidthFromStorageValue(null), 176);
   assert.equal(documentOutlineWidthFromStorageValue(""), 176);
   assert.equal(documentOutlineWidthFromStorageValue("bad"), 176);
+  assert.equal(documentOutlineWidthFromStorageValue("88"), 88);
   assert.equal(documentOutlineWidthFromStorageValue("304"), 304);
 });
 

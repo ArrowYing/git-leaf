@@ -19,6 +19,7 @@ import {
   writeAgentContextItems,
 } from "./agent-context.js";
 import {
+  DOCUMENT_OUTLINE_DEFAULT_WIDTH,
   DOCUMENT_OUTLINE_MAX_WIDTH,
   DOCUMENT_OUTLINE_MIN_WIDTH,
   clampDocumentOutlineWidth,
@@ -151,6 +152,7 @@ import {
   shouldOpenTreeDirectory,
   treeAncestorDirectories,
   treeDirectoryPath,
+  treeDirectoryStateForView,
   treeDirectoryStatesFromPreference,
   treeDirectoryStateScope,
 } from "./tree-state.js";
@@ -1892,10 +1894,14 @@ function currentTreeDirectoryStateScope() {
 }
 
 function restoreTreeDirectoryState() {
-  const directoryState = normalizeTreeDirectoryStates(state.treeDirectoryStates)[currentTreeDirectoryStateScope()] ?? {
+  const storedDirectoryState = normalizeTreeDirectoryStates(state.treeDirectoryStates)[currentTreeDirectoryStateScope()] ?? {
     expanded: [],
     collapsed: [],
   };
+  const directoryState = treeDirectoryStateForView({
+    view: state.sidebarTab,
+    directoryState: storedDirectoryState,
+  });
   state.expandedTreeDirectories = new Set(directoryState.expanded);
   state.collapsedTreeDirectories = new Set(directoryState.collapsed);
 }
@@ -4044,7 +4050,7 @@ function setDocumentOutlineWidthFromPointer(clientX) {
 function currentDocumentOutlineWidth() {
   return Number.parseInt(
     documentBody.style.getPropertyValue("--document-outline-width")
-      || String(DOCUMENT_OUTLINE_MIN_WIDTH),
+      || String(DOCUMENT_OUTLINE_DEFAULT_WIDTH),
     10,
   );
 }
@@ -4456,7 +4462,10 @@ function renderDocumentOutline() {
 
   const header = document.createElement("div");
   header.className = "document-outline-header";
-  header.textContent = t("outline.navigation");
+  const headerLabel = document.createElement("span");
+  headerLabel.className = "document-outline-header-label";
+  headerLabel.textContent = t("outline.navigation");
+  header.append(headerLabel);
   const list = document.createElement("ul");
   list.className = "outline-list";
   for (const item of state.outlineItems) {

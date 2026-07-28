@@ -35,7 +35,7 @@ worktree。
 - 侧边栏分为 All、Favorites、Sync 三个视图：All 是普通仓库目录树，Favorites 集中显示收藏的目录和 Markdown／MDX 文档，Sync 同时显示尚未发布的本地改动与最近一次检查到的远端状态。
 - 收藏按仓库保存，并由同一仓库的所有 worktree 共享；目录和 Markdown／MDX 文档可以从文件树右键菜单收藏，当前文档也可以通过正文旁的星标收藏。
 - Markdown／MDX 支持 Preview、Source、Live；图片、PDF、CSV、JSON、YAML、HTML、文本代码和其他附件按能力只读预览或交给系统应用打开。
-- 文档 Tab、滚动和焦点按 worktree 保存，All、Favorites、Sync 分别保存目录展开状态；Tab 切换不会擅自滚动目录树，用户可以显式执行“在左侧目录中显示”。
+- 文档 Tab、滚动和焦点按 worktree 保存，All 与 Favorites 分别保存目录展开状态；每次进入 Sync 都会自动展开所有包含未发布文件的目录链。Tab 切换不会擅自滚动目录树，用户可以显式执行“在左侧目录中显示”。
 - 前进／后退只操作当前 Tab 自己的文档历史：普通内部文档链接替换当前 Tab，Command／Ctrl 点击则在独立 Tab 打开，不改变当前 Tab。
 - Preview 保留源文件行号，支持选择原始 Markdown 并复制仓库相对路径和行号范围。
 - Preview、Source、Live 的行选区可以加入当前 worktree 的“Agent 上下文”；入口固定在文件树底部，浮窗向上覆盖目录树，支持跨文件定位、移除、清空并复制为通用 AI Agent 可用的 Markdown。
