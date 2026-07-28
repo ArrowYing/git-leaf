@@ -35847,7 +35847,7 @@ var WORKBENCH_MESSAGES = Object.freeze({
     "help.worktrees.4": "Most people do not need to create or switch worktrees manually. When unsure, stay in the primary working directory or ask an AI Agent to confirm.",
     "help.sync.title": "Sync",
     "help.sync.1": "Git Leaf checks the remote when the repository opens and at the interval selected under Settings \u2192 General (10 minutes by default). A clean worktree fast-forwards automatically; Check now remains available. Entering Sync expands every folder leading to an unpublished file.",
-    "help.sync.2": "When both remote updates and unpublished local edits exist, Merge remote changes incorporates the remote version while leaving every local edit uncommitted. Sync and publish is the separate manual action that commits and pushes all repository changes.",
+    "help.sync.2": "When remote updates and unpublished local edits can be combined safely, Git Leaf merges them automatically and leaves every local edit uncommitted. Merge remote changes appears only when the protected automatic merge needs a retry. Sync and publish remains the separate manual action that commits and pushes all repository changes.",
     "help.sync.3": "Git Leaf does not rewrite diverged history or put an unresolved merge into the real workspace. Conflicts and unexpected Git states stop safely; use the displayed AI Agent prompt only as the fallback.",
     "help.sharing.title": "Share documents",
     "help.sharing.1": "\u201CCopy share link\u201D shares only Markdown and MDX on main in the primary workspace. It never shares a local path or feature worktree. For an unpublished document, \u201CSync and copy\u201D commits, pushes, verifies the remote revision, and copies the link.",
@@ -36280,7 +36280,7 @@ var WORKBENCH_MESSAGES = Object.freeze({
     "help.worktrees.4": "\u666E\u901A\u540C\u4E8B\u901A\u5E38\u4E0D\u9700\u8981\u4E3B\u52A8\u521B\u5EFA\u6216\u5207\u6362 worktree\uFF1B\u4E0D\u786E\u5B9A\u5F53\u524D\u5DE5\u4F5C\u76EE\u5F55\u7528\u9014\u65F6\uFF0C\u5148\u4FDD\u6301\u4E3B\u5DE5\u4F5C\u76EE\u5F55\uFF0C\u6216\u4EA4\u7ED9 AI Agent \u786E\u8BA4\u3002",
     "help.sync.title": "\u540C\u6B65",
     "help.sync.1": "Git Leaf \u4F1A\u5728\u6253\u5F00\u4ED3\u5E93\u65F6\u68C0\u67E5\u8FDC\u7AEF\uFF0C\u4E4B\u540E\u6309\u201C\u8BBE\u7F6E \u2192 \u5E38\u89C4\u201D\u4E2D\u7684\u9891\u7387\u7EE7\u7EED\u68C0\u67E5\uFF08\u9ED8\u8BA4\u6BCF\u9694 10 \u5206\u949F\uFF09\u3002\u5DE5\u4F5C\u533A\u5E72\u51C0\u65F6\u81EA\u52A8\u5FEB\u8FDB\u66F4\u65B0\uFF0C\u540C\u65F6\u4FDD\u7559\u201C\u7ACB\u5373\u68C0\u67E5\u201D\u3002\u6BCF\u6B21\u8FDB\u5165 Sync \u90FD\u4F1A\u81EA\u52A8\u5C55\u5F00\u6240\u6709\u5305\u542B\u672A\u53D1\u5E03\u6587\u4EF6\u7684\u76EE\u5F55\u94FE\u3002",
-    "help.sync.2": "\u8FDC\u7AEF\u6709\u66F4\u65B0\u4E14\u672C\u5730\u4E5F\u6709\u672A\u53D1\u5E03\u7F16\u8F91\u65F6\uFF0C\u70B9\u51FB\u201C\u5408\u5E76\u8FDC\u7AEF\u4FEE\u6539\u201D\u53EA\u628A\u8FDC\u7AEF\u7248\u672C\u5408\u5165\u672C\u5730\uFF0C\u5168\u90E8\u672C\u5730\u7F16\u8F91\u4ECD\u4FDD\u6301\u672A\u63D0\u4EA4\uFF1B\u201C\u540C\u6B65\u5E76\u53D1\u5E03\u201D\u662F\u53E6\u4E00\u4E2A\u4EBA\u5DE5\u64CD\u4F5C\uFF0C\u624D\u4F1A\u63D0\u4EA4\u5E76\u63A8\u9001\u6574\u4E2A\u4ED3\u5E93\u7684\u6539\u52A8\u3002",
+    "help.sync.2": "\u8FDC\u7AEF\u66F4\u65B0\u4E0E\u672C\u5730\u672A\u53D1\u5E03\u7F16\u8F91\u80FD\u591F\u5B89\u5168\u5408\u5E76\u65F6\uFF0CGit Leaf \u4F1A\u81EA\u52A8\u5B8C\u6210\u5408\u5E76\uFF0C\u5168\u90E8\u672C\u5730\u7F16\u8F91\u4ECD\u4FDD\u6301\u672A\u63D0\u4EA4\u3002\u53EA\u6709\u53D7\u4FDD\u62A4\u7684\u81EA\u52A8\u5408\u5E76\u9700\u8981\u91CD\u8BD5\u65F6\uFF0C\u624D\u4F1A\u663E\u793A\u201C\u5408\u5E76\u8FDC\u7AEF\u4FEE\u6539\u201D\uFF1B\u201C\u540C\u6B65\u5E76\u53D1\u5E03\u201D\u4ECD\u662F\u53E6\u4E00\u4E2A\u4EBA\u5DE5\u64CD\u4F5C\uFF0C\u624D\u4F1A\u63D0\u4EA4\u5E76\u63A8\u9001\u6574\u4E2A\u4ED3\u5E93\u7684\u6539\u52A8\u3002",
     "help.sync.3": "Git Leaf \u4E0D\u4F1A\u6539\u5199\u5DF2\u7ECF\u5206\u53C9\u7684\u5386\u53F2\uFF0C\u4E5F\u4E0D\u4F1A\u628A\u672A\u89E3\u51B3\u51B2\u7A81\u7559\u5728\u771F\u5B9E\u5DE5\u4F5C\u533A\u3002\u9047\u5230\u51B2\u7A81\u6216\u5F02\u5E38 Git \u72B6\u6001\u65F6\u4F1A\u5B89\u5168\u505C\u6B62\uFF0C\u53EA\u6709\u4E07\u4E0D\u5F97\u5DF2\u624D\u4F7F\u7528\u754C\u9762\u63D0\u4F9B\u7684 AI Agent \u63D0\u793A\u8BCD\u3002",
     "help.sharing.title": "\u5206\u4EAB\u6587\u6863",
     "help.sharing.1": "\u53F3\u4E0A\u89D2\u201C\u590D\u5236\u5206\u4EAB\u94FE\u63A5\u201D\u53EA\u5206\u4EAB\u4E3B\u5DE5\u4F5C\u533A main \u4E2D\u7684 Markdown / MDX \u6587\u6863\uFF0C\u4E0D\u4F1A\u5206\u4EAB\u672C\u673A\u8DEF\u5F84\u6216 feature worktree\u3002\u6587\u6863\u5C1A\u672A\u53D1\u5E03\u65F6\uFF0C\u786E\u8BA4\u201C\u540C\u6B65\u5E76\u590D\u5236\u201D\u4F1A\u5B8C\u6210\u63D0\u4EA4\u3001\u63A8\u9001\u548C\u8FDC\u7AEF\u590D\u6838\uFF0C\u6210\u529F\u540E\u76F4\u63A5\u628A\u94FE\u63A5\u5199\u5165\u526A\u8D34\u677F\u3002",
@@ -37254,20 +37254,24 @@ function createSourceEditor({
     getValue() {
       return view.state.doc.toString();
     },
-    setValue(value) {
+    setValue(value, { preserveSelection = false } = {}) {
       const nextValue = String(value ?? "");
-      if (view.state.doc.toString() === nextValue) {
+      const currentValue = view.state.doc.toString();
+      if (currentValue === nextValue) {
         return;
       }
       suppressChange = true;
-      view.dispatch({
-        changes: {
-          from: 0,
-          to: view.state.doc.length,
-          insert: nextValue
-        }
-      });
-      suppressChange = false;
+      try {
+        view.dispatch({
+          changes: preserveSelection ? minimalDocumentChange(currentValue, nextValue) : {
+            from: 0,
+            to: view.state.doc.length,
+            insert: nextValue
+          }
+        });
+      } finally {
+        suppressChange = false;
+      }
     },
     focus() {
       view.focus();
@@ -37441,6 +37445,26 @@ function createSourceEditor({
       view.scrollDOM.removeEventListener("scroll", handleScroll);
       view.destroy();
     }
+  };
+}
+function minimalDocumentChange(currentValue, nextValue) {
+  const current = String(currentValue ?? "");
+  const next = String(nextValue ?? "");
+  let from = 0;
+  const sharedLength = Math.min(current.length, next.length);
+  while (from < sharedLength && current.charCodeAt(from) === next.charCodeAt(from)) {
+    from += 1;
+  }
+  let currentTo = current.length;
+  let nextTo = next.length;
+  while (currentTo > from && nextTo > from && current.charCodeAt(currentTo - 1) === next.charCodeAt(nextTo - 1)) {
+    currentTo -= 1;
+    nextTo -= 1;
+  }
+  return {
+    from,
+    to: currentTo,
+    insert: next.slice(from, nextTo)
   };
 }
 function buildDocumentSearchDecorations(state, { matches = [], activeIndex = -1 } = {}) {
@@ -38571,6 +38595,7 @@ export {
   livePreviewHtmlForBlock,
   liveReadableReplacementsForLine,
   liveVisualRangesForLine,
+  minimalDocumentChange,
   nextLiveEditingSuppression,
   normalizeImageAlign2 as normalizeImageAlign,
   normalizeImageCaption2 as normalizeImageCaption,

@@ -31,6 +31,7 @@ const REMOTE_SYNC_MESSAGES = {
     "error.noOrigin": "Git remote `origin` is not configured.",
     "error.remoteBranchMissing": "Remote branch origin/{branch} does not exist yet.",
     "error.diverged": "The current branch and origin/{branch} have diverged. Git Leaf did not rewrite either history.",
+    "error.remoteChanged": "The fetched remote version changed before Git Leaf could apply it. Nothing was changed; Git Leaf will check the newer version.",
     "error.confirmLocalChanges": "Local files changed while Git Leaf checked the remote. Review the changes and choose “Merge remote changes” if you want to continue.",
     "error.workspaceChanged": "The workspace changed while Git Leaf prepared the remote merge. Nothing was applied. Try again after the current edit is saved.",
     "error.conflict": "The remote update conflicts with local edits. Git Leaf did not apply the merge to the real workspace.",
@@ -55,6 +56,7 @@ const REMOTE_SYNC_MESSAGES = {
     "error.noOrigin": "尚未配置 Git 远端 `origin`。",
     "error.remoteBranchMissing": "远端分支 origin/{branch} 尚不存在。",
     "error.diverged": "当前分支与 origin/{branch} 已经分叉。Git Leaf 没有改写任何一侧的历史。",
+    "error.remoteChanged": "准备应用期间，已获取的远端版本发生了变化。Git Leaf 没有修改工作区，并会按较新的版本重新检查。",
     "error.confirmLocalChanges": "检查远端期间本地文件发生了变化。请查看改动，并在愿意继续时点击“合并远端修改”。",
     "error.workspaceChanged": "准备合并期间工作区仍在变化。Git Leaf 没有应用任何修改；请等待当前编辑保存后重试。",
     "error.conflict": "远端更新与本地编辑发生冲突。Git Leaf 没有把冲突应用到真实工作区。",
@@ -170,6 +172,9 @@ export async function inspectRemoteSync({
 export async function mergeRemoteChanges({
   repo,
   allowLocalChanges = false,
+  refresh = true,
+  expectedHead = "",
+  expectedRemoteCommit = "",
   locale,
   language,
   gitRunner = runGitCommand,
@@ -180,7 +185,7 @@ export async function mergeRemoteChanges({
   const translate = remoteSyncTranslator({ locale, language });
   const remote = await inspectRemoteSync({
     repo,
-    refresh: true,
+    refresh,
     locale: translate.locale,
     gitRunner,
     now,
@@ -194,6 +199,32 @@ export async function mergeRemoteChanges({
       code: remote.code,
       includeAgentPrompt: false,
       checkedAt: remote.checkedAt,
+    });
+  }
+  if (expectedRemoteCommit && remote.remoteCommit !== expectedRemoteCommit) {
+    return remoteMergeFailure({
+      repo,
+      translate,
+      step: "confirm remote version",
+      error: translate("error.remoteChanged"),
+      code: "remote_changed",
+      files: remote.incomingFiles,
+      includeAgentPrompt: false,
+      checkedAt: remote.checkedAt,
+      remote,
+    });
+  }
+  if (expectedHead && remote.head !== expectedHead) {
+    return remoteMergeFailure({
+      repo,
+      translate,
+      step: "confirm workspace version",
+      error: translate("error.workspaceChanged"),
+      code: "workspace_changed",
+      files: remote.incomingFiles,
+      includeAgentPrompt: false,
+      checkedAt: remote.checkedAt,
+      remote,
     });
   }
   if (remote.ahead > 0 && remote.behind > 0) {
@@ -579,6 +610,8 @@ function remoteMergeFailure({
     ...(remote
       ? {
           remoteOk: true,
+          head: remote.head,
+          remoteCommit: remote.remoteCommit,
           ahead: remote.ahead,
           behind: remote.behind,
           incomingCount: remote.incomingCount,

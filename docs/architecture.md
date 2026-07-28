@@ -288,11 +288,13 @@ remote-tracking ref:
 
 - when the current branch is behind and the worktree is clean, Git Leaf applies a safe fast-forward
   automatically and refreshes the open document without changing its tab or mode;
-- when the worktree has local changes, Git Leaf reports the incoming paths but does not mutate the
-  worktree in the background;
-- **Merge remote changes** is an explicit down-only action. It advances the local branch to the fetched
-  remote commit while preserving the user's complete local workspace as uncommitted changes. It neither
-  commits nor pushes;
+- when the worktree has local changes, Git Leaf attempts the same protected object-layer merge used by
+  the explicit action. A conflict-free result advances the local branch automatically while preserving
+  the user's complete local workspace as uncommitted changes;
+- if that protected merge finds a conflict, repository drift, diverged history, or another unsafe
+  condition, it leaves the real branch, index, and files unchanged and exposes **Merge remote changes**
+  as an explicit retry and escalation path. Neither automatic nor explicit down-only merging commits or
+  pushes;
 - **Sync and publish** remains the explicit up action. It includes any required remote integration, then
   commits and pushes all local changes.
 
@@ -303,6 +305,16 @@ must match the verified object-layer result. The branch ref advances with a comp
 real index resets to the remote commit, and the combined workspace therefore remains uncommitted. A
 short-lived recovery ref protects the frozen snapshot during application. Workspace drift stops before
 mutation; an object-layer conflict leaves the real branch, index, and files unchanged.
+
+Automatic application uses the remote-tracking ref that the background check just fetched, so network
+latency stays outside the apply phase. The apply request is bound to the inspected local HEAD and remote
+commit; if either changes before application, the stale result is discarded and the newer state is
+retried. It waits for a short pause after the latest editor input. If the open Source or Live document
+is one of the incoming paths, the editor becomes read-only only for the local verification-and-apply
+critical section; a minimal text update then preserves the mapped cursor and selection. An unrelated
+open document is not reloaded or locked. Automatic failures do not open an interrupting dialog:
+transient workspace drift may retry on a later check, while a conflict or other stable failure exposes
+the explicit action for the user.
 
 The guarded publish strategy:
 

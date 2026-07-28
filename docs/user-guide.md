@@ -206,10 +206,10 @@ under **Settings → General**. The default is 10 minutes; the available interva
 10, 30, 60, and 120 minutes:
 
 - If the local working directory is clean and only behind, Git Leaf safely fast-forwards it.
-- If local edits also exist, Git Leaf reports the incoming state without changing the working
-  directory in the background.
-- **Merge remote changes** brings the remote version into the local branch while leaving every local
-  edit uncommitted.
+- If local edits also exist, Git Leaf automatically applies a conflict-free remote update while leaving
+  every local edit uncommitted.
+- If the protected automatic merge cannot finish safely, **Merge remote changes** appears as an explicit
+  retry. A real conflict leaves the working directory unchanged.
 - **Sync and publish** integrates any required remote update, then commits and pushes **all local
   changes in the repository**.
 

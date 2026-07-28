@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  automaticRemoteMergeDelayMs,
+  automaticRemoteMergeFailureIsBlocking,
   REMOTE_SYNC_INTERVAL_MS,
   hasGitChangesChanged,
   remoteSyncCheckDue,
@@ -53,7 +55,28 @@ test("a visible window checks against the selected interval", () => {
   }), true);
 });
 
-test("clean incoming changes auto-merge while dirty incoming changes require the explicit button", () => {
+test("automatic merging waits only for the remainder of the active editing pause", () => {
+  assert.equal(automaticRemoteMergeDelayMs({
+    editing: true,
+    lastEditAt: 1_000,
+    now: 1_400,
+    idleMs: 1_000,
+  }), 600);
+  assert.equal(automaticRemoteMergeDelayMs({
+    editing: true,
+    lastEditAt: 1_000,
+    now: 2_100,
+    idleMs: 1_000,
+  }), 0);
+  assert.equal(automaticRemoteMergeDelayMs({
+    editing: false,
+    lastEditAt: 1_000,
+    now: 1_100,
+    idleMs: 1_000,
+  }), 0);
+});
+
+test("incoming changes auto-merge with clean or dirty local workspaces", () => {
   const remote = { ok: true, behind: 2 };
 
   assert.deepEqual(remoteSyncDecision({
@@ -74,13 +97,45 @@ test("clean incoming changes auto-merge while dirty incoming changes require the
     localChangeCount: 3,
     canEdit: true,
   }), {
+    shouldAutoMerge: true,
+    showMergeRemote: false,
+    canMergeRemote: false,
+    canRunPrimary: true,
+    primaryAction: "publish",
+    badge: "3",
+  });
+});
+
+test("a failed automatic merge exposes a manual retry without retrying a blocked result", () => {
+  assert.deepEqual(remoteSyncDecision({
+    remote: { ok: true, behind: 1 },
+    localChangeCount: 1,
+    canEdit: true,
+    autoMergeFailed: true,
+    autoMergeBlocked: true,
+  }), {
     shouldAutoMerge: false,
     showMergeRemote: true,
     canMergeRemote: true,
     canRunPrimary: true,
     primaryAction: "publish",
-    badge: "3",
+    badge: "1",
   });
+  assert.equal(automaticRemoteMergeFailureIsBlocking({
+    ok: false,
+    code: "conflict",
+  }), true);
+  assert.equal(automaticRemoteMergeFailureIsBlocking({
+    ok: false,
+    code: "workspace_changed",
+  }), false);
+  assert.equal(automaticRemoteMergeFailureIsBlocking({
+    ok: false,
+    code: "remote_changed",
+  }), false);
+  assert.equal(automaticRemoteMergeFailureIsBlocking({
+    code: "invalid_response",
+  }), true);
 });
 
 test("remote sync actions remain disabled while another sync operation is running", () => {
@@ -89,6 +144,8 @@ test("remote sync actions remain disabled while another sync operation is runnin
     localChangeCount: 1,
     canEdit: true,
     operation: "merge",
+    autoMergeFailed: true,
+    autoMergeBlocked: true,
   }), {
     shouldAutoMerge: false,
     showMergeRemote: true,

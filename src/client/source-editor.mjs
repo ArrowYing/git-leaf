@@ -925,20 +925,26 @@ export function createSourceEditor({
     getValue() {
       return view.state.doc.toString();
     },
-    setValue(value) {
+    setValue(value, { preserveSelection = false } = {}) {
       const nextValue = String(value ?? "");
-      if (view.state.doc.toString() === nextValue) {
+      const currentValue = view.state.doc.toString();
+      if (currentValue === nextValue) {
         return;
       }
       suppressChange = true;
-      view.dispatch({
-        changes: {
-          from: 0,
-          to: view.state.doc.length,
-          insert: nextValue,
-        },
-      });
-      suppressChange = false;
+      try {
+        view.dispatch({
+          changes: preserveSelection
+            ? minimalDocumentChange(currentValue, nextValue)
+            : {
+                from: 0,
+                to: view.state.doc.length,
+                insert: nextValue,
+              },
+        });
+      } finally {
+        suppressChange = false;
+      }
     },
     focus() {
       view.focus();
@@ -1121,6 +1127,33 @@ export function createSourceEditor({
       view.scrollDOM.removeEventListener("scroll", handleScroll);
       view.destroy();
     },
+  };
+}
+
+export function minimalDocumentChange(currentValue, nextValue) {
+  const current = String(currentValue ?? "");
+  const next = String(nextValue ?? "");
+  let from = 0;
+  const sharedLength = Math.min(current.length, next.length);
+  while (from < sharedLength && current.charCodeAt(from) === next.charCodeAt(from)) {
+    from += 1;
+  }
+
+  let currentTo = current.length;
+  let nextTo = next.length;
+  while (
+    currentTo > from
+    && nextTo > from
+    && current.charCodeAt(currentTo - 1) === next.charCodeAt(nextTo - 1)
+  ) {
+    currentTo -= 1;
+    nextTo -= 1;
+  }
+
+  return {
+    from,
+    to: currentTo,
+    insert: next.slice(from, nextTo),
   };
 }
 

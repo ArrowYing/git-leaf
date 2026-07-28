@@ -21,6 +21,7 @@ import {
   liveReadableReplacementsForLine,
   liveVisualRangesForLine,
   liveMdxComponentForLine,
+  minimalDocumentChange,
   nextLiveEditingSuppression,
   listItemIndentChange,
   SLASH_COMMANDS,
@@ -29,6 +30,33 @@ import {
   slashCommandsForLocale,
   slashCommandTemplate,
 } from "../src/client/source-editor.mjs";
+
+test("minimalDocumentChange preserves unchanged editor ranges around a remote update", () => {
+  const current = "local first\nmiddle\nlast\n";
+  const next = "local first\nmiddle\nremote last\n";
+  const change = minimalDocumentChange(current, next);
+  assert.deepEqual(change, {
+    from: 19,
+    to: 19,
+    insert: "remote ",
+  });
+  const editor = EditorState.create({
+    doc: current,
+    selection: {
+      anchor: current.indexOf("last") + 2,
+    },
+  });
+  const transaction = editor.update({ changes: change });
+  assert.equal(
+    transaction.state.selection.main.anchor,
+    next.indexOf("last") + 2,
+  );
+  assert.deepEqual(minimalDocumentChange("before", "after"), {
+    from: 0,
+    to: 6,
+    insert: "after",
+  });
+});
 
 test("liveClassForLine styles common Markdown source lines", () => {
   assert.equal(

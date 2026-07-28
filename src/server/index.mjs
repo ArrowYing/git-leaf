@@ -399,6 +399,11 @@ async function handleRequest(request, response, context) {
     const payload = await mergeRemoteChanges({
       repo,
       allowLocalChanges: body.allowLocalChanges === true,
+      refresh: body.refresh !== false,
+      expectedHead: typeof body.expectedHead === "string" ? body.expectedHead : "",
+      expectedRemoteCommit: typeof body.expectedRemoteCommit === "string"
+        ? body.expectedRemoteCommit
+        : "",
       locale: previewLocaleFromRequest(requestUrl),
       gitRunner: context.gitRunner,
     });

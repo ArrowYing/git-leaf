@@ -227,10 +227,13 @@ test("explicit remote merge combines non-overlapping edits in one file and leave
     await writeFile(path.join(fixture.repoRoot, "document.md"), "local first\nmiddle\nlast\n");
     await writeFile(path.join(fixture.coworker, "document.md"), "first\nmiddle\nremote last\n");
     await commitAndPush(fixture.coworker, "Remote document update");
+    const status = await inspectRemoteSync({ repo: fixture.repo });
+    assert.equal(status.behind, 1);
 
     const result = await mergeRemoteChanges({
       repo: fixture.repo,
       allowLocalChanges: true,
+      refresh: false,
     });
 
     assert.equal(result.ok, true, result.error);
@@ -245,6 +248,39 @@ test("explicit remote merge combines non-overlapping edits in one file and leave
       "first\nmiddle\nremote last\n",
     );
     assert.equal((await git(fixture.repoRoot, ["status", "--porcelain"])).stdout, " M document.md\n");
+  } finally {
+    await rm(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test("automatic remote merge rejects a tracking ref newer than the inspected version", async () => {
+  const fixture = await createRemoteMergeFixture("git-leaf-moving-remote-merge-");
+  try {
+    await writeFile(path.join(fixture.repoRoot, "document.md"), "local draft\n");
+    await writeFile(path.join(fixture.coworker, "remote.md"), "remote first\n");
+    await commitAndPush(fixture.coworker, "First remote update");
+    const inspected = await inspectRemoteSync({ repo: fixture.repo });
+    const localHead = inspected.head;
+
+    await writeFile(path.join(fixture.coworker, "remote.md"), "remote second\n");
+    await commitAndPush(fixture.coworker, "Second remote update");
+    const current = await inspectRemoteSync({ repo: fixture.repo });
+    assert.notEqual(current.remoteCommit, inspected.remoteCommit);
+
+    const result = await mergeRemoteChanges({
+      repo: fixture.repo,
+      allowLocalChanges: true,
+      refresh: false,
+      expectedHead: localHead,
+      expectedRemoteCommit: inspected.remoteCommit,
+    });
+
+    assert.equal(result.ok, false);
+    assert.equal(result.code, "remote_changed");
+    assert.equal(result.agentPrompt, "");
+    assert.equal((await git(fixture.repoRoot, ["rev-parse", "HEAD"])).stdout.trim(), localHead);
+    assert.equal(await readFile(path.join(fixture.repoRoot, "document.md"), "utf8"), "local draft\n");
+    assert.equal(await readFile(path.join(fixture.repoRoot, "remote.md"), "utf8"), "remote before\n");
   } finally {
     await rm(fixture.root, { recursive: true, force: true });
   }

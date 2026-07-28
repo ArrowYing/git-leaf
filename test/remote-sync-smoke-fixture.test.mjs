@@ -20,7 +20,7 @@ test("remote sync smoke fixture starts behind with one uncommitted local documen
       await readFile(path.join(fixture.repoRoot, fixture.file), "utf8"),
       REMOTE_SYNC_SMOKE_LOCAL_CONTENT,
     );
-    assert.match(fixture.acceptance, /Merge remote changes/);
+    assert.match(fixture.acceptance, /automatically merges/);
   } finally {
     cleanupRemoteSyncSmokeFixture(fixture);
     await rm(temporaryRoot, { recursive: true, force: true });

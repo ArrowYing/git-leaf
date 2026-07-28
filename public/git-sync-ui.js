@@ -44,17 +44,38 @@ export function remoteSyncDecision({
   localChangeCount = 0,
   canEdit = false,
   operation = "",
+  autoMergeFailed = false,
+  autoMergeBlocked = false,
 } = {}) {
   const localChanges = Math.max(0, Number(localChangeCount) || 0);
   const behind = Math.max(0, Number(remote?.behind) || 0);
   const remoteAvailable = remote?.ok === true;
   const busy = Boolean(operation);
+  const remoteIncoming = remoteAvailable && behind > 0;
+  const showMergeRemote = remoteIncoming && (autoMergeFailed || autoMergeBlocked);
   return {
-    shouldAutoMerge: canEdit && !busy && remoteAvailable && behind > 0 && localChanges === 0,
-    showMergeRemote: remoteAvailable && behind > 0 && localChanges > 0,
-    canMergeRemote: canEdit && !busy && remoteAvailable && behind > 0 && localChanges > 0,
+    shouldAutoMerge: canEdit && !busy && remoteIncoming && !autoMergeBlocked,
+    showMergeRemote,
+    canMergeRemote: canEdit && !busy && showMergeRemote,
     canRunPrimary: canEdit && !busy,
     primaryAction: localChanges > 0 ? "publish" : "check",
     badge: localChanges > 0 ? String(localChanges) : behind > 0 ? "↓" : "",
   };
+}
+
+export function automaticRemoteMergeFailureIsBlocking(payload = {}) {
+  return payload?.ok !== true
+    && !["remote_changed", "workspace_changed"].includes(payload?.code);
+}
+
+export function automaticRemoteMergeDelayMs({
+  editing = false,
+  lastEditAt = 0,
+  now = Date.now(),
+  idleMs = 1000,
+} = {}) {
+  if (!editing || !Number.isFinite(lastEditAt) || lastEditAt <= 0) {
+    return 0;
+  }
+  return Math.max(0, Math.max(0, Number(idleMs) || 0) - (Number(now) - lastEditAt));
 }

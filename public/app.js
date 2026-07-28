@@ -146,6 +146,8 @@ import {
   frontmatterLineForValue,
 } from "./frontmatter-edit.js";
 import {
+  automaticRemoteMergeDelayMs,
+  automaticRemoteMergeFailureIsBlocking,
   hasGitChangesChanged,
   remoteSyncCheckDue,
   remoteSyncDecision,
@@ -194,6 +196,7 @@ const DOCUMENT_OUTLINE_WIDTH_STEP = 24;
 const SOURCE_SPLIT_STEP = 5;
 const TREE_REFRESH_INTERVAL_MS = 5000;
 const SOURCE_SYNC_DELAY_MS = 500;
+const AUTOMATIC_REMOTE_MERGE_IDLE_MS = 1000;
 const GIT_STATUS_REFRESH_DELAY_MS = 800;
 const TOOL_STATUS_CHECK_INTERVAL_MS = 30_000;
 const TOOL_RESTART_WAIT_INTERVAL_MS = 150;
@@ -317,6 +320,7 @@ const state = {
   sourceEditor: null,
   sourceSyncTimer: null,
   sourceWriteInFlight: false,
+  lastSourceEditAt: 0,
   scrollSyncSource: null,
   lastSourceVisibleLine: null,
   lastPreviewVisibleLine: null,
@@ -342,12 +346,17 @@ const state = {
     behind: 0,
     incomingCount: 0,
     incomingFiles: [],
+    head: "",
+    remoteCommit: "",
     error: "",
   },
   remoteSyncTimer: null,
   remoteSyncOperation: "",
   remoteSyncRequestId: 0,
   lastRemoteSyncAttemptAt: 0,
+  remoteSyncAutoMergeFailedKey: "",
+  remoteSyncAutoMergeBlockedKey: "",
+  remoteSyncAutoMergeTimer: null,
   sidebarShortcutFeedbackTimer: null,
   treeOperationFeedbackTimer: null,
   treeOperationFeedbackElement: null,
@@ -1229,6 +1238,7 @@ async function loadRemoteSyncStatus({ autoApply = false } = {}) {
     ...state.remoteSync,
     ...payload,
   });
+  reconcileRemoteAutoMergeFailure();
   state.remoteSyncOperation = "";
   await loadGitStatus();
   renderGitChangeToolbar();
@@ -1251,10 +1261,26 @@ async function mergeRemoteIntoWorkspace({ automatic = false } = {}) {
   ) {
     return;
   }
+  if (automatic && deferAutomaticRemoteMergeUntilEditingPauses()) {
+    return;
+  }
+  if (state.remoteSyncAutoMergeTimer) {
+    window.clearTimeout(state.remoteSyncAutoMergeTimer);
+    state.remoteSyncAutoMergeTimer = null;
+  }
 
   const scope = remoteSyncScope();
+  const remoteAutoMergeKey = currentRemoteAutoMergeKey();
+  const incomingFiles = [...state.remoteSync.incomingFiles];
+  const expectedHead = state.remoteSync.head;
+  const expectedRemoteCommit = state.remoteSync.remoteCommit;
+  const currentDocumentHasRemoteUpdate = incomingFiles.includes(state.currentDocument?.path);
+  const shouldLockEditor = !automatic || (isEditorMode() && currentDocumentHasRemoteUpdate);
   state.remoteSyncOperation = "merge";
-  setRemoteMergeLock(true);
+  if (shouldLockEditor) {
+    setRemoteMergeLock(true);
+  }
+  let editorLocked = shouldLockEditor;
   renderGitChangeToolbar();
   try {
     await flushPendingSourceSync();
@@ -1268,9 +1294,6 @@ async function mergeRemoteIntoWorkspace({ automatic = false } = {}) {
     if (scope !== remoteSyncScope()) {
       return;
     }
-    if (automatic && state.gitChanges.length > 0) {
-      return;
-    }
 
     const response = await fetch(apiUrl("/api/git-merge-remote", {
       locale: state.locale,
@@ -1278,7 +1301,9 @@ async function mergeRemoteIntoWorkspace({ automatic = false } = {}) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        allowLocalChanges: !automatic,
+        allowLocalChanges: true,
+        refresh: !automatic,
+        ...(automatic ? { expectedHead, expectedRemoteCommit } : {}),
       }),
     });
     const payload = await response.json().catch(() => ({
@@ -1296,8 +1321,18 @@ async function mergeRemoteIntoWorkspace({ automatic = false } = {}) {
     });
 
     if (!response.ok || payload.ok === false) {
+      if (automatic) {
+        state.remoteSyncAutoMergeFailedKey = remoteAutoMergeKey;
+        if (automaticRemoteMergeFailureIsBlocking(payload)) {
+          state.remoteSyncAutoMergeBlockedKey = remoteAutoMergeKey;
+        }
+        reconcileRemoteAutoMergeFailure();
+        if (payload.code === "remote_changed") {
+          scheduleAutomaticRemoteMergeRetry();
+        }
+      }
       await loadGitStatus();
-      if (payload.agentPrompt) {
+      if (!automatic && payload.agentPrompt) {
         showGitSyncFailure(payload);
       } else if (!automatic && payload.error) {
         showCopyToast(payload.error);
@@ -1306,9 +1341,16 @@ async function mergeRemoteIntoWorkspace({ automatic = false } = {}) {
     }
 
     closeGitSyncPanel();
+    clearRemoteAutoMergeFailure();
+    if (!automatic || currentDocumentHasRemoteUpdate) {
+      await refreshCurrentDocument();
+    }
+    if (editorLocked) {
+      setRemoteMergeLock(false);
+      editorLocked = false;
+    }
     await loadTree({ force: true });
     await loadGitStatus();
-    await refreshCurrentDocument();
     showCopyToast(automatic ? t("toast.remoteAutoMerged") : t("toast.remoteMerged"));
   } catch (error) {
     if (!automatic) {
@@ -1317,7 +1359,9 @@ async function mergeRemoteIntoWorkspace({ automatic = false } = {}) {
   } finally {
     if (state.remoteSyncOperation === "merge") {
       state.remoteSyncOperation = "";
-      setRemoteMergeLock(false);
+      if (editorLocked) {
+        setRemoteMergeLock(false);
+      }
       renderGitChangeToolbar();
     }
   }
@@ -1336,11 +1380,18 @@ function handlePrimaryGitSyncAction() {
 }
 
 function currentRemoteSyncDecision() {
+  const currentAutoMergeKey = currentRemoteAutoMergeKey();
   return remoteSyncDecision({
     remote: state.remoteSync,
     localChangeCount: state.gitChanges.length,
     canEdit: canEditCurrentRepo(),
     operation: state.remoteSyncOperation,
+    autoMergeFailed: Boolean(
+      currentAutoMergeKey && state.remoteSyncAutoMergeFailedKey === currentAutoMergeKey
+    ),
+    autoMergeBlocked: Boolean(
+      currentAutoMergeKey && state.remoteSyncAutoMergeBlockedKey === currentAutoMergeKey
+    ),
   });
 }
 
@@ -1360,12 +1411,74 @@ function normalizeRemoteSyncPayload(payload = {}) {
     behind: Math.max(0, Number(payload.behind) || 0),
     incomingCount: Math.max(0, Number(payload.incomingCount) || 0),
     incomingFiles: Array.isArray(payload.incomingFiles) ? payload.incomingFiles : [],
+    head: String(payload.head || ""),
+    remoteCommit: String(payload.remoteCommit || ""),
     error: String(payload.error || ""),
   };
 }
 
 function remoteSyncScope() {
   return `${state.currentRepo || ""}\0${state.currentWorktreeId || ""}`;
+}
+
+function currentRemoteAutoMergeKey() {
+  return state.remoteSync.remoteCommit
+    ? `${remoteSyncScope()}\0${state.remoteSync.remoteCommit}`
+    : "";
+}
+
+function deferAutomaticRemoteMergeUntilEditingPauses() {
+  const remaining = automaticRemoteMergeDelayMs({
+    editing: isEditorMode(),
+    lastEditAt: state.lastSourceEditAt,
+    idleMs: AUTOMATIC_REMOTE_MERGE_IDLE_MS,
+  });
+  if (remaining <= 0) {
+    return false;
+  }
+
+  const expectedKey = currentRemoteAutoMergeKey();
+  if (state.remoteSyncAutoMergeTimer) {
+    window.clearTimeout(state.remoteSyncAutoMergeTimer);
+  }
+  state.remoteSyncAutoMergeTimer = window.setTimeout(() => {
+    state.remoteSyncAutoMergeTimer = null;
+    if (expectedKey && expectedKey === currentRemoteAutoMergeKey()) {
+      void mergeRemoteIntoWorkspace({ automatic: true });
+    }
+  }, remaining);
+  return true;
+}
+
+function scheduleAutomaticRemoteMergeRetry() {
+  const expectedKey = currentRemoteAutoMergeKey();
+  if (!expectedKey) {
+    return;
+  }
+  if (state.remoteSyncAutoMergeTimer) {
+    window.clearTimeout(state.remoteSyncAutoMergeTimer);
+  }
+  state.remoteSyncAutoMergeTimer = window.setTimeout(() => {
+    state.remoteSyncAutoMergeTimer = null;
+    if (expectedKey === currentRemoteAutoMergeKey()) {
+      void mergeRemoteIntoWorkspace({ automatic: true });
+    }
+  }, AUTOMATIC_REMOTE_MERGE_IDLE_MS);
+}
+
+function reconcileRemoteAutoMergeFailure() {
+  const currentKey = currentRemoteAutoMergeKey();
+  if (
+    state.remoteSync.behind === 0
+    || (state.remoteSyncAutoMergeFailedKey && state.remoteSyncAutoMergeFailedKey !== currentKey)
+  ) {
+    clearRemoteAutoMergeFailure();
+  }
+}
+
+function clearRemoteAutoMergeFailure() {
+  state.remoteSyncAutoMergeFailedKey = "";
+  state.remoteSyncAutoMergeBlockedKey = "";
 }
 
 function setRemoteMergeLock(locked) {
@@ -1708,6 +1821,7 @@ function applyDocumentData(
     applySavedMode = false,
     initialHash = "",
     restoreScrollTop = null,
+    preserveEditorState = false,
   } = {},
 ) {
   const scrollTop = preserveScroll ? documentContent.scrollTop : 0;
@@ -1757,7 +1871,10 @@ function applyDocumentData(
   }
 
   if (state.sourceEditor) {
-    state.sourceEditor.setValue(canEditDocumentData(documentData) ? documentData.source ?? "" : "");
+    state.sourceEditor.setValue(
+      canEditDocumentData(documentData) ? documentData.source ?? "" : "",
+      { preserveSelection: preserveEditorState },
+    );
     state.sourceEditor.setMode(state.mode);
   }
 
@@ -2664,6 +2781,7 @@ function scheduleSourceSync(source) {
     return;
   }
   state.currentDocument.source = source;
+  state.lastSourceEditAt = Date.now();
   refreshDocumentSearch({ preserveIndex: true, reveal: false });
   updateSourceSyncStatus("syncing");
   window.clearTimeout(state.sourceSyncTimer);
@@ -5331,6 +5449,7 @@ async function submitGitSync() {
       checkedAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     });
+    clearRemoteAutoMergeFailure();
   } catch (error) {
     recordTelemetryFeature("git.sync", {
       strategy: "guarded_live_v1",
@@ -7503,7 +7622,10 @@ async function refreshCurrentDocument({ external = false } = {}) {
   if (!isCurrentDocumentRequest(request, documentData)) {
     return;
   }
-  applyDocumentData(documentData, { preserveScroll: true });
+  applyDocumentData(documentData, {
+    preserveScroll: true,
+    preserveEditorState: true,
+  });
   if (external && isEditorMode()) {
     updateSourceSyncStatus("external");
   }

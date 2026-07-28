@@ -27,8 +27,8 @@ export const REMOTE_SYNC_SMOKE_MERGED_CONTENT = [
   "",
 ].join("\n");
 export const REMOTE_SYNC_SMOKE_ACCEPTANCE = [
-  "Sync initially shows a remote update and the Merge remote changes button.",
-  "After the click, Remote is up to date, the local change remains unpublished,",
+  "Git Leaf automatically merges the conflict-free remote update without a click.",
+  "Remote becomes up to date, the local change remains unpublished,",
   "and the open editor contains both the local draft and remote update.",
 ].join(" ");
 
