@@ -475,7 +475,7 @@ test("Slash menu templates keep frontmatter human-entered and mark MDX component
   assert.equal(isMarkdownDocumentPath("docs/report.mdx"), false);
 });
 
-test("livePreviewBlocksForSource detects Markdown tables outside the active block", () => {
+test("livePreviewBlocksForSource keeps Markdown tables rendered on the active line", () => {
   const source = [
     "# Report",
     "",
@@ -494,8 +494,10 @@ test("livePreviewBlocksForSource detects Markdown tables outside the active bloc
     [{ type: "table", startLine: 3, endLine: 6 }],
   );
   assert.deepEqual(
-    livePreviewBlocksForSource(source, { activeLineNumber: 4 }),
-    [],
+    livePreviewBlocksForSource(source, { activeLineNumber: 4 }).map(
+      ({ type, startLine, endLine }) => ({ type, startLine, endLine }),
+    ),
+    [{ type: "table", startLine: 3, endLine: 6 }],
   );
 });
 

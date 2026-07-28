@@ -22,6 +22,9 @@ smoke-tree-tooltip-mac:
 smoke-remote-sync-mac:
 	node scripts/smoke-remote-sync-mac.mjs
 
+smoke-live-table-mac:
+	node scripts/smoke-live-table-mac.mjs
+
 check-release-prereqs:
 	$(release-env) node scripts/release-mac.mjs check-prereqs
 
@@ -67,4 +70,4 @@ stage-updates-win:
 publish-updates-win:
 	$(win-release-env) node scripts/release-windows.mjs publish-updates
 
-.PHONY: package-mac install-dev-mac smoke-dev-mac smoke-tree-tooltip-mac smoke-remote-sync-mac check-release-prereqs sign-mac dmg-mac notarize-mac staple-mac zip-mac verify-release-mac release-mac stage-updates-mac publish-updates-mac package-win release-win stage-updates-win publish-updates-win
+.PHONY: package-mac install-dev-mac smoke-dev-mac smoke-tree-tooltip-mac smoke-remote-sync-mac smoke-live-table-mac check-release-prereqs sign-mac dmg-mac notarize-mac staple-mac zip-mac verify-release-mac release-mac stage-updates-mac publish-updates-mac package-win release-win stage-updates-win publish-updates-win

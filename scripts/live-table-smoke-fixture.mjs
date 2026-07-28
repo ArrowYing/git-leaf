@@ -1,0 +1,116 @@
+import { spawnSync } from "node:child_process";
+import {
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+
+export const LIVE_TABLE_SMOKE_FILE = "live-table-editing.md";
+
+export const LIVE_TABLE_SMOKE_ACCEPTANCE = [
+  "Live 模式始终显示渲染后的原生 Markdown 表格；",
+  "单击一个单元格时，只在该单元格内显示并编辑源码；",
+  "横向、纵向或斜向拖动都选择起点与终点围成的完整矩形；",
+  "浮动色板可为整个选区设置或清除文字颜色；",
+  "完整选中一列后，顶部把手可左右拖动该列；",
+  "Preview 保持只读，写回内容仍是原生管道表格和受控颜色 span。",
+].join("");
+
+export function liveTableSmokeSource() {
+  return [
+    "# Live Markdown table interaction smoke",
+    "",
+    "## 数据分析表：选择、改色与列移动",
+    "",
+    "| 渠道 | 收入与变化 | 颜色语义 | 状态 |",
+    "| :--- | ---: | :--- | :---: |",
+    '| 自然流量 | 128.4（↑ 12.4%） | 绿色＝正向 | <span style="color: #16a34a;">健康</span> |',
+    '| 付费投放 | 96.7（↓ 8.7%） | 红色＝风险 | <span style="color: #dc2626;">风险</span> |',
+    "| 转介绍 | 74.2（↑ 2.1%） | 橙色＝提醒 | 观察 |",
+    "| 企业合作 | 52.8（→ 0.0%） | 蓝色＝信息 | 稳定 |",
+    "",
+    "## 基础格式与解析边界",
+    "",
+    "| 语义 | 预期视觉 | 基础 Markdown 写法 |",
+    "| --- | :---: | ---: |",
+    "| 正向 | **加粗**，但不是绿色 | `**加粗**` |",
+    "| 字面管道 | Alpha \\| Beta | `Alpha \\| Beta` |",
+    "| 行内代码 | `a\\|b` | `` `a\\|b` `` |",
+    "",
+    "## 验收",
+    "",
+    LIVE_TABLE_SMOKE_ACCEPTANCE,
+    "",
+  ].join("\n");
+}
+
+export function createLiveTableSmokeFixture({
+  temporaryRoot = tmpdir(),
+  runGit = runGitCommand,
+} = {}) {
+  const repoRoot = mkdtempSync(
+    path.join(path.resolve(temporaryRoot), "git-leaf-live-table-smoke-"),
+  );
+  try {
+    writeFileSync(
+      path.join(repoRoot, LIVE_TABLE_SMOKE_FILE),
+      liveTableSmokeSource(),
+      "utf8",
+    );
+    runGit(["init", "--quiet", "--initial-branch=main"], repoRoot);
+    runGit(["add", LIVE_TABLE_SMOKE_FILE], repoRoot);
+    runGit([
+      "-c",
+      "user.name=Git Leaf Smoke",
+      "-c",
+      "user.email=smoke@gitleaf.local",
+      "commit",
+      "--quiet",
+      "-m",
+      "Add Live table smoke document",
+    ], repoRoot);
+    return {
+      repoRoot,
+      file: LIVE_TABLE_SMOKE_FILE,
+      acceptance: LIVE_TABLE_SMOKE_ACCEPTANCE,
+    };
+  } catch (error) {
+    rmSync(repoRoot, { recursive: true, force: true });
+    throw error;
+  }
+}
+
+export function readLiveTableSmokeDocument(fixture) {
+  return readFileSync(
+    path.join(path.resolve(fixture.repoRoot), fixture.file),
+    "utf8",
+  );
+}
+
+export function cleanupLiveTableSmokeFixture(fixture) {
+  const repoRoot = path.resolve(fixture?.repoRoot || "");
+  const temporaryRoot = path.resolve(tmpdir());
+  const relative = path.relative(temporaryRoot, repoRoot);
+  if (
+    relative.startsWith("..") ||
+    path.isAbsolute(relative) ||
+    !path.basename(repoRoot).startsWith("git-leaf-live-table-smoke-")
+  ) {
+    throw new Error(`Refusing to clean an unexpected Live table fixture: ${repoRoot}`);
+  }
+  rmSync(repoRoot, { recursive: true, force: true });
+}
+
+function runGitCommand(args, cwd) {
+  const result = spawnSync("git", args, {
+    cwd,
+    stdio: "pipe",
+    encoding: "utf8",
+  });
+  if (result.status !== 0) {
+    throw new Error(result.stderr || `git ${args.join(" ")} failed`);
+  }
+}

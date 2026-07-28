@@ -215,8 +215,32 @@ remains source-editable; inactive Markdown syntax and allowlisted blocks may sho
 editing controls. Every change still writes the original Markdown or MDX file. Live must never introduce
 a second rich-text data model.
 
+Native Markdown tables remain rendered in Live while the user works with them. Clicking a cell edits
+that cell's source without replacing the whole table with raw pipe syntax. Pointer dragging selects the
+contiguous rectangular range bounded by the first and last cell, including horizontal, vertical, and
+diagonal gestures. A transient toolbar may update the selected cells, and a column may be reordered only
+from the explicit handle shown after one complete column is selected. These controls rewrite only the
+current table block. Preview remains read-only.
+
 Source and Live reload external changes made by Git, editors, or AI agents. Git conflict markers remain
 ordinary source text; Git Leaf does not own conflict resolution.
+
+### Markdown interoperability
+
+Except for explicitly allowlisted MDX-lite components, Git Leaf must prefer source syntax that remains
+readable and editable in Obsidian and other CommonMark or GitHub-Flavored Markdown tools. A visual Live
+control is an interface over portable source, not permission to introduce a Git Leaf-only table schema,
+hidden metadata, or a second document representation. Exact rendering and editor affordances may still
+differ between applications.
+
+In particular, table rows and alignment remain native pipe-table syntax. Table text color writes a
+narrowly controlled inline HTML span using only `style="color: <fixed-palette-value>;"`; no class,
+event handler, arbitrary style declaration, or Git Leaf data attribute is stored in the document.
+Git Leaf renders only its fixed color palette and escapes unsupported HTML. Column movement reorders the
+header cell, its separator/alignment cell, and every body cell together.
+
+MDX-lite is the explicit interoperability exception. It is a Git Leaf controlled extension and is not
+expected to open as an interactive component in Obsidian.
 
 ## Rendering and MDX-lite
 

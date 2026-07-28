@@ -90,6 +90,11 @@ Git Leaf 始终编辑原来的 Markdown 或 MDX 文件。三种模式只是同�
 做一个小修正时，Live 通常是最合适的选择。它不是第二份富文本文件：文字仍然属于原仓库，Agent 和其他
 工具仍能直接读取。
 
+在原生 Markdown 表格中，单击单元格只编辑该单元格的源码；向任意方向拖过相邻单元格，会选中起点与
+终点围成的矩形区域，浮动色板可为整个选区设置一种文字颜色。完整选中一列后，可以拖动列顶部的小把手
+移动该列。这些操作只在 Live 中提供，Preview 仍然只读。写回内容仍是原生管道表格和 Obsidian 可识别
+的内联颜色 `span`，不会变成 Git Leaf 私有的表格格式。
+
 ![Source 同时显示准确的 Markdown 和呈现结果](assets/user-guide/source-editor.jpg)
 
 当 Agent 写入了一段需要精确检查的语法，或者需要调整 Frontmatter 和结构化数据时，可以使用 Source。

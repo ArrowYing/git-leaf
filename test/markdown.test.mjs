@@ -313,6 +313,52 @@ test("renderMarkdown renders safe HTML images inside Markdown table cells", () =
   assert.doesNotMatch(html, /&lt;br/);
 });
 
+test("renderMarkdown renders only the controlled table text-color palette", () => {
+  const html = renderMarkdown([
+    "| 状态 | 说明 |",
+    "| --- | --- |",
+    '| <span style="color: #16a34a;">**健康**</span> | <span style="color: #ffffff;">不受控颜色</span> |',
+    '| <span style="font-size: 40px;">不受控样式</span> | <span style="color: #dc2626;" onclick="alert(1)">风险</span> |',
+  ].join("\n"));
+
+  assert.match(
+    html,
+    /<span class="git-leaf-text-color" style="color:#16a34a"><strong>健康<\/strong><\/span>/,
+  );
+  assert.match(
+    html,
+    /&lt;span style=&quot;color: #ffffff;&quot;&gt;不受控颜色&lt;\/span&gt;/,
+  );
+  assert.match(
+    html,
+    /&lt;span style=&quot;font-size: 40px;&quot;&gt;不受控样式&lt;\/span&gt;/,
+  );
+  assert.doesNotMatch(html, /<span[^>]*onclick=/);
+  assert.doesNotMatch(html, /style="color:#ffffff"/);
+});
+
+test("controlled table text colors do not change table width measurement", () => {
+  const source = [
+    "| 渠道 | 收入与变化 | 状态 |",
+    "| --- | ---: | --- |",
+    "| 自然流量 | 128.4（↑ 12.4%） | 健康 |",
+    "| 付费投放 | 96.7（↓ 8.7%） | 风险 |",
+  ].join("\n");
+  const coloredSource = source
+    .replace("自然流量", '<span style="color: #d97706;">自然流量</span>')
+    .replace("128.4（↑ 12.4%）", '<span style="color: #d97706;">128.4（↑ 12.4%）</span>')
+    .replace("健康", '<span style="color: #16a34a;">健康</span>');
+  const layoutMarkup = (html) => ({
+    cardStyle: html.match(/<div class="table-card[^>]+style="([^"]+)"/)?.[1],
+    colgroup: html.match(/<colgroup>[\s\S]*?<\/colgroup>/)?.[0],
+  });
+
+  assert.deepEqual(
+    layoutMarkup(renderMarkdown(coloredSource)),
+    layoutMarkup(renderMarkdown(source)),
+  );
+});
+
 test("renderMarkdown renders image-only HTML paragraph wrappers as a gallery", () => {
   const html = renderMarkdown(
     '<p><img src="_assets/one.jpg" width="200" alt="第一张"> <img src="_assets/two.jpg" width="200" alt="第二张"></p>',

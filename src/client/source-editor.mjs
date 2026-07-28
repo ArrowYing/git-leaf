@@ -33,6 +33,15 @@ import {
 import { EditorView, minimalSetup } from "codemirror";
 
 import { renderMarkdown } from "../content/markdown.mjs";
+import {
+  MARKDOWN_TABLE_TEXT_COLORS,
+  applyMarkdownTableTextColor,
+  markdownTableBlockAtLines,
+  normalizeMarkdownTableSelection,
+  parseMarkdownTable,
+  reorderMarkdownTableColumn,
+  replaceMarkdownTableCell,
+} from "../content/markdown-table.mjs";
 import { findTextMatches } from "../../public/document-search.js";
 import { enhanceImageLoadStates } from "../../public/image-preview.js";
 import { createTranslator } from "../../public/i18n.js";
@@ -61,6 +70,11 @@ const sourceEditorSetup = [
 const liveRenderOptionsFacet = Facet.define({
   combine(values) {
     return values[0] ?? {};
+  },
+});
+const liveTableInteractionFacet = Facet.define({
+  combine(values) {
+    return values[0] ?? null;
   },
 });
 const cursorPlaceholder = "{{cursor}}";
@@ -142,6 +156,31 @@ const SOURCE_EDITOR_SLASH_MESSAGES = {
     "flow.description": "插入由 JSON 数据驱动的流程图",
     "flow.start": "开始",
     "flow.done": "完成",
+  },
+};
+
+const SOURCE_EDITOR_TABLE_MESSAGES = {
+  en: {
+    "toolbar.label": "Table text color",
+    "color.green": "Positive green",
+    "color.red": "Risk red",
+    "color.orange": "Warning orange",
+    "color.blue": "Information blue",
+    "color.gray": "Neutral gray",
+    "color.clear": "Clear text color",
+    "cell.edit": "Edit table cell source",
+    "column.drag": "Drag to reorder the selected column",
+  },
+  "zh-CN": {
+    "toolbar.label": "表格文字颜色",
+    "color.green": "正向绿色",
+    "color.red": "风险红色",
+    "color.orange": "提醒橙色",
+    "color.blue": "信息蓝色",
+    "color.gray": "中性灰色",
+    "color.clear": "清除文字颜色",
+    "cell.edit": "编辑表格单元格源码",
+    "column.drag": "拖动调整选中列的顺序",
   },
 };
 
@@ -764,13 +803,21 @@ export function createSourceEditor({
   let currentTheme = themeFromInput(theme);
   let currentEditable = true;
   let remoteMergeHighlightTimer = null;
+  let view = null;
   const themeCompartment = new Compartment();
   const liveModeCompartment = new Compartment();
   const editableCompartment = new Compartment();
+  const tableInteraction = createLiveTableInteraction({
+    getView: () => view,
+    getMode: () => currentMode,
+    isEditable: () => currentEditable,
+    locale: locale ?? language,
+  });
   function liveModeExtensions() {
     return currentMode === "live"
       ? [
           liveRenderOptionsFacet.of(getRenderOptions()),
+          liveTableInteractionFacet.of(tableInteraction),
           liveEditingSuppression,
           liveMarkdownDecorations,
           liveMarkdownThemeForTheme(currentTheme),
@@ -778,7 +825,7 @@ export function createSourceEditor({
       : [];
   }
 
-  const view = new EditorView({
+  view = new EditorView({
     doc,
     extensions: [
       sourceEditorSetup,
@@ -839,6 +886,12 @@ export function createSourceEditor({
             return false;
           }
 
+          if (tableInteraction.hasSelection()) {
+            event.preventDefault();
+            tableInteraction.clearSelection();
+            return true;
+          }
+
           event.preventDefault();
           eventView.dispatch({
             effects: livePreviewExitEffect.of(true),
@@ -889,6 +942,14 @@ export function createSourceEditor({
       return;
     }
 
+    const liveTable = closestElement(event.target, ".cm-live-block-preview-table");
+    if (liveTable) {
+      if (!closestElement(event.target, ".cm-live-table-cell-editor")) {
+        event.preventDefault();
+      }
+      return;
+    }
+
     const link = liveMarkdownLinkFromMouseEvent(event, view);
     if (link) {
       event.preventDefault();
@@ -920,6 +981,7 @@ export function createSourceEditor({
     }
 
     if (isLiveBlankClick(event)) {
+      tableInteraction.clearSelection();
       onBlankClick?.(event);
     }
   };
@@ -932,6 +994,7 @@ export function createSourceEditor({
     return Number.isInteger(pos) ? view.state.doc.lineAt(pos).number : null;
   };
   const handleScroll = () => {
+    tableInteraction.refreshPositions();
     const line = visibleLine();
     onScroll?.({
       scrollTop: view.scrollDOM.scrollTop,
@@ -940,8 +1003,13 @@ export function createSourceEditor({
       visibleLine: line,
     });
   };
+  view.dom.addEventListener("pointerdown", tableInteraction.handlePointerDown, true);
+  view.dom.addEventListener("pointermove", tableInteraction.handlePointerMove, true);
+  view.dom.addEventListener("pointerup", tableInteraction.handlePointerUp, true);
+  view.dom.addEventListener("pointercancel", tableInteraction.handlePointerCancel, true);
   view.dom.addEventListener("mousedown", handleMouseDown, true);
   view.scrollDOM.addEventListener("scroll", handleScroll);
+  globalThis.addEventListener?.("resize", tableInteraction.refreshPositions);
 
   return {
     getValue() {
@@ -953,6 +1021,8 @@ export function createSourceEditor({
       if (currentValue === nextValue) {
         return;
       }
+      tableInteraction.cancelEditor();
+      tableInteraction.clearSelection({ commit: false });
       const changes = preserveSelection
         ? minimalDocumentChange(currentValue, nextValue)
         : {
@@ -1016,6 +1086,10 @@ export function createSourceEditor({
       });
     },
     setMode(mode) {
+      if (currentMode === "live" && mode !== "live") {
+        tableInteraction.commitEditor();
+        tableInteraction.clearSelection({ commit: false });
+      }
       currentMode = mode;
       view.dispatch({
         effects: liveModeCompartment.reconfigure(liveModeExtensions()),
@@ -1025,6 +1099,9 @@ export function createSourceEditor({
       const nextEditable = editable !== false;
       if (nextEditable === currentEditable) {
         return;
+      }
+      if (!nextEditable) {
+        tableInteraction.commitEditor();
       }
       currentEditable = nextEditable;
       view.dispatch({
@@ -1170,11 +1247,855 @@ export function createSourceEditor({
     },
     destroy() {
       globalThis.clearTimeout(remoteMergeHighlightTimer);
+      tableInteraction.commitEditor();
+      tableInteraction.destroy();
+      view.dom.removeEventListener("pointerdown", tableInteraction.handlePointerDown, true);
+      view.dom.removeEventListener("pointermove", tableInteraction.handlePointerMove, true);
+      view.dom.removeEventListener("pointerup", tableInteraction.handlePointerUp, true);
+      view.dom.removeEventListener("pointercancel", tableInteraction.handlePointerCancel, true);
       view.dom.removeEventListener("mousedown", handleMouseDown, true);
       view.scrollDOM.removeEventListener("scroll", handleScroll);
+      globalThis.removeEventListener?.("resize", tableInteraction.refreshPositions);
       view.destroy();
     },
   };
+}
+
+function createLiveTableInteraction({
+  getView,
+  getMode,
+  isEditable,
+  locale,
+}) {
+  const translate = createTranslator(SOURCE_EDITOR_TABLE_MESSAGES, locale);
+  let selection = null;
+  let pointerSelection = null;
+  let activeEditor = null;
+  let columnDrag = null;
+  let refreshHandle = null;
+
+  const scheduleRefresh = () => {
+    if (refreshHandle !== null) {
+      return;
+    }
+    const schedule = globalThis.requestAnimationFrame ??
+      ((callback) => globalThis.setTimeout(callback, 0));
+    refreshHandle = schedule(() => {
+      refreshHandle = null;
+      refreshNow();
+    });
+  };
+
+  const refreshPositions = () => {
+    scheduleRefresh();
+  };
+
+  const currentTableBlock = (startLine) => {
+    const view = getView();
+    if (
+      !view ||
+      !Number.isInteger(startLine) ||
+      startLine < 1 ||
+      startLine > view.state.doc.lines
+    ) {
+      return null;
+    }
+
+    const lines = view.state.doc.toString().split("\n");
+    const block = markdownTableBlockAtLines(lines, startLine - 1);
+    if (!block) {
+      return null;
+    }
+
+    const endLine = block.endIndex + 1;
+    return {
+      ...block,
+      startLine,
+      endLine,
+      from: view.state.doc.line(startLine).from,
+      to: view.state.doc.line(endLine).to,
+    };
+  };
+
+  const dispatchTableSource = (block, source) => {
+    const view = getView();
+    const nextSource = String(source ?? "");
+    if (!view || !block || nextSource === block.source) {
+      scheduleRefresh();
+      return false;
+    }
+    view.dispatch({
+      changes: {
+        from: block.from,
+        to: block.to,
+        insert: nextSource,
+      },
+    });
+    scheduleRefresh();
+    return true;
+  };
+
+  const normalizedSelection = (block = currentTableBlock(selection?.startLine)) => {
+    if (!selection || !block) {
+      return null;
+    }
+    return normalizeMarkdownTableSelection(selection, block.table);
+  };
+
+  const selectionContainer = () => {
+    const view = getView();
+    if (!view || !selection) {
+      return null;
+    }
+    return view.dom.querySelector(
+      `.cm-live-block-preview-table[data-live-block-start="${selection.startLine}"]`,
+    );
+  };
+
+  const cellElement = (startLine, row, column) => {
+    const view = getView();
+    if (!view) {
+      return null;
+    }
+    return view.dom.querySelector(
+      [
+        `.cm-live-block-preview-table[data-live-block-start="${startLine}"] `,
+        '[data-live-table-cell="true"]',
+        `[data-live-table-row="${row}"]`,
+        `[data-live-table-column="${column}"]`,
+      ].join(""),
+    );
+  };
+
+  const cellInfo = (target) => {
+    const cell = closestElement(target, '[data-live-table-cell="true"]');
+    const container = cell?.closest(".cm-live-block-preview-table");
+    const startLine = Number(container?.dataset.liveBlockStart);
+    const row = Number(cell?.dataset.liveTableRow);
+    const column = Number(cell?.dataset.liveTableColumn);
+    if (
+      !cell ||
+      !container ||
+      !Number.isInteger(startLine) ||
+      !Number.isInteger(row) ||
+      !Number.isInteger(column)
+    ) {
+      return null;
+    }
+    return { cell, container, startLine, row, column };
+  };
+
+  const restoreEditorCell = (editor) => {
+    if (editor?.cell?.isConnected) {
+      editor.cell.innerHTML = editor.renderedHtml;
+      editor.cell.classList.remove("is-editing");
+    }
+  };
+
+  const cancelEditor = () => {
+    if (!activeEditor) {
+      return false;
+    }
+    const editor = activeEditor;
+    activeEditor = null;
+    restoreEditorCell(editor);
+    scheduleRefresh();
+    return true;
+  };
+
+  const adjacentCell = (block, row, column, direction) => {
+    const currentIndex = row * block.table.columnCount + column;
+    const nextIndex = currentIndex + direction;
+    const cellCount = block.table.rowCount * block.table.columnCount;
+    if (nextIndex < 0 || nextIndex >= cellCount) {
+      return null;
+    }
+    return {
+      row: Math.floor(nextIndex / block.table.columnCount),
+      column: nextIndex % block.table.columnCount,
+    };
+  };
+
+  const beginCellEditor = () => {
+    if (!isEditable() || getMode() !== "live" || !selection) {
+      return false;
+    }
+    const block = currentTableBlock(selection.startLine);
+    const normalized = normalizedSelection(block);
+    if (
+      !block ||
+      !normalized ||
+      normalized.minRow !== normalized.maxRow ||
+      normalized.minColumn !== normalized.maxColumn
+    ) {
+      return false;
+    }
+
+    cancelEditor();
+    const row = normalized.minRow;
+    const column = normalized.minColumn;
+    const cell = cellElement(selection.startLine, row, column);
+    const sourceCell = block.table.visualRows[row]?.cells[column];
+    if (!cell || !sourceCell) {
+      return false;
+    }
+
+    const input = document.createElement("input");
+    input.type = "text";
+    input.className = "cm-live-table-cell-editor";
+    input.value = sourceCell.content;
+    input.setAttribute("aria-label", translate("cell.edit"));
+    input.autocomplete = "off";
+    input.spellcheck = false;
+    const editor = {
+      startLine: selection.startLine,
+      row,
+      column,
+      cell,
+      input,
+      renderedHtml: cell.innerHTML,
+    };
+    activeEditor = editor;
+    cell.classList.add("is-editing");
+    cell.replaceChildren(input);
+
+    const stopPointerPropagation = (event) => {
+      event.stopPropagation();
+    };
+    input.addEventListener("pointerdown", stopPointerPropagation);
+    input.addEventListener("mousedown", stopPointerPropagation);
+    input.addEventListener("click", stopPointerPropagation);
+    input.addEventListener("keydown", (event) => {
+      if (!["Escape", "Enter", "Tab"].includes(event.key)) {
+        event.stopPropagation();
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      if (event.key === "Escape") {
+        cancelEditor();
+        return;
+      }
+
+      const move = event.key === "Tab"
+        ? (event.shiftKey ? -1 : 1)
+        : 0;
+      commitEditor({ move });
+    });
+    input.addEventListener("blur", () => {
+      queueMicrotask(() => {
+        if (activeEditor?.input === input) {
+          commitEditor();
+        }
+      });
+    });
+    input.focus({ preventScroll: true });
+    input.setSelectionRange(input.value.length, input.value.length);
+    scheduleRefresh();
+    return true;
+  };
+
+  const commitEditor = ({ move = 0 } = {}) => {
+    if (!activeEditor) {
+      return false;
+    }
+
+    const editor = activeEditor;
+    activeEditor = null;
+    const block = currentTableBlock(editor.startLine);
+    if (!block) {
+      restoreEditorCell(editor);
+      scheduleRefresh();
+      return false;
+    }
+
+    const nextCell = move
+      ? adjacentCell(block, editor.row, editor.column, move)
+      : null;
+    const replacement = replaceMarkdownTableCell(
+      block.source,
+      editor.row,
+      editor.column,
+      editor.input.value,
+    );
+    if (!replacement) {
+      restoreEditorCell(editor);
+      scheduleRefresh();
+      return false;
+    }
+
+    if (nextCell) {
+      selection = {
+        startLine: editor.startLine,
+        anchorRow: nextCell.row,
+        anchorColumn: nextCell.column,
+        focusRow: nextCell.row,
+        focusColumn: nextCell.column,
+      };
+    }
+
+    if (replacement.changed) {
+      dispatchTableSource(block, replacement.source);
+    } else {
+      restoreEditorCell(editor);
+      scheduleRefresh();
+    }
+
+    if (nextCell) {
+      const schedule = globalThis.requestAnimationFrame ??
+        ((callback) => globalThis.setTimeout(callback, 0));
+      schedule(() => beginCellEditor());
+    }
+    return true;
+  };
+
+  const clearSelection = ({ commit = true } = {}) => {
+    if (commit) {
+      commitEditor();
+    } else {
+      cancelEditor();
+    }
+    pointerSelection = null;
+    columnDrag = null;
+    selection = null;
+    scheduleRefresh();
+  };
+
+  const applyTextColor = (color) => {
+    if (!selection || !isEditable()) {
+      return false;
+    }
+    commitEditor();
+    const block = currentTableBlock(selection.startLine);
+    const result = applyMarkdownTableTextColor(
+      block?.source,
+      selection,
+      color,
+    );
+    if (!block || !result) {
+      return false;
+    }
+    if (result.changed) {
+      dispatchTableSource(block, result.source);
+    } else {
+      scheduleRefresh();
+    }
+    return true;
+  };
+
+  const nearestHeaderColumn = (startLine, clientX) => {
+    const container = getView()?.dom.querySelector(
+      `.cm-live-block-preview-table[data-live-block-start="${startLine}"]`,
+    );
+    const headerCells = [
+      ...(container?.querySelectorAll(
+        '[data-live-table-cell="true"][data-live-table-row="0"]',
+      ) ?? []),
+    ];
+    let nearest = null;
+    for (const cell of headerCells) {
+      const rect = cell.getBoundingClientRect();
+      const distance = Math.abs(clientX - (rect.left + rect.width / 2));
+      const column = Number(cell.dataset.liveTableColumn);
+      if (
+        Number.isInteger(column) &&
+        (!nearest || distance < nearest.distance)
+      ) {
+        nearest = { column, distance };
+      }
+    }
+    return nearest?.column ?? null;
+  };
+
+  const beginColumnDrag = (event, handle) => {
+    const block = currentTableBlock(selection?.startLine);
+    const normalized = normalizedSelection(block);
+    if (
+      !block ||
+      !normalized ||
+      normalized.minColumn !== normalized.maxColumn ||
+      normalized.minRow !== 0 ||
+      normalized.maxRow !== block.table.rowCount - 1
+    ) {
+      return false;
+    }
+
+    columnDrag = {
+      pointerId: event.pointerId,
+      startLine: selection.startLine,
+      fromColumn: normalized.minColumn,
+      targetColumn: normalized.minColumn,
+      handle,
+    };
+    handle.classList.add("is-dragging");
+    try {
+      handle.setPointerCapture?.(event.pointerId);
+    } catch {
+      // The handle may be replaced only after a successful drop.
+    }
+    refreshNow();
+    return true;
+  };
+
+  const finishColumnDrag = (apply) => {
+    if (!columnDrag) {
+      return false;
+    }
+    const drag = columnDrag;
+    columnDrag = null;
+    drag.handle?.classList.remove("is-dragging");
+    if (!apply || drag.fromColumn === drag.targetColumn) {
+      scheduleRefresh();
+      return true;
+    }
+
+    const block = currentTableBlock(drag.startLine);
+    const result = reorderMarkdownTableColumn(
+      block?.source,
+      drag.fromColumn,
+      drag.targetColumn,
+    );
+    if (!block || !result) {
+      scheduleRefresh();
+      return false;
+    }
+
+    selection = {
+      startLine: drag.startLine,
+      anchorRow: 0,
+      anchorColumn: drag.targetColumn,
+      focusRow: block.table.rowCount - 1,
+      focusColumn: drag.targetColumn,
+    };
+    if (result.changed) {
+      dispatchTableSource(block, result.source);
+    } else {
+      scheduleRefresh();
+    }
+    return true;
+  };
+
+  const handlePointerDown = (event) => {
+    if (getMode() !== "live") {
+      return;
+    }
+    if (closestElement(event.target, ".cm-live-table-cell-editor")) {
+      return;
+    }
+
+    const colorButton = closestElement(
+      event.target,
+      "[data-live-table-color-action]",
+    );
+    if (colorButton) {
+      event.preventDefault();
+      event.stopPropagation();
+      const action = colorButton.dataset.liveTableColorAction;
+      applyTextColor(action === "clear" ? null : action);
+      return;
+    }
+
+    const columnHandle = closestElement(
+      event.target,
+      "[data-live-table-column-handle]",
+    );
+    if (columnHandle) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (isEditable()) {
+        beginColumnDrag(event, columnHandle);
+      }
+      return;
+    }
+
+    const info = cellInfo(event.target);
+    if (!info || event.button !== 0) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    if (
+      activeEditor &&
+      (
+        activeEditor.startLine !== info.startLine ||
+        activeEditor.row !== info.row ||
+        activeEditor.column !== info.column
+      )
+    ) {
+      commitEditor();
+    }
+
+    selection = {
+      startLine: info.startLine,
+      anchorRow: info.row,
+      anchorColumn: info.column,
+      focusRow: info.row,
+      focusColumn: info.column,
+    };
+    pointerSelection = {
+      pointerId: event.pointerId,
+      startLine: info.startLine,
+      anchorRow: info.row,
+      anchorColumn: info.column,
+      startX: event.clientX,
+      startY: event.clientY,
+      moved: false,
+    };
+    try {
+      info.cell.setPointerCapture?.(event.pointerId);
+    } catch {
+      // Pointer capture is a convenience; elementFromPoint still tracks the drag.
+    }
+    refreshNow();
+  };
+
+  const handlePointerMove = (event) => {
+    if (columnDrag?.pointerId === event.pointerId) {
+      event.preventDefault();
+      event.stopPropagation();
+      const column = nearestHeaderColumn(columnDrag.startLine, event.clientX);
+      if (
+        Number.isInteger(column) &&
+        column !== columnDrag.targetColumn
+      ) {
+        columnDrag.targetColumn = column;
+        refreshNow();
+      }
+      return;
+    }
+
+    if (pointerSelection?.pointerId !== event.pointerId) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    const target = document.elementFromPoint(event.clientX, event.clientY);
+    const info = cellInfo(target);
+    const distance = Math.hypot(
+      event.clientX - pointerSelection.startX,
+      event.clientY - pointerSelection.startY,
+    );
+    if (distance >= 4) {
+      pointerSelection.moved = true;
+    }
+    if (!info || info.startLine !== pointerSelection.startLine) {
+      return;
+    }
+
+    if (
+      info.row !== selection?.focusRow ||
+      info.column !== selection?.focusColumn
+    ) {
+      pointerSelection.moved = true;
+      selection = {
+        ...selection,
+        focusRow: info.row,
+        focusColumn: info.column,
+      };
+      refreshNow();
+    }
+  };
+
+  const handlePointerUp = (event) => {
+    if (columnDrag?.pointerId === event.pointerId) {
+      event.preventDefault();
+      event.stopPropagation();
+      finishColumnDrag(true);
+      return;
+    }
+
+    if (pointerSelection?.pointerId !== event.pointerId) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    const shouldEdit = !pointerSelection.moved && isEditable();
+    pointerSelection = null;
+    refreshNow();
+    if (shouldEdit) {
+      beginCellEditor();
+    }
+  };
+
+  const handlePointerCancel = (event) => {
+    if (columnDrag?.pointerId === event.pointerId) {
+      finishColumnDrag(false);
+      return;
+    }
+    if (pointerSelection?.pointerId === event.pointerId) {
+      pointerSelection = null;
+      scheduleRefresh();
+    }
+  };
+
+  const refreshNow = () => {
+    const view = getView();
+    if (!view) {
+      return;
+    }
+    const containers = [
+      ...view.dom.querySelectorAll(".cm-live-block-preview-table"),
+    ];
+    for (const container of containers) {
+      const cells = [
+        ...container.querySelectorAll('[data-live-table-cell="true"]'),
+      ];
+      for (const cell of cells) {
+        cell.classList.remove("is-selected", "is-column-drop-target");
+        cell.setAttribute("aria-selected", "false");
+        const row = Number(cell.dataset.liveTableRow);
+        const column = Number(cell.dataset.liveTableColumn);
+        cell.classList.toggle(
+          "is-editing",
+          activeEditor?.startLine === Number(container.dataset.liveBlockStart) &&
+            activeEditor?.row === row &&
+            activeEditor?.column === column,
+        );
+      }
+
+      const toolbar = container.querySelector(".cm-live-table-color-toolbar");
+      const handle = container.querySelector(".cm-live-table-column-handle");
+      if (toolbar) {
+        toolbar.hidden = true;
+      }
+      if (handle) {
+        handle.hidden = true;
+        handle.classList.remove("is-dragging");
+      }
+    }
+
+    if (!selection) {
+      return;
+    }
+    const block = currentTableBlock(selection.startLine);
+    const normalized = normalizedSelection(block);
+    const container = selectionContainer();
+    if (!block || !normalized || !container) {
+      return;
+    }
+
+    const selectedCells = [];
+    for (const cell of container.querySelectorAll('[data-live-table-cell="true"]')) {
+      const row = Number(cell.dataset.liveTableRow);
+      const column = Number(cell.dataset.liveTableColumn);
+      const selected =
+        row >= normalized.minRow &&
+        row <= normalized.maxRow &&
+        column >= normalized.minColumn &&
+        column <= normalized.maxColumn;
+      if (selected) {
+        cell.classList.add("is-selected");
+        cell.setAttribute("aria-selected", "true");
+        selectedCells.push(cell);
+      }
+      if (
+        columnDrag?.startLine === selection.startLine &&
+        column === columnDrag.targetColumn
+      ) {
+        cell.classList.add("is-column-drop-target");
+      }
+    }
+
+    const toolbar = container.querySelector(".cm-live-table-color-toolbar");
+    if (toolbar && selectedCells.length > 0 && isEditable()) {
+      toolbar.hidden = false;
+      positionFloatingControl(toolbar, unionElementRects(selectedCells), {
+        placement: "above",
+        offset: 8,
+      });
+    }
+
+    const isFullColumn =
+      normalized.minColumn === normalized.maxColumn &&
+      normalized.minRow === 0 &&
+      normalized.maxRow === block.table.rowCount - 1;
+    const handle = container.querySelector(".cm-live-table-column-handle");
+    const headerCell = cellElement(
+      selection.startLine,
+      0,
+      normalized.minColumn,
+    );
+    if (handle && headerCell && isFullColumn && isEditable()) {
+      handle.hidden = false;
+      handle.dataset.liveTableColumn = String(normalized.minColumn);
+      handle.classList.toggle("is-dragging", Boolean(columnDrag));
+      positionFloatingControl(handle, headerCell.getBoundingClientRect(), {
+        placement: "edge",
+        offset: 0,
+      });
+    }
+  };
+
+  const mount = (container, block) => {
+    if (block.type !== "table") {
+      return;
+    }
+    prepareLiveTablePreview(container, block, translate);
+    container.querySelector(".table-scroll")?.addEventListener(
+      "scroll",
+      refreshPositions,
+      { passive: true },
+    );
+    scheduleRefresh();
+  };
+
+  const destroy = () => {
+    if (refreshHandle !== null) {
+      const cancel = globalThis.cancelAnimationFrame ?? globalThis.clearTimeout;
+      cancel?.(refreshHandle);
+      refreshHandle = null;
+    }
+    cancelEditor();
+    selection = null;
+    pointerSelection = null;
+    columnDrag = null;
+  };
+
+  return {
+    mount,
+    handlePointerDown,
+    handlePointerMove,
+    handlePointerUp,
+    handlePointerCancel,
+    refreshPositions,
+    hasSelection: () => Boolean(selection),
+    clearSelection,
+    commitEditor,
+    cancelEditor,
+    destroy,
+  };
+}
+
+function prepareLiveTablePreview(container, block, translate) {
+  const parsed = parseMarkdownTable(block.source);
+  const table = container.querySelector(".table-card table");
+  if (!parsed || !table) {
+    return false;
+  }
+
+  const domRows = [
+    ...table.querySelectorAll(":scope > thead > tr, :scope > tbody > tr"),
+  ];
+  if (domRows.length !== parsed.rowCount) {
+    return false;
+  }
+
+  container.classList.add("cm-live-block-preview-table");
+  table.classList.add("cm-live-table");
+  for (const [rowIndex, row] of domRows.entries()) {
+    const cells = [...row.querySelectorAll(":scope > th, :scope > td")];
+    if (cells.length !== parsed.columnCount) {
+      container.classList.remove("cm-live-block-preview-table");
+      return false;
+    }
+    for (const [columnIndex, cell] of cells.entries()) {
+      cell.dataset.liveTableCell = "true";
+      cell.dataset.liveTableRow = String(rowIndex);
+      cell.dataset.liveTableColumn = String(columnIndex);
+      cell.setAttribute("aria-selected", "false");
+    }
+  }
+
+  const toolbar = document.createElement("div");
+  toolbar.className = "cm-live-table-color-toolbar";
+  toolbar.setAttribute("role", "toolbar");
+  toolbar.setAttribute("aria-label", translate("toolbar.label"));
+  toolbar.hidden = true;
+  for (const color of MARKDOWN_TABLE_TEXT_COLORS) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "cm-live-table-color-button";
+    button.dataset.liveTableColorAction = color.value;
+    button.dataset.colorName = color.name;
+    button.style.setProperty("--live-table-color", color.value);
+    button.setAttribute("aria-label", translate(`color.${color.name}`));
+    button.title = translate(`color.${color.name}`);
+    toolbar.append(button);
+  }
+
+  const clearButton = document.createElement("button");
+  clearButton.type = "button";
+  clearButton.className =
+    "cm-live-table-color-button cm-live-table-color-clear";
+  clearButton.dataset.liveTableColorAction = "clear";
+  clearButton.setAttribute("aria-label", translate("color.clear"));
+  clearButton.title = translate("color.clear");
+  clearButton.textContent = "×";
+  toolbar.append(clearButton);
+
+  const columnHandle = document.createElement("button");
+  columnHandle.type = "button";
+  columnHandle.className = "cm-live-table-column-handle";
+  columnHandle.dataset.liveTableColumnHandle = "true";
+  columnHandle.setAttribute("aria-label", translate("column.drag"));
+  columnHandle.title = translate("column.drag");
+  columnHandle.textContent = "⠿";
+  columnHandle.hidden = true;
+
+  container.append(toolbar, columnHandle);
+  return true;
+}
+
+function unionElementRects(elements) {
+  const rects = elements
+    .map((element) => element.getBoundingClientRect())
+    .filter((rect) => rect.width > 0 && rect.height > 0);
+  if (rects.length === 0) {
+    return null;
+  }
+  const left = Math.min(...rects.map((rect) => rect.left));
+  const top = Math.min(...rects.map((rect) => rect.top));
+  const right = Math.max(...rects.map((rect) => rect.right));
+  const bottom = Math.max(...rects.map((rect) => rect.bottom));
+  return {
+    left,
+    top,
+    right,
+    bottom,
+    width: right - left,
+    height: bottom - top,
+  };
+}
+
+function positionFloatingControl(
+  element,
+  anchorRect,
+  { placement = "above", offset = 8 } = {},
+) {
+  if (!element || !anchorRect) {
+    return;
+  }
+
+  element.style.visibility = "hidden";
+  element.hidden = false;
+  const controlRect = element.getBoundingClientRect();
+  const viewportWidth =
+    globalThis.innerWidth ??
+    document.documentElement.clientWidth ??
+    controlRect.width;
+  const viewportHeight =
+    globalThis.innerHeight ??
+    document.documentElement.clientHeight ??
+    controlRect.height;
+  let left = anchorRect.left + (anchorRect.width - controlRect.width) / 2;
+  let top;
+
+  if (placement === "edge") {
+    top = anchorRect.top - controlRect.height / 2;
+  } else {
+    top = anchorRect.top - controlRect.height - offset;
+    if (top < 8) {
+      top = anchorRect.bottom + offset;
+    }
+  }
+
+  left = Math.max(8, Math.min(left, viewportWidth - controlRect.width - 8));
+  top = Math.max(8, Math.min(top, viewportHeight - controlRect.height - 8));
+  element.style.left = `${Math.round(left)}px`;
+  element.style.top = `${Math.round(top)}px`;
+  element.style.visibility = "";
 }
 
 export function minimalDocumentChange(currentValue, nextValue) {
@@ -1736,6 +2657,7 @@ export function listItemIndentChange(text, direction, { step = 2 } = {}) {
 function buildLiveMarkdownDecorations(state, { suppressActiveLine = false } = {}) {
   const builder = new RangeSetBuilder();
   const renderOptions = state.facet(liveRenderOptionsFacet);
+  const tableInteraction = state.facet(liveTableInteractionFacet);
   let inFrontmatter = false;
   let inCodeBlock = false;
   let mdxComponentName = null;
@@ -1757,7 +2679,11 @@ function buildLiveMarkdownDecorations(state, { suppressActiveLine = false } = {}
         endLine.to,
         Decoration.replace({
           block: true,
-          widget: new LiveBlockPreviewWidget(previewBlock, renderOptions),
+          widget: new LiveBlockPreviewWidget(
+            previewBlock,
+            renderOptions,
+            tableInteraction,
+          ),
         }),
       );
       lineNumber = previewBlock.endLine;
@@ -2242,14 +3168,12 @@ export function livePreviewBlocksForSource(source, { activeLineNumber = null } =
     if (tableBlock) {
       const startLine = lineNumber;
       const endLine = tableBlock.endIndex + 1;
-      if (!lineNumberInRange(activeLineNumber, startLine, endLine)) {
-        blocks.push({
-          type: "table",
-          startLine,
-          endLine,
-          source: lines.slice(index, tableBlock.endIndex + 1).join("\n"),
-        });
-      }
+      blocks.push({
+        type: "table",
+        startLine,
+        endLine,
+        source: lines.slice(index, tableBlock.endIndex + 1).join("\n"),
+      });
       index = tableBlock.endIndex;
     }
   }
@@ -2313,32 +3237,7 @@ function mdxLiteComponentBlockOpeningRegex() {
 }
 
 function liveMarkdownTableBlockAt(lines, index) {
-  if (!liveMarkdownTableRow(lines[index]) || !liveMarkdownTableSeparator(lines[index + 1] ?? "")) {
-    return null;
-  }
-
-  let endIndex = index + 1;
-  while (endIndex + 1 < lines.length && liveMarkdownTableRow(lines[endIndex + 1])) {
-    endIndex += 1;
-  }
-
-  return { endIndex };
-}
-
-function liveMarkdownTableRow(line) {
-  const trimmed = String(line ?? "").trim();
-  return trimmed.length > 0 && trimmed.includes("|") && !/^```/.test(trimmed);
-}
-
-function liveMarkdownTableSeparator(line) {
-  const cells = String(line ?? "")
-    .trim()
-    .replace(/^\|/, "")
-    .replace(/\|$/, "")
-    .split("|")
-    .map((cell) => cell.trim());
-
-  return cells.length >= 2 && cells.every((cell) => /^:?-{3,}:?$/.test(cell));
+  return markdownTableBlockAtLines(lines, index);
 }
 
 function lineNumberInRange(lineNumber, startLine, endLine) {
@@ -2468,10 +3367,11 @@ function addDelimitedRanges({
 }
 
 class LiveBlockPreviewWidget extends WidgetType {
-  constructor(block, renderOptions = {}) {
+  constructor(block, renderOptions = {}, tableInteraction = null) {
     super();
     this.block = block;
     this.renderOptions = renderOptions;
+    this.tableInteraction = tableInteraction;
   }
 
   eq(other) {
@@ -2498,11 +3398,12 @@ class LiveBlockPreviewWidget extends WidgetType {
     card.innerHTML = livePreviewHtmlForBlock(this.block.source, this.renderOptions);
     enhanceImageLoadStates(card);
     container.append(card);
+    this.tableInteraction?.mount?.(container, this.block);
     return container;
   }
 
   ignoreEvent() {
-    return false;
+    return this.block.type === "table";
   }
 }
 

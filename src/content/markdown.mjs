@@ -1,6 +1,7 @@
 import MarkdownIt from "markdown-it";
 
 import { createTranslator } from "../../public/i18n.js";
+import { controlledTextColorSpanAt } from "./markdown-table.mjs";
 import { mdxLiteBlockRule, renderMdxLiteComponent } from "./mdx-lite.mjs";
 import {
   renderTableToolbar,
@@ -124,6 +125,11 @@ function createRenderer(options) {
   });
   renderer.inline.ruler.before("html_inline", "safe_image_html_inline", safeImageHtmlInlineRule);
   renderer.inline.ruler.before("html_inline", "safe_html_break_inline", safeHtmlBreakInlineRule);
+  renderer.inline.ruler.before(
+    "html_inline",
+    "safe_text_color_span_inline",
+    safeTextColorSpanInlineRule,
+  );
 
   renderer.renderer.rules.mdx_lite_component = (tokens, index, rendererOptions, env) =>
     sourceBlockOpen(tokens[index], env) +
@@ -144,6 +150,9 @@ function createRenderer(options) {
     renderSafeImageHtml(tokens[index].content, options, { inline: true });
 
   renderer.renderer.rules.safe_html_break_inline = () => "<br>";
+  renderer.renderer.rules.safe_text_color_span_open = (tokens, index) =>
+    `<span class="git-leaf-text-color" style="color:${tokens[index].meta.color}">`;
+  renderer.renderer.rules.safe_text_color_span_close = () => "</span>";
 
   renderer.renderer.rules.heading_open = (tokens, index, rendererOptions, env, self) => {
     const nextToken = tokens[index + 1];
@@ -355,6 +364,22 @@ function safeHtmlBreakInlineRule(state, silent) {
     state.push("safe_html_break_inline", "br", 0);
   }
   state.pos += match[0].length;
+  return true;
+}
+
+function safeTextColorSpanInlineRule(state, silent) {
+  const span = controlledTextColorSpanAt(state.src.slice(state.pos));
+  if (!span) {
+    return false;
+  }
+
+  if (!silent) {
+    const open = state.push("safe_text_color_span_open", "span", 1);
+    open.meta = { color: span.color };
+    state.md.inline.parse(span.content, state.md, state.env, state.tokens);
+    state.push("safe_text_color_span_close", "span", -1);
+  }
+  state.pos += span.length;
   return true;
 }
 
@@ -614,12 +639,13 @@ function tableShapeFromTokens(tokens, startIndex) {
       continue;
     }
     if (token.type === "inline") {
-      cells.push(token.content);
+      const measurementText = tableCellMeasurementText(token);
+      cells.push(measurementText);
       if (activeColumn >= 0) {
         cellsByColumn[activeColumn] ??= [];
-        cellsByColumn[activeColumn].push(token.content);
+        cellsByColumn[activeColumn].push(measurementText);
         if (inHeader && !columns[activeColumn]) {
-          columns[activeColumn] = token.content;
+          columns[activeColumn] = measurementText;
         }
       }
       continue;
@@ -642,6 +668,27 @@ function tableShapeFromTokens(tokens, startIndex) {
     cellsByColumn: Array.from({ length: columnCount }, (_, index) => cellsByColumn[index] ?? []),
     cells,
   };
+}
+
+function tableCellMeasurementText(inlineToken) {
+  if (!Array.isArray(inlineToken?.children) || inlineToken.children.length === 0) {
+    return String(inlineToken?.content ?? "");
+  }
+
+  return inlineToken.children
+    .map((token) => {
+      if (token.nesting !== 0) {
+        return "";
+      }
+      if (token.type === "softbreak" || token.type === "hardbreak") {
+        return " ";
+      }
+      if (token.type === "safe_image_html_inline") {
+        return parseHtmlAttributes(token.content).alt ?? "";
+      }
+      return String(token.content ?? "");
+    })
+    .join("");
 }
 
 function beginList(env, token) {
