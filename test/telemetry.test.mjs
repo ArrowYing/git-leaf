@@ -9,7 +9,7 @@ import {
   createTelemetryClient as createTelemetryClientForPlatform,
   isTelemetryEnabled as isTelemetryEnabledForPlatform,
   normalizeTelemetryAction,
-} from "../src/telemetry.mjs";
+} from "../src/desktop/telemetry.mjs";
 
 function createTelemetryClient(options = {}) {
   return createTelemetryClientForPlatform({

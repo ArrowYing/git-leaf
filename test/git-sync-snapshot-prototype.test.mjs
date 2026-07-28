@@ -15,7 +15,7 @@ import test from "node:test";
 import {
   createImmutableGitSnapshot,
   rebaseImmutableGitSnapshot,
-} from "../src/git-immutable-snapshot.mjs";
+} from "../src/server/git-immutable-snapshot.mjs";
 
 test("temporary index freezes all click-time file types without moving HEAD or the real index", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "git-leaf-snapshot-test-"));

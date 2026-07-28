@@ -6,7 +6,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 import test from "node:test";
 
-import { buildFileTree, buildMarkdownTree } from "../src/tree.mjs";
+import { buildFileTree, buildMarkdownTree } from "../src/server/tree.mjs";
 
 const run = promisify(execFile);
 

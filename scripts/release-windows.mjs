@@ -14,7 +14,7 @@ import {
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { buildUpdateManifest, updateArtifactRemotePath, updateMetadataRelativeDir } from "../src/update-publish.mjs";
+import { buildUpdateManifest, updateArtifactRemotePath, updateMetadataRelativeDir } from "./update-publish.mjs";
 import {
   assertOfficialReleaseProfile,
   assertReleaseVersionIsNew,

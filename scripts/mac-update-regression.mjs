@@ -26,7 +26,7 @@ import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { fileURLToPath } from "node:url";
 
-import { compareAppVersions } from "../src/app-updates.mjs";
+import { compareAppVersions } from "../src/desktop/app-updates.mjs";
 import { replaceMacAppContents } from "./mac-update-bridge.mjs";
 import { developmentProfileFingerprint } from "./release-mac.mjs";
 import { verifySquirrelMacPolicy } from "./squirrel-mac-policy.mjs";

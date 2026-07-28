@@ -4,7 +4,7 @@ import test from "node:test";
 import {
   renderTableToolbar,
   tableComplexityAttributes,
-} from "../src/table-complexity.mjs";
+} from "../src/content/table-complexity.mjs";
 
 test("tableComplexityAttributes keeps small tables plain", () => {
   assert.deepEqual(

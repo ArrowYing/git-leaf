@@ -12,7 +12,7 @@ import {
   windowsInstallConfirmationPath,
   windowsInstalledAppPaths,
   waitForWindowsRelaunchConfirmation,
-} from "../src/windows-app-install.mjs";
+} from "../src/desktop/windows-app-install.mjs";
 
 test("Windows Git Leaf uses a stable per-user executable path", () => {
   assert.deepEqual(

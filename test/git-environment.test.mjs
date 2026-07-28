@@ -6,7 +6,7 @@ import {
   desktopEnvironmentChecks,
   GitUnavailableError,
   runGhAuthStatus,
-} from "../src/git-environment.mjs";
+} from "../src/desktop/git-environment.mjs";
 
 test("assertGitAvailable returns the detected git version", async () => {
   const result = await assertGitAvailable({

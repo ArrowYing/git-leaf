@@ -310,7 +310,7 @@ test("update regression risk is limited to update, install, packaging, and confi
 test("desktop main telemetry changes do not require real-App update regression", () => {
   const assessment = assessUpdateRegression({
     baseTag: "v1.11.1",
-    changedFiles: ["src/desktop/main.mjs", "src/telemetry-upload-scheduler.mjs"],
+    changedFiles: ["src/desktop/main.mjs", "src/desktop/telemetry-upload-scheduler.mjs"],
     changedFileDiffs: {
       "src/desktop/main.mjs": [
         "+ telemetryUploadScheduler = createTelemetryUploadScheduler();",

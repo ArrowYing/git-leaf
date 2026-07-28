@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { windowsInstallProgressHtml } from "../src/windows-install-progress.mjs";
+import { windowsInstallProgressHtml } from "../src/desktop/windows-install-progress.mjs";
 
 test("Windows update progress window defaults to English", () => {
   const html = windowsInstallProgressHtml({

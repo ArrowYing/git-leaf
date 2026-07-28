@@ -4,7 +4,7 @@ import test from "node:test";
 import {
   createTelemetryActivityTracker,
   shouldAccumulateTelemetryMinute,
-} from "../src/telemetry-activity.mjs";
+} from "../src/desktop/telemetry-activity.mjs";
 
 test("active minutes require a focused visible unlocked non-idle app", () => {
   assert.equal(shouldAccumulateTelemetryMinute({

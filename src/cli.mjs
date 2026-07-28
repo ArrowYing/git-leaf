@@ -10,10 +10,10 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
-import { DEFAULT_BIND_HOST, previewServerUrl } from "./network-address.mjs";
-import { findRepoRoot, resolveOpenablePath } from "./paths.mjs";
-import { createRepositoryInfo } from "./repositories.mjs";
-import { createPreviewServer } from "./server.mjs";
+import { DEFAULT_BIND_HOST, previewServerUrl } from "./server/network-address.mjs";
+import { findRepoRoot, resolveOpenablePath } from "./server/paths.mjs";
+import { createRepositoryInfo } from "./server/repositories.mjs";
+import { createPreviewServer } from "./server/index.mjs";
 import { createToolVersionMonitor } from "./tool-version.mjs";
 
 const DEFAULT_PORT = 4317;

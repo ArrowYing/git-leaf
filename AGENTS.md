@@ -43,13 +43,14 @@ desktop shell, the web workspace, tests, and packaging configuration are all mai
 
 ## Repository layout
 
-- `src/`: local Node service, repository discovery, Markdown/MDX rendering, Git synchronization, and the
-  CLI entry point.
+- `src/`: runtime source. Only cross-runtime primitives and the CLI entry point stay directly under it.
+- `src/server/`: flat local Node service and repository layer shared by the CLI and Electron host.
+- `src/content/`: browser-safe Markdown/MDX rendering shared by the local service and editor bundle.
 - `src/client/`: CodeMirror Source and Live editor source.
 - `public/`: browser workspace assets. `public/source-editor.bundle.js` is generated from
   `src/client/source-editor.mjs`.
 - `src/desktop/`: Electron main-process entry point and desktop-only modules. Desktop configuration,
-  home, and navigation live there; shared environment checks live in `src/git-environment.mjs`.
+  environment checks, updates, analytics, home, and navigation live there.
 - `assets/`: packaging assets such as application icons. The macOS icon source is
   `assets/icons/git-leaf.*`.
 - `docs/`: architecture, release instructions, platform guides, renderer references, and specifications.

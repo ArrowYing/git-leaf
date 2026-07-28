@@ -6,7 +6,7 @@ import {
   inspectSharedMainWithFetchRecovery,
   sharedFetchFailurePrompt,
   sharedMainWorktree,
-} from "../src/git-share-open.mjs";
+} from "../src/server/git-share-open.mjs";
 
 const REV = "a".repeat(40);
 const HEAD = "b".repeat(40);

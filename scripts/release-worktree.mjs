@@ -90,12 +90,12 @@ const UPDATE_REGRESSION_RISK_PATHS = new Set([
   "scripts/release-shared.mjs",
   "scripts/release-windows.mjs",
   "scripts/squirrel-mac-policy.mjs",
-  "src/app-updates.mjs",
+  "src/desktop/app-updates.mjs",
   "src/desktop/config.mjs",
-  "src/update-publish.mjs",
-  "src/windows-app-install.mjs",
-  "src/windows-app-update.mjs",
-  "src/windows-install-progress.mjs",
+  "scripts/update-publish.mjs",
+  "src/desktop/windows-app-install.mjs",
+  "src/desktop/windows-app-update.mjs",
+  "src/desktop/windows-install-progress.mjs",
 ]);
 const UPDATE_REGRESSION_CONTENT_RISK_PATTERNS = new Map([
   ["src/desktop/main.mjs", /\b(?:autoUpdater|checkForUpdates|createDesktopUpdateController|createUpdateCheckScheduler|desktopUpdateStatus|DESKTOP_INSTALL_UPDATE_ACTION|git-leaf-desktop-update-status|hasPendingUpdateOnQuit|installPendingUpdateOnQuit|preparePendingUpdateOnQuit|requestQuitForUpdate|restoreKnownUpdate|updateCheckScheduler|updateController)\b|(?:\.\/)?(?:update-check-schedule|updates)\.mjs/],

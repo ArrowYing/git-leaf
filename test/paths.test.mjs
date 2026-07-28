@@ -9,8 +9,8 @@ import {
   resolveNewDocumentPath,
   resolveOpenablePath,
   resolvePreviewPath,
-} from "../src/paths.mjs";
-import { GitRepositoryNotFoundError } from "../src/git-errors.mjs";
+} from "../src/server/paths.mjs";
+import { GitRepositoryNotFoundError } from "../src/server/git-errors.mjs";
 
 test("findRepoRoot classifies directories outside Git repositories", async () => {
   const directory = await mkdtemp(path.join(tmpdir(), "git-leaf-not-a-repo-"));

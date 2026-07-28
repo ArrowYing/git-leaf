@@ -12,7 +12,7 @@ import {
   desktopPreviewServerUrl,
   startDesktopGitLeafServer,
 } from "../src/desktop/server.mjs";
-import { worktreeIdForPath } from "../src/git-worktrees.mjs";
+import { worktreeIdForPath } from "../src/server/git-worktrees.mjs";
 
 const execFileAsync = promisify(execFile);
 

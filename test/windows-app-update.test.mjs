@@ -10,7 +10,7 @@ import {
   prepareWindowsAppUpdate,
   windowsPreparedUpdateLaunch,
   windowsUpdateCachePaths,
-} from "../src/windows-app-update.mjs";
+} from "../src/desktop/windows-app-update.mjs";
 
 test("Windows updates download privately, verify, extract, and reuse a ready cache", async () => {
   const localAppData = await mkdtemp(path.join(tmpdir(), "git-leaf-win-update-"));

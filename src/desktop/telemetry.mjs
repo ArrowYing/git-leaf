@@ -8,8 +8,8 @@ import {
 } from "node:fs/promises";
 import path from "node:path";
 
-import { normalizeRendererTelemetryAction } from "../public/telemetry.js";
-import { isOfficialDistribution } from "./build-info.mjs";
+import { normalizeRendererTelemetryAction } from "../../public/telemetry.js";
+import { isOfficialDistribution } from "../build-info.mjs";
 
 // Event semantics and allowed analytical claims are defined by
 // docs/app-usage-analytics-spec.md. Update the spec before changing this contract.

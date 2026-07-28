@@ -3,7 +3,7 @@ import { mkdtemp, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { createTranslator } from "../public/i18n.js";
+import { createTranslator } from "../../public/i18n.js";
 import {
   assertNoGitOperationInProgress,
   commandErrorText,

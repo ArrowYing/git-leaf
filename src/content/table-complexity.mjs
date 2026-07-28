@@ -1,5 +1,5 @@
 import { tableLayoutStyleString } from "./table-layout.mjs";
-import { createTranslator } from "../public/i18n.js";
+import { createTranslator } from "../../public/i18n.js";
 
 const TABLE_MESSAGES = Object.freeze({
   en: Object.freeze({

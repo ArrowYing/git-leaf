@@ -5,7 +5,7 @@ import {
   buildUpdateManifest,
   updateArtifactRemotePath,
   updateMetadataRelativeDir,
-} from "../src/update-publish.mjs";
+} from "../scripts/update-publish.mjs";
 
 test("buildUpdateManifest describes macOS DMG and ZIP artifacts with absolute update URLs", () => {
   const manifest = buildUpdateManifest({

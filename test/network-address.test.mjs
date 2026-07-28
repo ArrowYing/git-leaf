@@ -5,7 +5,7 @@ import {
   DEFAULT_BIND_HOST,
   isLocalRequestAddress,
   previewServerUrl,
-} from "../src/network-address.mjs";
+} from "../src/server/network-address.mjs";
 
 test("Git Leaf URLs stay on localhost and contain no sharing token", () => {
   assert.equal(DEFAULT_BIND_HOST, "127.0.0.1");

@@ -13,13 +13,13 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { publishGitLeafShareLink } from "../src/git-share-publish.mjs";
-import { runGitSnapshotCommand } from "../src/git-immutable-snapshot.mjs";
+import { publishGitLeafShareLink } from "../src/server/git-share-publish.mjs";
+import { runGitSnapshotCommand } from "../src/server/git-immutable-snapshot.mjs";
 import {
   inspectRemoteSync,
   mergeRemoteChanges,
-} from "../src/git-remote-sync.mjs";
-import { syncSelectedFiles } from "../src/git-sync.mjs";
+} from "../src/server/git-remote-sync.mjs";
+import { syncSelectedFiles } from "../src/server/git-sync.mjs";
 
 test("real one-click sync commits and pushes every changed file type", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "git-leaf-real-sync-"));

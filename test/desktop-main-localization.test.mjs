@@ -6,7 +6,7 @@ import {
   localizeDesktopHomeError,
   windowsStartMenuShortcutOptions,
 } from "../src/desktop/main-localization.mjs";
-import { GitRepositoryNotFoundError } from "../src/git-errors.mjs";
+import { GitRepositoryNotFoundError } from "../src/server/git-errors.mjs";
 
 test("desktop shell copy honors an explicit saved language over the system language", () => {
   const buildInfo = {

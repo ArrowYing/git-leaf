@@ -7,9 +7,9 @@ import path from "node:path";
 import test from "node:test";
 import { promisify } from "node:util";
 
-import { createPreviewServer, documentPayload } from "../src/server.mjs";
-import { resolveNewDocumentPath, resolvePreviewPath } from "../src/paths.mjs";
-import { createRepositoryInfo } from "../src/repositories.mjs";
+import { createPreviewServer, documentPayload } from "../src/server/index.mjs";
+import { resolveNewDocumentPath, resolvePreviewPath } from "../src/server/paths.mjs";
+import { createRepositoryInfo } from "../src/server/repositories.mjs";
 
 const execFileAsync = promisify(execFile);
 

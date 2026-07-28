@@ -424,6 +424,12 @@ installer. Failed preparation remains retryable and must not masquerade as an ac
 
 ## Module boundaries
 
+Source directories follow runtime ownership. `src/content/` is browser-safe rendering code shared by the
+editor bundle and local Node service. `src/server/` is the local backend used by both the CLI and Electron
+host. `src/desktop/` contains Electron-only lifecycle and platform behavior. Dependency direction is
+`client -> content`, `server -> content`, and `cli/desktop -> server`; the server and content layers must
+not depend on the desktop layer.
+
 | Module | Responsibility |
 | --- | --- |
 | `src/desktop/main.mjs` | Electron lifecycle, windows, menus, repository selection, settings, deep links |
@@ -433,17 +439,18 @@ installer. Failed preparation remains retryable and must not masquerade as an ac
 | `src/desktop/user-data.mjs` | Shared human Profile and explicit smoke isolation |
 | `src/desktop/server.mjs` | Local service launch and port fallback |
 | `src/cli.mjs` | CLI discovery, service reuse, and launch |
-| `src/server.mjs` | Local HTTP API, document IO, rendering, Git actions |
-| `src/repositories.mjs`, `src/git-worktrees.mjs` | Repository identity, worktree discovery, stable IDs |
-| `src/external-command.mjs` | Command execution and failure classification |
-| `src/git-leaf-open-link.mjs`, `src/desktop/deep-link.mjs` | HTTPS and local protocol generation/parsing |
-| `src/git-share-publish.mjs`, `src/git-share-open.mjs` | Sender publication and receiver safety |
-| `src/markdown.mjs`, `src/mdx-lite.mjs` | Markdown and allowlisted MDX-lite rendering |
+| `src/server/index.mjs` | Local HTTP API, document IO, rendering, Git actions |
+| `src/server/repositories.mjs`, `src/server/git-worktrees.mjs` | Repository identity, worktree discovery, stable IDs |
+| `src/server/external-command.mjs` | Command execution and failure classification |
+| `src/server/hosted-links.mjs`, `src/server/git-leaf-open-link.mjs` | Hosted HTTPS link validation and generation |
+| `src/desktop/deep-link.mjs` | Local desktop protocol generation and parsing |
+| `src/server/git-share-publish.mjs`, `src/server/git-share-open.mjs` | Sender publication and receiver safety |
+| `src/content/markdown.mjs`, `src/content/mdx-lite.mjs` | Markdown and allowlisted MDX-lite rendering |
 | `src/client/source-editor.mjs` | Shared CodeMirror Source/Live editing model |
-| `src/git-sync.mjs` | Guarded repository-wide sync |
-| `src/git-remote-sync.mjs` | Periodic remote status and down-only merge transaction |
-| `src/git-immutable-snapshot.mjs` | Alternate-index workspace snapshots and object-layer merge |
-| `src/telemetry.mjs` | Official-build analytics state and event contract |
+| `src/server/git-sync.mjs` | Guarded repository-wide sync |
+| `src/server/git-remote-sync.mjs` | Periodic remote status and down-only merge transaction |
+| `src/server/git-immutable-snapshot.mjs` | Alternate-index workspace snapshots and object-layer merge |
+| `src/desktop/telemetry.mjs` | Official-build analytics state and event contract |
 
 Rendering, editing, repository safety, the desktop shell, and Git synchronization must not absorb one
 another's responsibilities.

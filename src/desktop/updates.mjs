@@ -8,7 +8,7 @@ import {
   updateChannelForBuildInfo,
   updateManifestIdentityError,
   updateManifestUrl,
-} from "../app-updates.mjs";
+} from "./app-updates.mjs";
 import {
   isOfficialDistribution,
   releaseTrackForBuildInfo,

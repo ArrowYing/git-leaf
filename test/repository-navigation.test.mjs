@@ -5,7 +5,7 @@ import {
   adjacentRepository,
   repositoryAfterClose,
   repositoryAtIndex,
-} from "../src/repository-navigation.mjs";
+} from "../src/desktop/repository-navigation.mjs";
 
 const REPOSITORIES = ["/repos/one", "/repos/two", "/repos/three"];
 

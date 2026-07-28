@@ -17,7 +17,7 @@ import { fileURLToPath } from "node:url";
 import {
   createImmutableGitSnapshot as createProductionSnapshot,
   rebaseImmutableGitSnapshot as rebaseProductionSnapshot,
-} from "../src/git-immutable-snapshot.mjs";
+} from "../src/server/git-immutable-snapshot.mjs";
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 

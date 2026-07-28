@@ -3,7 +3,7 @@ import path from "node:path";
 
 import {
   normalizeFrontmatterValue,
-} from "../public/frontmatter-filters.js";
+} from "../../public/frontmatter-filters.js";
 import { buildMarkdownTree } from "./tree.mjs";
 
 const FRONTMATTER_HEAD_BYTES = 16 * 1024;

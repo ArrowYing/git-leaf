@@ -7,7 +7,7 @@ import {
   ExternalCommandOutputError,
   externalCommandState,
   runExternalCommand,
-} from "../src/external-command.mjs";
+} from "../src/server/external-command.mjs";
 
 function commandError({ code, signal, stderr = "", message = "command failed" } = {}) {
   const error = new Error(message);

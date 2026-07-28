@@ -12,8 +12,8 @@ import {
   findGithubRepositoryRoot,
   githubBlobRoot,
   githubRepositoryIdentityFromRemote,
-} from "../src/repositories.mjs";
-import { worktreeIdForPath } from "../src/git-worktrees.mjs";
+} from "../src/server/repositories.mjs";
+import { worktreeIdForPath } from "../src/server/git-worktrees.mjs";
 
 const execFileAsync = promisify(execFile);
 

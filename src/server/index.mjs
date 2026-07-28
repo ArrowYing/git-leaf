@@ -6,8 +6,8 @@ import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { BUILD_INFO } from "./build-info.mjs";
-import { extractTitle, renderMarkdown } from "./markdown.mjs";
+import { BUILD_INFO } from "../build-info.mjs";
+import { extractTitle, renderMarkdown } from "../content/markdown.mjs";
 import { isLocalRequestAddress } from "./network-address.mjs";
 import {
   resolveExistingRepoPath,
@@ -54,10 +54,10 @@ import {
 } from "./repository-file-operations.mjs";
 import { createGitLeafShareLink } from "./git-leaf-open-link.mjs";
 import { publishGitLeafShareLink } from "./git-share-publish.mjs";
-import { sourceLinesFromMarkdown } from "../public/line-selection.js";
-import { normalizeSidebarFavorites } from "../public/sidebar-favorites.js";
+import { sourceLinesFromMarkdown } from "../../public/line-selection.js";
+import { normalizeSidebarFavorites } from "../../public/sidebar-favorites.js";
 
-const APP_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+const APP_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const PUBLIC_ROOT = path.join(APP_ROOT, "public");
 const TEXT_PREVIEW_MAX_BYTES = 2 * 1024 * 1024;
 const CONTENT_TYPES = new Map([

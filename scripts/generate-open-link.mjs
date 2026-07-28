@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
-import { createGitLeafOpenLink } from "../src/git-leaf-open-link.mjs";
-import { findRepoRoot } from "../src/paths.mjs";
+import { createGitLeafOpenLink } from "../src/server/git-leaf-open-link.mjs";
+import { findRepoRoot } from "../src/server/paths.mjs";
 
 function parseArguments(args) {
   const options = { repoRoot: process.cwd(), file: "" };

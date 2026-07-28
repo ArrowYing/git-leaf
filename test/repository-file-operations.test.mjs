@@ -22,7 +22,7 @@ import {
   previewRepositoryFileRename,
   renameRepositoryFile,
   rewriteMarkdownRepositoryReferences,
-} from "../src/repository-file-operations.mjs";
+} from "../src/server/repository-file-operations.mjs";
 
 const run = promisify(execFile);
 

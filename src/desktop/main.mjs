@@ -73,7 +73,7 @@ import {
   reportGitLeafShareHandoffState,
   writeDesktopDeepLinkLog,
 } from "./handoff.mjs";
-import { desktopEnvironmentChecks } from "../git-environment.mjs";
+import { desktopEnvironmentChecks } from "./git-environment.mjs";
 import { applyDevelopmentUserDataOverride } from "./user-data.mjs";
 import {
   fastForwardSharedMain,
@@ -81,40 +81,40 @@ import {
   inspectSharedMainWithFetchRecovery,
   sharedFetchFailurePrompt,
   sharedMainWorktree,
-} from "../git-share-open.mjs";
-import { syncSelectedFiles } from "../git-sync.mjs";
-import { listGitWorktrees } from "../git-worktrees.mjs";
-import { findRepoRoot } from "../paths.mjs";
-import { findGithubRepositoryRoot } from "../repositories.mjs";
+} from "../server/git-share-open.mjs";
+import { syncSelectedFiles } from "../server/git-sync.mjs";
+import { listGitWorktrees } from "../server/git-worktrees.mjs";
+import { findRepoRoot } from "../server/paths.mjs";
+import { findGithubRepositoryRoot } from "../server/repositories.mjs";
 import {
   adjacentRepository,
   repositoryAfterClose,
   repositoryAtIndex,
-} from "../repository-navigation.mjs";
+} from "./repository-navigation.mjs";
 import {
   bootstrapWindowsApp,
   confirmWindowsAppLaunch,
   windowsAppBootstrapPlan,
   windowsBootstrapNeedsExclusiveLock,
   windowsInstalledAppPaths,
-} from "../windows-app-install.mjs";
+} from "./windows-app-install.mjs";
 import {
   cleanupWindowsUpdateCache,
   prepareWindowsAppUpdate,
   windowsPreparedUpdateLaunch,
-} from "../windows-app-update.mjs";
-import { windowsInstallProgressHtml } from "../windows-install-progress.mjs";
+} from "./windows-app-update.mjs";
+import { windowsInstallProgressHtml } from "./windows-install-progress.mjs";
 import {
   createTelemetryClient,
   isTelemetryEnabled,
   normalizeTelemetryAction,
-} from "../telemetry.mjs";
-import { createTelemetryActivityTracker } from "../telemetry-activity.mjs";
+} from "./telemetry.mjs";
+import { createTelemetryActivityTracker } from "./telemetry-activity.mjs";
 import {
   createTelemetryUploadScheduler,
   DEFAULT_TELEMETRY_SHUTDOWN_UPLOAD_TIMEOUT_MS,
-} from "../telemetry-upload-scheduler.mjs";
-import { initializeUsageAnalyticsSetting } from "../usage-analytics-setting.mjs";
+} from "./telemetry-upload-scheduler.mjs";
+import { initializeUsageAnalyticsSetting } from "./usage-analytics-setting.mjs";
 import {
   getFileTypeHelpRows,
   getGitLeafHelpSections,

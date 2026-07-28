@@ -9,7 +9,7 @@ import {
   isExternalCommandExit,
   runExternalCommand,
 } from "./external-command.mjs";
-import { createTranslator } from "../public/i18n.js";
+import { createTranslator } from "../../public/i18n.js";
 
 const IN_PROGRESS_GIT_REFS = new Map([
   ["MERGE_HEAD", "merge"],

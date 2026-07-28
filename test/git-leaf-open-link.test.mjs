@@ -4,7 +4,7 @@ import test from "node:test";
 import {
   createGitLeafOpenLink,
   createGitLeafShareLink,
-} from "../src/git-leaf-open-link.mjs";
+} from "../src/server/git-leaf-open-link.mjs";
 
 test("createGitLeafOpenLink includes the exact linked worktree id", async () => {
   const link = await createGitLeafOpenLink({

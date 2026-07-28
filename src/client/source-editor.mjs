@@ -32,7 +32,7 @@ import {
 } from "@codemirror/view";
 import { EditorView, minimalSetup } from "codemirror";
 
-import { renderMarkdown } from "../markdown.mjs";
+import { renderMarkdown } from "../content/markdown.mjs";
 import { findTextMatches } from "../../public/document-search.js";
 import { enhanceImageLoadStates } from "../../public/image-preview.js";
 import { createTranslator } from "../../public/i18n.js";

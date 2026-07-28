@@ -1,6 +1,9 @@
 import path from "node:path";
 
-import { DEFAULT_UPDATE_BASE_URL, DEFAULT_UPDATE_CHANNEL } from "./app-updates.mjs";
+import {
+  DEFAULT_UPDATE_BASE_URL,
+  DEFAULT_UPDATE_CHANNEL,
+} from "../src/desktop/app-updates.mjs";
 
 export function updateMetadataRelativeDir({
   channel = DEFAULT_UPDATE_CHANNEL,

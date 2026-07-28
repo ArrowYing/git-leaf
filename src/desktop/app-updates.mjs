@@ -1,4 +1,4 @@
-import { releaseTrackForBuildInfo } from "./build-info.mjs";
+import { releaseTrackForBuildInfo } from "../build-info.mjs";
 
 export const DEFAULT_UPDATE_BASE_URL = "https://updates.mangofuture.com/git-leaf";
 export const DEFAULT_UPDATE_CHANNEL = "stable";

@@ -8,7 +8,7 @@ import {
   tableLayoutAttributes,
   tableScrollAttributeString,
 } from "./table-layout.mjs";
-import { createTranslator } from "../public/i18n.js";
+import { createTranslator } from "../../public/i18n.js";
 
 const COMPONENT_NAMES = new Set([
   "DataTable",

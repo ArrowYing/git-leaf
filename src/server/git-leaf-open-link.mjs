@@ -1,7 +1,7 @@
-import { gitLeafHttpsOpenUrl, gitLeafShareUrl } from "./desktop/deep-link.mjs";
+import { gitLeafHttpsOpenUrl, gitLeafShareUrl } from "./hosted-links.mjs";
 import { isExternalCommandExit, runExternalCommand } from "./external-command.mjs";
 import { listGitWorktrees } from "./git-worktrees.mjs";
-import { extractTitle } from "./markdown.mjs";
+import { extractTitle } from "../content/markdown.mjs";
 import { githubRepositoryIdentityFromRemote } from "./repositories.mjs";
 
 const GIT_LEAF_OPEN_LINK_MESSAGES = Object.freeze({

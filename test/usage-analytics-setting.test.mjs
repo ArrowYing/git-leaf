@@ -7,7 +7,7 @@ import test from "node:test";
 import {
   initializeUsageAnalyticsSetting,
   legacyTelemetryStateShowsEnabled,
-} from "../src/usage-analytics-setting.mjs";
+} from "../src/desktop/usage-analytics-setting.mjs";
 
 test("persisted usage analytics setting always wins over a new build default", async () => {
   let saved = false;

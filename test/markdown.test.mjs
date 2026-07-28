@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { extractFrontmatterScalar, extractTitle, renderMarkdown } from "../src/markdown.mjs";
+import { extractFrontmatterScalar, extractTitle, renderMarkdown } from "../src/content/markdown.mjs";
 
 test("renderMarkdown removes frontmatter and renders basic markdown", () => {
   const html = renderMarkdown(`---

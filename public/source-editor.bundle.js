@@ -33438,7 +33438,7 @@ function createTranslator(messages, locale = DEFAULT_LOCALE) {
   return translate;
 }
 
-// src/table-layout.mjs
+// src/content/table-layout.mjs
 var WIDTHS = {
   number: { min: 64, max: 108 },
   date: { min: 96, max: 132 },
@@ -33661,7 +33661,7 @@ function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
 
-// src/table-complexity.mjs
+// src/content/table-complexity.mjs
 var TABLE_MESSAGES = Object.freeze({
   en: Object.freeze({
     "table.filter": "Filter current table",
@@ -33785,7 +33785,7 @@ function escapeAttribute2(value) {
   return escapeHtml2(value).replaceAll('"', "&quot;").replaceAll("'", "&#39;");
 }
 
-// src/mdx-lite.mjs
+// src/content/mdx-lite.mjs
 var COMPONENT_NAMES = /* @__PURE__ */ new Set([
   "DataTable",
   "Timeline",
@@ -34805,7 +34805,7 @@ function escapeHtml3(value) {
   return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
 }
 
-// src/markdown.mjs
+// src/content/markdown.mjs
 var FRONT_MATTER_RE = /^---[ \t]*\r?\n[\s\S]*?\r?\n---[ \t]*\r?\n?/;
 var MARKDOWN_MESSAGES = Object.freeze({
   en: Object.freeze({

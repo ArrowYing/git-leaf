@@ -8,7 +8,7 @@ import {
   repositoryChangesFromPorcelain,
   syncSelectedFiles as syncSelectedFilesImpl,
   syncStateDriftKind,
-} from "../src/git-sync.mjs";
+} from "../src/server/git-sync.mjs";
 
 const REPO = { id: "docs-repo", root: "/repo/docs-repo", branch: "main" };
 const TEST_HEAD = "a".repeat(40);

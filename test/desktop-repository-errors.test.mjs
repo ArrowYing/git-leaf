@@ -5,7 +5,7 @@ import {
   repositorySelectionErrorMessage,
   startupRepositoryErrorMessage,
 } from "../src/desktop/repository-errors.mjs";
-import { GitRepositoryNotFoundError } from "../src/git-errors.mjs";
+import { GitRepositoryNotFoundError } from "../src/server/git-errors.mjs";
 
 test("repository selection defaults to English for non-Git directories", () => {
   const message = repositorySelectionErrorMessage(

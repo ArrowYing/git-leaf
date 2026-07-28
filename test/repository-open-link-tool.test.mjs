@@ -7,7 +7,9 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
-import { createGitLeafOpenLink as createCanonicalOpenLink } from "../src/git-leaf-open-link.mjs";
+import {
+  createGitLeafOpenLink as createCanonicalOpenLink,
+} from "../src/server/git-leaf-open-link.mjs";
 import {
   createGitLeafOpenLink,
   githubRepositoryIdentityFromRemote,

@@ -9,7 +9,7 @@ import {
   updateChannelForBuildInfo,
   updateManifestIdentityError,
   updateManifestUrl,
-} from "../src/app-updates.mjs";
+} from "../src/desktop/app-updates.mjs";
 
 test("compareAppVersions orders semantic versions without treating build metadata as newer", () => {
   assert.equal(compareAppVersions("0.1.2", "0.1.1"), 1);

@@ -5,7 +5,7 @@ import {
   renderTableColgroup,
   tableLayoutAttributes,
   tableScrollAttributeString,
-} from "../src/table-layout.mjs";
+} from "../src/content/table-layout.mjs";
 
 test("tableLayoutAttributes gives narrow tables a comfortable width", () => {
   const layout = tableLayoutAttributes({

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import test from "node:test";
 
-import { createTelemetryUploadScheduler } from "../src/telemetry-upload-scheduler.mjs";
+import { createTelemetryUploadScheduler } from "../src/desktop/telemetry-upload-scheduler.mjs";
 
 test("telemetry upload scheduler sends the launch summary quickly and refreshes every minute", async () => {
   const calls = [];
@@ -94,7 +94,7 @@ test("shutdown does not overlap a stuck periodic upload and stays bounded", asyn
 });
 
 test("shutdown deadline keeps an otherwise idle process alive until it settles", () => {
-  const schedulerModuleUrl = new URL("../src/telemetry-upload-scheduler.mjs", import.meta.url).href;
+  const schedulerModuleUrl = new URL("../src/desktop/telemetry-upload-scheduler.mjs", import.meta.url).href;
   const script = `
     import { createTelemetryUploadScheduler } from ${JSON.stringify(schedulerModuleUrl)};
     const scheduler = createTelemetryUploadScheduler({

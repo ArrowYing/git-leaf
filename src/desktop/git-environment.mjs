@@ -5,8 +5,8 @@ import {
   ExternalCommandOutputError,
   externalCommandState,
   runExternalCommand,
-} from "./external-command.mjs";
-import { createTranslator } from "../public/i18n.js";
+} from "../server/external-command.mjs";
+import { createTranslator } from "../../public/i18n.js";
 
 const GIT_ENVIRONMENT_MESSAGES = Object.freeze({
   en: Object.freeze({

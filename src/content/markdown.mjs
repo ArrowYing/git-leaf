@@ -1,6 +1,6 @@
 import MarkdownIt from "markdown-it";
 
-import { createTranslator } from "../public/i18n.js";
+import { createTranslator } from "../../public/i18n.js";
 import { mdxLiteBlockRule, renderMdxLiteComponent } from "./mdx-lite.mjs";
 import {
   renderTableToolbar,

@@ -14,8 +14,8 @@ import {
   parseGitWorktreeList,
   worktreeDisplayName,
   worktreeDisplayPath,
-} from "../src/git-worktrees.mjs";
-import { createRepositoryInfo } from "../src/repositories.mjs";
+} from "../src/server/git-worktrees.mjs";
+import { createRepositoryInfo } from "../src/server/repositories.mjs";
 
 const execFileAsync = promisify(execFile);
 

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-import { renderMarkdown } from "../src/markdown.mjs";
+import { renderMarkdown } from "../src/content/markdown.mjs";
 
 test("renderMarkdown renders a small whitelisted MDX DataTable without table tools", () => {
   const html = renderMarkdown(`<DataTable title="费用明细">

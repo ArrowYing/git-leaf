@@ -1,5 +1,5 @@
 ---
-last_updated: 2026-07-27
+last_updated: 2026-07-28
 status: normative
 ---
 
@@ -517,7 +517,7 @@ Do not claim:
 Every analytics change:
 
 1. defines the question, fact semantics, unit, join key, relationships, and prohibited inferences here;
-2. updates the client allowlist and persistence in `src/telemetry.mjs`;
+2. updates the client allowlist and persistence in `src/desktop/telemetry.mjs`;
 3. updates receiver validation or distribution logging in `scripts/gitleaf-update-server.py`;
 4. updates formulas and standard Markdown in `scripts/summarize-telemetry.mjs`;
 5. tests normal, duplicate, missing, out-of-order, cross-version, and truncated-window inputs;
@@ -532,9 +532,9 @@ by field presence, not app version; legacy recovery uses only the deterministic 
 
 | Responsibility | Location |
 | --- | --- |
-| Client identity, daily summaries, event/property validation | `src/telemetry.mjs` |
+| Client identity, daily summaries, event/property validation | `src/desktop/telemetry.mjs` |
 | Update state generation | `src/desktop/updates.mjs`, `src/desktop/main.mjs` |
-| Active minutes | `src/telemetry-activity.mjs` |
+| Active minutes | `src/desktop/telemetry-activity.mjs` |
 | Renderer counters | `public/telemetry.js`, `public/app.js`, `src/client/source-editor.mjs` |
 | Receiver validation and download logging | `scripts/gitleaf-update-server.py` |
 | Aggregation and Markdown reporting | `scripts/summarize-telemetry.mjs` |
