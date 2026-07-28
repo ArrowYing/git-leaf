@@ -131,6 +131,7 @@ import {
 } from "./workbench-startup.js";
 import {
   directoryMatchesTextFilter,
+  fileTextFilterMatchDetails,
   fileMatchesTextFilter,
   fileMatchesFrontmatterFilters,
   filterTextTree,
@@ -4181,9 +4182,16 @@ function renderNode(node, parentPath) {
   if (node.type === "file") {
     const button = document.createElement("button");
     const capability = treeFileCapability(node.kind, { missing: node.missing === true });
+    const textMatchDetails = isTreeTextSearchActive()
+      ? fileTextFilterMatchDetails(node, state.frontmatterFiles[node.path], state.filter)
+      : null;
     button.type = "button";
     button.className = node.path === state.currentFile ? "tree-file is-active" : "tree-file";
     button.classList.toggle("is-missing", node.missing === true);
+    button.classList.toggle(
+      "has-search-evidence",
+      Boolean(textMatchDetails?.snippetExcerpt),
+    );
     button.dataset.treeItem = "file";
     button.dataset.treePath = node.path;
     button.dataset.treeKind = node.kind || "unknown";
@@ -4193,10 +4201,35 @@ function renderNode(node, parentPath) {
     }
     button.dataset.fileCapability = capability.name;
     button.setAttribute("aria-label", `${node.path}，${capability.label}`);
+    const copy = document.createElement("span");
+    copy.className = "tree-file-copy";
     const label = document.createElement("span");
     label.className = "tree-file-label";
     appendTreeSearchLabel(label, node.name);
-    button.append(label);
+    copy.append(label);
+    if (textMatchDetails?.snippetExcerpt) {
+      button.dataset.searchMatchSource = "ai-snippet";
+      button.setAttribute(
+        "aria-description",
+        `AI snippet: ${textMatchDetails.snippetExcerpt.text}`,
+      );
+      const evidence = document.createElement("span");
+      evidence.className = "tree-file-search-evidence";
+      const source = document.createElement("span");
+      source.className = "tree-file-search-source";
+      source.textContent = "AI";
+      source.setAttribute("aria-hidden", "true");
+      const snippet = document.createElement("span");
+      snippet.className = "tree-file-search-snippet";
+      appendHighlightedText(
+        snippet,
+        textMatchDetails.snippetExcerpt.text,
+        textMatchDetails.snippetExcerpt.ranges,
+      );
+      evidence.append(source, snippet);
+      copy.append(evidence);
+    }
+    button.append(copy);
     if (capability.badge) {
       const capabilityBadge = document.createElement("span");
       capabilityBadge.className = `tree-file-capability is-${capability.name}`;
@@ -4290,7 +4323,10 @@ function appendTreeSearchLabel(element, text) {
   const filter = sidebarControlsForView(state.sidebarTab) === "search-and-filter"
     ? state.filter
     : "";
-  const ranges = textFilterMatchRanges(text, filter);
+  appendHighlightedText(element, text, textFilterMatchRanges(text, filter));
+}
+
+function appendHighlightedText(element, text, ranges) {
   if (ranges.length === 0) {
     element.textContent = text;
     return;

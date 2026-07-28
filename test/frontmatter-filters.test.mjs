@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  fileTextFilterMatchDetails,
   fileMatchesTextFilter,
   fileMatchesFrontmatterFilters,
   filterFrontmatterTree,
@@ -127,6 +128,92 @@ test("file text search requires every term in the file name or searchable metada
     ),
     false,
   );
+});
+
+test("file text search explains an ai_snippet-only match with highlighted evidence", () => {
+  const details = fileTextFilterMatchDetails(
+    {
+      type: "file",
+      name: "company-story.md",
+      path: "marketing/violy/market-context/brand/company-story.md",
+    },
+    {
+      ai_snippet: "[Marketing Context] Violy 品牌上下文：Violy 公司故事。",
+    },
+    "context",
+  );
+
+  assert.deepEqual(details, {
+    matches: true,
+    nameMatchesAllTokens: false,
+    nameRanges: [],
+    snippetExcerpt: {
+      text: "[Marketing Context] Violy 品牌上下文：Violy 公司故事。",
+      ranges: [{ from: 11, to: 18 }],
+    },
+  });
+});
+
+test("file text search shows snippet evidence when query terms span the file name and ai_snippet", () => {
+  const details = fileTextFilterMatchDetails(
+    {
+      type: "file",
+      name: "pricing-guide.md",
+      path: "marketing/violy/market-context/product/pricing-guide.md",
+    },
+    {
+      ai_snippet: "[Marketing Product Context] Violy 价格与套餐。",
+    },
+    "guide context",
+  );
+
+  assert.equal(details.matches, true);
+  assert.equal(details.nameMatchesAllTokens, false);
+  assert.deepEqual(details.nameRanges, [{ from: 8, to: 13 }]);
+  assert.deepEqual(details.snippetExcerpt?.ranges, [{ from: 19, to: 26 }]);
+});
+
+test("file text search keeps compact rows when the file name fully explains the match", () => {
+  const details = fileTextFilterMatchDetails(
+    {
+      type: "file",
+      name: "market-context.md",
+      path: "market-context.md",
+    },
+    {
+      ai_snippet: "[Marketing Context] Searchable metadata.",
+    },
+    "market context",
+  );
+
+  assert.equal(details.matches, true);
+  assert.equal(details.nameMatchesAllTokens, true);
+  assert.deepEqual(details.nameRanges, [
+    { from: 0, to: 6 },
+    { from: 7, to: 14 },
+  ]);
+  assert.equal(details.snippetExcerpt, null);
+});
+
+test("file text search excerpts keep a late ai_snippet match visible", () => {
+  const details = fileTextFilterMatchDetails(
+    {
+      type: "file",
+      name: "operating-model.md",
+      path: "operating-model.md",
+    },
+    {
+      ai_snippet:
+        "This summary begins with background that does not fit in a narrow sidebar before Governance appears.",
+    },
+    "governance",
+    { maxSnippetLength: 40 },
+  );
+
+  assert.match(details.snippetExcerpt?.text ?? "", /^….*Governance/);
+  const highlighted = details.snippetExcerpt?.ranges
+    .map(({ from, to }) => details.snippetExcerpt.text.slice(from, to));
+  assert.deepEqual(highlighted, ["Governance"]);
 });
 
 test("tree text search keeps only matching nodes and the ancestors needed to reach them", () => {

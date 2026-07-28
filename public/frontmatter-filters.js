@@ -59,20 +59,42 @@ export function filterFrontmatterTree(nodes, metadataByPath, filters, allowedKey
 }
 
 export function fileMatchesTextFilter(node, metadata, filter) {
+  return fileTextFilterMatchDetails(node, metadata, filter).matches;
+}
+
+export function fileTextFilterMatchDetails(
+  node,
+  metadata,
+  filter,
+  { maxSnippetLength = 120 } = {},
+) {
   const tokens = searchTokens(filter);
+  const name = String(node?.name ?? "");
+  const snippet = String(metadata?.ai_snippet ?? "");
   if (tokens.length === 0) {
-    return true;
+    return {
+      matches: true,
+      nameMatchesAllTokens: true,
+      nameRanges: [],
+      snippetExcerpt: null,
+    };
   }
 
-  const searchableText = [
-    node?.name,
-    metadata?.ai_snippet,
-  ]
+  const searchableText = [name, snippet]
     .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
+    .join(" ");
+  const matches = textIncludesAllTokens(searchableText, tokens);
+  const nameMatchesAllTokens = textIncludesAllTokens(name, tokens);
 
-  return textIncludesAllTokens(searchableText, tokens);
+  return {
+    matches,
+    nameMatchesAllTokens,
+    nameRanges: matches ? textMatchRangesForTokens(name, tokens) : [],
+    snippetExcerpt:
+      matches && !nameMatchesAllTokens
+        ? textFilterExcerpt(snippet, tokens, maxSnippetLength)
+        : null,
+  };
 }
 
 export function directoryMatchesTextFilter(node, filter) {
@@ -105,9 +127,13 @@ export function filterTextTree(
 }
 
 export function textFilterMatchRanges(text, filter) {
+  return textMatchRangesForTokens(text, searchTokens(filter));
+}
+
+function textMatchRangesForTokens(text, tokens) {
   const normalizedText = String(text ?? "").toLowerCase();
   const ranges = [];
-  for (const token of searchTokens(filter)) {
+  for (const token of tokens) {
     let from = normalizedText.indexOf(token);
     while (from !== -1) {
       ranges.push({ from, to: from + token.length });
@@ -126,6 +152,48 @@ export function textFilterMatchRanges(text, filter) {
     }
   }
   return merged;
+}
+
+function textFilterExcerpt(text, tokens, maxLength) {
+  const source = String(text ?? "");
+  const ranges = textMatchRangesForTokens(source, tokens);
+  if (ranges.length === 0) {
+    return null;
+  }
+
+  const firstMatch = ranges[0];
+  const excerptLength = Math.max(
+    24,
+    firstMatch.to - firstMatch.from,
+    Number.isFinite(maxLength) ? Math.trunc(maxLength) : 120,
+  );
+  if (source.length <= excerptLength) {
+    return { text: source, ranges };
+  }
+
+  const leadingContext = Math.min(
+    32,
+    Math.floor((excerptLength - (firstMatch.to - firstMatch.from)) / 2),
+  );
+  let from = Math.max(0, firstMatch.from - leadingContext);
+  let to = Math.min(source.length, from + excerptLength);
+  if (to - from < excerptLength) {
+    from = Math.max(0, to - excerptLength);
+  }
+
+  const prefix = from > 0 ? "…" : "";
+  const suffix = to < source.length ? "…" : "";
+  const visibleRanges = ranges
+    .filter((range) => range.to > from && range.from < to)
+    .map((range) => ({
+      from: Math.max(range.from, from) - from + prefix.length,
+      to: Math.min(range.to, to) - from + prefix.length,
+    }));
+
+  return {
+    text: `${prefix}${source.slice(from, to)}${suffix}`,
+    ranges: visibleRanges,
+  };
 }
 
 export function normalizeFrontmatterValue(value) {
