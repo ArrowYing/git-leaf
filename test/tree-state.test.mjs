@@ -101,6 +101,73 @@ test("shouldOpenTreeDirectory temporarily overrides manual collapse while broad 
   );
 });
 
+test("search uses transient directory state without changing saved directory preferences", () => {
+  const savedExpanded = new Set(["archive", "product/campaign-context"]);
+  const savedCollapsed = new Set(["product"]);
+  const searchAutoExpanded = new Set(["product"]);
+
+  assert.equal(
+    shouldOpenTreeDirectory({
+      directoryPath: "product",
+      searchActive: true,
+      searchAutoExpandedDirectories: searchAutoExpanded,
+      searchExpandedDirectories: new Set(),
+      searchCollapsedDirectories: new Set(),
+      expandedDirectories: savedExpanded,
+      collapsedDirectories: savedCollapsed,
+    }),
+    true,
+  );
+  assert.equal(
+    shouldOpenTreeDirectory({
+      directoryPath: "product/campaign-context",
+      searchActive: true,
+      searchAutoExpandedDirectories: searchAutoExpanded,
+      searchExpandedDirectories: new Set(),
+      searchCollapsedDirectories: new Set(),
+      expandedDirectories: savedExpanded,
+      collapsedDirectories: savedCollapsed,
+    }),
+    false,
+  );
+  assert.equal(
+    shouldOpenTreeDirectory({
+      directoryPath: "product/campaign-context",
+      searchActive: true,
+      searchAutoExpandedDirectories: searchAutoExpanded,
+      searchExpandedDirectories: new Set(["product/campaign-context"]),
+      searchCollapsedDirectories: new Set(),
+      expandedDirectories: savedExpanded,
+      collapsedDirectories: savedCollapsed,
+    }),
+    true,
+  );
+  assert.equal(
+    shouldOpenTreeDirectory({
+      directoryPath: "product",
+      searchActive: true,
+      searchAutoExpandedDirectories: searchAutoExpanded,
+      searchExpandedDirectories: new Set(),
+      searchCollapsedDirectories: new Set(["product"]),
+      expandedDirectories: savedExpanded,
+      collapsedDirectories: savedCollapsed,
+    }),
+    false,
+  );
+  assert.equal(
+    shouldOpenTreeDirectory({
+      directoryPath: "product",
+      searchActive: false,
+      searchAutoExpandedDirectories: searchAutoExpanded,
+      searchExpandedDirectories: new Set(["product"]),
+      searchCollapsedDirectories: new Set(),
+      expandedDirectories: savedExpanded,
+      collapsedDirectories: savedCollapsed,
+    }),
+    false,
+  );
+});
+
 test("sync view enters with every changed-file directory open despite saved collapse state", () => {
   const directoryState = treeDirectoryStateForView({
     view: "sync",

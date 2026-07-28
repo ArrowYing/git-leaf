@@ -1582,6 +1582,15 @@ summary[data-tree-item="directory"] {
   white-space: nowrap;
 }
 
+.tree-directory-label {
+  display: inline-block;
+  max-width: calc(100% - 12px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: top;
+  white-space: nowrap;
+}
+
 summary:hover {
   background: var(--row-hover);
 }

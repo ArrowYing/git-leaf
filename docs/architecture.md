@@ -162,7 +162,9 @@ presentation:
 - Git Leaf-created empty folders contain a zero-byte `.gitkeep`; All and Content Files preserve the
   folder while hiding the placeholder, and Sync exposes the placeholder whenever Git reports its change;
 - text search combines whitespace-separated terms with AND, matches each folder or file on its own
-  searchable fields, and keeps only matches plus the ancestor folders needed to reach them;
+  searchable fields, and initially keeps only matches plus the ancestor folders needed to reach them;
+  search has transient directory expansion state independent from the saved file tree, so explicitly
+  expanding a matching folder may reveal its descendants without changing the tree restored afterward;
 - frontmatter filtering narrows Markdown and MDX documents only.
 
 All, Favorites, Sync, and file-tree preferences must never alter Git discovery, status, staging, commit,

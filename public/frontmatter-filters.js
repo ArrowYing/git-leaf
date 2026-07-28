@@ -83,7 +83,12 @@ export function directoryMatchesTextFilter(node, filter) {
   return textIncludesAllTokens(node?.name, tokens);
 }
 
-export function filterTextTree(nodes, metadataByPath, filter) {
+export function filterTextTree(
+  nodes,
+  metadataByPath,
+  filter,
+  { expandedDirectoryPaths = new Set() } = {},
+) {
   const tokens = searchTokens(filter);
   if (tokens.length === 0) {
     return nodes;
@@ -92,6 +97,10 @@ export function filterTextTree(nodes, metadataByPath, filter) {
     Array.isArray(nodes) ? nodes : [],
     metadataByPath,
     tokens,
+    {
+      expandedDirectoryPaths: normalizePathSet(expandedDirectoryPaths),
+      parentPath: "",
+    },
   );
 }
 
@@ -142,7 +151,12 @@ function textIncludesAllTokens(text, tokens) {
   return tokens.every((token) => normalizedText.includes(token));
 }
 
-function filterTextTreeWithTokens(nodes, metadataByPath, tokens) {
+function filterTextTreeWithTokens(
+  nodes,
+  metadataByPath,
+  tokens,
+  { expandedDirectoryPaths, parentPath },
+) {
   const filtered = [];
   for (const node of nodes) {
     if (node.type === "file") {
@@ -158,16 +172,45 @@ function filterTextTreeWithTokens(nodes, metadataByPath, tokens) {
       continue;
     }
 
-    const children = filterTextTreeWithTokens(
-      Array.isArray(node.children) ? node.children : [],
-      metadataByPath,
-      tokens,
-    );
-    if (children.length > 0 || textIncludesAllTokens(node?.name, tokens)) {
+    const directoryPath = normalizedNodePath(node, parentPath);
+    const matchesDirectory = textIncludesAllTokens(node?.name, tokens);
+    const children = matchesDirectory && expandedDirectoryPaths.has(directoryPath)
+      ? (Array.isArray(node.children) ? node.children : [])
+      : filterTextTreeWithTokens(
+          Array.isArray(node.children) ? node.children : [],
+          metadataByPath,
+          tokens,
+          {
+            expandedDirectoryPaths,
+            parentPath: directoryPath,
+          },
+        );
+    if (children.length > 0 || matchesDirectory) {
       filtered.push({ ...node, children });
     }
   }
   return filtered;
+}
+
+function normalizePathSet(value) {
+  const paths = value instanceof Set
+    ? [...value]
+    : Array.isArray(value)
+      ? value
+      : [];
+  return new Set(paths.map(normalizePath).filter(Boolean));
+}
+
+function normalizedNodePath(node, parentPath) {
+  return normalizePath(
+    node?.path || [parentPath, node?.name].filter(Boolean).join("/"),
+  );
+}
+
+function normalizePath(value) {
+  return String(value ?? "")
+    .replaceAll("\\", "/")
+    .replace(/^\/+|\/+$/g, "");
 }
 
 function normalizeAllowedFrontmatterKeys(allowedKeys) {

@@ -211,6 +211,36 @@ test("matching a directory does not reveal unrelated descendants", () => {
   }]);
 });
 
+test("explicitly expanding a matching directory reveals its descendants for the active search", () => {
+  const searchableTree = [{
+    type: "directory",
+    name: "campaign-context",
+    children: [
+      {
+        type: "file",
+        name: "README.md",
+        path: "campaign-context/README.md",
+      },
+      {
+        type: "directory",
+        name: "notes",
+        children: [{
+          type: "file",
+          name: "launch.md",
+          path: "campaign-context/notes/launch.md",
+        }],
+      },
+    ],
+  }];
+
+  assert.deepEqual(
+    filterTextTree(searchableTree, {}, "campaign context", {
+      expandedDirectoryPaths: new Set(["campaign-context"]),
+    }),
+    searchableTree,
+  );
+});
+
 test("tree search highlights every case-insensitive keyword match", () => {
   assert.deepEqual(
     textFilterMatchRanges("Violy product context.md", "violy context"),

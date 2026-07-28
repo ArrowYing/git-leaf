@@ -78,9 +78,22 @@ export function shouldRecordTreeDirectoryToggle({ previousOpen, nextOpen, progra
 export function shouldOpenTreeDirectory({
   directoryPath,
   hasBroadTreeFilter,
+  searchActive = false,
+  searchAutoExpandedDirectories,
+  searchExpandedDirectories,
+  searchCollapsedDirectories,
   expandedDirectories,
   collapsedDirectories,
 }) {
+  if (searchActive) {
+    if (searchCollapsedDirectories?.has(directoryPath)) {
+      return false;
+    }
+    if (searchExpandedDirectories?.has(directoryPath)) {
+      return true;
+    }
+    return searchAutoExpandedDirectories?.has(directoryPath) === true;
+  }
   if (hasBroadTreeFilter) {
     return true;
   }
