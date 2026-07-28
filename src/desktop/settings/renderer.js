@@ -9,12 +9,16 @@
       back: "Back",
       sidebarAria: "Settings and help sections",
       settingsAndHelp: "Settings & Help",
+      navGeneral: "General",
       navAppearance: "Appearance",
       navFiles: "Files & Folders",
       navHelp: "Help",
       navShortcuts: "Keyboard Shortcuts",
       navStatus: "About & Status",
       helpNavigationAria: "Help sections",
+      generalKicker: "Settings",
+      generalTitle: "General",
+      generalDescription: "Common preferences for Git Leaf.",
       appearanceKicker: "Appearance",
       appearanceTitle: "Appearance",
       appearanceDescription: "Personal preferences that shape your reading experience.",
@@ -47,6 +51,16 @@
       fileTreeAll: "All repository files",
       fileTreeAllDescription: "Show every Git-tracked and non-ignored file.",
       fileTreeBoundary: "This setting changes only the file tree display, not Git change discovery, sync, or commit scope.",
+      gitRemoteCheckTitle: "Remote update checks",
+      gitRemoteCheckDescription: "Choose how often Git Leaf fetches and checks the Git remote.",
+      gitRemoteCheckEvery1: "Every minute",
+      gitRemoteCheckEvery2: "Every 2 minutes",
+      gitRemoteCheckEvery5: "Every 5 minutes",
+      gitRemoteCheckEvery10: "Every 10 minutes (default)",
+      gitRemoteCheckEvery30: "Every 30 minutes",
+      gitRemoteCheckEvery60: "Every 60 minutes",
+      gitRemoteCheckEvery120: "Every 120 minutes",
+      gitRemoteCheckBoundary: "A clean worktree may fast-forward automatically. This schedule never commits or pushes local changes.",
       helpKicker: "Help",
       helpTitle: "Help",
       helpDescription: "Guidance for files, filters, worktrees, sharing, and privacy.",
@@ -95,12 +109,16 @@
       back: "返回",
       sidebarAria: "设置与帮助栏目",
       settingsAndHelp: "设置与帮助",
+      navGeneral: "常规",
       navAppearance: "外观",
       navFiles: "文件与目录",
       navHelp: "使用帮助",
       navShortcuts: "快捷键",
       navStatus: "关于与状态",
       helpNavigationAria: "使用帮助章节",
+      generalKicker: "设置",
+      generalTitle: "常规",
+      generalDescription: "Git Leaf 的常用设置。",
       appearanceKicker: "外观",
       appearanceTitle: "外观",
       appearanceDescription: "只保留会持续影响阅读体验的个人偏好。",
@@ -133,6 +151,16 @@
       fileTreeAll: "全部仓库文件",
       fileTreeAllDescription: "显示 Git 已跟踪和未被忽略的所有文件。",
       fileTreeBoundary: "此设置只改变目录树显示，不改变 Git 改动发现、同步或提交范围。",
+      gitRemoteCheckTitle: "远端更新检查",
+      gitRemoteCheckDescription: "设置 Git Leaf 获取并检查 Git 远端变化的频率。",
+      gitRemoteCheckEvery1: "每 1 分钟",
+      gitRemoteCheckEvery2: "每 2 分钟",
+      gitRemoteCheckEvery5: "每 5 分钟",
+      gitRemoteCheckEvery10: "每 10 分钟（默认）",
+      gitRemoteCheckEvery30: "每 30 分钟",
+      gitRemoteCheckEvery60: "每 60 分钟",
+      gitRemoteCheckEvery120: "每 120 分钟",
+      gitRemoteCheckBoundary: "工作区干净时可以自动快进；这个定时检查绝不会自动提交或推送本地修改。",
       helpKicker: "帮助",
       helpTitle: "使用帮助",
       helpDescription: "文件、筛选、worktree、分享和隐私说明集中在这里。",
@@ -176,13 +204,14 @@
       updateStarted: "检查已开始。",
     }),
   });
-  const sections = new Set(["appearance", "files", "help", "shortcuts", "status"]);
+  const sections = new Set(["general", "appearance", "files", "help", "shortcuts", "status"]);
   const navigation = document.querySelector("#settings-navigation");
   const helpNavigation = document.querySelector("#help-navigation");
   const content = document.querySelector("#settings-content");
   const backButton = document.querySelector("#settings-back");
   const fontSizeInput = document.querySelector("#document-font-size");
   const fontSizeOutput = document.querySelector("#document-font-size-value");
+  const gitRemoteCheckInterval = document.querySelector("#git-remote-check-interval");
   const helpSections = document.querySelector("#help-sections");
   const shortcutGroups = document.querySelector("#shortcut-groups");
   const appStatus = document.querySelector("#app-status");
@@ -194,7 +223,7 @@
   const errorBox = document.querySelector("#settings-error");
   const saveStatus = document.querySelector("#settings-save-status");
   const systemColorQuery = window.matchMedia("(prefers-color-scheme: dark)");
-  let currentSection = "appearance";
+  let currentSection = "general";
   let currentPreferences = {};
   let currentLanguage = "en";
   let applyingModel = false;
@@ -251,6 +280,9 @@
       setRadioValue("colorMode", currentPreferences.colorMode || "system");
       setRadioValue("documentFont", currentPreferences.documentFont || "system-sans");
       setRadioValue("fileTreeMode", currentPreferences.fileTreeMode || "content");
+      gitRemoteCheckInterval.value = String(
+        remoteCheckInterval(currentPreferences.gitRemoteCheckIntervalMinutes),
+      );
       const fontSize = integerInRange(currentPreferences.documentFontSize, 14, 22, 16);
       fontSizeInput.value = String(fontSize);
       updateFontSizeOutput();
@@ -266,7 +298,7 @@
   }
 
   function showSection(value) {
-    currentSection = sections.has(value) ? value : "appearance";
+    currentSection = sections.has(value) ? value : "general";
     for (const button of navigation.querySelectorAll("[data-section]")) {
       if (button.dataset.section === currentSection) {
         button.setAttribute("aria-current", "page");
@@ -313,7 +345,7 @@
     if (!event.shiftKey && event.key === ",") {
       event.preventDefault();
       event.stopPropagation();
-      showSection("appearance");
+      showSection("general");
       return;
     }
     if (event.code === "Slash" || event.key === "/" || event.key === "?") {
@@ -357,18 +389,29 @@
       return;
     }
     const input = event.target;
-    if (!(input instanceof HTMLInputElement)) {
+    if (
+      !(input instanceof HTMLInputElement)
+      && !(input instanceof HTMLSelectElement)
+    ) {
       return;
     }
 
     let patch = null;
     if (
+      input instanceof HTMLInputElement &&
       input.type === "radio"
       && ["language", "colorMode", "documentFont", "fileTreeMode"].includes(input.name)
     ) {
       patch = { [input.name]: input.value };
-    } else if (input.id === "document-font-size") {
+    } else if (
+      input instanceof HTMLInputElement
+      && input.id === "document-font-size"
+    ) {
       patch = { documentFontSize: Number.parseInt(input.value, 10) };
+    } else if (input.id === "git-remote-check-interval") {
+      patch = {
+        gitRemoteCheckIntervalMinutes: remoteCheckInterval(input.value),
+      };
     }
     if (!patch) {
       return;
@@ -799,6 +842,11 @@
   function integerInRange(value, min, max, fallback) {
     const number = Number(value);
     return Number.isInteger(number) && number >= min && number <= max ? number : fallback;
+  }
+
+  function remoteCheckInterval(value) {
+    const number = Number(value);
+    return [1, 2, 5, 10, 30, 60, 120].includes(number) ? number : 10;
   }
 
   function stringValue(value, fallback = "") {

@@ -1,4 +1,27 @@
-export const REMOTE_SYNC_INTERVAL_MS = 10 * 60 * 1000;
+import {
+  DEFAULT_USER_PREFERENCES,
+  normalizeGitRemoteCheckIntervalMinutes,
+} from "./settings-preferences.js";
+
+export function remoteSyncIntervalMs(
+  intervalMinutes = DEFAULT_USER_PREFERENCES.gitRemoteCheckIntervalMinutes,
+) {
+  return normalizeGitRemoteCheckIntervalMinutes(intervalMinutes) * 60 * 1000;
+}
+
+export const REMOTE_SYNC_INTERVAL_MS = remoteSyncIntervalMs();
+
+export function remoteSyncCheckDue({
+  intervalMinutes,
+  lastAttemptAt = 0,
+  now = Date.now(),
+} = {}) {
+  const normalizedNow = Number(now);
+  const normalizedLastAttemptAt = Number(lastAttemptAt);
+  return Number.isFinite(normalizedNow)
+    && Number.isFinite(normalizedLastAttemptAt)
+    && normalizedNow - normalizedLastAttemptAt >= remoteSyncIntervalMs(intervalMinutes);
+}
 
 export function hasGitChangesChanged(previousChanges, nextChanges) {
   const previous = Array.isArray(previousChanges) ? previousChanges : [];

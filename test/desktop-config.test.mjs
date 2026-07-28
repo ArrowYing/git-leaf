@@ -23,6 +23,7 @@ const NEW_INSTALL_PREFERENCES = {
   documentFont: "system-sans",
   documentFontSize: 16,
   fileTreeMode: "content",
+  gitRemoteCheckIntervalMinutes: 10,
 };
 
 const LEGACY_PREFERENCES = {
@@ -31,6 +32,7 @@ const LEGACY_PREFERENCES = {
   documentFont: "system-sans",
   documentFontSize: 16,
   fileTreeMode: "all",
+  gitRemoteCheckIntervalMinutes: 10,
 };
 
 const LEGACY_PENDING_PREFERENCES = {
@@ -191,6 +193,7 @@ test("readDesktopConfig normalizes an invalid document font size", async () => {
       documentFont: "reading-serif",
       documentFontSize: 99,
       fileTreeMode: "content",
+      gitRemoteCheckIntervalMinutes: 15,
     },
   }), "utf8");
 
@@ -202,6 +205,7 @@ test("readDesktopConfig normalizes an invalid document font size", async () => {
       documentFont: "reading-serif",
       documentFontSize: 16,
       fileTreeMode: "content",
+      gitRemoteCheckIntervalMinutes: 10,
     },
   });
 });
@@ -384,6 +388,7 @@ test("saveDesktopPreferences persists normalized app preferences across reposito
       documentFont: "reading-serif",
       documentFontSize: 18,
       fileTreeMode: "content",
+      gitRemoteCheckIntervalMinutes: 60,
       treeDirectories: {
         "docs-repo:all": {
           expanded: ["docs", "growth"],
@@ -438,6 +443,7 @@ test("saveDesktopPreferences persists normalized app preferences across reposito
       documentFont: "reading-serif",
       documentFontSize: 18,
       fileTreeMode: "content",
+      gitRemoteCheckIntervalMinutes: 60,
       mode: "live",
       treeDirectories: {
         "docs-repo:all": {
@@ -545,6 +551,10 @@ test("concurrent preference patches merge without dropping independent fields", 
     saveDesktopPreferences({ userDataDir, preferences: { documentFont: "reading-serif" } }),
     saveDesktopPreferences({ userDataDir, preferences: { documentFontSize: 20 } }),
     saveDesktopPreferences({ userDataDir, preferences: { fileTreeMode: "all" } }),
+    saveDesktopPreferences({
+      userDataDir,
+      preferences: { gitRemoteCheckIntervalMinutes: 30 },
+    }),
     saveDesktopPreferences({ userDataDir, preferences: { mode: "live" } }),
     saveDesktopPreferences({ userDataDir, preferences: { sidebarWidth: 344 } }),
     saveDesktopPreferences({ userDataDir, preferences: { sidebarCollapsed: true } }),
@@ -560,6 +570,7 @@ test("concurrent preference patches merge without dropping independent fields", 
       documentFont: "reading-serif",
       documentFontSize: 20,
       fileTreeMode: "all",
+      gitRemoteCheckIntervalMinutes: 30,
       mode: "live",
       sidebarWidth: 344,
       sidebarCollapsed: true,

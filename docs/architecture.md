@@ -280,8 +280,11 @@ facts: the last checked remote state and the unpublished local changes. It proce
 change, including attachments, code, renames, and deletions. Each time the user enters Sync, every
 directory chain leading to a changed file starts expanded; a manual collapse affects only that visit.
 
-Remote checking starts after the repository opens and repeats every ten minutes. Returning to a visible
-window after a missed interval also triggers a check. Fetching only updates the remote-tracking ref:
+Remote checking starts after the repository opens and repeats at the persisted user interval. The
+bounded choices are 1, 2, 5, 10, 30, 60, and 120 minutes, with 10 minutes as the default. Changing the
+preference clears the existing timer and schedules the next check from that moment. Returning to a
+visible window after a missed selected interval also triggers a check. Fetching only updates the
+remote-tracking ref:
 
 - when the current branch is behind and the worktree is clean, Git Leaf applies a safe fast-forward
   automatically and refreshes the open document without changing its tab or mode;

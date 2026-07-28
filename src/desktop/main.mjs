@@ -853,7 +853,7 @@ function desktopShellShortcutFromInput(input) {
     return { command: "close-settings" };
   }
   if ((meta || ctrl) && (key === "," || code === "Comma")) {
-    return { command: "show-settings", section: "appearance" };
+    return { command: "show-settings", section: "general" };
   }
   if ((meta || ctrl) && (key === "/" || code === "Slash")) {
     return { command: "show-settings", section: "shortcuts" };
@@ -1158,7 +1158,7 @@ function desktopUpdateStatusMessage(status, resolvedLanguage = "") {
   }
 }
 
-async function showSettingsAndHelpCenter(section = "appearance") {
+async function showSettingsAndHelpCenter(section = "general") {
   if (!settingsCenter || !mainWindow || mainWindow.isDestroyed()) {
     return false;
   }
@@ -1886,7 +1886,7 @@ function installMenu() {
               label: translate("menu.settings"),
               accelerator: "CmdOrCtrl+,",
               click: () => {
-                void showSettingsAndHelpCenter("appearance");
+                void showSettingsAndHelpCenter("general");
               },
             },
             { type: "separator" },
@@ -1965,7 +1965,7 @@ function installMenu() {
                 label: translate("menu.settings"),
                 accelerator: "CmdOrCtrl+,",
                 click: () => {
-                  void showSettingsAndHelpCenter("appearance");
+                  void showSettingsAndHelpCenter("general");
                 },
               },
               ...(isOfficialDistribution(BUILD_INFO) ? [checkForUpdatesMenuItem()] : []),

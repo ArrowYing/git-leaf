@@ -9,7 +9,7 @@ const SETTINGS_HTML_PATH = path.join(ROOT, "src", "desktop", "settings", "index.
 const SETTINGS_RENDERER_PATH = path.join(ROOT, "src", "desktop", "settings", "renderer.js");
 const SETTINGS_STYLES_PATH = path.join(ROOT, "src", "desktop", "settings", "styles.css");
 
-test("settings page exposes the bounded language choices and stays hidden until localized", async () => {
+test("settings page exposes bounded language and Git check choices and stays hidden until localized", async () => {
   const [html, styles] = await Promise.all([
     readFile(SETTINGS_HTML_PATH, "utf8"),
     readFile(SETTINGS_STYLES_PATH, "utf8"),
@@ -17,17 +17,54 @@ test("settings page exposes the bounded language choices and stays hidden until 
 
   const languageValues = [...html.matchAll(/name="language"\s+value="([^"]+)"/g)]
     .map((match) => match[1]);
+  const remoteCheckValues = [
+    ...html.matchAll(/<option value="([^"]+)" data-i18n="gitRemoteCheckEvery/g),
+  ].map((match) => Number(match[1]));
   assert.deepEqual(languageValues, ["system", "en", "zh-CN"]);
+  assert.deepEqual(remoteCheckValues, [1, 2, 5, 10, 30, 60, 120]);
   assert.match(html, /<html lang="en" data-settings-ready="false">/);
   assert.equal(
     [...html.matchAll(/class="section-kicker"\s+data-i18n="([^"]+)"/g)].length,
-    5,
+    6,
   );
+  assert.match(html, /data-section="general" aria-current="page"/);
   assert.match(
     html,
     /class="language-sample" aria-hidden="true" data-i18n="languageAuto">Auto<\/span>/,
   );
   assert.match(styles, /:root\[data-settings-ready="false"\] body\s*\{\s*visibility: hidden;/);
+});
+
+test("settings renderer persists a selected Git remote check interval as minutes", async () => {
+  const source = await readFile(SETTINGS_RENDERER_PATH, "utf8");
+  const initialModel = settingsModel({
+    language: "en",
+    resolvedLanguage: "en",
+    helpTitle: "Repository files",
+  });
+  const harness = createRendererHarness({
+    initialModel,
+    saveResponse: {
+      ok: true,
+      preferences: {
+        ...initialModel.preferences,
+        gitRemoteCheckIntervalMinutes: 30,
+      },
+    },
+  });
+
+  vm.runInNewContext(source, harness.context, {
+    filename: SETTINGS_RENDERER_PATH,
+  });
+  await settle();
+
+  assert.equal(harness.remoteCheckInterval.value, "10");
+  harness.remoteCheckInterval.value = "30";
+  harness.document.dispatch("change", { target: harness.remoteCheckInterval });
+  await settle();
+
+  assert.equal(harness.savedPatches.length, 1);
+  assert.equal(harness.savedPatches[0].gitRemoteCheckIntervalMinutes, 30);
 });
 
 test("settings renderer applies resolved language and rehydrates a full model after saving", async () => {
@@ -215,6 +252,7 @@ function settingsModel({ language, resolvedLanguage, helpTitle }) {
       documentFont: "system-sans",
       documentFontSize: 16,
       fileTreeMode: "content",
+      gitRemoteCheckIntervalMinutes: 10,
     },
     resolvedLanguage,
     helpSections: [{ id: "repository-files", title: helpTitle, body: [] }],
@@ -243,6 +281,7 @@ function createRendererHarness({
     "#settings-content",
     "#settings-back",
     "#document-font-size-value",
+    "#git-remote-check-interval",
     "#help-sections",
     "#shortcut-groups",
     "#app-status",
@@ -262,6 +301,11 @@ function createRendererHarness({
     value: "16",
   });
   elements.set("#document-font-size", fontSizeInput);
+  const remoteCheckInterval = new FakeSelectElement({
+    id: "git-remote-check-interval",
+    value: "10",
+  });
+  elements.set("#git-remote-check-interval", remoteCheckInterval);
 
   for (const [name, values] of Object.entries({
     language: ["system", "en", "zh-CN"],
@@ -366,6 +410,7 @@ function createRendererHarness({
       window,
       navigator: { language: "en-US" },
       HTMLInputElement: FakeInputElement,
+      HTMLSelectElement: FakeSelectElement,
       URL,
     },
     document,
@@ -374,6 +419,7 @@ function createRendererHarness({
     checkForUpdatesButton: elements.get("#check-for-updates"),
     updateCheckResult: elements.get("#update-check-result"),
     errorBox: elements.get("#settings-error"),
+    remoteCheckInterval,
     savedPatches,
     radio(name, value) {
       return radios.get(`${name}:${value}`);
@@ -443,6 +489,8 @@ class FakeElement {
 }
 
 class FakeInputElement extends FakeElement {}
+
+class FakeSelectElement extends FakeElement {}
 
 async function settle() {
   await new Promise((resolve) => setImmediate(resolve));

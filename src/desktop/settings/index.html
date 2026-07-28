@@ -43,7 +43,8 @@
             </div>
           </div>
           <nav id="settings-navigation" class="settings-navigation">
-            <button type="button" data-section="appearance" aria-current="page" data-i18n="navAppearance">Appearance</button>
+            <button type="button" data-section="general" aria-current="page" data-i18n="navGeneral">General</button>
+            <button type="button" data-section="appearance" data-i18n="navAppearance">Appearance</button>
             <button type="button" data-section="files" data-i18n="navFiles">Files &amp; Folders</button>
             <button type="button" data-section="help" data-i18n="navHelp">Help</button>
             <button type="button" data-section="shortcuts" data-i18n="navShortcuts">Keyboard Shortcuts</button>
@@ -59,11 +60,11 @@
         </aside>
 
         <main id="settings-content" class="settings-content" tabindex="-1">
-          <section class="settings-section" data-section-panel="appearance" aria-labelledby="appearance-title">
+          <section class="settings-section" data-section-panel="general" aria-labelledby="general-title">
             <header class="section-header">
-              <p class="section-kicker" data-i18n="appearanceKicker">Appearance</p>
-              <h1 id="appearance-title" data-i18n="appearanceTitle">Appearance</h1>
-              <p data-i18n="appearanceDescription">Personal preferences that shape your reading experience.</p>
+              <p class="section-kicker" data-i18n="generalKicker">Settings</p>
+              <h1 id="general-title" data-i18n="generalTitle">General</h1>
+              <p data-i18n="generalDescription">Common preferences for Git Leaf.</p>
             </header>
 
             <div class="setting-group">
@@ -93,6 +94,37 @@
                 </label>
               </fieldset>
             </div>
+
+            <div class="setting-group setting-group-inline">
+              <div class="setting-copy">
+                <h2 id="git-remote-check-title" data-i18n="gitRemoteCheckTitle">Remote update checks</h2>
+                <p data-i18n="gitRemoteCheckDescription">Choose how often Git Leaf fetches and checks the Git remote.</p>
+              </div>
+              <select
+                id="git-remote-check-interval"
+                class="interval-select"
+                aria-labelledby="git-remote-check-title"
+              >
+                <option value="1" data-i18n="gitRemoteCheckEvery1">Every minute</option>
+                <option value="2" data-i18n="gitRemoteCheckEvery2">Every 2 minutes</option>
+                <option value="5" data-i18n="gitRemoteCheckEvery5">Every 5 minutes</option>
+                <option value="10" data-i18n="gitRemoteCheckEvery10">Every 10 minutes (default)</option>
+                <option value="30" data-i18n="gitRemoteCheckEvery30">Every 30 minutes</option>
+                <option value="60" data-i18n="gitRemoteCheckEvery60">Every 60 minutes</option>
+                <option value="120" data-i18n="gitRemoteCheckEvery120">Every 120 minutes</option>
+              </select>
+              <p class="boundary-note setting-inline-wide" data-i18n="gitRemoteCheckBoundary">
+                A clean worktree may fast-forward automatically. This schedule never commits or pushes local changes.
+              </p>
+            </div>
+          </section>
+
+          <section class="settings-section" data-section-panel="appearance" aria-labelledby="appearance-title" hidden>
+            <header class="section-header">
+              <p class="section-kicker" data-i18n="appearanceKicker">Appearance</p>
+              <h1 id="appearance-title" data-i18n="appearanceTitle">Appearance</h1>
+              <p data-i18n="appearanceDescription">Personal preferences that shape your reading experience.</p>
+            </header>
 
             <div class="setting-group">
               <div class="setting-copy">

@@ -4,6 +4,7 @@ export const DEFAULT_USER_PREFERENCES = Object.freeze({
   documentFont: "system-sans",
   documentFontSize: 16,
   fileTreeMode: "content",
+  gitRemoteCheckIntervalMinutes: 10,
 });
 
 export const LEGACY_USER_PREFERENCES = Object.freeze({
@@ -12,9 +13,12 @@ export const LEGACY_USER_PREFERENCES = Object.freeze({
   fileTreeMode: "all",
 });
 
+export const GIT_REMOTE_CHECK_INTERVAL_MINUTES = Object.freeze([1, 2, 5, 10, 30, 60, 120]);
+
 const COLOR_MODES = new Set(["system", "light", "dark"]);
 const DOCUMENT_FONTS = new Set(["system-sans", "reading-serif"]);
 const FILE_TREE_MODES = new Set(["content", "all"]);
+const GIT_REMOTE_CHECK_INTERVALS = new Set(GIT_REMOTE_CHECK_INTERVAL_MINUTES);
 const LANGUAGE_PREFERENCES = new Map([
   ["system", "system"],
   ["en", "en"],
@@ -81,6 +85,16 @@ export function normalizeFileTreeMode(value, fallback = DEFAULT_USER_PREFERENCES
   return FILE_TREE_MODES.has(normalized) ? normalized : normalizeFileTreeModeFallback(fallback);
 }
 
+export function normalizeGitRemoteCheckIntervalMinutes(
+  value,
+  fallback = DEFAULT_USER_PREFERENCES.gitRemoteCheckIntervalMinutes,
+) {
+  const number = Number(value);
+  return Number.isInteger(number) && GIT_REMOTE_CHECK_INTERVALS.has(number)
+    ? number
+    : normalizeGitRemoteCheckIntervalMinutesFallback(fallback);
+}
+
 export function normalizeUserPreferences(value, {
   defaults = DEFAULT_USER_PREFERENCES,
 } = {}) {
@@ -92,6 +106,10 @@ export function normalizeUserPreferences(value, {
     documentFont: normalizeDocumentFont(source.documentFont, defaults.documentFont),
     documentFontSize: normalizeDocumentFontSize(source.documentFontSize, defaults.documentFontSize),
     fileTreeMode: normalizeFileTreeMode(source.fileTreeMode, defaults.fileTreeMode),
+    gitRemoteCheckIntervalMinutes: normalizeGitRemoteCheckIntervalMinutes(
+      source.gitRemoteCheckIntervalMinutes,
+      defaults.gitRemoteCheckIntervalMinutes,
+    ),
   };
 }
 
@@ -117,6 +135,10 @@ export function preferencePatch(key, value) {
       return { documentFontSize: normalizeDocumentFontSize(value) };
     case "fileTreeMode":
       return { fileTreeMode: normalizeFileTreeMode(value) };
+    case "gitRemoteCheckIntervalMinutes":
+      return {
+        gitRemoteCheckIntervalMinutes: normalizeGitRemoteCheckIntervalMinutes(value),
+      };
     default:
       return null;
   }
@@ -149,4 +171,10 @@ function normalizeDocumentFontSizeFallback(value) {
 
 function normalizeFileTreeModeFallback(value) {
   return FILE_TREE_MODES.has(value) ? value : DEFAULT_USER_PREFERENCES.fileTreeMode;
+}
+
+function normalizeGitRemoteCheckIntervalMinutesFallback(value) {
+  return Number.isInteger(value) && GIT_REMOTE_CHECK_INTERVALS.has(value)
+    ? value
+    : DEFAULT_USER_PREFERENCES.gitRemoteCheckIntervalMinutes;
 }

@@ -201,7 +201,9 @@ database and is not sent automatically to any AI provider.
 
 ## Inspect local and remote changes
 
-Git Leaf checks the configured Git remote when a repository opens and every ten minutes:
+Git Leaf checks the configured Git remote when a repository opens and then on the interval selected
+under **Settings → General**. The default is 10 minutes; the available intervals are 1, 2, 5,
+10, 30, 60, and 120 minutes:
 
 - If the local working directory is clean and only behind, Git Leaf safely fast-forwards it.
 - If local edits also exist, Git Leaf reports the incoming state without changing the working
@@ -210,6 +212,9 @@ Git Leaf checks the configured Git remote when a repository opens and every ten 
   edit uncommitted.
 - **Sync and publish** integrates any required remote update, then commits and pushes **all local
   changes in the repository**.
+
+Changing the interval reschedules the next check immediately. It never turns commit or push into a
+background action.
 
 ![Sync showing one unpublished file and the explicit Sync and publish action](assets/user-guide/sync-and-publish.jpg)
 

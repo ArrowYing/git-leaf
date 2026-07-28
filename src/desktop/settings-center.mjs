@@ -10,6 +10,7 @@ import {
 } from "../../public/settings-preferences.js";
 
 export const SETTINGS_CENTER_SECTIONS = Object.freeze([
+  "general",
   "appearance",
   "files",
   "help",
@@ -32,12 +33,13 @@ const USER_PREFERENCE_KEYS = new Set([
   "documentFont",
   "documentFontSize",
   "fileTreeMode",
+  "gitRemoteCheckIntervalMinutes",
 ]);
 const EXTERNAL_PROTOCOLS = new Set(["https:", "http:", "mailto:"]);
 const DEFAULT_PAGE_PATH = path.join(import.meta.dirname, "settings", "index.html");
 const DEFAULT_PRELOAD_PATH = path.join(import.meta.dirname, "settings", "preload.cjs");
 
-export function normalizeSettingsSection(value, fallback = "appearance") {
+export function normalizeSettingsSection(value, fallback = "general") {
   const section = String(value ?? "").trim().toLowerCase();
   return SETTINGS_CENTER_SECTIONS.includes(section) ? section : fallback;
 }
@@ -115,13 +117,13 @@ export function createSettingsCenterController({
   let attached = false;
   let visible = false;
   let destroyed = false;
-  let activeSection = "appearance";
+  let activeSection = "general";
   let showGeneration = 0;
   let statusHydrationGeneration = 0;
 
   installIpcHandlers();
 
-  async function show(section = "appearance") {
+  async function show(section = "general") {
     assertActive();
     const generation = ++showGeneration;
     activeSection = normalizeSettingsSection(section);

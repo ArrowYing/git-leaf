@@ -22,9 +22,10 @@ const SETTINGS_PAGE_PATH = path.join(ROOT, "src", "desktop", "settings", "index.
 const SETTINGS_PRELOAD_PATH = path.join(ROOT, "src", "desktop", "settings", "preload.cjs");
 
 test("settings center normalizes sections and reuses the shared fresh preference defaults", () => {
+  assert.equal(normalizeSettingsSection("general"), "general");
   assert.equal(normalizeSettingsSection("appearance"), "appearance");
   assert.equal(normalizeSettingsSection(" SHORTCUTS "), "shortcuts");
-  assert.equal(normalizeSettingsSection("unknown"), "appearance");
+  assert.equal(normalizeSettingsSection("unknown"), "general");
   assert.equal(normalizeSettingsSection("unknown", "status"), "status");
 
   assert.strictEqual(SETTINGS_CENTER_DEFAULT_PREFERENCES, DEFAULT_USER_PREFERENCES);
@@ -37,6 +38,7 @@ test("settings center normalizes sections and reuses the shared fresh preference
         documentFont: "reading-serif",
         documentFontSize: 20,
         fileTreeMode: "all",
+        gitRemoteCheckIntervalMinutes: 30,
       },
     }),
     {
@@ -45,6 +47,7 @@ test("settings center normalizes sections and reuses the shared fresh preference
       documentFont: "reading-serif",
       documentFontSize: 20,
       fileTreeMode: "all",
+      gitRemoteCheckIntervalMinutes: 30,
     },
   );
 });
@@ -57,6 +60,7 @@ test("settings preference patches and actions expose only approved values", () =
       documentFont: "reading-serif",
       documentFontSize: 22,
       fileTreeMode: "all",
+      gitRemoteCheckIntervalMinutes: 60,
       documentTextSize: 18,
       fileVisibility: "content",
       arbitrary: "value",
@@ -67,10 +71,16 @@ test("settings preference patches and actions expose only approved values", () =
       documentFont: "reading-serif",
       documentFontSize: 22,
       fileTreeMode: "all",
+      gitRemoteCheckIntervalMinutes: 60,
     },
   );
   assert.deepEqual(normalizeSettingsPreferencePatch({ documentFontSize: 99 }), {
     documentFontSize: DEFAULT_USER_PREFERENCES.documentFontSize,
+  });
+  assert.deepEqual(normalizeSettingsPreferencePatch({
+    gitRemoteCheckIntervalMinutes: 15,
+  }), {
+    gitRemoteCheckIntervalMinutes: DEFAULT_USER_PREFERENCES.gitRemoteCheckIntervalMinutes,
   });
   assert.deepEqual(normalizeSettingsPreferencePatch(null), {});
 
@@ -139,7 +149,7 @@ test("settings controller lazily creates, shows, resizes, hides, reuses, and des
   assert.equal(harness.mainWindow.webContents.focusCount, 1);
 
   await controller.show("invalid-section");
-  assert.equal(controller.section, "appearance");
+  assert.equal(controller.section, "general");
   assert.equal(harness.views.length, 1);
 
   controller.destroy();
@@ -335,6 +345,7 @@ test("settings IPC authorizes its own view and whitelists model, preference, and
       colorMode: "dark",
       documentFontSize: 20,
       fileTreeMode: "all",
+      gitRemoteCheckIntervalMinutes: 30,
       ignored: "value",
     },
   );
@@ -342,6 +353,7 @@ test("settings IPC authorizes its own view and whitelists model, preference, and
     colorMode: "dark",
     documentFontSize: 20,
     fileTreeMode: "all",
+    gitRemoteCheckIntervalMinutes: 30,
   }]);
   assert.equal(saveResult.ok, true);
   assert.equal(saveResult.preferences.colorMode, "dark");

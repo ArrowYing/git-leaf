@@ -65,7 +65,8 @@ body {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
 }
 
@@ -523,6 +524,27 @@ button {
   text-align: right;
 }
 
+.interval-select {
+  width: min(100%, 240px);
+  min-height: 38px;
+  justify-self: end;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text-strong);
+  padding: 0 34px 0 11px;
+}
+
+.interval-select:focus-visible {
+  border-color: var(--accent);
+  outline: 3px solid var(--accent-ring);
+  outline-offset: 1px;
+}
+
+.setting-inline-wide {
+  grid-column: 1 / -1;
+}
+
 .stacked-choices {
   display: grid;
   gap: 8px;
@@ -848,6 +870,10 @@ kbd {
   .choice-grid-two,
   .setting-group-inline {
     grid-template-columns: 1fr;
+  }
+
+  .interval-select {
+    justify-self: start;
   }
 
   .shortcut-row,

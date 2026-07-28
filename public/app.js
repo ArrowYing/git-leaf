@@ -146,9 +146,10 @@ import {
   frontmatterLineForValue,
 } from "./frontmatter-edit.js";
 import {
-  REMOTE_SYNC_INTERVAL_MS,
   hasGitChangesChanged,
+  remoteSyncCheckDue,
   remoteSyncDecision,
+  remoteSyncIntervalMs,
 } from "./git-sync-ui.js";
 import { sidebarUpdateView } from "./update-ui.js";
 import {
@@ -289,6 +290,7 @@ const state = {
   documentFont: initialUserPreferences.documentFont,
   documentFontSize: initialUserPreferences.documentFontSize,
   fileTreeMode: initialUserPreferences.fileTreeMode,
+  gitRemoteCheckIntervalMinutes: initialUserPreferences.gitRemoteCheckIntervalMinutes,
   sidebarTab: "all",
   sidebarFavorites: [],
   sidebarFavoritesAvailable: false,
@@ -1161,13 +1163,17 @@ function resetRemoteSyncPolling() {
   }
   state.remoteSyncTimer = window.setInterval(() => {
     void loadRemoteSyncStatus({ autoApply: true });
-  }, REMOTE_SYNC_INTERVAL_MS);
+  }, remoteSyncIntervalMs(state.gitRemoteCheckIntervalMinutes));
 }
 
 function handleRemoteSyncVisibilityChange() {
   if (
     document.visibilityState === "visible" &&
-    Date.now() - state.lastRemoteSyncAttemptAt >= REMOTE_SYNC_INTERVAL_MS
+    remoteSyncCheckDue({
+      intervalMinutes: state.gitRemoteCheckIntervalMinutes,
+      lastAttemptAt: state.lastRemoteSyncAttemptAt,
+      now: Date.now(),
+    })
   ) {
     void loadRemoteSyncStatus({ autoApply: true });
   }
@@ -2328,6 +2334,12 @@ function handleDesktopPreferencesEvent(event) {
       defaults: DEFAULT_USER_PREFERENCES,
     },
   );
+  const normalizedPreferences = normalizeUserPreferences(preferences, {
+    defaults: DEFAULT_USER_PREFERENCES,
+  });
+  const remoteCheckIntervalChanged =
+    normalizedPreferences.gitRemoteCheckIntervalMinutes
+    !== state.gitRemoteCheckIntervalMinutes;
   const documentOutlineCollapsedChanged =
     typeof preferences.documentOutlineCollapsed === "boolean" &&
     preferences.documentOutlineCollapsed !== state.documentOutlineCollapsed;
@@ -2336,8 +2348,12 @@ function handleDesktopPreferencesEvent(event) {
     Number(preferences.documentOutlineWidth) !== currentDocumentOutlineWidth();
   state.desktopPreferences = { ...preferences };
   applyAppearancePreferences(preferences);
+  state.gitRemoteCheckIntervalMinutes = normalizedPreferences.gitRemoteCheckIntervalMinutes;
   if (shouldRebuildFileTree) {
     renderTree();
+  }
+  if (remoteCheckIntervalChanged) {
+    resetRemoteSyncPolling();
   }
   if (documentOutlineCollapsedChanged) {
     setDocumentOutlineCollapsed(preferences.documentOutlineCollapsed, { persist: false });

@@ -3,9 +3,11 @@ import test from "node:test";
 
 import {
   DEFAULT_USER_PREFERENCES,
+  GIT_REMOTE_CHECK_INTERVAL_MINUTES,
   LEGACY_USER_PREFERENCES,
   effectiveColorScheme,
   normalizeDocumentFontSize,
+  normalizeGitRemoteCheckIntervalMinutes,
   normalizeLanguagePreference,
   normalizeUserPreferences,
   preferencePatch,
@@ -75,10 +77,24 @@ test("document font size accepts only whole pixels from 14 through 22", () => {
   assert.equal(normalizeDocumentFontSize(22.5), 16);
 });
 
+test("Git remote checks accept only the seven persisted interval choices", () => {
+  assert.deepEqual(GIT_REMOTE_CHECK_INTERVAL_MINUTES, [1, 2, 5, 10, 30, 60, 120]);
+  for (const interval of GIT_REMOTE_CHECK_INTERVAL_MINUTES) {
+    assert.equal(normalizeGitRemoteCheckIntervalMinutes(interval), interval);
+    assert.equal(normalizeGitRemoteCheckIntervalMinutes(String(interval)), interval);
+  }
+  assert.equal(normalizeGitRemoteCheckIntervalMinutes(0), 10);
+  assert.equal(normalizeGitRemoteCheckIntervalMinutes(15), 10);
+  assert.equal(normalizeGitRemoteCheckIntervalMinutes(15, 30), 30);
+});
+
 test("preference patches whitelist only the public settings", () => {
   assert.deepEqual(preferencePatch("language", "zh-cn"), { language: "zh-CN" });
   assert.deepEqual(preferencePatch("fileTreeMode", "all"), { fileTreeMode: "all" });
   assert.deepEqual(preferencePatch("documentFontSize", "18"), { documentFontSize: 18 });
+  assert.deepEqual(preferencePatch("gitRemoteCheckIntervalMinutes", "60"), {
+    gitRemoteCheckIntervalMinutes: 60,
+  });
   assert.equal(preferencePatch("sidebarWidth", 800), null);
 });
 
@@ -89,6 +105,7 @@ test("only file tree mode changes require rebuilding the file tree", () => {
     documentFont: "system-sans",
     documentFontSize: 16,
     fileTreeMode: "content",
+    gitRemoteCheckIntervalMinutes: 10,
   };
 
   assert.equal(shouldRebuildFileTreeForPreferences(current, {
@@ -97,6 +114,7 @@ test("only file tree mode changes require rebuilding the file tree", () => {
     documentFont: "reading-serif",
     documentFontSize: 20,
     language: "en",
+    gitRemoteCheckIntervalMinutes: 30,
   }), false);
   assert.equal(shouldRebuildFileTreeForPreferences(current, {
     ...current,
