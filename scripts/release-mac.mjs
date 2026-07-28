@@ -977,6 +977,16 @@ function requirePath(filePath) {
   }
 }
 
+function signingKeychainRecoveryGuidance() {
+  return "Unlock the approved Keychain that actually holds the release private key, then rerun "
+    + "`run mac check-prereqs`. If this machine uses the standard login Keychain, run "
+    + "`security unlock-keychain ~/Library/Keychains/login.keychain-db` in the maintainer's own "
+    + "terminal and enter the password only at the local prompt; if it uses another approved "
+    + "Keychain, unlock that Keychain instead. Never pass the password with `-p`, place it in a "
+    + "release profile, log, or chat, or reset the default Keychain. The release controller will "
+    + "not collect credentials, unlock, or rewrite Keychain state.";
+}
+
 export function ensureReleaseSigningIdentityAccess({
   identity,
   probeSource = "/usr/bin/true",
@@ -1001,10 +1011,16 @@ export function ensureReleaseSigningIdentityAccess({
     const details = String(
       identities.stderr || identities.stdout || identities.error?.message || "unknown security error",
     ).trim();
-    throw new Error(`Unable to inspect Developer ID signing identities: ${details}`);
+    throw new Error(
+      `Unable to inspect Developer ID signing identities: ${details}. `
+      + signingKeychainRecoveryGuidance(),
+    );
   }
   if (!String(identities.stdout || "").includes(`"${identity}"`)) {
-    throw new Error(`Developer ID identity not found in the active Keychain search list: ${identity}`);
+    throw new Error(
+      `Developer ID identity not found in the active Keychain search list: ${identity}. `
+      + signingKeychainRecoveryGuidance(),
+    );
   }
 
   const probeDir = mkdtempSync(path.join(temporaryRoot, "git-leaf-release-signing-"));
@@ -1022,11 +1038,7 @@ export function ensureReleaseSigningIdentityAccess({
       ).trim();
       throw new Error(
         `The Developer ID identity exists, but its private key could not sign a temporary probe: ${details}. `
-        + "In the maintainer's own terminal, unlock the login Keychain with "
-        + "`security unlock-keychain ~/Library/Keychains/login.keychain-db`, enter the password only "
-        + "at the local prompt, and then rerun `run mac check-prereqs`. Never pass the password with "
-        + "`-p`, place it in a release profile, log, or chat, or reset the default Keychain. "
-        + "The release controller will not collect credentials, unlock, or rewrite Keychain state.",
+        + signingKeychainRecoveryGuidance(),
       );
     }
 

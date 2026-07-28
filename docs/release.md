@@ -221,24 +221,32 @@ node scripts/release-worktree.mjs run windows stage-updates --channel candidate
 The macOS `check-prereqs` gate resolves the exact Developer ID identity through the active Keychain
 search list and signs a disposable local Mach-O probe with its private key. It does not assume that the
 certificate and private key live in one fixed keychain, and it never unlocks, repairs, or rewrites
-Keychain state. A visible certificate or an unrelated unlocked keychain is not sufficient evidence that
+Keychain state. A visible certificate or an unrelated unlocked Keychain is not sufficient evidence that
 the release identity can sign.
 
-When the identity is listed but the signing probe returns `errSecInternalComponent` or
-`errSecAuthFailed`, the first recovery action is to have the maintainer unlock the login Keychain in
-their own terminal:
+When identity inspection fails, the identity disappears from the active search list, or the signing
+probe returns `errSecInternalComponent` or `errSecAuthFailed`, the first recovery action is to unlock the
+approved Keychain that actually holds the release private key. For a release Mac that stores the key in
+the standard login Keychain, have the maintainer run this in their own terminal:
 
 ```bash
 security unlock-keychain ~/Library/Keychains/login.keychain-db
 ```
 
-The command prompts for the password locally. Never pass the password with `-p`, place it in a release
-profile, environment variable, log, or chat, or ask the maintainer to disclose it. Rerun
-`node scripts/release-worktree.mjs run mac check-prereqs`; only a successful disposable signature proves
-recovery. Do not ask the maintainer to log out, restart the Mac, change private-key access controls,
-reset the default Keychain, or reimport credentials as the first response. Those actions require
-separate diagnosis if the probe still fails after an explicit unlock. The controller deliberately does
-not perform the unlock because it must not collect an interactive credential.
+If the key is stored in another approved Keychain, unlock that Keychain instead; unlocking an unrelated
+login Keychain proves nothing. The command prompts for the password locally. Never pass the password
+with `-p`, place it in a release profile, environment variable, log, or chat, or ask the maintainer to
+disclose it. Rerun `node scripts/release-worktree.mjs run mac check-prereqs`; only a successful
+disposable signature proves recovery. Do not ask the maintainer to log out, restart the Mac, change
+private-key access controls, reset the default Keychain, or reimport credentials as the first response.
+Those actions require separate diagnosis if the probe still fails after an explicit unlock. The
+controller deliberately does not perform the unlock because it must not collect an interactive
+credential.
+
+Developer ID signing access and the `notarytool` Keychain profile are independent gates. A successful
+notarization history lookup does not prove that `codesign` can use the private key, and a successful
+signature does not prove that the notarization credential is valid. Diagnose the sub-gate that actually
+failed; do not recreate or modify the other credential when its own probe still passes.
 
 For a public release, logical `candidate` and `stable` map to the physical `candidate` and `stable` channels. For an internal release they map to `internal-candidate` and `internal-stable`. Operators always pass the logical channel to the controller.
 

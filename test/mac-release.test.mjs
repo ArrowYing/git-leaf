@@ -47,6 +47,18 @@ import {
   verifyProductionProfileUnchanged,
 } from "../scripts/release-mac.mjs";
 
+function assertSafeSigningKeychainRecovery(error) {
+  assert.match(error.message, /approved Keychain that actually holds the release private key/);
+  assert.match(
+    error.message,
+    /security unlock-keychain ~\/Library\/Keychains\/login\.keychain-db/,
+  );
+  assert.match(error.message, /if it uses another approved Keychain, unlock that Keychain instead/);
+  assert.match(error.message, /rerun `run mac check-prereqs`/);
+  assert.doesNotMatch(error.message, /unlock-keychain -p/);
+  return true;
+}
+
 test("mac release prerequisites prove the exact identity can sign without unlocking keychains", async () => {
   const temporaryRoot = await mkdtemp(path.join(tmpdir(), "git-leaf-signing-prereq-test-"));
   const probeSource = path.join(temporaryRoot, "probe-source");
@@ -85,13 +97,33 @@ test("mac release prerequisites prove the exact identity can sign without unlock
   await rm(temporaryRoot, { recursive: true, force: true });
 });
 
-test("mac release prerequisites reject a missing signing identity before probing", () => {
+test("mac release prerequisites route an identity inspection failure through safe Keychain recovery", () => {
+  assert.throws(
+    () => ensureReleaseSigningIdentityAccess({
+      identity: "Developer ID Application: Example Corp (EXAMPLE123)",
+      runCommand: () => ({
+        status: 51,
+        stdout: "",
+        stderr: "The user name or passphrase you entered is not correct.",
+      }),
+    }),
+    (error) => {
+      assert.match(error.message, /Unable to inspect Developer ID signing identities/);
+      return assertSafeSigningKeychainRecovery(error);
+    },
+  );
+});
+
+test("mac release prerequisites route a missing signing identity through safe Keychain recovery", () => {
   assert.throws(
     () => ensureReleaseSigningIdentityAccess({
       identity: "Developer ID Application: Missing",
       runCommand: () => ({ status: 0, stdout: "0 valid identities found\n", stderr: "" }),
     }),
-    /identity not found/,
+    (error) => {
+      assert.match(error.message, /identity not found/);
+      return assertSafeSigningKeychainRecovery(error);
+    },
   );
 });
 
@@ -115,13 +147,7 @@ test("mac release prerequisites report private-key denial and remove the tempora
     }),
     (error) => {
       assert.match(error.message, /private key could not sign.*errSecInternalComponent/);
-      assert.match(
-        error.message,
-        /security unlock-keychain ~\/Library\/Keychains\/login\.keychain-db/,
-      );
-      assert.match(error.message, /rerun `run mac check-prereqs`/);
-      assert.doesNotMatch(error.message, /unlock-keychain -p/);
-      return true;
+      return assertSafeSigningKeychainRecovery(error);
     },
   );
   assert.deepEqual(await readdir(temporaryRoot), ["probe-source"]);

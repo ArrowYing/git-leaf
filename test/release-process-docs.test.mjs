@@ -43,7 +43,10 @@ test("release documentation exposes the dual-track build and publication boundar
     releaseDoc,
     /security unlock-keychain ~\/Library\/Keychains\/login\.keychain-db/,
   );
-  assert.match(releaseDoc, /only a successful disposable signature proves[\s\S]*recovery/);
+  assert.match(releaseDoc, /approved Keychain that actually holds the release private key/);
+  assert.match(releaseDoc, /If the key is stored in another approved Keychain, unlock that Keychain instead/);
+  assert.match(releaseDoc, /only a successful[\s\S]*disposable signature proves recovery/);
+  assert.match(releaseDoc, /Developer ID signing access and the `notarytool` Keychain profile are independent gates/);
   assert.doesNotMatch(
     releaseDoc,
     /unlock-keychain -p|UPDATE_REMOTE_HOST="/,
