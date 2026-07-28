@@ -29,6 +29,7 @@ edits.
 | --- | --- |
 | [Positioning](positioning.md) | Product category, object model, terminology, audiences, and boundaries |
 | [Human-agent workflow](human-agent-workflow.md) | The product loop, current evidence, and capability limits |
+| [Why Git Leaf](why-git-leaf.md) | Why Git Leaf is a meaningful option beside VS Code and Obsidian |
 | [Go to market](go-to-market.md) | External narrative, README hero, product visual, demo, download page, and campaign hierarchy |
 | [Agent-led promotion](agent-led-promotion.md) | Future direction for agent-executed promotion; operating strategy is not yet defined |
 

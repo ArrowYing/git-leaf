@@ -69,9 +69,17 @@ Git 仓库是持久的共享上下文事实源：其中可以保存知识、指�
 | 阅读或做范围明确修改的团队成员 | **Git Leaf** | 通过面向文档的桌面界面使用仓库 |
 | 开发者和仓库维护者 | IDE、终端和 Git 工具 | 完整控制分支、diff、冲突、代码和自动化 |
 
-Git Leaf 不替代 Agent 客户端、IDE 或通用笔记系统。如果工作的中心是由反向链接、关系图和插件组成的
-Vault，而不是团队与 Agent 共享的 Git 上下文工作流，[Obsidian](https://obsidian.md/help/obsidian)
-仍然是更自然的选择。
+### 为什么不直接使用 VS Code 或 Obsidian？
+
+如果所有对仓库负责的人都熟悉开发工具，并且需要完整控制 Git，应该使用
+[VS Code](https://code.visualstudio.com/docs/sourcecontrol/overview)。如果工作的中心是一个供人记录、
+链接和扩展的 Vault，即使也使用 Git 同步，[Obsidian](https://obsidian.md/help/Files%2Band%2Bfolders/How%2BObsidian%2Bstores%2Bdata)
+仍然更合适。
+
+当 Agent 直接使用仓库，而对其中内容含义和正确性负责的人需要以易读、专注的方式检查和修正同一批文件时，
+Git Leaf 才是更合适的选项。它不是为了让 Git 更强，而是让团队里不使用开发工具的人，也能参与 Agent
+上下文仓库的日常维护。完整论证见英文 marketing 文章
+[Why Git Leaf instead of VS Code or Obsidian?](marketing/why-git-leaf.md)。
 
 ## 下载
 

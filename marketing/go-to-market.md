@@ -32,6 +32,31 @@ This is not a generic Markdown-editing problem. It appears when repository-nativ
 important while domain experts, operators, product owners, or managers should not need an IDE or Git
 commands.
 
+### Competitive question
+
+> If a Git repository is already the knowledge and context base for AI agents, why not use VS Code or
+> Obsidian?
+
+This question should be answered directly rather than through a feature checklist:
+
+- VS Code is the better choice when everyone responsible for the repository is comfortable with
+  developer tools and wants complete Git control.
+- Obsidian is the better choice when a Vault and its human note-taking, linking, and plugin system are
+  the center of the work, even if Git is used for synchronization.
+- Git Leaf is the option when agents work directly in the repository but the people responsible for
+  its meaning and correctness need a readable, focused way to inspect and correct the same files.
+
+The campaign argument is not that VS Code or Obsidian lack Git capabilities. It is that neither tool
+defaults to the role Git Leaf serves: the non-developer human return path into a repository maintained
+with agents.
+
+Use the short expression:
+
+> Keep agent context in Git, and let the rest of the team inspect and correct it.
+
+The complete competitive reasoning and the current product gap are in
+[Why Git Leaf instead of VS Code or Obsidian?](why-git-leaf.md).
+
 ### Core value
 
 > AI agents work directly in Git. People use Git Leaf to read, inspect, and make focused edits.
@@ -176,6 +201,7 @@ Create when campaign execution begins:
 ## Communication principles
 
 - Begin with the shared repository and human-agent division of work, not a feature list.
+- Answer why a separate app is useful without understating what VS Code or Obsidian can already do.
 - Show real agent use outside Git Leaf and real human use inside Git Leaf.
 - Use `read`, `inspect`, `hand back context`, and `focused edit` for the human role.
 - Do not call Git Leaf a knowledge base, context engine, agent runtime, or review system.

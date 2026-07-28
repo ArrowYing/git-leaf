@@ -77,9 +77,19 @@ Each participant can use the interface suited to their work while the files rema
 | Team members reading or making focused edits | **Git Leaf** | Use the repository through a document-oriented desktop interface |
 | Developers and repository maintainers | An IDE, terminal, and Git tools | Keep full control of branches, diffs, conflicts, code, and automation |
 
-Git Leaf is not trying to replace an agent client, IDE, or general note-taking system. If the center of
-the work is a Vault built around backlinks, graph exploration, and plugins rather than a shared Git
-context workflow, [Obsidian](https://obsidian.md/help/obsidian) remains the more natural fit.
+### Why not VS Code or Obsidian?
+
+Use [VS Code](https://code.visualstudio.com/docs/sourcecontrol/overview) when everyone responsible for
+the repository is comfortable with developer tools and wants complete Git control. Use
+[Obsidian](https://obsidian.md/help/Files%2Band%2Bfolders/How%2BObsidian%2Bstores%2Bdata) when a Vault
+and its note-taking, linking, and plugin system are the center of the work, even if Git is used for
+synchronization.
+
+Git Leaf is the option when agents work directly in the repository but the people responsible for its
+meaning and correctness need a readable, focused way to inspect and correct the same files. Its job is
+not to make Git more powerful; it is to let the rest of the team participate without turning their
+daily work into a developer workflow. Read the longer
+[reason for a separate app](marketing/why-git-leaf.md).
 
 ## Download
 

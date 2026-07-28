@@ -133,6 +133,25 @@ Git Leaf assumes:
 
 Git Leaf complements these tools instead of replacing them.
 
+## Choice boundary: VS Code, Obsidian, or Git Leaf
+
+The category is not justified merely because Git Leaf can open Markdown or a Git repository. VS Code
+already provides complete graphical Git and development workflows. Obsidian already works with local
+Markdown files and can add Git synchronization and diffs through community plugins.
+
+The choice depends on the primary object and the human role:
+
+- choose VS Code when repository participants are developers who want complete technical control;
+- choose Obsidian when a human-authored Vault, links, and plugins are the center of the knowledge
+  workflow;
+- choose Git Leaf when the repository is shared agent context and the people responsible for its
+  correctness need a readable, focused interface rather than a developer environment.
+
+Git Leaf's independent reason to exist is the third case. It productizes the human return path into a
+repository that agents and developers continue to use directly. See
+[Why Git Leaf instead of VS Code or Obsidian?](why-git-leaf.md) for the complete argument and its
+current product implications.
+
 ## Difference from a conventional knowledge-base app
 
 A conventional knowledge-base app usually centers human capture, browsing, linking, retrieval, and
