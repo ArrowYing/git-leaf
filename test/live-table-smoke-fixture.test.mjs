@@ -8,6 +8,7 @@ import {
   LIVE_TABLE_SMOKE_ACCEPTANCE,
   LIVE_TABLE_SMOKE_FILE,
   cleanupLiveTableSmokeFixture,
+  containsNativeLiveTableSmokeTable,
   createLiveTableSmokeFixture,
   readLiveTableSmokeDocument,
 } from "../scripts/live-table-smoke-fixture.mjs";
@@ -24,6 +25,10 @@ test("Live table smoke fixture provides native editable table scenarios", () => 
   try {
     assert.equal(fixture.file, LIVE_TABLE_SMOKE_FILE);
     assert.match(LIVE_TABLE_SMOKE_ACCEPTANCE, /斜向拖动/);
+    assert.match(LIVE_TABLE_SMOKE_ACCEPTANCE, /正在编辑的单元格/);
+    assert.match(LIVE_TABLE_SMOKE_ACCEPTANCE, /固定在表格顶部/);
+    assert.match(LIVE_TABLE_SMOKE_ACCEPTANCE, /至少两个单元格/);
+    assert.match(LIVE_TABLE_SMOKE_ACCEPTANCE, /Esc 关闭/);
     assert.match(LIVE_TABLE_SMOKE_ACCEPTANCE, /Preview 保持只读/);
 
     const source = readLiveTableSmokeDocument(fixture);
@@ -34,6 +39,14 @@ test("Live table smoke fixture provides native editable table scenarios", () => 
     assert.equal(block?.table.rowCount, 5);
     assert.ok(parseMarkdownTable(block?.source));
     assert.match(source, /style="color: #16a34a;"/);
+    assert.equal(containsNativeLiveTableSmokeTable(source), true);
+    assert.equal(
+      containsNativeLiveTableSmokeTable(source.replace(
+        "| 渠道 | 收入与变化 | 颜色语义 | 状态 |",
+        "| 收入与变化 | 颜色语义 | 渠道 | 状态 |",
+      )),
+      true,
+    );
   } finally {
     cleanupLiveTableSmokeFixture(fixture);
     rmSync(temporaryRoot, { recursive: true, force: true });

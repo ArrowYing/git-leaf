@@ -9,13 +9,20 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 export const LIVE_TABLE_SMOKE_FILE = "live-table-editing.md";
+export const LIVE_TABLE_SMOKE_HEADERS = [
+  "渠道",
+  "收入与变化",
+  "颜色语义",
+  "状态",
+];
 
 export const LIVE_TABLE_SMOKE_ACCEPTANCE = [
   "Live 模式始终显示渲染后的原生 Markdown 表格；",
   "单击一个单元格时，只在该单元格内显示并编辑源码；",
+  "从正在编辑的单元格拖入相邻单元格，仍可形成多单元格选区；",
   "横向、纵向或斜向拖动都选择起点与终点围成的完整矩形；",
-  "浮动色板可为整个选区设置或清除文字颜色；",
-  "完整选中一列后，顶部把手可左右拖动该列；",
+  "文字色板固定在表格顶部，可为整个选区设置或清除文字颜色，并可通过关闭按钮或 Esc 关闭；",
+  "同一列纵向选中至少两个单元格后，顶部把手可左右拖动整列；",
   "Preview 保持只读，写回内容仍是原生管道表格和受控颜色 span。",
 ].join("");
 
@@ -88,6 +95,21 @@ export function readLiveTableSmokeDocument(fixture) {
     path.join(path.resolve(fixture.repoRoot), fixture.file),
     "utf8",
   );
+}
+
+export function containsNativeLiveTableSmokeTable(source) {
+  return String(source ?? "")
+    .split(/\r?\n/)
+    .some((line) => {
+      const trimmed = line.trim();
+      return (
+        trimmed.startsWith("|") &&
+        trimmed.endsWith("|") &&
+        LIVE_TABLE_SMOKE_HEADERS.every((header) => (
+          trimmed.includes(` ${header} `)
+        ))
+      );
+    });
 }
 
 export function cleanupLiveTableSmokeFixture(fixture) {

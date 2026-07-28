@@ -162,6 +162,7 @@ const SOURCE_EDITOR_SLASH_MESSAGES = {
 const SOURCE_EDITOR_TABLE_MESSAGES = {
   en: {
     "toolbar.label": "Table text color",
+    "toolbar.close": "Close table tools",
     "color.green": "Positive green",
     "color.red": "Risk red",
     "color.orange": "Warning orange",
@@ -173,6 +174,7 @@ const SOURCE_EDITOR_TABLE_MESSAGES = {
   },
   "zh-CN": {
     "toolbar.label": "表格文字颜色",
+    "toolbar.close": "关闭表格工具栏",
     "color.green": "正向绿色",
     "color.red": "风险红色",
     "color.orange": "提醒橙色",
@@ -804,6 +806,7 @@ export function createSourceEditor({
   let currentEditable = true;
   let remoteMergeHighlightTimer = null;
   let view = null;
+  const editorDocument = parent?.ownerDocument ?? globalThis.document;
   const themeCompartment = new Compartment();
   const liveModeCompartment = new Compartment();
   const editableCompartment = new Compartment();
@@ -812,6 +815,7 @@ export function createSourceEditor({
     getMode: () => currentMode,
     isEditable: () => currentEditable,
     locale: locale ?? language,
+    documentRoot: editorDocument,
   });
   function liveModeExtensions() {
     return currentMode === "live"
@@ -1007,6 +1011,17 @@ export function createSourceEditor({
   view.dom.addEventListener("pointermove", tableInteraction.handlePointerMove, true);
   view.dom.addEventListener("pointerup", tableInteraction.handlePointerUp, true);
   view.dom.addEventListener("pointercancel", tableInteraction.handlePointerCancel, true);
+  editorDocument?.addEventListener?.(
+    "pointerup",
+    tableInteraction.handleDocumentPointerUp,
+    true,
+  );
+  editorDocument?.addEventListener?.(
+    "pointercancel",
+    tableInteraction.handleDocumentPointerCancel,
+    true,
+  );
+  view.dom.addEventListener("keydown", tableInteraction.handleKeyDown, true);
   view.dom.addEventListener("mousedown", handleMouseDown, true);
   view.scrollDOM.addEventListener("scroll", handleScroll);
   globalThis.addEventListener?.("resize", tableInteraction.refreshPositions);
@@ -1253,6 +1268,17 @@ export function createSourceEditor({
       view.dom.removeEventListener("pointermove", tableInteraction.handlePointerMove, true);
       view.dom.removeEventListener("pointerup", tableInteraction.handlePointerUp, true);
       view.dom.removeEventListener("pointercancel", tableInteraction.handlePointerCancel, true);
+      editorDocument?.removeEventListener?.(
+        "pointerup",
+        tableInteraction.handleDocumentPointerUp,
+        true,
+      );
+      editorDocument?.removeEventListener?.(
+        "pointercancel",
+        tableInteraction.handleDocumentPointerCancel,
+        true,
+      );
+      view.dom.removeEventListener("keydown", tableInteraction.handleKeyDown, true);
       view.dom.removeEventListener("mousedown", handleMouseDown, true);
       view.scrollDOM.removeEventListener("scroll", handleScroll);
       globalThis.removeEventListener?.("resize", tableInteraction.refreshPositions);
@@ -1261,11 +1287,20 @@ export function createSourceEditor({
   };
 }
 
-function createLiveTableInteraction({
+export function isVerticalTableColumnSelection(selection) {
+  return Boolean(
+    selection &&
+    selection.minColumn === selection.maxColumn &&
+    selection.minRow < selection.maxRow
+  );
+}
+
+export function createLiveTableInteraction({
   getView,
   getMode,
   isEditable,
   locale,
+  documentRoot = globalThis.document,
 }) {
   const translate = createTranslator(SOURCE_EDITOR_TABLE_MESSAGES, locale);
   let selection = null;
@@ -1385,6 +1420,24 @@ function createLiveTableInteraction({
     return { cell, container, startLine, row, column };
   };
 
+  const isInsideEditorView = (target) => {
+    const root = getView()?.dom;
+    return Boolean(
+      root &&
+      target &&
+      (target === root || root.contains?.(target))
+    );
+  };
+
+  const focusEditorView = () => {
+    const view = getView();
+    if (view?.contentDOM?.focus) {
+      view.contentDOM.focus({ preventScroll: true });
+      return;
+    }
+    view?.focus?.();
+  };
+
   const restoreEditorCell = (editor) => {
     if (editor?.cell?.isConnected) {
       editor.cell.innerHTML = editor.renderedHtml;
@@ -1440,7 +1493,7 @@ function createLiveTableInteraction({
       return false;
     }
 
-    const input = document.createElement("input");
+    const input = documentRoot.createElement("input");
     input.type = "text";
     input.className = "cm-live-table-cell-editor";
     input.value = sourceCell.content;
@@ -1474,7 +1527,7 @@ function createLiveTableInteraction({
       event.preventDefault();
       event.stopPropagation();
       if (event.key === "Escape") {
-        cancelEditor();
+        clearSelection({ commit: false });
         return;
       }
 
@@ -1611,13 +1664,7 @@ function createLiveTableInteraction({
   const beginColumnDrag = (event, handle) => {
     const block = currentTableBlock(selection?.startLine);
     const normalized = normalizedSelection(block);
-    if (
-      !block ||
-      !normalized ||
-      normalized.minColumn !== normalized.maxColumn ||
-      normalized.minRow !== 0 ||
-      normalized.maxRow !== block.table.rowCount - 1
-    ) {
+    if (!block || !isVerticalTableColumnSelection(normalized)) {
       return false;
     }
 
@@ -1627,6 +1674,7 @@ function createLiveTableInteraction({
       fromColumn: normalized.minColumn,
       targetColumn: normalized.minColumn,
       handle,
+      selection: { ...selection },
     };
     handle.classList.add("is-dragging");
     try {
@@ -1662,10 +1710,9 @@ function createLiveTableInteraction({
     }
 
     selection = {
+      ...drag.selection,
       startLine: drag.startLine,
-      anchorRow: 0,
       anchorColumn: drag.targetColumn,
-      focusRow: block.table.rowCount - 1,
       focusColumn: drag.targetColumn,
     };
     if (result.changed) {
@@ -1680,7 +1727,37 @@ function createLiveTableInteraction({
     if (getMode() !== "live") {
       return;
     }
-    if (closestElement(event.target, ".cm-live-table-cell-editor")) {
+
+    const toolbarClose = closestElement(
+      event.target,
+      "[data-live-table-toolbar-close]",
+    );
+    if (toolbarClose) {
+      event.preventDefault();
+      event.stopPropagation();
+      clearSelection();
+      return;
+    }
+
+    const editorInput = closestElement(
+      event.target,
+      ".cm-live-table-cell-editor",
+    );
+    if (editorInput) {
+      const info = cellInfo(editorInput);
+      if (!info || event.button !== 0) {
+        return;
+      }
+      pointerSelection = {
+        pointerId: event.pointerId,
+        startLine: info.startLine,
+        anchorRow: info.row,
+        anchorColumn: info.column,
+        startX: event.clientX,
+        startY: event.clientY,
+        moved: false,
+        startedInEditor: true,
+      };
       return;
     }
 
@@ -1769,10 +1846,29 @@ function createLiveTableInteraction({
     if (pointerSelection?.pointerId !== event.pointerId) {
       return;
     }
+    const target = documentRoot.elementFromPoint(event.clientX, event.clientY);
+    const info = cellInfo(target);
+    if (pointerSelection.startedInEditor && !pointerSelection.moved) {
+      const crossedIntoAnotherCell =
+        info?.startLine === pointerSelection.startLine &&
+        (
+          info.row !== pointerSelection.anchorRow ||
+          info.column !== pointerSelection.anchorColumn
+        );
+      if (!crossedIntoAnotherCell) {
+        return;
+      }
+      pointerSelection.moved = true;
+      try {
+        getView()?.dom.setPointerCapture?.(event.pointerId);
+      } catch {
+        // Keep following the drag when supported; elementFromPoint remains the fallback.
+      }
+      commitEditor();
+    }
+
     event.preventDefault();
     event.stopPropagation();
-    const target = document.elementFromPoint(event.clientX, event.clientY);
-    const info = cellInfo(target);
     const distance = Math.hypot(
       event.clientX - pointerSelection.startX,
       event.clientY - pointerSelection.startY,
@@ -1809,13 +1905,21 @@ function createLiveTableInteraction({
     if (pointerSelection?.pointerId !== event.pointerId) {
       return;
     }
+    if (pointerSelection.startedInEditor && !pointerSelection.moved) {
+      pointerSelection = null;
+      scheduleRefresh();
+      return;
+    }
     event.preventDefault();
     event.stopPropagation();
     const shouldEdit = !pointerSelection.moved && isEditable();
+    const shouldFocusEditor = pointerSelection.moved;
     pointerSelection = null;
     refreshNow();
     if (shouldEdit) {
       beginCellEditor();
+    } else if (shouldFocusEditor) {
+      focusEditorView();
     }
   };
 
@@ -1828,6 +1932,38 @@ function createLiveTableInteraction({
       pointerSelection = null;
       scheduleRefresh();
     }
+  };
+
+  const handleDocumentPointerUp = (event) => {
+    if (isInsideEditorView(event.target)) {
+      return;
+    }
+    handlePointerUp(event);
+  };
+
+  const handleDocumentPointerCancel = (event) => {
+    if (isInsideEditorView(event.target)) {
+      return;
+    }
+    handlePointerCancel(event);
+  };
+
+  const handleKeyDown = (event) => {
+    if (
+      getMode() !== "live" ||
+      event.key !== "Escape" ||
+      !selection ||
+      (
+        !isInsideEditorView(event.target) &&
+        !isInsideEditorView(documentRoot?.activeElement)
+      )
+    ) {
+      return false;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    clearSelection({ commit: false });
+    return true;
   };
 
   const refreshNow = () => {
@@ -1901,29 +2037,33 @@ function createLiveTableInteraction({
     const toolbar = container.querySelector(".cm-live-table-color-toolbar");
     if (toolbar && selectedCells.length > 0 && isEditable()) {
       toolbar.hidden = false;
-      positionFloatingControl(toolbar, unionElementRects(selectedCells), {
-        placement: "above",
-        offset: 8,
+      const table = container.querySelector(".cm-live-table");
+      positionFloatingControl(toolbar, table?.getBoundingClientRect(), {
+        placement: "table-top",
+        offset: 14,
+        documentRoot,
       });
     }
 
-    const isFullColumn =
-      normalized.minColumn === normalized.maxColumn &&
-      normalized.minRow === 0 &&
-      normalized.maxRow === block.table.rowCount - 1;
     const handle = container.querySelector(".cm-live-table-column-handle");
     const headerCell = cellElement(
       selection.startLine,
       0,
       normalized.minColumn,
     );
-    if (handle && headerCell && isFullColumn && isEditable()) {
+    if (
+      handle &&
+      headerCell &&
+      isVerticalTableColumnSelection(normalized) &&
+      isEditable()
+    ) {
       handle.hidden = false;
       handle.dataset.liveTableColumn = String(normalized.minColumn);
       handle.classList.toggle("is-dragging", Boolean(columnDrag));
       positionFloatingControl(handle, headerCell.getBoundingClientRect(), {
         placement: "edge",
         offset: 0,
+        documentRoot,
       });
     }
   };
@@ -1959,6 +2099,9 @@ function createLiveTableInteraction({
     handlePointerMove,
     handlePointerUp,
     handlePointerCancel,
+    handleDocumentPointerUp,
+    handleDocumentPointerCancel,
+    handleKeyDown,
     refreshPositions,
     hasSelection: () => Boolean(selection),
     clearSelection,
@@ -2018,12 +2161,21 @@ function prepareLiveTablePreview(container, block, translate) {
   const clearButton = document.createElement("button");
   clearButton.type = "button";
   clearButton.className =
-    "cm-live-table-color-button cm-live-table-color-clear";
+    "cm-live-table-color-button cm-live-table-color-reset";
   clearButton.dataset.liveTableColorAction = "clear";
   clearButton.setAttribute("aria-label", translate("color.clear"));
   clearButton.title = translate("color.clear");
-  clearButton.textContent = "×";
   toolbar.append(clearButton);
+
+  const closeButton = document.createElement("button");
+  closeButton.type = "button";
+  closeButton.className =
+    "cm-live-table-color-button cm-live-table-toolbar-close";
+  closeButton.dataset.liveTableToolbarClose = "true";
+  closeButton.setAttribute("aria-label", translate("toolbar.close"));
+  closeButton.title = translate("toolbar.close");
+  closeButton.textContent = "×";
+  toolbar.append(closeButton);
 
   const columnHandle = document.createElement("button");
   columnHandle.type = "button";
@@ -2038,31 +2190,14 @@ function prepareLiveTablePreview(container, block, translate) {
   return true;
 }
 
-function unionElementRects(elements) {
-  const rects = elements
-    .map((element) => element.getBoundingClientRect())
-    .filter((rect) => rect.width > 0 && rect.height > 0);
-  if (rects.length === 0) {
-    return null;
-  }
-  const left = Math.min(...rects.map((rect) => rect.left));
-  const top = Math.min(...rects.map((rect) => rect.top));
-  const right = Math.max(...rects.map((rect) => rect.right));
-  const bottom = Math.max(...rects.map((rect) => rect.bottom));
-  return {
-    left,
-    top,
-    right,
-    bottom,
-    width: right - left,
-    height: bottom - top,
-  };
-}
-
 function positionFloatingControl(
   element,
   anchorRect,
-  { placement = "above", offset = 8 } = {},
+  {
+    placement = "above",
+    offset = 8,
+    documentRoot = globalThis.document,
+  } = {},
 ) {
   if (!element || !anchorRect) {
     return;
@@ -2073,17 +2208,19 @@ function positionFloatingControl(
   const controlRect = element.getBoundingClientRect();
   const viewportWidth =
     globalThis.innerWidth ??
-    document.documentElement.clientWidth ??
+    documentRoot?.documentElement?.clientWidth ??
     controlRect.width;
   const viewportHeight =
     globalThis.innerHeight ??
-    document.documentElement.clientHeight ??
+    documentRoot?.documentElement?.clientHeight ??
     controlRect.height;
   let left = anchorRect.left + (anchorRect.width - controlRect.width) / 2;
   let top;
 
   if (placement === "edge") {
     top = anchorRect.top - controlRect.height / 2;
+  } else if (placement === "table-top") {
+    top = Math.max(8, anchorRect.top - controlRect.height - offset);
   } else {
     top = anchorRect.top - controlRect.height - offset;
     if (top < 8) {

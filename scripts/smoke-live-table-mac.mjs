@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 
 import {
   cleanupLiveTableSmokeFixture,
+  containsNativeLiveTableSmokeTable,
   createLiveTableSmokeFixture,
   readLiveTableSmokeDocument,
 } from "./live-table-smoke-fixture.mjs";
@@ -36,7 +37,7 @@ try {
   if (result.error) {
     throw result.error;
   }
-  if (!readLiveTableSmokeDocument(fixture).includes("| 渠道 | 收入与变化 |")) {
+  if (!containsNativeLiveTableSmokeTable(readLiveTableSmokeDocument(fixture))) {
     throw new Error("Live table smoke no longer contains the native Markdown table.");
   }
   exitCode = result.status ?? 1;

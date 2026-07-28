@@ -216,11 +216,13 @@ editing controls. Every change still writes the original Markdown or MDX file. L
 a second rich-text data model.
 
 Native Markdown tables remain rendered in Live while the user works with them. Clicking a cell edits
-that cell's source without replacing the whole table with raw pipe syntax. Pointer dragging selects the
-contiguous rectangular range bounded by the first and last cell, including horizontal, vertical, and
-diagonal gestures. A transient toolbar may update the selected cells, and a column may be reordered only
-from the explicit handle shown after one complete column is selected. These controls rewrite only the
-current table block. Preview remains read-only.
+that cell's source without replacing the whole table with raw pipe syntax. Pointer dragging, including
+a gesture that starts in the active cell editor and crosses into another cell, selects the contiguous
+rectangular range bounded by the first and last cell. Horizontal, vertical, and diagonal gestures share
+this behavior. The transient color toolbar stays anchored above the table and closes through its close
+button or Escape. A column may be reordered from the explicit handle shown after at least two cells are
+selected vertically within that column; the whole column moves even when the selection covers only part
+of it. These controls rewrite only the current table block. Preview remains read-only.
 
 Source and Live reload external changes made by Git, editors, or AI agents. Git conflict markers remain
 ordinary source text; Git Leaf does not own conflict resolution.
