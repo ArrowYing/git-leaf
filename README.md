@@ -24,11 +24,6 @@ Anyone can use Git Leaf, while AI agents work with the same files directly in Gi
 [Open the public example knowledge base](https://gitleaf.mangofuture.com/open?repo=mangofuture1210%2Fgit-leaf-example-knowledge-base&path=README.md)
 after installing Git Leaf, or clone it for a completely local first run.
 
-Git Leaf is the app. The local Git repository you open is the knowledge base and remains its source of
-truth. Git Leaf gives people a familiar interface for reading, searching, editing, and syncing its
-Markdown and MDX files, while preserving the paths, revisions, branches, and worktrees that developers,
-automation, and AI agents use directly.
-
 ## Core workflow
 
 - **Open the knowledge base you already have.** Git Leaf works with any local Git repository without

@@ -24,10 +24,6 @@ last_updated: 2026-07-28
 安装 Git Leaf 后，可以直接[打开公开示例知识库](https://gitleaf.mangofuture.com/open?repo=mangofuture1210%2Fgit-leaf-example-knowledge-base&path=README.md)，
 也可以先克隆到本机，完成一次完全本地的首次体验。
 
-Git Leaf 是 App；用户打开的本机 Git 仓库才是知识库，也是它的内容事实源。Git Leaf 为人提供熟悉的界面，用来阅读、
-搜索、编辑和同步其中的 Markdown／MDX 文件，同时保留开发者、自动化和 AI Agent 直接使用的路径、revision、分支和
-worktree。
-
 ## 核心工作流
 
 - **直接打开已有知识库。** Git Leaf 可以使用任意本机 Git 仓库，无需把内容导入另一个系统；Git
