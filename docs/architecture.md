@@ -165,7 +165,8 @@ presentation:
   searchable fields, and initially keeps only matches plus the ancestor folders needed to reach them;
   when a file needs `ai_snippet` to satisfy the query, its tree row shows a highlighted matching excerpt
   so every automatically revealed result has visible evidence; truncated matching file names expand to
-  their full highlighted name, and hovering snippet evidence expands the full highlighted `ai_snippet`;
+  their full highlighted name, while an `ai_snippet` result uses that same whole-row expansion timing
+  and file-name-aligned origin to show the full highlighted snippet;
   search has transient directory expansion state independent from the saved file tree, so explicitly
   expanding a matching folder may reveal its descendants without changing the tree restored afterward;
 - frontmatter filtering narrows Markdown and MDX documents only.

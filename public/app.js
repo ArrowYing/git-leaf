@@ -35,6 +35,7 @@ import {
   createOutlineClickViewportGuard,
   outlineItemsFromHeadings,
 } from "./outline.js";
+import { createTreeItemTooltipSource } from "./tree-item-tooltip.js";
 import { hasTreeChanged } from "./tree-refresh.js";
 import { shouldReplaceDocumentHtml } from "./document-refresh.js";
 import { attachChartTooltips } from "./chart-tooltip.js";
@@ -409,7 +410,7 @@ const sourceEditorPane = document.querySelector("#source-editor-pane");
 const sourceEditorHost = document.querySelector("#source-editor");
 const treeFilter = document.querySelector("#tree-filter");
 const uiTooltip = document.querySelector("#ui-tooltip");
-const treeSearchEvidenceTooltips = new WeakMap();
+const treeItemSearchTooltips = new WeakMap();
 const worktreeSwitcher = document.querySelector("#worktree-switcher");
 const worktreeSwitcherToggle = document.querySelector("#worktree-switcher-toggle");
 const worktreeSwitcherMenu = document.querySelector("#worktree-switcher-menu");
@@ -506,31 +507,15 @@ const uiTooltipController = createUiTooltip({
       variant: "content",
       delay: 300,
     },
-    {
-      name: "file-tree-search-evidence",
+    createTreeItemTooltipSource({
       container: fileTree,
-      itemFromTarget: treeSearchEvidenceFromEventTarget,
-      details: treeSearchEvidenceTooltipDetails,
-      key: treeSearchEvidenceTooltipKey,
-      anchorElement: treeSearchEvidenceLabelElement,
-      describedElement: (item) => item,
-      placement: "expansion",
-      variant: "expansion",
-      delay: 250,
-    },
-    {
-      name: "file-tree",
-      container: fileTree,
-      itemFromTarget: treeItemFromEventTarget,
-      details: treeItemTooltipDetails,
-      key: treeItemTooltipKey,
-      anchorElement: treeItemLabelElement,
-      describedElement: (item) => item,
-      shouldShow: (item) => elementIsOverflowing(treeItemLabelElement(item)),
-      placement: "expansion",
-      variant: "expansion",
-      delay: 250,
-    },
+      nameRangesForItem: (_item, name) => (
+        isTreeTextSearchActive()
+          ? textFilterMatchRanges(name, state.filter)
+          : []
+      ),
+      searchDetailsForItem: (item) => treeItemSearchTooltips.get(item),
+    }),
     {
       name: "document-outline",
       container: documentOutline,
@@ -3320,55 +3305,6 @@ function documentTabTooltipDetails(item) {
   };
 }
 
-function treeItemFromEventTarget(target) {
-  const item = target?.closest?.("[data-tree-item]");
-  return item && fileTree.contains(item) ? item : null;
-}
-
-function treeSearchEvidenceFromEventTarget(target) {
-  const item = target?.closest?.(".tree-file-search-evidence");
-  return item && fileTree.contains(item) ? item : null;
-}
-
-function treeSearchEvidenceLabelElement(item) {
-  return item?.querySelector?.(".tree-file-search-snippet") || item;
-}
-
-function treeSearchEvidenceTooltipDetails(item) {
-  return treeSearchEvidenceTooltips.get(item) ?? {};
-}
-
-function treeSearchEvidenceTooltipKey(item) {
-  return item?.dataset.treePath || treeSearchEvidenceTooltipDetails(item).name || "";
-}
-
-function treeItemLabelElement(item) {
-  if (item?.dataset.treeItem === "file") {
-    return item.querySelector(".tree-file-label") || item;
-  }
-  if (item?.dataset.treeItem === "directory") {
-    return item.querySelector(".tree-directory-label") || item;
-  }
-  return item;
-}
-
-function treeItemTooltipDetails(item) {
-  const label = treeItemLabelElement(item);
-  const name = label?.textContent?.trim() || "";
-  return {
-    name,
-    nameRanges: isTreeTextSearchActive()
-      ? textFilterMatchRanges(name, state.filter)
-      : [],
-    path: "",
-  };
-}
-
-function treeItemTooltipKey(item) {
-  const details = treeItemTooltipDetails(item);
-  return `${item?.dataset.treeItem || ""}:${item?.dataset.treePath || details.name}`;
-}
-
 function outlineItemFromEventTarget(target) {
   const item = target?.closest?.("[data-outline-target]");
   return item && documentOutline.contains(item) ? item : null;
@@ -4248,8 +4184,7 @@ function renderNode(node, parentPath) {
       );
       const evidence = document.createElement("span");
       evidence.className = "tree-file-search-evidence";
-      evidence.dataset.treePath = node.path;
-      treeSearchEvidenceTooltips.set(evidence, {
+      treeItemSearchTooltips.set(button, {
         name: textMatchDetails.snippetMatch.text,
         nameRanges: textMatchDetails.snippetMatch.ranges,
       });

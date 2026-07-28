@@ -1889,6 +1889,7 @@ test("public module assets are served for the browser", async () => {
       "agent-context.js",
       "layout.js",
       "ui-tooltip.js",
+      "tree-item-tooltip.js",
       "pointer-resize.js",
       "outline.js",
       "tree-refresh.js",

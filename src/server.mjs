@@ -204,6 +204,7 @@ async function handleRequest(request, response, context) {
     requestUrl.pathname === "/agent-context.js" ||
     requestUrl.pathname === "/layout.js" ||
     requestUrl.pathname === "/ui-tooltip.js" ||
+    requestUrl.pathname === "/tree-item-tooltip.js" ||
     requestUrl.pathname === "/pointer-resize.js" ||
     requestUrl.pathname === "/outline.js" ||
     requestUrl.pathname === "/tree-refresh.js" ||
