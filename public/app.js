@@ -129,9 +129,12 @@ import {
   restoreDocumentTabsForStartup,
 } from "./workbench-startup.js";
 import {
+  directoryMatchesTextFilter,
   fileMatchesTextFilter,
   fileMatchesFrontmatterFilters,
+  filterTextTree,
   normalizeFrontmatterFilters,
+  textFilterMatchRanges,
 } from "./frontmatter-filters.js";
 import {
   addFrontmatterFieldToSource,
@@ -2910,7 +2913,11 @@ function renderTree() {
   });
   if (searchAndFiltersEnabled) {
     filteredTree = filterNodesByFrontmatter(filteredTree);
-    filteredTree = filterNodes(filteredTree);
+    filteredTree = filterTextTree(
+      filteredTree,
+      state.frontmatterFiles,
+      state.filter,
+    );
   }
 
   if (filteredTree.length === 0) {
@@ -2997,7 +3004,7 @@ function collectTreeSearchMatchedPaths(nodes, parentPath, matched) {
       continue;
     }
     const directoryPath = treeDirectoryPath(parentPath, node.name);
-    if (node.name.toLowerCase().includes(state.filter)) {
+    if (directoryMatchesTextFilter(node, state.filter)) {
       matched.push(directoryPath);
     }
     collectTreeSearchMatchedPaths(node.children, directoryPath, matched);
@@ -3761,7 +3768,7 @@ function renderNode(node, parentPath) {
     button.setAttribute("aria-label", `${node.path}，${capability.label}`);
     const label = document.createElement("span");
     label.className = "tree-file-label";
-    label.textContent = node.name;
+    appendTreeSearchLabel(label, node.name);
     button.append(label);
     if (capability.badge) {
       const capabilityBadge = document.createElement("span");
@@ -3814,7 +3821,7 @@ function renderNode(node, parentPath) {
     summary.addEventListener("click", (event) => event.preventDefault());
   }
   summary.setAttribute("aria-expanded", String(details.open));
-  summary.textContent = node.name;
+  appendTreeSearchLabel(summary, node.name);
   details.append(summary);
   details.addEventListener("toggle", () => {
     summary.setAttribute("aria-expanded", String(details.open));
@@ -3841,6 +3848,32 @@ function renderNode(node, parentPath) {
   details.append(children);
   item.append(details);
   return item;
+}
+
+function appendTreeSearchLabel(element, text) {
+  const filter = sidebarControlsForView(state.sidebarTab) === "search-and-filter"
+    ? state.filter
+    : "";
+  const ranges = textFilterMatchRanges(text, filter);
+  if (ranges.length === 0) {
+    element.textContent = text;
+    return;
+  }
+
+  let cursor = 0;
+  for (const range of ranges) {
+    if (range.from > cursor) {
+      element.append(document.createTextNode(text.slice(cursor, range.from)));
+    }
+    const mark = document.createElement("mark");
+    mark.className = "tree-search-match";
+    mark.textContent = text.slice(range.from, range.to);
+    element.append(mark);
+    cursor = range.to;
+  }
+  if (cursor < text.length) {
+    element.append(document.createTextNode(text.slice(cursor)));
+  }
 }
 
 function treeFileCapability(kind, { missing = false } = {}) {
@@ -4567,29 +4600,6 @@ function activeOutlineIdFromScroll() {
     }
   }
   return activeId;
-}
-
-function filterNodes(nodes) {
-  if (!state.filter) {
-    return nodes;
-  }
-
-  const filtered = [];
-  for (const node of nodes) {
-    if (node.type === "file") {
-      if (fileMatchesTextFilter(node, state.frontmatterFiles[node.path], state.filter)) {
-        filtered.push(node);
-      }
-      continue;
-    }
-
-    const directoryMatches = node.name.toLowerCase().includes(state.filter);
-    const children = directoryMatches ? node.children : filterNodes(node.children);
-    if (children.length > 0 || directoryMatches) {
-      filtered.push({ ...node, children });
-    }
-  }
-  return filtered;
 }
 
 function filterNodesByFrontmatter(nodes) {

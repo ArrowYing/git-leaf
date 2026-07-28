@@ -65,7 +65,6 @@ export function fileMatchesTextFilter(node, metadata, filter) {
   }
 
   const searchableText = [
-    node?.path,
     node?.name,
     metadata?.ai_snippet,
   ]
@@ -73,7 +72,51 @@ export function fileMatchesTextFilter(node, metadata, filter) {
     .join(" ")
     .toLowerCase();
 
-  return tokens.every((token) => searchableText.includes(token));
+  return textIncludesAllTokens(searchableText, tokens);
+}
+
+export function directoryMatchesTextFilter(node, filter) {
+  const tokens = searchTokens(filter);
+  if (tokens.length === 0) {
+    return true;
+  }
+  return textIncludesAllTokens(node?.name, tokens);
+}
+
+export function filterTextTree(nodes, metadataByPath, filter) {
+  const tokens = searchTokens(filter);
+  if (tokens.length === 0) {
+    return nodes;
+  }
+  return filterTextTreeWithTokens(
+    Array.isArray(nodes) ? nodes : [],
+    metadataByPath,
+    tokens,
+  );
+}
+
+export function textFilterMatchRanges(text, filter) {
+  const normalizedText = String(text ?? "").toLowerCase();
+  const ranges = [];
+  for (const token of searchTokens(filter)) {
+    let from = normalizedText.indexOf(token);
+    while (from !== -1) {
+      ranges.push({ from, to: from + token.length });
+      from = normalizedText.indexOf(token, from + token.length);
+    }
+  }
+
+  ranges.sort((left, right) => left.from - right.from || left.to - right.to);
+  const merged = [];
+  for (const range of ranges) {
+    const previous = merged.at(-1);
+    if (previous && range.from <= previous.to) {
+      previous.to = Math.max(previous.to, range.to);
+    } else {
+      merged.push({ ...range });
+    }
+  }
+  return merged;
 }
 
 export function normalizeFrontmatterValue(value) {
@@ -87,11 +130,44 @@ export function normalizeFrontmatterValue(value) {
 }
 
 function searchTokens(value) {
-  return String(value ?? "")
+  return [...new Set(String(value ?? "")
     .trim()
     .toLowerCase()
     .split(/\s+/)
-    .filter(Boolean);
+    .filter(Boolean))];
+}
+
+function textIncludesAllTokens(text, tokens) {
+  const normalizedText = String(text ?? "").toLowerCase();
+  return tokens.every((token) => normalizedText.includes(token));
+}
+
+function filterTextTreeWithTokens(nodes, metadataByPath, tokens) {
+  const filtered = [];
+  for (const node of nodes) {
+    if (node.type === "file") {
+      const searchableText = [
+        node?.name,
+        metadataByPath?.[node.path]?.ai_snippet,
+      ]
+        .filter(Boolean)
+        .join(" ");
+      if (textIncludesAllTokens(searchableText, tokens)) {
+        filtered.push(node);
+      }
+      continue;
+    }
+
+    const children = filterTextTreeWithTokens(
+      Array.isArray(node.children) ? node.children : [],
+      metadataByPath,
+      tokens,
+    );
+    if (children.length > 0 || textIncludesAllTokens(node?.name, tokens)) {
+      filtered.push({ ...node, children });
+    }
+  }
+  return filtered;
 }
 
 function normalizeAllowedFrontmatterKeys(allowedKeys) {

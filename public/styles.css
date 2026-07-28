@@ -1618,6 +1618,13 @@ summary:focus-visible {
   text-overflow: ellipsis;
 }
 
+.tree-search-match {
+  border-radius: 2px;
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  font: inherit;
+}
+
 .tree-file-capability {
   flex: 0 0 auto;
   border: 1px solid var(--panel-border);

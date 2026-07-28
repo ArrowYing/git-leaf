@@ -29,7 +29,8 @@ after installing Git Leaf, or clone it for a completely local first run.
 - **Open the knowledge base you already have.** Git Leaf works with any local Git repository without
   importing its content into another system. The repository remains the source of truth.
 - **Find documents through a familiar file tree.** Browse the knowledge base in its existing folder
-  structure or search directly.
+  structure or search directly. Space-separated terms narrow results together, highlight matching
+  folder and file names, and keep only matching items plus the folders needed to reach them.
 - **Read and edit in Live Editor.** Headings, lists, links, and other content stay close to their reading
   appearance while every edit goes back to the original file. Switch to Preview or Source when needed.
 - **Let people and AI agents work on the same files.** Collect exact lines as portable Agent Context,

@@ -5,7 +5,9 @@ import {
   fileMatchesTextFilter,
   fileMatchesFrontmatterFilters,
   filterFrontmatterTree,
+  filterTextTree,
   normalizeFrontmatterFilters,
+  textFilterMatchRanges,
 } from "../public/frontmatter-filters.js";
 
 const tree = [
@@ -104,7 +106,7 @@ test("normalizeFrontmatterFilters accepts repository-provided allowed keys", () 
   );
 });
 
-test("fileMatchesTextFilter searches path, file name, and ai_snippet tokens", () => {
+test("file text search requires every term in the file name or searchable metadata", () => {
   const node = { type: "file", name: "editor-design.md", path: "editor-design.md" };
   const metadata = {
     ai_snippet: "[Plan] Git Leaf editor | CodeMirror live editing | Frontmatter filters",
@@ -113,4 +115,108 @@ test("fileMatchesTextFilter searches path, file name, and ai_snippet tokens", ()
   assert.equal(fileMatchesTextFilter(node, metadata, "leaf live filters"), true);
   assert.equal(fileMatchesTextFilter(node, metadata, "editor-design"), true);
   assert.equal(fileMatchesTextFilter(node, metadata, "finance report"), false);
+  assert.equal(
+    fileMatchesTextFilter(
+      {
+        type: "file",
+        name: "pain-points.md",
+        path: "marketing/violy/market-context/audience/pain-points.md",
+      },
+      {},
+      "violy context",
+    ),
+    false,
+  );
+});
+
+test("tree text search keeps only matching nodes and the ancestors needed to reach them", () => {
+  const searchableTree = [{
+    type: "directory",
+    name: "marketing",
+    children: [
+      {
+        type: "directory",
+        name: "docs",
+        children: [{
+          type: "directory",
+          name: "context-for-llm",
+          children: [{
+            type: "file",
+            name: "violy-product-context.md",
+            path: "marketing/docs/context-for-llm/violy-product-context.md",
+          }],
+        }],
+      },
+      {
+        type: "directory",
+        name: "violy",
+        children: [{
+          type: "directory",
+          name: "market-context",
+          children: [{
+            type: "directory",
+            name: "audience",
+            children: [{
+              type: "file",
+              name: "pain-points.md",
+              path: "marketing/violy/market-context/audience/pain-points.md",
+            }],
+          }],
+        }],
+      },
+    ],
+  }];
+
+  assert.deepEqual(filterTextTree(searchableTree, {}, "violy context"), [{
+    type: "directory",
+    name: "marketing",
+    children: [{
+      type: "directory",
+      name: "docs",
+      children: [{
+        type: "directory",
+        name: "context-for-llm",
+        children: [{
+          type: "file",
+          name: "violy-product-context.md",
+          path: "marketing/docs/context-for-llm/violy-product-context.md",
+        }],
+      }],
+    }],
+  }]);
+});
+
+test("matching a directory does not reveal unrelated descendants", () => {
+  const searchableTree = [{
+    type: "directory",
+    name: "campaign-context",
+    children: [
+      {
+        type: "file",
+        name: "README.md",
+        path: "campaign-context/README.md",
+      },
+      {
+        type: "file",
+        name: "context-brief.md",
+        path: "campaign-context/context-brief.md",
+      },
+    ],
+  }];
+
+  assert.deepEqual(filterTextTree(searchableTree, {}, "campaign context"), [{
+    type: "directory",
+    name: "campaign-context",
+    children: [],
+  }]);
+});
+
+test("tree search highlights every case-insensitive keyword match", () => {
+  assert.deepEqual(
+    textFilterMatchRanges("Violy product context.md", "violy context"),
+    [
+      { from: 0, to: 5 },
+      { from: 14, to: 21 },
+    ],
+  );
 });

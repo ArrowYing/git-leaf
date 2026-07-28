@@ -159,6 +159,8 @@ presentation:
 - Content Files shows Markdown, MDX, HTML, images, and PDF by default;
 - All Repository Files shows the complete discovered tree;
 - search, the current document, favorites, and Sync may reveal otherwise hidden paths;
+- text search combines whitespace-separated terms with AND, matches each folder or file on its own
+  searchable fields, and keeps only matches plus the ancestor folders needed to reach them;
 - frontmatter filtering narrows Markdown and MDX documents only.
 
 All, Favorites, Sync, and file-tree preferences must never alter Git discovery, status, staging, commit,
