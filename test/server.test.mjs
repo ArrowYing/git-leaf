@@ -148,6 +148,119 @@ test("create document API never overwrites and rejects unsafe locations", async 
   }
 });
 
+test("file operation APIs create Git-visible folders, rename references, and guard direct deletion", async () => {
+  const repoRoot = await mkdtemp(path.join(tmpdir(), "git-leaf-file-operation-api-"));
+  await execFileAsync("git", ["init", "-q"], { cwd: repoRoot });
+  await writeFile(path.join(repoRoot, "old.md"), "# Old\n");
+  await writeFile(path.join(repoRoot, "index.md"), "[Old](old.md)\n");
+  const server = createPreviewServer({ repoRoot, initialFile: null });
+  const baseUrl = await listen(server);
+
+  try {
+    const createFolderResponse = await fetch(`${baseUrl}/api/create-directory?locale=zh-CN`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ parentPath: "", name: "plans" }),
+    });
+    const createdFolder = await createFolderResponse.json();
+    assert.equal(createFolderResponse.status, 201);
+    assert.equal(createdFolder.markerPath, "plans/.gitkeep");
+    assert.equal(await readFile(path.join(repoRoot, "plans", ".gitkeep"), "utf8"), "");
+
+    const treeWithFolder = await getJson(`${baseUrl}/api/tree`);
+    assert.deepEqual(treeWithFolder.tree.find((node) => node.name === "plans"), {
+      type: "directory",
+      name: "plans",
+      placeholderOnly: true,
+      children: [{
+        type: "file",
+        name: ".gitkeep",
+        path: "plans/.gitkeep",
+        kind: "placeholder",
+        placeholder: true,
+      }],
+    });
+
+    const createDocumentResponse = await fetch(`${baseUrl}/api/create-document`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ directory: "plans", name: "brief", format: "md" }),
+    });
+    assert.equal(createDocumentResponse.status, 201);
+    await assert.rejects(readFile(path.join(repoRoot, "plans", ".gitkeep")), /ENOENT/);
+
+    const renamePreviewResponse = await fetch(`${baseUrl}/api/rename-file`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path: "old.md", name: "new.md" }),
+    });
+    const renamePreview = await renamePreviewResponse.json();
+    assert.equal(renamePreviewResponse.status, 200);
+    assert.equal(renamePreview.referenceCount, 1);
+    assert.equal("_source" in renamePreview, false);
+    assert.equal("_referencePlan" in renamePreview, false);
+
+    const renameResponse = await fetch(`${baseUrl}/api/rename-file`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        path: "old.md",
+        name: "new.md",
+        fingerprint: renamePreview.fingerprint,
+      }),
+    });
+    const renamed = await renameResponse.json();
+    assert.equal(renameResponse.status, 200);
+    assert.equal(renamed.targetPath, "new.md");
+    assert.equal(await readFile(path.join(repoRoot, "index.md"), "utf8"), "[Old](new.md)\n");
+
+    const deletePreviewResponse = await fetch(`${baseUrl}/api/delete-path`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path: "new.md" }),
+    });
+    const deletePreview = await deletePreviewResponse.json();
+    assert.equal(deletePreviewResponse.status, 200);
+    assert.equal(deletePreview.requiresUnrecoverableConfirmation, true);
+    assert.equal(deletePreview.referenceCount, 1);
+
+    const unconfirmedDelete = await fetch(`${baseUrl}/api/delete-path`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        path: "new.md",
+        fingerprint: deletePreview.fingerprint,
+      }),
+    });
+    assert.equal(unconfirmedDelete.status, 409);
+    assert.equal(await readFile(path.join(repoRoot, "new.md"), "utf8"), "# Old\n");
+
+    const confirmedDelete = await fetch(`${baseUrl}/api/delete-path`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        path: "new.md",
+        fingerprint: deletePreview.fingerprint,
+        confirmUnrecoverable: true,
+      }),
+    });
+    assert.equal(confirmedDelete.status, 200);
+    await assert.rejects(readFile(path.join(repoRoot, "new.md")), /ENOENT/);
+    assert.equal(await readFile(path.join(repoRoot, "index.md"), "utf8"), "[Old](new.md)\n");
+
+    const nonEmptyDelete = await fetch(`${baseUrl}/api/delete-path`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path: "plans" }),
+    });
+    assert.equal(nonEmptyDelete.status, 409);
+    assert.equal((await nonEmptyDelete.json()).code, "directory_not_empty");
+  } finally {
+    await close(server);
+    await rm(repoRoot, { recursive: true, force: true });
+  }
+});
+
 test("resolveNewDocumentPath normalizes extensions and rejects invalid names", async () => {
   const repoRoot = await mkdtemp(path.join(tmpdir(), "git-leaf-new-path-"));
   try {

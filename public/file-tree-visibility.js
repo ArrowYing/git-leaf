@@ -103,6 +103,7 @@ export function filterFileTreeByVisibility(nodes, {
   searchMatchedPaths = [],
   gitChangedPaths = [],
   isSearchMatch = null,
+  includePlaceholders = false,
 } = {}) {
   const visibilityMode = normalizeFileTreeVisibilityMode(mode);
   const context = {
@@ -113,6 +114,7 @@ export function filterFileTreeByVisibility(nodes, {
       ...pathValues(gitChangedPaths),
     ]),
     isSearchMatch: typeof isSearchMatch === "function" ? isSearchMatch : null,
+    includePlaceholders: includePlaceholders === true,
   };
 
   return filterNodes(Array.isArray(nodes) ? nodes : [], "", context, {
@@ -141,13 +143,20 @@ function filterNodes(nodes, parentPath, context, inherited) {
         context,
         { hiddenByTechnicalDirectory, revealAll },
       );
-      if (children.length > 0) {
+      if (children.length > 0 || (
+        node.placeholderOnly === true &&
+        context.includePlaceholders === false &&
+        (context.mode === "all" || revealAll || !hiddenByTechnicalDirectory)
+      )) {
         filtered.push({ ...node, children });
       }
       continue;
     }
 
     if (node.type !== "file") {
+      continue;
+    }
+    if (node.placeholder === true && context.includePlaceholders === false) {
       continue;
     }
 
@@ -173,12 +182,14 @@ export function filterWorkbenchFileTree(nodes, {
   currentFile = "",
   searchMatchedPaths = [],
   gitChangedPaths = [],
+  includePlaceholders = false,
 } = {}) {
   return filterFileTreeByVisibility(nodes, {
     mode,
     currentFile: currentDocument?.path || currentFile,
     searchMatchedPaths,
     gitChangedPaths,
+    includePlaceholders,
   });
 }
 

@@ -210,6 +210,32 @@ test("all mode returns every node and does not mutate the input tree", () => {
   assert.notStrictEqual(result.at(-1), tree.at(-1));
 });
 
+test("folder placeholders stay hidden in All while preserving the real folder, and remain available to Sync", () => {
+  const tree = [{
+    type: "directory",
+    name: "planning",
+    placeholderOnly: true,
+    children: [{
+      type: "file",
+      name: ".gitkeep",
+      path: "planning/.gitkeep",
+      kind: "placeholder",
+      placeholder: true,
+    }],
+  }];
+
+  assert.deepEqual(filterFileTreeByVisibility(tree, { mode: "all" }), [{
+    type: "directory",
+    name: "planning",
+    placeholderOnly: true,
+    children: [],
+  }]);
+  assert.deepEqual(filterFileTreeByVisibility(tree, {
+    mode: "all",
+    includePlaceholders: true,
+  }), tree);
+});
+
 test("unknown modes normalize to the content default", () => {
   assert.equal(normalizeFileTreeVisibilityMode("all"), "all");
   assert.equal(normalizeFileTreeVisibilityMode("content"), "content");

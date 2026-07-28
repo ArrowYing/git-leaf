@@ -43,6 +43,15 @@ import {
   inspectRemoteSync,
   mergeRemoteChanges,
 } from "./git-remote-sync.mjs";
+import {
+  cleanupManagedDirectoryPlaceholder,
+  createRepositoryDirectory,
+  deleteRepositoryPath,
+  previewRepositoryDelete,
+  previewRepositoryDirectoryCreation,
+  previewRepositoryFileRename,
+  renameRepositoryFile,
+} from "./repository-file-operations.mjs";
 import { createGitLeafShareLink } from "./git-leaf-open-link.mjs";
 import { publishGitLeafShareLink } from "./git-share-publish.mjs";
 import { sourceLinesFromMarkdown } from "../public/line-selection.js";
@@ -106,6 +115,7 @@ export function createPreviewServer({
     getRepositoryFavorites,
     mutateRepositoryFavorite,
     recordTelemetryActions,
+    managedPlaceholders: new Set(),
   };
   const server = http.createServer(async (request, response) => {
     try {
@@ -113,6 +123,7 @@ export function createPreviewServer({
     } catch (error) {
       sendJson(response, error.statusCode ?? 500, {
         error: error instanceof Error ? error.message : "Unknown preview error",
+        ...(typeof error?.code === "string" ? { code: error.code } : {}),
       });
     }
   });
@@ -567,7 +578,124 @@ async function handleRequest(request, response, context) {
     const payload = await createDocumentPayload(repo, documentPath, {
       locale,
     });
+    await cleanupManagedDirectoryPlaceholder({
+      repoRoot: repo.root,
+      createdPath: documentPath.relativePath,
+      gitRunner: context.gitRunner,
+      managedPlaceholders: context.managedPlaceholders,
+    });
     sendJson(response, 201, {
+      ...payload,
+      ...branchStatePayload(branchState),
+    });
+    return;
+  }
+
+  if (requestUrl.pathname === "/api/create-directory") {
+    let repo = await localRequestRepository(request, requestUrl, context);
+    requireEditableRequest(request, context, repo);
+    if (request.method !== "POST") {
+      sendText(response, 405, "Method Not Allowed");
+      return;
+    }
+    const body = await readJsonRequest(request);
+    const locale = previewLocaleFromRequest(requestUrl);
+    await previewRepositoryDirectoryCreation({
+      repoRoot: repo.root,
+      parentPath: body.parentPath,
+      name: body.name,
+      locale,
+      gitRunner: context.gitRunner,
+    });
+    const branchState = await ensureRepositoryWriteBranch(repo, context);
+    repo = branchState.repo;
+    const payload = await createRepositoryDirectory({
+      repoRoot: repo.root,
+      parentPath: body.parentPath,
+      name: body.name,
+      locale,
+      gitRunner: context.gitRunner,
+      managedPlaceholders: context.managedPlaceholders,
+    });
+    sendJson(response, 201, {
+      ...payload,
+      ...branchStatePayload(branchState),
+    });
+    return;
+  }
+
+  if (requestUrl.pathname === "/api/rename-file") {
+    let repo = await localRequestRepository(request, requestUrl, context);
+    requireEditableRequest(request, context, repo);
+    if (request.method !== "POST") {
+      sendText(response, 405, "Method Not Allowed");
+      return;
+    }
+    const body = await readJsonRequest(request);
+    const locale = previewLocaleFromRequest(requestUrl);
+    if (!body.fingerprint) {
+      sendJson(
+        response,
+        200,
+        await previewRepositoryFileRename({
+          repoRoot: repo.root,
+          filePath: body.path,
+          name: body.name,
+          locale,
+        }),
+      );
+      return;
+    }
+    const branchState = await ensureRepositoryWriteBranch(repo, context);
+    repo = branchState.repo;
+    const payload = await renameRepositoryFile({
+      repoRoot: repo.root,
+      filePath: body.path,
+      name: body.name,
+      fingerprint: body.fingerprint,
+      locale,
+    });
+    sendJson(response, 200, {
+      ...payload,
+      ...branchStatePayload(branchState),
+    });
+    return;
+  }
+
+  if (requestUrl.pathname === "/api/delete-path") {
+    let repo = await localRequestRepository(request, requestUrl, context);
+    requireEditableRequest(request, context, repo);
+    if (request.method !== "POST") {
+      sendText(response, 405, "Method Not Allowed");
+      return;
+    }
+    const body = await readJsonRequest(request);
+    const locale = previewLocaleFromRequest(requestUrl);
+    if (!body.fingerprint) {
+      sendJson(
+        response,
+        200,
+        await previewRepositoryDelete({
+          repoRoot: repo.root,
+          targetPath: body.path,
+          locale,
+          gitRunner: context.gitRunner,
+        }),
+      );
+      return;
+    }
+    const branchState = await ensureRepositoryWriteBranch(repo, context);
+    repo = branchState.repo;
+    const payload = await deleteRepositoryPath({
+      repoRoot: repo.root,
+      targetPath: body.path,
+      fingerprint: body.fingerprint,
+      confirmUnrecoverable: body.confirmUnrecoverable === true,
+      locale,
+      gitRunner: context.gitRunner,
+      managedPlaceholders: context.managedPlaceholders,
+    });
+    sendJson(response, 200, {
       ...payload,
       ...branchStatePayload(branchState),
     });

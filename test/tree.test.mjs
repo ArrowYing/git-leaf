@@ -81,6 +81,48 @@ test("buildFileTree includes every tracked or unignored repository file", async 
   ]);
 });
 
+test("buildFileTree marks a zero-content folder placeholder without inventing a Git directory entry", async () => {
+  const repoRoot = await mkdtemp(path.join(tmpdir(), "git-leaf-"));
+  await initializeRepository(repoRoot);
+  await mkdir(path.join(repoRoot, "planning"));
+  await writeFile(path.join(repoRoot, "planning", ".gitkeep"), "");
+
+  const tree = await buildFileTree(repoRoot);
+
+  assert.deepEqual(tree.find((node) => node.name === "planning"), {
+    type: "directory",
+    name: "planning",
+    placeholderOnly: true,
+    children: [{
+      type: "file",
+      name: ".gitkeep",
+      path: "planning/.gitkeep",
+      kind: "placeholder",
+      placeholder: true,
+    }],
+  });
+});
+
+test("buildFileTree does not hide a nonempty file merely because it is named .gitkeep", async () => {
+  const repoRoot = await mkdtemp(path.join(tmpdir(), "git-leaf-"));
+  await initializeRepository(repoRoot);
+  await mkdir(path.join(repoRoot, "planning"));
+  await writeFile(path.join(repoRoot, "planning", ".gitkeep"), "Keep this note.\n");
+
+  const tree = await buildFileTree(repoRoot);
+
+  assert.deepEqual(tree.find((node) => node.name === "planning"), {
+    type: "directory",
+    name: "planning",
+    children: [{
+      type: "file",
+      name: ".gitkeep",
+      path: "planning/.gitkeep",
+      kind: "unknown",
+    }],
+  });
+});
+
 test("buildFileTree surfaces Git index errors instead of showing ignored filesystem files", async () => {
   const repoRoot = await mkdtemp(path.join(tmpdir(), "git-leaf-"));
   await initializeRepository(repoRoot);

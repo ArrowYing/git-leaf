@@ -159,6 +159,8 @@ presentation:
 - Content Files shows Markdown, MDX, HTML, images, and PDF by default;
 - All Repository Files shows the complete discovered tree;
 - search, the current document, favorites, and Sync may reveal otherwise hidden paths;
+- Git Leaf-created empty folders contain a zero-byte `.gitkeep`; All and Content Files preserve the
+  folder while hiding the placeholder, and Sync exposes the placeholder whenever Git reports its change;
 - text search combines whitespace-separated terms with AND, matches each folder or file on its own
   searchable fields, and keeps only matches plus the ancestor folders needed to reach them;
 - frontmatter filtering narrows Markdown and MDX documents only.
@@ -228,6 +230,26 @@ race may lose not-yet-flushed keystrokes rather than creating an independent hid
 
 Document creation is limited to Markdown and MDX. The service adds a safe extension when needed,
 rejects paths outside the repository, refuses overwrite, and opens the new document in a foreground tab.
+
+File-tree mutations are deliberately narrower than a general file manager:
+
+- a context menu creates one folder with a zero-byte `.gitkeep`; creation is refused when Git ignores
+  that marker;
+- when a document is then created in that folder during the same server session, Git Leaf removes only
+  the marker it created, and only while it is still zero-byte and untracked;
+- F2 or the context menu renames one regular file within its existing directory and refuses overwrite,
+  symlinks, and submodules;
+- renaming a Markdown, MDX, or image target updates recognized incoming Markdown destinations and
+  quoted HTML `href` or `src` attributes, but never treats code examples as references;
+- deletion requires an explicit dialog, reports incoming references without rewriting them, and warns
+  more strongly when the exact current file contents are not recoverable from Git;
+- directory deletion accepts only an empty directory or one containing only an unchanged zero-byte
+  `.gitkeep`; recursive deletion and moving are not provided.
+
+Mutation previews include a content and reference fingerprint. The service recomputes the plan after
+confirmation and fails on drift instead of applying stale link rewrites or deletion assumptions. Every
+mutation still passes through detached-worktree branch protection. The resulting tree row receives
+transient feedback without taking focus from the current editing surface.
 
 Editor assistance must remain explainable from source:
 

@@ -58,7 +58,7 @@ async function listGitWorktreeFiles(repoRoot) {
       continue;
     }
     if (fileStat.isFile()) {
-      files.push(fileRecord(relativePath));
+      files.push(fileRecord(relativePath, "", { size: fileStat.size }));
     }
   }
   return files;
@@ -83,17 +83,24 @@ async function scanFilesystemDirectory(repoRoot, directory, files) {
     } else if (entry.isSymbolicLink()) {
       files.push(fileRecord(relativePath, "symlink"));
     } else if (entry.isFile()) {
-      files.push(fileRecord(relativePath));
+      const options = entry.name === ".gitkeep"
+        ? { size: (await lstat(absolutePath)).size }
+        : {};
+      files.push(fileRecord(relativePath, "", options));
     }
   }
 }
 
-function fileRecord(relativePath, forcedKind = "") {
+function fileRecord(relativePath, forcedKind = "", { size = null } = {}) {
   const normalizedPath = toPosixPath(relativePath);
+  const placeholder = !forcedKind &&
+    size === 0 &&
+    path.posix.basename(normalizedPath) === ".gitkeep";
   const fileType = fileTypeForPath(normalizedPath);
   return {
     path: normalizedPath,
-    kind: forcedKind || fileType?.kind || "unknown",
+    kind: forcedKind || (placeholder ? "placeholder" : fileType?.kind) || "unknown",
+    ...(placeholder ? { placeholder: true } : {}),
   };
 }
 
@@ -117,6 +124,7 @@ function treeFromFiles(files) {
       name,
       path: file.path,
       kind: file.kind,
+      ...(file.placeholder ? { placeholder: true } : {}),
     });
   }
   return finalizeDirectory(root);
@@ -129,11 +137,18 @@ function directoryBuilder(name) {
 function finalizeDirectory(directory) {
   return sortNodes([
     ...directory.files.values(),
-    ...[...directory.directories.values()].map((child) => ({
-      type: "directory",
-      name: child.name,
-      children: finalizeDirectory(child),
-    })),
+    ...[...directory.directories.values()].map((child) => {
+      const children = finalizeDirectory(child);
+      const placeholderOnly = children.length === 1 &&
+        children[0].type === "file" &&
+        children[0].placeholder === true;
+      return {
+        type: "directory",
+        name: child.name,
+        children,
+        ...(placeholderOnly ? { placeholderOnly: true } : {}),
+      };
+    }),
   ]);
 }
 

@@ -45,6 +45,8 @@ after installing Git Leaf, or clone it for a completely local first run.
 ## More built in
 
 - All, Favorites, and Sync views, with a content-focused tree or the complete repository tree.
+- Conservative file-tree actions: rename one regular file, create a Git-visible folder, or directly
+  delete one file or an empty folder. Moving and recursive folder deletion are intentionally absent.
 - Repository and worktree switching with restored tabs, navigation history, scroll positions, and focus.
 - Read-only previews for images, PDFs, CSV, JSON, YAML, HTML, code, and other repository attachments.
 - Source line references that preserve where selected text came from.
@@ -130,7 +132,8 @@ normative contract is the [usage analytics specification](docs/app-usage-analyti
 ## Product boundaries
 
 - Git Leaf is a local tool. It does not provide accounts, SSO, collaborative editing, or a public document site.
-- Only Markdown and MDX are editable; other repository files remain read-only or open in a system application.
+- Only Markdown and MDX contents are editable in Git Leaf; other repository files remain read-only or
+  open in a system application. Ordinary files can still be renamed or deleted from the file tree.
 - File-tree display preferences never change Git discovery, status, commit, or sync scope.
 - Normal branches are editable; the first write in a detached worktree creates a protective branch.
 - Localhost binding, source-backed Live editing, the MDX-lite whitelist, share-revision checks, and Git

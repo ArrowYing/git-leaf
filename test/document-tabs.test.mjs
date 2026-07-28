@@ -13,6 +13,7 @@ import {
   navigateDocumentTab,
   normalizeDocumentTabs,
   reorderDocumentTabs,
+  removeDocumentTabPath,
   replaceDocumentTabPath,
   tabTitleFromPath,
   updateActiveDocumentTabLocation,
@@ -230,6 +231,25 @@ test("renaming a document updates every current and historical entry", () => {
   assert.equal(result[1].path, "new.md");
   assert.deepEqual(result[0].history.entries.map((entry) => entry.path), ["new.md", "README.md"]);
   assert.equal(result[1].history.entries[0].path, "new.md");
+});
+
+test("deleting a document removes it from every history and closes only tabs left empty", () => {
+  const result = removeDocumentTabPath({
+    tabs: [
+      tab("tab-1", "deleted.md", [location("README.md"), location("deleted.md")]),
+      tab("tab-2", "deleted.md", [location("deleted.md")]),
+      tab("tab-3", "guide.md", [location("deleted.md"), location("guide.md")]),
+    ],
+    activeTabId: "tab-2",
+    filePath: "deleted.md",
+  });
+
+  assert.deepEqual(result.tabs.map((item) => item.id), ["tab-1", "tab-3"]);
+  assert.deepEqual(result.tabs.map((item) => item.path), ["README.md", "guide.md"]);
+  assert.equal(result.activeTabId, "tab-3");
+  assert.equal(result.tabs.every((item) => (
+    item.history.entries.every((entry) => entry.path !== "deleted.md")
+  )), true);
 });
 
 test("legacy path-only tabs hydrate into stable identities and one-entry histories", () => {

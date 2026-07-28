@@ -1689,6 +1689,13 @@ summary.is-missing {
   font-weight: 600;
 }
 
+.tree-file.has-operation-feedback,
+summary.has-operation-feedback {
+  background: var(--success-soft);
+  box-shadow: inset 0 0 0 1px var(--success-border);
+  color: var(--success-text);
+}
+
 .ui-tooltip {
   position: absolute;
   z-index: 120;
@@ -2918,6 +2925,15 @@ summary.is-missing {
 
 #app-dialog-confirm:hover {
   background: var(--accent-hover);
+}
+
+.app-dialog-card[data-variant="danger"] #app-dialog-confirm {
+  border-color: var(--danger-text);
+  background: var(--danger-text);
+}
+
+.app-dialog-card[data-variant="danger"] #app-dialog-confirm:hover {
+  background: var(--danger-strong);
 }
 
 .git-sync-dialog {

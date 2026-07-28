@@ -98,6 +98,7 @@ import {
   navigateDocumentTab,
   normalizeDocumentTabs,
   reorderDocumentTabs,
+  removeDocumentTabPath,
   replaceDocumentTabPath,
   resolveActiveDocumentTabId,
   tabTitleFromPath,
@@ -341,6 +342,8 @@ const state = {
   remoteSyncRequestId: 0,
   lastRemoteSyncAttemptAt: 0,
   sidebarShortcutFeedbackTimer: null,
+  treeOperationFeedbackTimer: null,
+  treeOperationFeedbackElement: null,
   lastToolStatusCheckAt: 0,
   toolRestartInFlight: false,
   toolFingerprint: "",
@@ -357,6 +360,7 @@ const state = {
   documentSearchReturnFocus: null,
   fileActionTarget: null,
   fileActionReturnFocus: null,
+  fileTreePointerReturnFocus: null,
   documentTabPointerDrag: null,
   activeDialog: null,
 };
@@ -550,6 +554,7 @@ sourceSplitter.addEventListener("keydown", handleSourceSplitKeydown);
 fileTree.addEventListener("keydown", handleFileTreeKeydown);
 fileTree.addEventListener("focusin", handleFileTreeFocusIn);
 fileTree.addEventListener("scroll", scheduleWorkbenchSessionPersist);
+fileTree.addEventListener("pointerdown", handleFileTreePointerDown, true);
 fileTree.addEventListener("contextmenu", handleFileTreeContextMenu);
 sidebarTreeTabs.addEventListener("click", handleSidebarTabClick);
 sidebarTreeTabs.addEventListener("keydown", handleSidebarTabKeydown);
@@ -897,6 +902,42 @@ async function replaceFavoriteDocumentPath(fromPath, toPath) {
     }
   } catch {
     // A document rename remains successful even if its convenience bookmark cannot migrate.
+  }
+}
+
+async function removeFavoritePath(type, path) {
+  if (!isFavoriteItem(type, path)) {
+    return;
+  }
+  try {
+    if (state.sidebarFavoritesAvailable) {
+      const response = await fetch(apiUrl("/api/favorites"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "remove",
+          type,
+          path,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload.error || t("error.favoriteSave"));
+      }
+      state.sidebarFavorites = normalizeSidebarFavorites(payload.favorites);
+    } else {
+      const scope = localSidebarFavoriteScope();
+      const result = applySidebarFavoriteOperation(readLocalSidebarFavoriteScopes(), {
+        scope,
+        action: "remove",
+        type,
+        path,
+      });
+      state.sidebarFavorites = sidebarFavoritesForScope(result.scopes, scope);
+      writeLocalSidebarFavoriteScopes(result.scopes);
+    }
+  } catch {
+    // The requested file operation remains successful even if a convenience bookmark cannot be updated.
   }
 }
 
@@ -2904,6 +2945,7 @@ function renderTree() {
       ...favoriteRevealPaths,
     ],
     gitChangedPaths: state.sidebarTab === "sync" ? gitChangedPaths() : [],
+    includePlaceholders: state.sidebarTab === "sync",
   });
   let filteredTree = sidebarTreeForView(visibleTree, {
     view: state.sidebarTab,
@@ -3350,26 +3392,56 @@ function handleDocumentTabContextMenu(event) {
 
 function handleFileTreeContextMenu(event) {
   const item = event.target.closest?.("[data-tree-item]");
-  if (!item || !fileTree.contains(item)) {
+  if (!fileTree.contains(event.target)) {
+    return;
+  }
+  if (!item) {
+    event.preventDefault();
+    state.fileActionTarget = {
+      source: "tree-root",
+      path: "",
+      directoryPath: "",
+    };
+    showFileActionMenu([
+      { id: "new-document", label: t("menu.newDocumentHere"), disabled: !canEditCurrentRepo() },
+      { id: "new-folder", label: t("menu.newFolderHere"), disabled: !canEditCurrentRepo() },
+    ], {
+      x: event.clientX,
+      y: event.clientY,
+      returnFocus: takeFileTreeContextReturnFocus(fileTree),
+    });
     return;
   }
   event.preventDefault();
   const path = item.dataset.treePath || "";
   const isDirectory = item.dataset.treeItem === "directory";
   const isMissing = item.dataset.treeMissing === "true";
+  const kind = item.dataset.treeKind || "";
+  const isPlaceholderOnly = item.dataset.treePlaceholderOnly === "true";
+  const isRegularFile = !isDirectory &&
+    !isMissing &&
+    !["symlink", "submodule", "placeholder"].includes(kind);
   const favoriteCandidate = isDirectory ? "directory" : isMarkdownPath(path) ? "document" : "";
   const favoriteActive = favoriteCandidate
     ? isFavoriteItem(favoriteCandidate, path)
     : false;
   const favoriteType = !isMissing || favoriteActive ? favoriteCandidate : "";
   state.fileActionTarget = isDirectory
-    ? { source: "tree-directory", path, directoryPath: path, favoriteType }
+    ? {
+        source: "tree-directory",
+        path,
+        directoryPath: path,
+        favoriteType,
+        placeholderOnly: isPlaceholderOnly,
+      }
     : {
         source: "tree-file",
         path,
         directoryPath: parentDirectoryPath(path),
         referencePath: path,
         favoriteType,
+        kind,
+        regularFile: isRegularFile,
       };
   const favoriteItem = favoriteType
     ? {
@@ -3388,6 +3460,13 @@ function handleFileTreeContextMenu(event) {
         favoriteItem,
         null,
         { id: "new-document", label: t("menu.newDocumentHere"), disabled: !canEditCurrentRepo() },
+        { id: "new-folder", label: t("menu.newFolderHere"), disabled: !canEditCurrentRepo() },
+        ...(isPlaceholderOnly
+          ? [
+              null,
+              { id: "delete-path", label: t("menu.deleteFolder"), disabled: !canEditCurrentRepo() },
+            ]
+          : []),
         null,
         { id: "reveal-finder", label: revealInFileManagerLabel(), shortcut: "Command+Shift+R", disabled: !canEditCurrentRepo() },
         { id: "copy-path", label: t("menu.copyDirectoryPath"), shortcut: "Command+Shift+C" },
@@ -3401,11 +3480,35 @@ function handleFileTreeContextMenu(event) {
         ...(favoriteItem ? [favoriteItem, null] : []),
         { id: "new-document", label: t("menu.newDocumentSameLocation"), disabled: !canEditCurrentRepo() },
         { id: "open-new-tab", label: t("menu.openNewTab"), shortcut: "Shift+Enter" },
+        ...(isRegularFile
+          ? [
+              null,
+              { id: "rename-file", label: t("menu.renameFile"), shortcut: "F2", disabled: !canEditCurrentRepo() },
+              { id: "delete-path", label: t("menu.deleteFile"), disabled: !canEditCurrentRepo() },
+            ]
+          : []),
         null,
         ...(isMarkdownPath(path) ? [{ id: "copy-share", label: t("action.copyShareLink"), shortcut: "Command+Shift+L" }] : []),
         { id: "reveal-finder", label: revealInFileManagerLabel(), shortcut: "Command+Shift+R", disabled: !canEditCurrentRepo() },
       ];
-  showFileActionMenu(items, { x: event.clientX, y: event.clientY, returnFocus: item });
+  showFileActionMenu(items, {
+    x: event.clientX,
+    y: event.clientY,
+    returnFocus: takeFileTreeContextReturnFocus(item),
+  });
+}
+
+function handleFileTreePointerDown(event) {
+  state.fileTreePointerReturnFocus =
+    event.button === 2 && document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+}
+
+function takeFileTreeContextReturnFocus(fallback) {
+  const returnFocus = state.fileTreePointerReturnFocus;
+  state.fileTreePointerReturnFocus = null;
+  return returnFocus?.isConnected ? returnFocus : fallback;
 }
 
 function showCurrentDocumentActionsMenu() {
@@ -3569,6 +3672,12 @@ async function handleFileActionMenuClick(event) {
     revealFileInTree(target.path);
   } else if (action === "new-document") {
     await promptNewDocument(target);
+  } else if (action === "new-folder") {
+    await promptNewFolder(target);
+  } else if (action === "rename-file") {
+    await promptRenameFile(target);
+  } else if (action === "delete-path") {
+    await promptDeletePath(target);
   } else if (action === "open-new-tab") {
     await openFileInForegroundTab(target.path);
   } else if (action === "reveal-finder") {
@@ -3610,6 +3719,28 @@ function revealFileInTree(path) {
     }
     item.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "instant" });
     item.focus({ preventScroll: true });
+  });
+}
+
+function showTreeOperationFeedback(path, itemType = "") {
+  window.clearTimeout(state.treeOperationFeedbackTimer);
+  state.treeOperationFeedbackElement?.classList.remove("has-operation-feedback");
+  state.treeOperationFeedbackElement = null;
+  window.requestAnimationFrame(() => {
+    const item = treeItemByPath(path, itemType);
+    if (!item) {
+      return;
+    }
+    item.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "instant" });
+    item.classList.add("has-operation-feedback");
+    state.treeOperationFeedbackElement = item;
+    state.treeOperationFeedbackTimer = window.setTimeout(() => {
+      item.classList.remove("has-operation-feedback");
+      if (state.treeOperationFeedbackElement === item) {
+        state.treeOperationFeedbackElement = null;
+      }
+      state.treeOperationFeedbackTimer = null;
+    }, 900);
   });
 }
 
@@ -3689,6 +3820,274 @@ function newDocumentLocationMessage({ directoryPath, referencePath }) {
     return t("newDocument.inDirectory", { name: pathBasename(directoryPath) });
   }
   return t("newDocument.repoHome");
+}
+
+async function promptNewFolder({ directoryPath = "" } = {}) {
+  if (!canEditCurrentRepo()) {
+    showCopyToast(t("toast.cannotCreateDocument"));
+    return;
+  }
+  let name = "";
+  let errorMessage = "";
+  while (true) {
+    const { confirmed, value } = await showAppDialog({
+      title: t("newFolder.title"),
+      message: [
+        directoryPath
+          ? t("newFolder.inDirectory", { name: pathBasename(directoryPath) })
+          : t("newFolder.repoHome"),
+        errorMessage,
+      ].filter(Boolean).join("\n"),
+      inputLabel: t("newFolder.name"),
+      inputValue: name,
+      confirmText: t("action.create"),
+      cancelText: t("action.cancel"),
+    });
+    if (!confirmed) {
+      return;
+    }
+    name = value;
+    const response = await fetch(apiUrl("/api/create-directory", { locale: state.locale }), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ parentPath: directoryPath, name }),
+    });
+    const payload = await response.json().catch(() => ({
+      error: t("error.fileOperation"),
+    }));
+    if (!response.ok) {
+      errorMessage = payload.error || t("error.fileOperation");
+      continue;
+    }
+
+    await applyBranchProtectionPayload(payload);
+    for (const ancestor of treeAncestorDirectories(payload.path)) {
+      state.collapsedTreeDirectories.delete(ancestor);
+      state.expandedTreeDirectories.add(ancestor);
+    }
+    persistTreeDirectoryState();
+    await loadTree({ force: true });
+    await loadGitStatus();
+    showTreeOperationFeedback(payload.path, "directory");
+    showCopyToast(t("toast.folderCreated", { path: payload.path }));
+    return;
+  }
+}
+
+async function promptRenameFile({ path: filePath = "", regularFile = true } = {}) {
+  if (!canEditCurrentRepo() || !filePath || regularFile === false) {
+    return;
+  }
+  let name = pathBasename(filePath);
+  let errorMessage = "";
+  while (true) {
+    const { confirmed, value } = await showAppDialog({
+      title: t("renameFile.title"),
+      message: errorMessage,
+      inputLabel: t("renameFile.name"),
+      inputValue: name,
+      confirmText: t("action.rename"),
+      cancelText: t("action.cancel"),
+    });
+    if (!confirmed) {
+      return;
+    }
+    name = value;
+
+    try {
+      await flushPendingSourceSync();
+    } catch {
+      showCopyToast(t("error.editorStillSaving"));
+      return;
+    }
+
+    const previewResponse = await fetch(apiUrl("/api/rename-file", { locale: state.locale }), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path: filePath, name }),
+    });
+    const preview = await previewResponse.json().catch(() => ({
+      error: t("error.fileOperation"),
+    }));
+    if (!previewResponse.ok) {
+      errorMessage = preview.error || t("error.fileOperation");
+      continue;
+    }
+
+    if (preview.referenceCount > 0) {
+      const referenceConfirmation = await showAppDialog({
+        title: t("renameFile.title"),
+        message: t("renameFile.references", {
+          count: preview.referenceCount,
+          files: preview.referenceFileCount,
+        }),
+        confirmText: t("action.rename"),
+        cancelText: t("action.cancel"),
+      });
+      if (!referenceConfirmation.confirmed) {
+        return;
+      }
+    }
+
+    const response = await fetch(apiUrl("/api/rename-file", { locale: state.locale }), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        path: filePath,
+        name,
+        fingerprint: preview.fingerprint,
+      }),
+    });
+    const payload = await response.json().catch(() => ({
+      error: t("error.fileOperation"),
+    }));
+    if (!response.ok) {
+      errorMessage = payload.error || t("error.fileOperation");
+      continue;
+    }
+
+    const currentPath = state.currentFile;
+    const currentWasRenamed = currentPath === filePath;
+    const currentReferenceWasUpdated = preview.referenceFiles?.includes(currentPath);
+    await applyBranchProtectionPayload(payload);
+    releaseTreeFocusForRemovedPath(filePath);
+    if (isMarkdownPath(filePath)) {
+      if (isMarkdownPath(payload.targetPath)) {
+        await replaceFavoriteDocumentPath(filePath, payload.targetPath);
+      } else {
+        await removeFavoritePath("document", filePath);
+      }
+    }
+    replaceOpenDocumentTabPath(filePath, payload.targetPath);
+    if (currentWasRenamed) {
+      await loadDocumentLocation(payload.targetPath, {
+        preserveScroll: true,
+        forceReplace: true,
+      });
+    } else if (currentReferenceWasUpdated) {
+      await loadDocumentLocation(currentPath, {
+        preserveScroll: true,
+        forceReplace: true,
+      });
+    }
+    await loadTree({ force: true });
+    await loadGitStatus();
+    showTreeOperationFeedback(payload.targetPath, "file");
+    showCopyToast(t("toast.fileRenamed", { path: payload.targetPath }));
+    return;
+  }
+}
+
+async function promptDeletePath({ path: targetPath = "" } = {}) {
+  if (!canEditCurrentRepo() || !targetPath) {
+    return;
+  }
+  try {
+    await flushPendingSourceSync();
+  } catch {
+    showCopyToast(t("error.editorStillSaving"));
+    return;
+  }
+
+  const previewResponse = await fetch(apiUrl("/api/delete-path", { locale: state.locale }), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path: targetPath }),
+  });
+  const preview = await previewResponse.json().catch(() => ({
+    error: t("error.fileOperation"),
+  }));
+  if (!previewResponse.ok) {
+    showCopyToast(preview.error || t("error.fileOperation"));
+    return;
+  }
+
+  const messages = [
+    t(preview.kind === "directory" ? "deleteFolder.message" : "deleteFile.message", {
+      path: targetPath,
+    }),
+    preview.referenceCount > 0
+      ? t("deleteFile.references", { count: preview.referenceCount })
+      : "",
+    preview.requiresUnrecoverableConfirmation
+      ? t("deleteFile.unrecoverable")
+      : "",
+  ].filter(Boolean);
+  const { confirmed } = await showAppDialog({
+    title: t(preview.kind === "directory" ? "deleteFolder.title" : "deleteFile.title"),
+    message: messages.join("\n\n"),
+    confirmText: t(
+      preview.requiresUnrecoverableConfirmation
+        ? "action.deleteAnyway"
+        : "action.delete",
+    ),
+    cancelText: t("action.cancel"),
+    variant: "danger",
+  });
+  if (!confirmed) {
+    return;
+  }
+
+  const response = await fetch(apiUrl("/api/delete-path", { locale: state.locale }), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      path: targetPath,
+      fingerprint: preview.fingerprint,
+      confirmUnrecoverable: preview.requiresUnrecoverableConfirmation === true,
+    }),
+  });
+  const payload = await response.json().catch(() => ({
+    error: t("error.fileOperation"),
+  }));
+  if (!response.ok) {
+    showCopyToast(payload.error || t("error.fileOperation"));
+    return;
+  }
+
+  await applyBranchProtectionPayload(payload);
+  releaseTreeFocusForRemovedPath(targetPath);
+  if (payload.kind === "directory") {
+    await removeFavoritePath("directory", targetPath);
+  } else if (isMarkdownPath(targetPath)) {
+    await removeFavoritePath("document", targetPath);
+  }
+  if (payload.kind === "file") {
+    const currentWasDeleted = state.currentFile === targetPath;
+    const nextTabs = removeDocumentTabPath({
+      tabs: state.documentTabs,
+      activeTabId: state.activeTabId,
+      filePath: targetPath,
+    });
+    applyDocumentTabState(nextTabs, { render: true, persist: true });
+    if (currentWasDeleted) {
+      if (nextTabs.location) {
+        await loadDocumentLocation(nextTabs.location.path, {
+          hash: nextTabs.location.hash,
+          restoreScrollTop: nextTabs.location.scrollTop,
+        });
+      } else {
+        showNoDocumentSelected({ pushState: true });
+      }
+    }
+  }
+  await loadTree({ force: true });
+  await loadGitStatus();
+  const parentPath = parentDirectoryPath(targetPath);
+  if (parentPath) {
+    showTreeOperationFeedback(parentPath, "directory");
+  }
+  showCopyToast(t("toast.pathDeleted", { path: targetPath }));
+}
+
+function releaseTreeFocusForRemovedPath(path) {
+  const item = currentTreeItem();
+  if (item?.dataset.treePath !== path) {
+    return;
+  }
+  item.blur();
+  state.lastTreeFocus = null;
+  scheduleWorkbenchSessionPersist();
 }
 
 async function revealPathInFinder(path) {
@@ -3812,6 +4211,11 @@ function renderNode(node, parentPath) {
   const summary = document.createElement("summary");
   summary.dataset.treeItem = "directory";
   summary.dataset.treePath = directoryPath;
+  summary.dataset.treeKind = "directory";
+  if (node.placeholderOnly === true) {
+    summary.dataset.treePlaceholderOnly = "true";
+    details.classList.add("is-placeholder-only");
+  }
   summary.tabIndex = 0;
   summary.classList.toggle("is-missing", node.missing === true);
   if (node.missing === true) {
@@ -3882,6 +4286,9 @@ function treeFileCapability(kind, { missing = false } = {}) {
   }
   if (kind === "markdown") {
     return { name: "editable", label: t("file.editable"), badge: "" };
+  }
+  if (kind === "placeholder") {
+    return { name: "placeholder", label: t("file.placeholder"), badge: "" };
   }
   if (["unsupported", "symlink", "submodule"].includes(kind)) {
     return {
@@ -5694,6 +6101,24 @@ function handleFileTreeFocusIn(event) {
 function handleFileTreeKeydown(event) {
   const item = currentTreeItem(event.target);
   if (!item || event.metaKey || event.ctrlKey || event.altKey || event.isComposing) {
+    return;
+  }
+
+  if (event.key === "F2") {
+    const kind = item.dataset.treeKind || "";
+    if (
+      item.dataset.treeItem === "file" &&
+      item.dataset.treeMissing !== "true" &&
+      !["symlink", "submodule", "placeholder"].includes(kind) &&
+      canEditCurrentRepo()
+    ) {
+      event.preventDefault();
+      void promptRenameFile({
+        path: item.dataset.treePath || "",
+        kind,
+        regularFile: true,
+      });
+    }
     return;
   }
 

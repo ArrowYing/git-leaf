@@ -275,6 +275,50 @@ export function replaceDocumentTabPath({ tabs = [], fromPath, toPath } = {}) {
   });
 }
 
+export function removeDocumentTabPath({
+  tabs = [],
+  activeTabId = "",
+  filePath = "",
+} = {}) {
+  const normalized = normalizeDocumentTabs(tabs);
+  const activeId = resolveActiveDocumentTabId({ tabs: normalized, activeTabId });
+  const targetPath = normalizePath(filePath);
+  if (!targetPath) {
+    return navigationResult(normalized, activeId);
+  }
+
+  const activeIndex = normalized.findIndex((tab) => tab.id === activeId);
+  const nextTabs = [];
+  for (const tab of normalized) {
+    const entries = tab.history.entries.filter((entry) => entry.path !== targetPath);
+    if (entries.length === 0) {
+      continue;
+    }
+    const removedThroughCurrent = tab.history.entries
+      .slice(0, tab.history.index + 1)
+      .filter((entry) => entry.path === targetPath)
+      .length;
+    const index = Math.max(0, Math.min(
+      entries.length - 1,
+      tab.history.index - removedThroughCurrent,
+    ));
+    nextTabs.push({
+      ...tab,
+      path: entries[index].path,
+      history: { entries, index },
+    });
+  }
+
+  if (nextTabs.length === 0) {
+    return navigationResult([], "");
+  }
+  if (nextTabs.some((tab) => tab.id === activeId)) {
+    return navigationResult(nextTabs, activeId);
+  }
+  const fallbackIndex = Math.max(0, Math.min(activeIndex, nextTabs.length - 1));
+  return navigationResult(nextTabs, nextTabs[fallbackIndex].id);
+}
+
 function navigationResult(tabs, activeTabId, openedTabId = "") {
   const normalized = normalizeDocumentTabs(tabs);
   const resolvedId = resolveActiveDocumentTabId({ tabs: normalized, activeTabId });
