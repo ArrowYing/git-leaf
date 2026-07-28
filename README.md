@@ -63,17 +63,20 @@ Git Leaf presents this content through safe built-in components; documents canno
 
 ## Choosing Git Leaf, Obsidian, or VS Code
 
-All three can open local text files, but they start from different needs:
+The deciding question is not which app can open Markdown. It is who maintains the knowledge and whether
+Git is the shared source of truth:
 
-| Primary need | Best fit |
-| --- | --- |
-| Knowledge already lives in Git. Product, operations, project owners, and AI agents need to maintain it together without requiring everyone to work directly in Git or Markdown | **Git Leaf** |
-| Notes, backlinks, and an extensible local Markdown knowledge base are central; Git is not the primary workflow | [**Obsidian**](https://obsidian.md/help/obsidian) |
-| Writing code is central, and you are comfortable working directly with project files, staging, commits, branches, and conflicts | [**VS Code**](https://code.visualstudio.com/docs/sourcecontrol/overview) |
+| Choose when… | Best fit | Why |
+| --- | --- | --- |
+| Your personal or shared knowledge base already lives in Git, but the people maintaining it should not need Git commands or an IDE. This includes individual users, product and operations teams, researchers, and project owners. | **Git Leaf** | A familiar file tree, search, Live Editor, and an explicit review-and-publish flow sit directly on the original repository. |
+| People and AI agents must work on exactly the same files, while developers keep their existing Git tools. | **Git Leaf** | Git Leaf provides the human-facing workflow; agents, developers, and automation use the repository directly, without importing or copying the content. |
+| Your main goal is a personal network of notes built around links, backlinks, graph exploration, and plugins; Git is secondary. | [**Obsidian**](https://obsidian.md/help/obsidian) | It is centered on linked local notes and personal customization. |
+| Your main work is software development, and you want direct control of staging, branches, diffs, conflicts, and coding agents. | [**VS Code**](https://code.visualstudio.com/docs/sourcecontrol/overview) | It is a development environment that exposes the complete technical Git and coding workflow. |
 
-One repository does not require one tool for everyone. Product, operations, and project teams can use
-Git Leaf; developers can keep using VS Code or the command line; AI agents work with the repository
-files directly. Everyone still maintains the same content in the Git repository.
+Git Leaf is the fit when the question is not “How should developers edit Markdown?” but “How can
+ordinary people safely maintain a Git-based knowledge base together with developers and AI agents?”
+One repository still does not require one tool for everyone: people can use Git Leaf while developers,
+agents, and automation keep using the same files through their existing tools.
 
 ## Download
 

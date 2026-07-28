@@ -59,16 +59,18 @@ Git Leaf 使用安全的内置组件呈现这些内容，文档本身不能运�
 
 ## Git Leaf、Obsidian 和 VS Code 怎么选
 
-这三个工具都能打开本机文本文件，但设计出发点不同：
+决定因素不是哪个 App 能打开 Markdown，而是谁在维护知识，以及 Git 是否是共同的内容事实源：
 
-| 主要需求 | 更适合 |
-| --- | --- |
-| 知识已经放在 Git 中，希望产品、运营、项目负责人和 AI Agent 共同维护，但不希望每个人都直接操作 Git 或 Markdown | **Git Leaf** |
-| 以笔记、双向链接和可扩展的本地 Markdown 知识库为中心，Git 不是主要工作流 | [**Obsidian**](https://obsidian.md/help/obsidian) |
-| 主要编写代码，并愿意直接处理项目文件、Git 暂存、提交、分支和冲突 | [**VS Code**](https://code.visualstudio.com/docs/sourcecontrol/overview) |
+| 适合选择的情况 | 更适合 | 原因 |
+| --- | --- | --- |
+| 个人或团队的知识库已经放在 Git 中，但维护它的人不应该先学习 Git 命令或 IDE；这包括个人用户、产品、运营、研究和项目负责人。 | **Git Leaf** | 熟悉的目录树、搜索、Live Editor 和明确的检查发布流程，直接作用于原来的仓库。 |
+| 人与 AI Agent 必须使用完全相同的文件，同时开发者仍要保留自己的 Git 工具。 | **Git Leaf** | Git Leaf 提供面向人的工作方式；Agent、开发者和自动化直接使用仓库，无需导入或复制内容。 |
+| 主要目标是建立以链接、反向链接、关系图和插件为中心的个人笔记网络，Git 只是次要需求。 | [**Obsidian**](https://obsidian.md/help/obsidian) | 它的中心是相互连接的本地笔记和个人定制。 |
+| 主要工作是软件开发，并且希望直接控制暂存、分支、差异、冲突和 Coding Agent。 | [**VS Code**](https://code.visualstudio.com/docs/sourcecontrol/overview) | 它是开发环境，会完整呈现技术性的 Git 和代码工作流。 |
 
-同一个仓库不必让所有人使用同一种工具。产品、运营和项目人员可以使用 Git Leaf；开发者可以继续使用
-VS Code 或命令行；AI Agent 直接使用仓库文件。大家维护的仍是同一个 Git 仓库中的内容。
+Git Leaf 适合解决的不是“开发者如何编辑 Markdown”，而是“普通使用者如何与开发者和 AI Agent
+一起，安全地维护 Git 知识库”。同一个仓库仍然不要求所有人使用同一种工具：人可以使用 Git Leaf，
+开发者、Agent 和自动化则通过各自原有的工具继续使用同一份文件。
 
 ## 下载
 
