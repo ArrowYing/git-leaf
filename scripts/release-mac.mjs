@@ -1022,8 +1022,11 @@ export function ensureReleaseSigningIdentityAccess({
       ).trim();
       throw new Error(
         `The Developer ID identity exists, but its private key could not sign a temporary probe: ${details}. `
-        + "Keep the release Mac unlocked and grant the existing signing key access through the approved Keychain mechanism; "
-        + "the release controller will not unlock or rewrite Keychain state.",
+        + "In the maintainer's own terminal, unlock the login Keychain with "
+        + "`security unlock-keychain ~/Library/Keychains/login.keychain-db`, enter the password only "
+        + "at the local prompt, and then rerun `run mac check-prereqs`. Never pass the password with "
+        + "`-p`, place it in a release profile, log, or chat, or reset the default Keychain. "
+        + "The release controller will not collect credentials, unlock, or rewrite Keychain state.",
       );
     }
 

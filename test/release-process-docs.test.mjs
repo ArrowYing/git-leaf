@@ -39,6 +39,11 @@ test("release documentation exposes the dual-track build and publication boundar
   assert.match(releaseDoc, /secret scanner/);
   assert.match(releaseDoc, /packages exclude `\.agents\/`, `marketing\/`, `test\/`, `dist\/`, `\.git\/`/);
   assert.match(releaseDoc, /must never contain:[\s\S]*Apple credentials or private keys/);
+  assert.match(
+    releaseDoc,
+    /security unlock-keychain ~\/Library\/Keychains\/login\.keychain-db/,
+  );
+  assert.match(releaseDoc, /only a successful disposable signature proves[\s\S]*recovery/);
   assert.doesNotMatch(
     releaseDoc,
     /unlock-keychain -p|UPDATE_REMOTE_HOST="/,

@@ -224,6 +224,22 @@ certificate and private key live in one fixed keychain, and it never unlocks, re
 Keychain state. A visible certificate or an unrelated unlocked keychain is not sufficient evidence that
 the release identity can sign.
 
+When the identity is listed but the signing probe returns `errSecInternalComponent` or
+`errSecAuthFailed`, the first recovery action is to have the maintainer unlock the login Keychain in
+their own terminal:
+
+```bash
+security unlock-keychain ~/Library/Keychains/login.keychain-db
+```
+
+The command prompts for the password locally. Never pass the password with `-p`, place it in a release
+profile, environment variable, log, or chat, or ask the maintainer to disclose it. Rerun
+`node scripts/release-worktree.mjs run mac check-prereqs`; only a successful disposable signature proves
+recovery. Do not ask the maintainer to log out, restart the Mac, change private-key access controls,
+reset the default Keychain, or reimport credentials as the first response. Those actions require
+separate diagnosis if the probe still fails after an explicit unlock. The controller deliberately does
+not perform the unlock because it must not collect an interactive credential.
+
 For a public release, logical `candidate` and `stable` map to the physical `candidate` and `stable` channels. For an internal release they map to `internal-candidate` and `internal-stable`. Operators always pass the logical channel to the controller.
 
 Publish both candidate platforms:

@@ -113,7 +113,16 @@ test("mac release prerequisites report private-key denial and remove the tempora
         return { status: 1, stdout: "", stderr: "errSecInternalComponent" };
       },
     }),
-    /private key could not sign.*errSecInternalComponent/,
+    (error) => {
+      assert.match(error.message, /private key could not sign.*errSecInternalComponent/);
+      assert.match(
+        error.message,
+        /security unlock-keychain ~\/Library\/Keychains\/login\.keychain-db/,
+      );
+      assert.match(error.message, /rerun `run mac check-prereqs`/);
+      assert.doesNotMatch(error.message, /unlock-keychain -p/);
+      return true;
+    },
   );
   assert.deepEqual(await readdir(temporaryRoot), ["probe-source"]);
   await rm(temporaryRoot, { recursive: true, force: true });
