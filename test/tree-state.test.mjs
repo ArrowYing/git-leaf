@@ -78,11 +78,21 @@ test("shouldOpenTreeDirectory opens all directories while broad filters are acti
   );
 });
 
-test("shouldOpenTreeDirectory preserves manual collapse while broad filters are active", () => {
+test("shouldOpenTreeDirectory temporarily overrides manual collapse while broad filters are active", () => {
   assert.equal(
     shouldOpenTreeDirectory({
       directoryPath: "growth",
       hasBroadTreeFilter: true,
+      containsCurrentFile: false,
+      expandedDirectories: new Set(),
+      collapsedDirectories: new Set(["growth"]),
+    }),
+    true,
+  );
+  assert.equal(
+    shouldOpenTreeDirectory({
+      directoryPath: "growth",
+      hasBroadTreeFilter: false,
       containsCurrentFile: false,
       expandedDirectories: new Set(),
       collapsedDirectories: new Set(["growth"]),

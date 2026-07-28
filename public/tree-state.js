@@ -81,13 +81,13 @@ export function shouldOpenTreeDirectory({
   expandedDirectories,
   collapsedDirectories,
 }) {
+  if (hasBroadTreeFilter) {
+    return true;
+  }
   if (collapsedDirectories?.has(directoryPath)) {
     return false;
   }
   if (expandedDirectories?.has(directoryPath)) {
-    return true;
-  }
-  if (hasBroadTreeFilter) {
     return true;
   }
   return false;
