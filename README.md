@@ -25,7 +25,7 @@ interface, shared updates through Git, and URLs that open the right local docume
 [![CI](https://github.com/MangoFuture1210/git-leaf/actions/workflows/ci.yml/badge.svg)](https://github.com/MangoFuture1210/git-leaf/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
-[Open the public example context repository](https://gitleaf.mangofuture.com/open?repo=mangofuture1210%2Fgit-leaf-example-knowledge-base&path=README.md)
+[Open the public User Guide Demo repository](https://gitleaf.mangofuture.com/open?repo=mangofuture1210%2Fgit-leaf-example-knowledge-base&path=README.md)
 after installing Git Leaf, or clone it for a completely local first run.
 For a fuller visual tour and day-to-day workflows, read the [Git Leaf user guide](docs/user-guide.md).
 
@@ -143,7 +143,7 @@ npm run desktop -- --repo /path/to/docs-repo
 
 The complete [build-from-source guide](docs/build-from-source.md) explains source packaging, Community
 Build identity, and the difference from an official Mango Future distribution. The
-[public example context repository](https://github.com/MangoFuture1210/git-leaf-example-knowledge-base)
+[public User Guide Demo repository](https://github.com/MangoFuture1210/git-leaf-example-knowledge-base)
 provides a ready-to-open repository with Markdown and MDX content.
 
 The CLI and browser workspace are primarily for local development:

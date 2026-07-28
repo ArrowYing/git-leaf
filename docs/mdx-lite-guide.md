@@ -36,7 +36,7 @@ HTML or SVG.
 - A component change updates code, tests, this reference, and the demo together.
 - Content repositories may maintain their own adoption rules and selected examples, but cannot override
   Git Leaf's implementation contract. The
-  [public example context repository](https://github.com/MangoFuture1210/git-leaf-example-knowledge-base)
+  [public User Guide Demo repository](https://github.com/MangoFuture1210/git-leaf-example-knowledge-base)
   uses only a small, natural subset for first-run experience; it must not duplicate this full reference
   or regression matrix.
 

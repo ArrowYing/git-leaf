@@ -25,7 +25,7 @@ Git Leaf 把在线文档的关键便利带回本地优先的文件库：用易�
 [![CI](https://github.com/MangoFuture1210/git-leaf/actions/workflows/ci.yml/badge.svg)](https://github.com/MangoFuture1210/git-leaf/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
-安装 Git Leaf 后，可以直接[打开公开示例上下文仓库](https://gitleaf.mangofuture.com/open?repo=mangofuture1210%2Fgit-leaf-example-knowledge-base&path=README.md)，
+安装 Git Leaf 后，可以直接[打开公开使用指南 Demo 仓库](https://gitleaf.mangofuture.com/open?repo=mangofuture1210%2Fgit-leaf-example-knowledge-base&path=README.zh-CN.md)，
 也可以先克隆到本机，完成一次完全本地的首次体验。
 更完整的界面介绍和日常工作方式见 [Git Leaf 用户手册](docs/user-guide.zh-CN.md)。
 
@@ -125,7 +125,7 @@ npm run desktop -- --repo /path/to/docs-repo
 ```
 
 [从源码构建指南](docs/build-from-source.md)说明了依赖、打包方式、Community Build 身份，以及它与
-Mango Future 官方发行版的区别。[公开示例上下文仓库](https://github.com/MangoFuture1210/git-leaf-example-knowledge-base)
+Mango Future 官方发行版的区别。[公开使用指南 Demo 仓库](https://github.com/MangoFuture1210/git-leaf-example-knowledge-base)
 提供了一组可以直接打开的 Markdown／MDX 内容。
 
 CLI／Web 入口主要用于本机开发和浏览器工作台：

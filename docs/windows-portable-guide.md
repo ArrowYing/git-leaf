@@ -53,7 +53,7 @@ Git Leaf registers the `git-leaf://` protocol from its fixed installation:
 
 ```powershell
 Start-Process 'git-leaf://open'
-Start-Process 'git-leaf://open?repo=C%3A%5CUsers%5Cexample%5CProjects%5Cgarden-notes&path=README.md'
+Start-Process 'git-leaf://open?repo=C%3A%5CUsers%5Cexample%5CProjects%5Cgit-leaf-guide-demo&path=README.md'
 ```
 
 `repo` is a URL-encoded local repository path. `path` is a repository-relative Markdown or MDX path. HTTPS share links use a GitHub `owner/repo` identity and do not transmit a recipient's local path or document content. The public HTTPS handoff is hosted by Mango Future; see [Hosted `/open` and `/share` links](hosted-links.md) for the exact metadata.

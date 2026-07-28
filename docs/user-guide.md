@@ -11,8 +11,9 @@ and its AI agents. It opens the repository that already exists on your computer.
 copy that repository into a separate knowledge service.
 
 This guide is for people who need to understand and maintain the repository without making Git,
-Markdown, or a developer tool part of their daily workflow. The screenshots use the public
-[Lighthouse Garden example repository](https://github.com/MangoFuture1210/git-leaf-example-knowledge-base).
+Markdown, or a developer tool part of their daily workflow. The screenshots and hands-on examples use
+the public
+[Git Leaf User Guide Demo repository](https://github.com/MangoFuture1210/git-leaf-example-knowledge-base).
 
 ## Start here
 
@@ -147,54 +148,54 @@ For a quick question about the document in front of you:
 2. Choose **Copy content**.
 3. Paste the result directly into Codex, Claude, or another agent tool.
 
-For example, selecting lines 8–9 in `context/project-context.md` produces:
+For example, selecting lines 16–17 in `demos/agent-context-and-sync.md` produces:
 
 ````markdown
-context/project-context.md:8-9
+demos/agent-context-and-sync.md:16-17
 
 ```markdown
-8 | Lighthouse Garden is a fictional shared garden beside a neighborhood library. This document gives
-9 | volunteers and AI agents the stable context they need before changing a plan, decision, or playbook.
+16 | Git Leaf opens a local Git repository and presents it as a readable workspace. The repository remains
+17 | the shared source of truth. Git Leaf does not upload the content or create a separate hosted copy.
 ```
 ````
 
 The copy includes the repository-relative path, selected line range, original line numbers, and original
 Markdown. It is ready to paste without first adding anything to the Agent Context basket.
 
-### Several documents: build an Agent Context collection
+### Several passages: build an Agent Context collection
 
-When one task depends on passages from several files:
+When one task depends on several passages from one or more files:
 
 1. Select source-backed lines in Preview, Source, or Live.
 2. Choose **Add to context**.
-3. Open another document and repeat for every relevant passage.
+3. Repeat for every relevant passage, opening another document when needed.
 4. Open **Agent Context** at the bottom of the sidebar to inspect or remove what you selected.
 5. Copy the collection and paste it into Codex, Claude, or another agent tool.
 
-![A source-backed passage collected as part of a multi-file Agent Context](assets/user-guide/agent-context.jpg)
+![Source-backed passages collected in Agent Context](assets/user-guide/agent-context.jpg)
 
-A two-file collection is copied in this form:
+A two-passage collection is copied in this form:
 
 ````markdown
 # Agent Context
 
-Repository: lighthouse-garden
+Repository: git-leaf-example-knowledge-base
 Worktree: main checkout
 Branch: main
 Revision: 0123456789abcdef
 
-## context/project-context.md:L8-L9
+## demos/agent-context-and-sync.md:L16-L17
 
 ```markdown
-8 | Lighthouse Garden is a fictional shared garden beside a neighborhood library. This document gives
-9 | volunteers and AI agents the stable context they need before changing a plan, decision, or playbook.
+16 | Git Leaf opens a local Git repository and presents it as a readable workspace. The repository remains
+17 | the shared source of truth. Git Leaf does not upload the content or create a separate hosted copy.
 ```
 
-## decisions/0001-git-is-the-source-of-truth.md:L11-L12
+## demos/agent-context-and-sync.md:L24-L25
 
 ```markdown
-11 | The files in this repository are the team's authoritative shared context. Git Leaf is the human
-12 | interface used to read and maintain them; automation and AI agents work with the same files through Git.
+24 | People use Preview, Live, and Source to read, inspect, and make focused edits. Agents and developers
+25 | work directly with the same repository through Git and their normal tools.
 ```
 ````
 
@@ -262,7 +263,7 @@ The normal Agent-to-person flow is:
 After installing Git Leaf and making the public example available locally, try the complete handoff:
 
 Open in Git Leaf:
-[Lighthouse Garden project context](https://gitleaf.mangofuture.com/open?repo=mangofuture1210%2Fgit-leaf-example-knowledge-base&path=context%2Fproject-context.md)
+[Git Leaf user guide demo](https://gitleaf.mangofuture.com/open?repo=mangofuture1210%2Fgit-leaf-example-knowledge-base&path=guide%2Fuser-guide.md)
 
 ### Teach an Agent to return the link
 

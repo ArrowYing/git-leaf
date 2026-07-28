@@ -16,7 +16,7 @@ materially improves installation, privacy, or product use.
 | System architecture | [Architecture](architecture.md) | Cross-module behavior and invariants |
 | MDX-lite reference | [Reference](mdx-lite-guide.md) | Syntax, allowlist, and renderer contract |
 | MDX-lite demo | [Demo](mdx-lite-components-demo.mdx) | Development and visual regression fixture |
-| Public example context repository | [Lighthouse Garden](https://github.com/MangoFuture1210/git-leaf-example-knowledge-base) | User-facing first-run content |
+| Public User Guide Demo | [Runnable companion repository](https://github.com/MangoFuture1210/git-leaf-example-knowledge-base) | User-facing first-run and main-feature demos |
 | Hosted link privacy | [Hosted links](hosted-links.md) · [简体中文](hosted-links.zh-CN.md) | End-user metadata disclosure |
 | Windows Preview | [English](windows-portable-guide.md) · [简体中文](windows-portable-guide.zh-CN.md) | Installation and security guidance |
 | Usage analytics | [Specification](app-usage-analytics-spec.md) | Normative event, privacy, and metric contract |
@@ -26,7 +26,9 @@ Repository-specific agent rules remain in [AGENTS.md](../AGENTS.md). Contributio
 reporting guidance remain in [CONTRIBUTING.md](../CONTRIBUTING.md) and
 [SECURITY.md](../SECURITY.md).
 
-The public example repository and this source repository are intentionally complementary. User-facing
-sample content belongs in the example repository; technical contracts, release schemas, and executable
-test fixtures stay here. Do not mirror the complete MDX-lite reference or regression fixture into the
-example context repository.
+The public User Guide Demo and this source repository are intentionally complementary. Stable
+user-facing walkthroughs, main-feature examples, and screenshot content belong in the demo repository;
+technical contracts, release schemas, security probes, and regression-only fixtures stay here.
+Whenever a stable user-visible capability, workflow, or screenshot scenario changes, review the
+matching demo page in the same maintenance cycle. Copied or adapted pages record their upstream source
+path and revision so the demo cannot silently become a second authority.

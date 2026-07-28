@@ -9,8 +9,9 @@ last_updated: 2026-07-28
 Git Leaf 是供人使用的桌面 App，用来打开和维护团队与 AI Agent 共享的 Git 上下文仓库。它直接打开已经
 存在于本机的仓库，不会把仓库上传或复制到另一个知识服务。
 
-这份手册面向需要理解和维护仓库、但不希望把 Git、Markdown 或开发工具变成日常工作方式的用户。截图使用
-公开的 [Lighthouse Garden 示例仓库](https://github.com/MangoFuture1210/git-leaf-example-knowledge-base)。
+这份手册面向需要理解和维护仓库、但不希望把 Git、Markdown 或开发工具变成日常工作方式的用户。截图与
+动手示例使用公开的
+[Git Leaf 使用指南 Demo 仓库](https://github.com/MangoFuture1210/git-leaf-example-knowledge-base)。
 
 ## 从这里开始
 
@@ -127,54 +128,54 @@ Git Leaf 内只有 Markdown 和 MDX 可以编辑。其他仓库文件提供只�
 2. 点击“复制内容”。
 3. 直接粘贴到 Codex、Claude 或其他 Agent 工具。
 
-例如，选中 `context/project-context.md` 的第 8–9 行，复制结果是：
+例如，选中 `demos/agent-context-and-sync.md` 的第 16–17 行，复制结果是：
 
 ````markdown
-context/project-context.md:8-9
+demos/agent-context-and-sync.md:16-17
 
 ```markdown
-8 | Lighthouse Garden is a fictional shared garden beside a neighborhood library. This document gives
-9 | volunteers and AI agents the stable context they need before changing a plan, decision, or playbook.
+16 | Git Leaf opens a local Git repository and presents it as a readable workspace. The repository remains
+17 | the shared source of truth. Git Leaf does not upload the content or create a separate hosted copy.
 ```
 ````
 
 其中已经包含仓库相对路径、选中行范围、原始行号和原始 Markdown，可以直接粘贴，不必先放进 Agent
 Context。
 
-### 多个文档：整理成 Agent Context
+### 多个片段：整理成 Agent Context
 
-如果一个任务需要同时参考多个文件：
+如果一个任务需要同时参考一个或多个文件中的多个片段：
 
 1. 在 Preview、Source 或 Live 中选择带来源的行。
 2. 点击“加入上下文”。
-3. 打开其他文档，继续加入每一段相关内容。
+3. 继续加入每一段相关内容；需要时再打开其他文档。
 4. 打开左侧栏底部的 Agent Context，检查或移除选择内容。
 5. 复制整个集合，粘贴到 Codex、Claude 或其他 Agent 工具。
 
-![在跨文件 Agent Context 中检查一段带来源的内容](assets/user-guide/agent-context.jpg)
+![在 Agent Context 中检查多个带来源的片段](assets/user-guide/agent-context.jpg)
 
-包含两个文件时，复制结果会是这样的结构：
+包含两个片段时，复制结果会是这样的结构：
 
 ````markdown
 # Agent Context
 
-Repository: lighthouse-garden
+Repository: git-leaf-example-knowledge-base
 Worktree: main checkout
 Branch: main
 Revision: 0123456789abcdef
 
-## context/project-context.md:L8-L9
+## demos/agent-context-and-sync.md:L16-L17
 
 ```markdown
-8 | Lighthouse Garden is a fictional shared garden beside a neighborhood library. This document gives
-9 | volunteers and AI agents the stable context they need before changing a plan, decision, or playbook.
+16 | Git Leaf opens a local Git repository and presents it as a readable workspace. The repository remains
+17 | the shared source of truth. Git Leaf does not upload the content or create a separate hosted copy.
 ```
 
-## decisions/0001-git-is-the-source-of-truth.md:L11-L12
+## demos/agent-context-and-sync.md:L24-L25
 
 ```markdown
-11 | The files in this repository are the team's authoritative shared context. Git Leaf is the human
-12 | interface used to read and maintain them; automation and AI agents work with the same files through Git.
+24 | People use Preview, Live, and Source to read, inspect, and make focused edits. Agents and developers
+25 | work directly with the same repository through Git and their normal tools.
 ```
 ````
 
@@ -230,7 +231,7 @@ Agent 把文档交给人检查时，完整流程是：
 安装 Git Leaf，并让公开示例仓库在本机可用后，可以直接体验完整中转：
 
 Open in Git Leaf：
-[Lighthouse Garden 项目上下文](https://gitleaf.mangofuture.com/open?repo=mangofuture1210%2Fgit-leaf-example-knowledge-base&path=context%2Fproject-context.md)
+[Git Leaf 使用指南 Demo](https://gitleaf.mangofuture.com/open?repo=mangofuture1210%2Fgit-leaf-example-knowledge-base&path=guide%2Fuser-guide.zh-CN.md)
 
 ### 让 Agent 在交付时返回链接
 

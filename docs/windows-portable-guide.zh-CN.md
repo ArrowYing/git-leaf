@@ -62,7 +62,7 @@ Git Leaf 从固定安装目录注册 `git-leaf://`：
 
 ```powershell
 Start-Process 'git-leaf://open'
-Start-Process 'git-leaf://open?repo=C%3A%5CUsers%5Cexample%5CProjects%5Cgarden-notes&path=README.md'
+Start-Process 'git-leaf://open?repo=C%3A%5CUsers%5Cexample%5CProjects%5Cgit-leaf-guide-demo&path=README.md'
 ```
 
 这里的 `repo` 是 URL 编码后的本机仓库路径，`path` 是仓库相对的 Markdown／MDX 路径。公开 HTTPS
