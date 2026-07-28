@@ -179,7 +179,7 @@ test("mac release package args exclude tests and generated outputs", () => {
   assert.ok(ignoreValues.includes("^/\\.git($|/)"));
 });
 
-test("mac release package args exclude internal docs, release scripts, and dev-only dependencies", () => {
+test("mac release package args exclude internal docs, repository tools, and dev-only dependencies", () => {
   const args = electronPackagerArgs({
     appName: "Git Leaf",
     bundleId: "com.mangofuture.gitleaf",
@@ -192,6 +192,7 @@ test("mac release package args exclude internal docs, release scripts, and dev-o
 
   for (const filePath of [
     "/scripts/release-mac.mjs",
+    "/tools/generate-git-leaf-open-link.mjs",
     "/Makefile",
     "/AGENTS.md",
     "/CLAUDE.md",

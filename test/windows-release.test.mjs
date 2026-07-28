@@ -44,7 +44,7 @@ test("windows release package args include x64 target metadata", () => {
   assert.ok(args.includes("--ignore=^/dist($|/)"));
 });
 
-test("windows release package args exclude internal docs, release scripts, and dev-only dependencies", () => {
+test("windows release package args exclude internal docs, repository tools, and dev-only dependencies", () => {
   const args = windowsElectronPackagerArgs({
     appName: "Git Leaf",
     companyName: "Mango Future",
@@ -58,6 +58,7 @@ test("windows release package args exclude internal docs, release scripts, and d
 
   for (const filePath of [
     "/scripts/release-windows.mjs",
+    "/tools/generate-git-leaf-open-link.mjs",
     "/Makefile",
     "/AGENTS.md",
     "/CLAUDE.md",

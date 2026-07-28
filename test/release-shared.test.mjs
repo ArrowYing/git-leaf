@@ -59,7 +59,7 @@ test("releaseArtifactFileName keeps downloadable artifact names short and shell 
   );
 });
 
-test("release package ignores third-party test files from app.asar", () => {
+test("release package excludes repository tooling and third-party tests from app.asar", () => {
   const ignorePatterns = RELEASE_PACKAGE_IGNORE_PATTERNS.map((pattern) => new RegExp(pattern));
   const isIgnored = (filePath) => ignorePatterns.some((pattern) => pattern.test(filePath));
 
@@ -68,6 +68,7 @@ test("release package ignores third-party test files from app.asar", () => {
     "/CHANGELOG.md",
     "/README.zh-CN.md",
     "/docs/assets/user-guide/workspace-overview.png",
+    "/tools/generate-git-leaf-open-link.mjs",
     "/node_modules/@lezer/css/test/test-css.js",
     "/node_modules/@lezer/html/tests/fixture.txt",
     "/node_modules/example/__tests__/fixture.js",

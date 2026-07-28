@@ -56,6 +56,9 @@ desktop shell, the web workspace, tests, and packaging configuration are all mai
 - `docs/`: architecture, release instructions, platform guides, renderer references, and specifications.
   Maintainer-facing technical documents are English-only. End-user documents may add Simplified Chinese
   with `.zh-CN`.
+- `scripts/`: development, verification, packaging, and release automation; not desktop runtime source.
+- `tools/`: standalone utilities designed to be copied into other repositories; not desktop runtime
+  source.
 - `test/`: Node test runner tests.
 - `dist/`: local build artifacts; never commit this directory.
 

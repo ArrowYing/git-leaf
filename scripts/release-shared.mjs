@@ -15,6 +15,7 @@ export const RELEASE_PACKAGE_IGNORE_PATTERNS = [
   "^/\\.agents($|/)",
   "^/\\.superpowers($|/)",
   "^/scripts($|/)",
+  "^/tools($|/)",
   "^/assets($|/)",
   "^/docs($|/)",
   "^/marketing($|/)",

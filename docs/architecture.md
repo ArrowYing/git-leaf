@@ -428,7 +428,9 @@ Source directories follow runtime ownership. `src/content/` is browser-safe rend
 editor bundle and local Node service. `src/server/` is the local backend used by both the CLI and Electron
 host. `src/desktop/` contains Electron-only lifecycle and platform behavior. Dependency direction is
 `client -> content`, `server -> content`, and `cli/desktop -> server`; the server and content layers must
-not depend on the desktop layer.
+not depend on the desktop layer. Repository-level `scripts/` contains development and release automation,
+while `tools/` contains standalone utilities intended to be copied into other repositories. Neither
+directory is part of the packaged desktop runtime.
 
 | Module | Responsibility |
 | --- | --- |
