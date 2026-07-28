@@ -1,9 +1,9 @@
-import { appDisplayName, BUILD_INFO } from "./build-info.mjs";
-import { normalizeColorMode } from "../public/settings-preferences.js";
+import { appDisplayName, BUILD_INFO } from "../build-info.mjs";
+import { normalizeColorMode } from "../../public/settings-preferences.js";
 import {
   createDesktopTranslator,
   resolveDesktopLanguage,
-} from "../desktop/localization.mjs";
+} from "./localization.mjs";
 
 export const DESKTOP_OPEN_REPOSITORY_URL = "git-leaf://open-repository";
 export const DESKTOP_OPEN_WORKTREE_URL = "git-leaf://open-worktree";

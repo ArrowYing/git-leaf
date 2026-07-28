@@ -533,7 +533,7 @@ by field presence, not app version; legacy recovery uses only the deterministic 
 | Responsibility | Location |
 | --- | --- |
 | Client identity, daily summaries, event/property validation | `src/telemetry.mjs` |
-| Update state generation | `desktop/updates.mjs`, `desktop/main.mjs` |
+| Update state generation | `src/desktop/updates.mjs`, `src/desktop/main.mjs` |
 | Active minutes | `src/telemetry-activity.mjs` |
 | Renderer counters | `public/telemetry.js`, `public/app.js`, `src/client/source-editor.mjs` |
 | Receiver validation and download logging | `scripts/gitleaf-update-server.py` |

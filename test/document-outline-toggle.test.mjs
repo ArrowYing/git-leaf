@@ -7,7 +7,7 @@ import test from "node:test";
 import {
   readDesktopConfig,
   saveDesktopPreferences,
-} from "../src/desktop-config.mjs";
+} from "../src/desktop/config.mjs";
 
 test("desktop config keeps document outline layout across repositories", async () => {
   const userDataDir = await mkdtemp(path.join(tmpdir(), "git-leaf-outline-toggle-"));

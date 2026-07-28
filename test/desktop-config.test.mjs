@@ -15,7 +15,7 @@ import {
   saveDesktopRepository,
   saveDesktopUsageAnalyticsEnabled,
   saveDesktopWindowState,
-} from "../src/desktop-config.mjs";
+} from "../src/desktop/config.mjs";
 
 const NEW_INSTALL_PREFERENCES = {
   language: "system",

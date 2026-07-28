@@ -8,7 +8,6 @@ const DEFAULT_MIN_CHECK_INTERVAL_MS = 30_000;
 const RUNTIME_ENTRIES = [
   "package.json",
   "package-lock.json",
-  "desktop",
   "src",
   "public",
 ];

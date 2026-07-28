@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { waitForWebContentsPaint } from "../src/desktop-paint.mjs";
+import { waitForWebContentsPaint } from "../src/desktop/paint.mjs";
 
 test("desktop paint waits in the renderer when the page can paint", async () => {
   let calls = 0;

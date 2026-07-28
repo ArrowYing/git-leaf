@@ -4,8 +4,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { readDesktopConfig } from "../src/desktop-config.mjs";
-import { migrateLegacyHumanProfile } from "../src/desktop-profile-migration.mjs";
+import { readDesktopConfig } from "../src/desktop/config.mjs";
+import { migrateLegacyHumanProfile } from "../src/desktop/profile-migration.mjs";
 
 async function makeProfiles() {
   const rootDir = await mkdtemp(path.join(tmpdir(), "git-leaf-profile-migration-"));

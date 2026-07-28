@@ -6,12 +6,12 @@ import {
   DEFAULT_USER_PREFERENCES,
   LEGACY_USER_PREFERENCES,
   normalizeUserPreferences,
-} from "../public/settings-preferences.js";
+} from "../../public/settings-preferences.js";
 import {
   applySidebarFavoriteOperation,
   normalizeSidebarFavoriteScopes,
-} from "../public/sidebar-favorites.js";
-import { normalizeWorkbenchSessions } from "../public/workbench-session.js";
+} from "../../public/sidebar-favorites.js";
+import { normalizeWorkbenchSessions } from "../../public/workbench-session.js";
 
 const CONFIG_FILENAME = "desktop-config.json";
 const CONFIG_BACKUP_FILENAME = "desktop-config.backup.json";

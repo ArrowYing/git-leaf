@@ -15,11 +15,11 @@ import path from "node:path";
 import {
   normalizeDesktopConfig,
   readDesktopConfig,
-} from "./desktop-config.mjs";
+} from "./config.mjs";
 import {
   assertPathIdentitiesDoNotOverlap,
   pathIdentity,
-} from "./desktop-user-data.mjs";
+} from "./user-data.mjs";
 
 const LEGACY_PROFILE_MARKER = ".git-leaf-dev-smoke-profile.json";
 const LEGACY_PROFILE_MARKER_KIND = "git-leaf-development-profile";

@@ -8,8 +8,8 @@ import {
   preferredSystemLanguages,
   resolveDesktopLanguage,
   translatedFileCount,
-} from "../desktop/localization.mjs";
-import { createApplicationTranslator } from "../desktop/main-localization.mjs";
+} from "../src/desktop/localization.mjs";
+import { createApplicationTranslator } from "../src/desktop/main-localization.mjs";
 
 test("desktop language follows the first supported system language", () => {
   assert.equal(resolveDesktopLanguage(

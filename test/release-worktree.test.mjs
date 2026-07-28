@@ -283,12 +283,12 @@ test("logical release phases map to isolated physical update channels", () => {
 });
 
 test("update regression risk is limited to update, install, packaging, and configuration paths", () => {
-  assert.equal(updateRegressionRiskForPath("desktop/updates.mjs"), true);
-  assert.equal(updateRegressionRiskForPath("src/desktop-config.mjs"), true);
-  assert.equal(updateRegressionRiskForPath("desktop/main.mjs", {
+  assert.equal(updateRegressionRiskForPath("src/desktop/updates.mjs"), true);
+  assert.equal(updateRegressionRiskForPath("src/desktop/config.mjs"), true);
+  assert.equal(updateRegressionRiskForPath("src/desktop/main.mjs", {
     changedLines: "+ telemetryUploadScheduler = createTelemetryUploadScheduler();",
   }), false);
-  assert.equal(updateRegressionRiskForPath("desktop/main.mjs", {
+  assert.equal(updateRegressionRiskForPath("src/desktop/main.mjs", {
     changedLines: "+ updateController = createDesktopUpdateController();",
   }), true);
   assert.equal(updateRegressionRiskForPath("scripts/release-mac.mjs", {
@@ -310,9 +310,9 @@ test("update regression risk is limited to update, install, packaging, and confi
 test("desktop main telemetry changes do not require real-App update regression", () => {
   const assessment = assessUpdateRegression({
     baseTag: "v1.11.1",
-    changedFiles: ["desktop/main.mjs", "src/telemetry-upload-scheduler.mjs"],
+    changedFiles: ["src/desktop/main.mjs", "src/telemetry-upload-scheduler.mjs"],
     changedFileDiffs: {
-      "desktop/main.mjs": [
+      "src/desktop/main.mjs": [
         "+ telemetryUploadScheduler = createTelemetryUploadScheduler();",
         "+ await telemetryUploadScheduler.shutdown();",
       ].join("\n"),
@@ -347,14 +347,14 @@ test("ordinary releases record that update regression is not required", () => {
 test("update-sensitive files and dependencies require real-App regression", () => {
   const assessment = assessUpdateRegression({
     baseTag: "v1.11.0",
-    changedFiles: ["README.md", "desktop/updates.mjs"],
+    changedFiles: ["README.md", "src/desktop/updates.mjs"],
     previousDependencies: { electron: "42.0.0" },
     currentDependencies: { electron: "43.0.0" },
   });
 
   assert.equal(assessment.required, true);
   assert.equal(assessment.status, "pending");
-  assert.deepEqual(assessment.changedFiles, ["desktop/updates.mjs"]);
+  assert.deepEqual(assessment.changedFiles, ["src/desktop/updates.mjs"]);
   assert.deepEqual(assessment.dependencyChanges, [{
     dependency: "electron",
     from: "42.0.0",

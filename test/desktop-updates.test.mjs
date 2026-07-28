@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { createDesktopUpdateController as createDesktopUpdateControllerImpl } from "../desktop/updates.mjs";
-import { createDesktopTranslator } from "../desktop/localization.mjs";
+import { createDesktopUpdateController as createDesktopUpdateControllerImpl } from "../src/desktop/updates.mjs";
+import { createDesktopTranslator } from "../src/desktop/localization.mjs";
 
 function createDesktopUpdateController(options = {}) {
   return createDesktopUpdateControllerImpl({

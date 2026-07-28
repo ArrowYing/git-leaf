@@ -10,7 +10,7 @@ import {
   normalizeGitLeafHandoffId,
   reportGitLeafShareHandoffState,
   writeDesktopDeepLinkLog,
-} from "../src/desktop-handoff.mjs";
+} from "../src/desktop/handoff.mjs";
 
 test("Git Leaf confirms only safe one-time handoff ids to the fixed update service endpoint", async () => {
   const requests = [];

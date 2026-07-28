@@ -1,4 +1,4 @@
-import { gitLeafDeepLinkFromArgs } from "./desktop-deep-link.mjs";
+import { gitLeafDeepLinkFromArgs } from "./deep-link.mjs";
 
 export function parseDesktopArgs(args = [], { platform = process.platform } = {}) {
   const deepLink = gitLeafDeepLinkFromArgs(args, { platform });

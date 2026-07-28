@@ -10,7 +10,7 @@ import {
   applyDevelopmentUserDataOverride,
   assertDevelopmentUserDataOverride,
   requestedDevelopmentUserDataDir,
-} from "../src/desktop-user-data.mjs";
+} from "../src/desktop/user-data.mjs";
 
 test("development user-data flag takes precedence over the environment", () => {
   assert.equal(

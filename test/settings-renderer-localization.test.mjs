@@ -5,9 +5,9 @@ import test from "node:test";
 import vm from "node:vm";
 
 const ROOT = path.join(import.meta.dirname, "..");
-const SETTINGS_HTML_PATH = path.join(ROOT, "desktop", "settings", "index.html");
-const SETTINGS_RENDERER_PATH = path.join(ROOT, "desktop", "settings", "renderer.js");
-const SETTINGS_STYLES_PATH = path.join(ROOT, "desktop", "settings", "styles.css");
+const SETTINGS_HTML_PATH = path.join(ROOT, "src", "desktop", "settings", "index.html");
+const SETTINGS_RENDERER_PATH = path.join(ROOT, "src", "desktop", "settings", "renderer.js");
+const SETTINGS_STYLES_PATH = path.join(ROOT, "src", "desktop", "settings", "styles.css");
 
 test("settings page exposes the bounded language choices and stays hidden until localized", async () => {
   const [html, styles] = await Promise.all([

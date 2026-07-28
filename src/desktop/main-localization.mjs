@@ -1,9 +1,9 @@
-import { createTranslator } from "../public/i18n.js";
-import { aboutPanelCopyright } from "../src/build-info.mjs";
+import { createTranslator } from "../../public/i18n.js";
+import { aboutPanelCopyright } from "../build-info.mjs";
 import {
   repositorySelectionErrorMessage,
   startupRepositoryErrorMessage,
-} from "../src/desktop-repository-errors.mjs";
+} from "./repository-errors.mjs";
 import {
   DESKTOP_MESSAGES,
   resolveDesktopLanguage,

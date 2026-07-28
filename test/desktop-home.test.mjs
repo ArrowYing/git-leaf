@@ -5,7 +5,7 @@ import {
   desktopHomeHtml,
   desktopPageBackgroundColor,
   desktopProgressHtml,
-} from "../src/desktop-home.mjs";
+} from "../src/desktop/home.mjs";
 
 test("desktop home page explains repository selection and renders environment checks", () => {
   const html = desktopHomeHtml({

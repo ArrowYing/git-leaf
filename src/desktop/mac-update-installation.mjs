@@ -1,4 +1,4 @@
-import { isOfficialDistribution } from "../src/build-info.mjs";
+import { isOfficialDistribution } from "../build-info.mjs";
 
 export const SQUIRREL_DIRECT_CONTENTS_WRITE_KEY =
   "SquirrelMacEnableDirectContentsWrite";

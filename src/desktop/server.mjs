@@ -1,10 +1,10 @@
 import path from "node:path";
 
-import { LOCALHOST_HOST, previewServerUrl } from "./network-address.mjs";
-import { resolveOpenablePath } from "./paths.mjs";
-import { createRepositoryInfo } from "./repositories.mjs";
-import { createPreviewServer } from "./server.mjs";
-import { workbenchSessionForRepo } from "../public/workbench-session.js";
+import { LOCALHOST_HOST, previewServerUrl } from "../network-address.mjs";
+import { resolveOpenablePath } from "../paths.mjs";
+import { createRepositoryInfo } from "../repositories.mjs";
+import { createPreviewServer } from "../server.mjs";
+import { workbenchSessionForRepo } from "../../public/workbench-session.js";
 
 export const DESKTOP_BIND_HOST = LOCALHOST_HOST;
 export const DEFAULT_DESKTOP_PORT = 4317;

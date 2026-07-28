@@ -5,7 +5,7 @@ import {
   localizedAboutPanelCopyright,
   localizeDesktopHomeError,
   windowsStartMenuShortcutOptions,
-} from "../desktop/main-localization.mjs";
+} from "../src/desktop/main-localization.mjs";
 import { GitRepositoryNotFoundError } from "../src/git-errors.mjs";
 
 test("desktop shell copy honors an explicit saved language over the system language", () => {

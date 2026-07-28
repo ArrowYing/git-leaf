@@ -11,7 +11,7 @@ import {
   DESKTOP_BIND_HOST,
   desktopPreviewServerUrl,
   startDesktopGitLeafServer,
-} from "../src/desktop-server.mjs";
+} from "../src/desktop/server.mjs";
 import { worktreeIdForPath } from "../src/git-worktrees.mjs";
 
 const execFileAsync = promisify(execFile);

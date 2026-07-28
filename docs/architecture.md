@@ -423,17 +423,17 @@ installer. Failed preparation remains retryable and must not masquerade as an ac
 
 | Module | Responsibility |
 | --- | --- |
-| `desktop/main.mjs` | Electron lifecycle, windows, menus, repository selection, settings, deep links |
-| `desktop/settings-center.mjs`, `desktop/settings/` | Full-screen settings/help and restricted IPC |
-| `desktop/preference-sync.mjs` | Persistence, server snapshots, and renderer preference propagation |
-| `src/desktop-config.mjs` | Atomic desktop configuration with last-known-good backup |
-| `src/desktop-user-data.mjs` | Shared human Profile and explicit smoke isolation |
-| `src/desktop-server.mjs` | Local service launch and port fallback |
+| `src/desktop/main.mjs` | Electron lifecycle, windows, menus, repository selection, settings, deep links |
+| `src/desktop/settings-center.mjs`, `src/desktop/settings/` | Full-screen settings/help and restricted IPC |
+| `src/desktop/preference-sync.mjs` | Persistence, server snapshots, and renderer preference propagation |
+| `src/desktop/config.mjs` | Atomic desktop configuration with last-known-good backup |
+| `src/desktop/user-data.mjs` | Shared human Profile and explicit smoke isolation |
+| `src/desktop/server.mjs` | Local service launch and port fallback |
 | `src/cli.mjs` | CLI discovery, service reuse, and launch |
 | `src/server.mjs` | Local HTTP API, document IO, rendering, Git actions |
 | `src/repositories.mjs`, `src/git-worktrees.mjs` | Repository identity, worktree discovery, stable IDs |
 | `src/external-command.mjs` | Command execution and failure classification |
-| `src/git-leaf-open-link.mjs`, `src/desktop-deep-link.mjs` | HTTPS and local protocol generation/parsing |
+| `src/git-leaf-open-link.mjs`, `src/desktop/deep-link.mjs` | HTTPS and local protocol generation/parsing |
 | `src/git-share-publish.mjs`, `src/git-share-open.mjs` | Sender publication and receiver safety |
 | `src/markdown.mjs`, `src/mdx-lite.mjs` | Markdown and allowlisted MDX-lite rendering |
 | `src/client/source-editor.mjs` | Shared CodeMirror Source/Live editing model |

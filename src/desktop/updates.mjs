@@ -8,11 +8,11 @@ import {
   updateChannelForBuildInfo,
   updateManifestIdentityError,
   updateManifestUrl,
-} from "../src/app-updates.mjs";
+} from "../app-updates.mjs";
 import {
   isOfficialDistribution,
   releaseTrackForBuildInfo,
-} from "../src/build-info.mjs";
+} from "../build-info.mjs";
 import { createDesktopTranslator } from "./localization.mjs";
 
 const DEFAULT_UPDATE_TRANSLATE = createDesktopTranslator({ language: "en" });

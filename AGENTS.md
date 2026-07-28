@@ -48,8 +48,8 @@ desktop shell, the web workspace, tests, and packaging configuration are all mai
 - `src/client/`: CodeMirror Source and Live editor source.
 - `public/`: browser workspace assets. `public/source-editor.bundle.js` is generated from
   `src/client/source-editor.mjs`.
-- `desktop/`: Electron main-process entry point. Desktop configuration, home, navigation, and environment
-  checks live in `src/desktop-*` and `src/git-environment.mjs`.
+- `src/desktop/`: Electron main-process entry point and desktop-only modules. Desktop configuration,
+  home, and navigation live there; shared environment checks live in `src/git-environment.mjs`.
 - `assets/`: packaging assets such as application icons. The macOS icon source is
   `assets/icons/git-leaf.*`.
 - `docs/`: architecture, release instructions, platform guides, renderer references, and specifications.

@@ -1,6 +1,6 @@
-import { isGitRepositoryNotFoundError } from "./git-errors.mjs";
-import { externalCommandState } from "./external-command.mjs";
-import { createTranslator } from "../public/i18n.js";
+import { isGitRepositoryNotFoundError } from "../git-errors.mjs";
+import { externalCommandState } from "../external-command.mjs";
+import { createTranslator } from "../../public/i18n.js";
 
 const REPOSITORY_ERROR_MESSAGES = Object.freeze({
   en: Object.freeze({

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { parseDesktopArgs } from "../src/desktop-args.mjs";
+import { parseDesktopArgs } from "../src/desktop/args.mjs";
 
 test("parseDesktopArgs reads repository and file launch arguments", () => {
   assert.deepEqual(

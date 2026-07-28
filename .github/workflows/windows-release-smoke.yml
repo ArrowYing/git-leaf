@@ -6,7 +6,7 @@ on:
     branches: ["main"]
     paths:
       - ".github/workflows/windows-release-smoke.yml"
-      - "desktop/**"
+      - "src/desktop/**"
       - "public/**"
       - "scripts/release-shared.mjs"
       - "scripts/release-windows.mjs"
@@ -19,7 +19,7 @@ on:
   pull_request:
     paths:
       - ".github/workflows/windows-release-smoke.yml"
-      - "desktop/**"
+      - "src/desktop/**"
       - "public/**"
       - "scripts/release-shared.mjs"
       - "scripts/release-windows.mjs"

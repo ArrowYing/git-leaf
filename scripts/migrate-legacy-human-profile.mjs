@@ -5,7 +5,7 @@ import { homedir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { migrateLegacyHumanProfile } from "../src/desktop-profile-migration.mjs";
+import { migrateLegacyHumanProfile } from "../src/desktop/profile-migration.mjs";
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 
@@ -23,7 +23,7 @@ function assertGitLeafStopped() {
   for (const [command, args] of [
     ["pgrep", ["-x", "Git Leaf"]],
     ["pgrep", ["-f", "/Git Leaf.app/Contents/MacOS/Git Leaf"]],
-    ["pgrep", ["-f", "electron desktop/main.mjs"]],
+    ["pgrep", ["-f", "electron src/desktop/main.mjs"]],
   ]) {
     const result = spawnSync(command, args, { encoding: "utf8" });
     if (result.status === 0) {

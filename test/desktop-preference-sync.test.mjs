@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { saveAndSyncDesktopPreferences } from "../desktop/preference-sync.mjs";
+import { saveAndSyncDesktopPreferences } from "../src/desktop/preference-sync.mjs";
 
 test("renderer preference saves update persistence and server state without echoing", async () => {
   const calls = [];

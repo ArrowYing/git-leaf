@@ -8,7 +8,7 @@ import {
   gitLeafSharedDeepLinkUrl,
   gitLeafShareUrl,
   parseGitLeafDeepLink,
-} from "../src/desktop-deep-link.mjs";
+} from "../src/desktop/deep-link.mjs";
 
 test("Git Leaf HTTPS links carry a local worktree id without exposing its path", () => {
   assert.equal(

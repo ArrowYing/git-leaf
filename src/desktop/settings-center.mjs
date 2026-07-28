@@ -7,7 +7,7 @@ import {
   normalizeUserPreferences,
   preferencePatch,
   resolveLanguagePreference,
-} from "../public/settings-preferences.js";
+} from "../../public/settings-preferences.js";
 
 export const SETTINGS_CENTER_SECTIONS = Object.freeze([
   "appearance",

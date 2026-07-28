@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { desktopSecondInstanceAction } from "../src/desktop-instance-routing.mjs";
+import { desktopSecondInstanceAction } from "../src/desktop/instance-routing.mjs";
 
 test("an empty second launch only focuses the app while startup is still finishing", () => {
   assert.equal(

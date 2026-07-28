@@ -14,12 +14,12 @@ import {
   normalizeSettingsPreferencePatch,
   normalizeSettingsPreferences,
   normalizeSettingsSection,
-} from "../desktop/settings-center.mjs";
+} from "../src/desktop/settings-center.mjs";
 import { DEFAULT_USER_PREFERENCES } from "../public/settings-preferences.js";
 
 const ROOT = path.join(import.meta.dirname, "..");
-const SETTINGS_PAGE_PATH = path.join(ROOT, "desktop", "settings", "index.html");
-const SETTINGS_PRELOAD_PATH = path.join(ROOT, "desktop", "settings", "preload.cjs");
+const SETTINGS_PAGE_PATH = path.join(ROOT, "src", "desktop", "settings", "index.html");
+const SETTINGS_PRELOAD_PATH = path.join(ROOT, "src", "desktop", "settings", "preload.cjs");
 
 test("settings center normalizes sections and reuses the shared fresh preference defaults", () => {
   assert.equal(normalizeSettingsSection("appearance"), "appearance");
@@ -414,8 +414,8 @@ test("settings page and preload keep a bounded renderer security surface", async
 test("settings help is one continuous document with chapter navigation and a file-type table", async () => {
   const [html, styles, renderer] = await Promise.all([
     readFile(SETTINGS_PAGE_PATH, "utf8"),
-    readFile(path.join(ROOT, "desktop", "settings", "styles.css"), "utf8"),
-    readFile(path.join(ROOT, "desktop", "settings", "renderer.js"), "utf8"),
+    readFile(path.join(ROOT, "src", "desktop", "settings", "styles.css"), "utf8"),
+    readFile(path.join(ROOT, "src", "desktop", "settings", "renderer.js"), "utf8"),
   ]);
 
   assert.match(html, /id="help-navigation"[^>]*class="help-navigation"/);

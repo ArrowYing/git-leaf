@@ -1,5 +1,5 @@
 import path from "node:path";
-import { normalizeGitLeafHandoffId } from "./desktop-handoff.mjs";
+import { normalizeGitLeafHandoffId } from "./handoff.mjs";
 
 export const GIT_LEAF_PROTOCOL = "git-leaf";
 export const GIT_LEAF_OPEN_HOST = "open";

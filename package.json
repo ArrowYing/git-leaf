@@ -3,7 +3,7 @@
   "version": "1.14.0",
   "private": true,
   "type": "module",
-  "main": "desktop/main.mjs",
+  "main": "src/desktop/main.mjs",
   "description": "Human interface for Git repositories used as shared context by teams and AI agents.",
   "license": "Apache-2.0",
   "repository": {
@@ -16,7 +16,7 @@
   },
   "scripts": {
     "build:client": "node scripts/build-client.mjs",
-    "desktop": "electron desktop/main.mjs",
+    "desktop": "electron src/desktop/main.mjs",
     "docs:check": "node scripts/check-doc-links.mjs",
     "install:mac:dev": "node scripts/release-mac.mjs dev-install",
     "migrate:mac:legacy-human-profile": "node scripts/migrate-legacy-human-profile.mjs",

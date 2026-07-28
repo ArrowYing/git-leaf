@@ -4,7 +4,7 @@ import test from "node:test";
 import {
   SQUIRREL_DIRECT_CONTENTS_WRITE_KEY,
   configureMacUpdateInstallation,
-} from "../desktop/mac-update-installation.mjs";
+} from "../src/desktop/mac-update-installation.mjs";
 
 const OFFICIAL_BUILD = {
   distribution: "official",

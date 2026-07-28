@@ -7,7 +7,7 @@ import {
   AUTOMATIC_UPDATE_RETRY_DELAY_MS,
   STARTUP_UPDATE_CHECK_DELAY_MS,
   createUpdateCheckScheduler,
-} from "../desktop/update-check-schedule.mjs";
+} from "../src/desktop/update-check-schedule.mjs";
 
 test("desktop update checks run at startup, hourly, and on meaningful activation", async () => {
   let now = 1_000_000;

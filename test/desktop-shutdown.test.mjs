@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { completeDesktopShutdown } from "../desktop/shutdown.mjs";
+import { completeDesktopShutdown } from "../src/desktop/shutdown.mjs";
 
 test("desktop shutdown launches the updater only after every close step", async () => {
   const events = [];

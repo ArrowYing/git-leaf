@@ -25,7 +25,7 @@ import {
   assertPathIdentitiesDoNotOverlap,
   pathIdentity,
   pathsOverlap,
-} from "../src/desktop-user-data.mjs";
+} from "../src/desktop/user-data.mjs";
 import { buildUpdateManifest, updateArtifactRemotePath, updateMetadataRelativeDir } from "../src/update-publish.mjs";
 import {
   assertOfficialReleaseProfile,

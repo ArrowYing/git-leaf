@@ -1,7 +1,7 @@
 import {
   createTranslator,
   resolveLocalePreference,
-} from "../public/i18n.js";
+} from "../../public/i18n.js";
 
 export const DESKTOP_MESSAGES = Object.freeze({
   en: Object.freeze({

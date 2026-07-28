@@ -35,15 +35,15 @@ import {
 import { saveAndSyncDesktopPreferences } from "./preference-sync.mjs";
 import { createUpdateCheckScheduler } from "./update-check-schedule.mjs";
 import { completeDesktopShutdown } from "./shutdown.mjs";
-import { parseDesktopArgs } from "../src/desktop-args.mjs";
-import { desktopSecondInstanceAction } from "../src/desktop-instance-routing.mjs";
+import { parseDesktopArgs } from "./args.mjs";
+import { desktopSecondInstanceAction } from "./instance-routing.mjs";
 import {
   appDisplayName,
   BUILD_INFO,
   buildDistributionLabel,
   isOfficialDistribution,
   releaseDateLabel,
-} from "../src/build-info.mjs";
+} from "../build-info.mjs";
 import {
   closeDesktopRepository,
   mutateDesktopRepositoryFavorites,
@@ -52,75 +52,75 @@ import {
   saveDesktopRepository,
   saveDesktopUsageAnalyticsEnabled,
   saveDesktopWindowState,
-} from "../src/desktop-config.mjs";
-import { sidebarFavoritesForScope } from "../public/sidebar-favorites.js";
+} from "./config.mjs";
+import { sidebarFavoritesForScope } from "../../public/sidebar-favorites.js";
 import {
   desktopHomeHtml,
   desktopPageBackgroundColor,
   desktopProgressHtml,
   DESKTOP_OPEN_REPOSITORY_URL,
   DESKTOP_OPEN_WORKTREE_URL,
-} from "../src/desktop-home.mjs";
-import { classifyDesktopNavigation } from "../src/desktop-navigation.mjs";
-import { waitForWebContentsPaint } from "../src/desktop-paint.mjs";
+} from "./home.mjs";
+import { classifyDesktopNavigation } from "./navigation.mjs";
+import { waitForWebContentsPaint } from "./paint.mjs";
 import {
   repositorySelectionErrorMessage,
-} from "../src/desktop-repository-errors.mjs";
-import { startDesktopGitLeafServer } from "../src/desktop-server.mjs";
-import { GIT_LEAF_PROTOCOL } from "../src/desktop-deep-link.mjs";
+} from "./repository-errors.mjs";
+import { startDesktopGitLeafServer } from "./server.mjs";
+import { GIT_LEAF_PROTOCOL } from "./deep-link.mjs";
 import {
   confirmGitLeafHandoff,
   reportGitLeafShareHandoffState,
   writeDesktopDeepLinkLog,
-} from "../src/desktop-handoff.mjs";
-import { desktopEnvironmentChecks } from "../src/git-environment.mjs";
-import { applyDevelopmentUserDataOverride } from "../src/desktop-user-data.mjs";
+} from "./handoff.mjs";
+import { desktopEnvironmentChecks } from "../git-environment.mjs";
+import { applyDevelopmentUserDataOverride } from "./user-data.mjs";
 import {
   fastForwardSharedMain,
   inspectSharedMain,
   inspectSharedMainWithFetchRecovery,
   sharedFetchFailurePrompt,
   sharedMainWorktree,
-} from "../src/git-share-open.mjs";
-import { syncSelectedFiles } from "../src/git-sync.mjs";
-import { listGitWorktrees } from "../src/git-worktrees.mjs";
-import { findRepoRoot } from "../src/paths.mjs";
-import { findGithubRepositoryRoot } from "../src/repositories.mjs";
+} from "../git-share-open.mjs";
+import { syncSelectedFiles } from "../git-sync.mjs";
+import { listGitWorktrees } from "../git-worktrees.mjs";
+import { findRepoRoot } from "../paths.mjs";
+import { findGithubRepositoryRoot } from "../repositories.mjs";
 import {
   adjacentRepository,
   repositoryAfterClose,
   repositoryAtIndex,
-} from "../src/repository-navigation.mjs";
+} from "../repository-navigation.mjs";
 import {
   bootstrapWindowsApp,
   confirmWindowsAppLaunch,
   windowsAppBootstrapPlan,
   windowsBootstrapNeedsExclusiveLock,
   windowsInstalledAppPaths,
-} from "../src/windows-app-install.mjs";
+} from "../windows-app-install.mjs";
 import {
   cleanupWindowsUpdateCache,
   prepareWindowsAppUpdate,
   windowsPreparedUpdateLaunch,
-} from "../src/windows-app-update.mjs";
-import { windowsInstallProgressHtml } from "../src/windows-install-progress.mjs";
+} from "../windows-app-update.mjs";
+import { windowsInstallProgressHtml } from "../windows-install-progress.mjs";
 import {
   createTelemetryClient,
   isTelemetryEnabled,
   normalizeTelemetryAction,
-} from "../src/telemetry.mjs";
-import { createTelemetryActivityTracker } from "../src/telemetry-activity.mjs";
+} from "../telemetry.mjs";
+import { createTelemetryActivityTracker } from "../telemetry-activity.mjs";
 import {
   createTelemetryUploadScheduler,
   DEFAULT_TELEMETRY_SHUTDOWN_UPLOAD_TIMEOUT_MS,
-} from "../src/telemetry-upload-scheduler.mjs";
-import { initializeUsageAnalyticsSetting } from "../src/usage-analytics-setting.mjs";
+} from "../telemetry-upload-scheduler.mjs";
+import { initializeUsageAnalyticsSetting } from "../usage-analytics-setting.mjs";
 import {
   getFileTypeHelpRows,
   getGitLeafHelpSections,
-} from "../public/help-content.js";
-import { getKeyboardShortcutGroups } from "../public/keyboard-shortcuts.js";
-import { sidebarTabFromShortcut } from "../public/sidebar-navigation.js";
+} from "../../public/help-content.js";
+import { getKeyboardShortcutGroups } from "../../public/keyboard-shortcuts.js";
+import { sidebarTabFromShortcut } from "../../public/sidebar-navigation.js";
 
 applyDevelopmentUserDataOverride({ app });
 configureMacUpdateInstallation({
