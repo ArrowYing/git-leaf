@@ -345,7 +345,9 @@ test("delete preview distinguishes Git-recoverable content from an untracked dra
   assert.equal(await pathExists(path.join(repoRoot, "draft.md")), false);
 });
 
-test("Git recoverability treats a leading-colon filename as a literal path", async () => {
+test("Git recoverability treats a leading-colon filename as a literal path", {
+  skip: process.platform === "win32" && "Windows filenames cannot contain colons",
+}, async () => {
   const repoRoot = await createRepository();
   await writeFile(path.join(repoRoot, ":draft.md"), "# Draft\n");
 
