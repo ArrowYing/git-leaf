@@ -71,6 +71,7 @@
   --selection-text: #111827;
   --selection-ring: rgba(146, 64, 14, 0.42);
   --find-match-bg: #fde68a;
+  --find-match-text: #3b2f00;
   --find-match-active-bg: #f59e0b;
   --find-match-active-text: #1f1600;
   --chart-label: #172033;
@@ -135,7 +136,8 @@
   --selection-bg: #f4c542;
   --selection-text: #201500;
   --selection-ring: rgba(244, 197, 66, 0.32);
-  --find-match-bg: #7a5f18;
+  --find-match-bg: #d6a936;
+  --find-match-text: #211700;
   --find-match-active-bg: #f4c542;
   --find-match-active-text: #201500;
   --chart-label: #f2f1ec;
@@ -1620,8 +1622,8 @@ summary:focus-visible {
 
 .tree-search-match {
   border-radius: 2px;
-  background: var(--accent-soft);
-  color: var(--accent-text);
+  background: var(--find-match-bg);
+  color: var(--find-match-text);
   font: inherit;
 }
 
@@ -1837,7 +1839,7 @@ summary.is-missing {
 
 ::highlight(git-leaf-document-search-match) {
   background: var(--find-match-bg);
-  color: inherit;
+  color: var(--find-match-text);
 }
 
 ::highlight(git-leaf-document-search-active) {
@@ -1848,6 +1850,7 @@ summary.is-missing {
 .cm-document-search-match {
   border-radius: 2px;
   background: var(--find-match-bg);
+  color: var(--find-match-text);
 }
 
 .cm-document-search-match.is-active {
