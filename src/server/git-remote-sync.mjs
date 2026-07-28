@@ -32,6 +32,7 @@ const REMOTE_SYNC_MESSAGES = {
     "error.remoteBranchMissing": "Remote branch origin/{branch} does not exist yet.",
     "error.diverged": "The current branch and origin/{branch} have diverged. Git Leaf did not rewrite either history.",
     "error.remoteChanged": "The fetched remote version changed before Git Leaf could apply it. Nothing was changed; Git Leaf will check the newer version.",
+    "error.preparationExpired": "The prepared remote update expired before it could be applied. Nothing was changed; Git Leaf will prepare it again.",
     "error.confirmLocalChanges": "Local files changed while Git Leaf checked the remote. Review the changes and choose “Merge remote changes” if you want to continue.",
     "error.workspaceChanged": "The workspace changed while Git Leaf prepared the remote merge. Nothing was applied. Try again after the current edit is saved.",
     "error.conflict": "The remote update conflicts with local edits. Git Leaf did not apply the merge to the real workspace.",
@@ -57,6 +58,7 @@ const REMOTE_SYNC_MESSAGES = {
     "error.remoteBranchMissing": "远端分支 origin/{branch} 尚不存在。",
     "error.diverged": "当前分支与 origin/{branch} 已经分叉。Git Leaf 没有改写任何一侧的历史。",
     "error.remoteChanged": "准备应用期间，已获取的远端版本发生了变化。Git Leaf 没有修改工作区，并会按较新的版本重新检查。",
+    "error.preparationExpired": "远端更新的准备结果在应用前已经失效。Git Leaf 没有修改工作区，并会重新准备。",
     "error.confirmLocalChanges": "检查远端期间本地文件发生了变化。请查看改动，并在愿意继续时点击“合并远端修改”。",
     "error.workspaceChanged": "准备合并期间工作区仍在变化。Git Leaf 没有应用任何修改；请等待当前编辑保存后重试。",
     "error.conflict": "远端更新与本地编辑发生冲突。Git Leaf 没有把冲突应用到真实工作区。",
@@ -169,8 +171,55 @@ export async function inspectRemoteSync({
   }
 }
 
-export async function mergeRemoteChanges({
+const DEFAULT_REMOTE_MERGE_PREPARATION_TTL_MS = 60_000;
+
+export function createRemoteMergePreparationStore({
+  ttlMs = DEFAULT_REMOTE_MERGE_PREPARATION_TTL_MS,
+  schedule = setTimeout,
+  cancelSchedule = clearTimeout,
+} = {}) {
+  const entries = new Map();
+
+  async function cancel(preparationToken) {
+    const entry = entries.get(preparationToken);
+    if (!entry) {
+      return false;
+    }
+    entries.delete(preparationToken);
+    cancelSchedule(entry.timer);
+    await entry.preparation.cleanup();
+    return true;
+  }
+
+  return {
+    put(preparation) {
+      const preparationToken = randomBytes(24).toString("hex");
+      const timer = schedule(() => {
+        void cancel(preparationToken);
+      }, Math.max(1, Number(ttlMs) || DEFAULT_REMOTE_MERGE_PREPARATION_TTL_MS));
+      timer?.unref?.();
+      entries.set(preparationToken, { preparation, timer });
+      return preparationToken;
+    },
+    take(preparationToken, repo) {
+      const entry = entries.get(preparationToken);
+      if (!entry || !preparedMergeMatchesRepository(entry.preparation, repo)) {
+        return null;
+      }
+      entries.delete(preparationToken);
+      cancelSchedule(entry.timer);
+      return entry.preparation;
+    },
+    cancel,
+    async dispose() {
+      await Promise.all([...entries.keys()].map((preparationToken) => cancel(preparationToken)));
+    },
+  };
+}
+
+export async function prepareRemoteChanges({
   repo,
+  preparationStore,
   allowLocalChanges = false,
   refresh = true,
   expectedHead = "",
@@ -182,6 +231,9 @@ export async function mergeRemoteChanges({
   operationPathExists = gitOperationPathExists,
   now = () => new Date(),
 }) {
+  if (!preparationStore?.put) {
+    throw new TypeError("A remote merge preparation store is required.");
+  }
   const translate = remoteSyncTranslator({ locale, language });
   const remote = await inspectRemoteSync({
     repo,
@@ -190,58 +242,20 @@ export async function mergeRemoteChanges({
     gitRunner,
     now,
   });
-  if (!remote.ok) {
-    return remoteMergeFailure({
-      repo,
-      translate,
-      step: "check remote",
-      error: remote.error,
-      code: remote.code,
-      includeAgentPrompt: false,
-      checkedAt: remote.checkedAt,
-    });
-  }
-  if (expectedRemoteCommit && remote.remoteCommit !== expectedRemoteCommit) {
-    return remoteMergeFailure({
-      repo,
-      translate,
-      step: "confirm remote version",
-      error: translate("error.remoteChanged"),
-      code: "remote_changed",
-      files: remote.incomingFiles,
-      includeAgentPrompt: false,
-      checkedAt: remote.checkedAt,
-      remote,
-    });
-  }
-  if (expectedHead && remote.head !== expectedHead) {
-    return remoteMergeFailure({
-      repo,
-      translate,
-      step: "confirm workspace version",
-      error: translate("error.workspaceChanged"),
-      code: "workspace_changed",
-      files: remote.incomingFiles,
-      includeAgentPrompt: false,
-      checkedAt: remote.checkedAt,
-      remote,
-    });
-  }
-  if (remote.ahead > 0 && remote.behind > 0) {
-    return remoteMergeFailure({
-      repo,
-      translate,
-      step: "compare remote",
-      error: translate("error.diverged", { branch: repo.branch }),
-      code: "diverged",
-      files: remote.incomingFiles,
-      checkedAt: remote.checkedAt,
-      remote,
-    });
+  const preflightFailure = remoteMergePreflightFailure({
+    repo,
+    remote,
+    expectedHead,
+    expectedRemoteCommit,
+    translate,
+  });
+  if (preflightFailure) {
+    return preflightFailure;
   }
   if (remote.behind === 0) {
     return {
       ...remote,
+      prepared: false,
       applied: false,
       mode: "none",
     };
@@ -258,15 +272,12 @@ export async function mergeRemoteChanges({
     ]);
     const changes = repositoryChangesFromPorcelain(status.stdout);
     if (changes.length === 0) {
-      await runRemoteStep(repo, "fast-forward", gitRunner, [
-        "merge",
-        "--ff-only",
-        remote.remoteRef,
-      ]);
-      return successfulRemoteMerge({
+      return await prepareCleanRemoteMerge({
+        repo,
         remote,
-        changes: [],
-        mode: "fast_forward",
+        preparationStore,
+        translate,
+        gitRunner,
       });
     }
     if (!allowLocalChanges) {
@@ -282,11 +293,11 @@ export async function mergeRemoteChanges({
         remote,
       });
     }
-
-    return await mergeRemoteIntoDirtyWorktree({
+    return await prepareDirtyRemoteMerge({
       repo,
       remote,
       changes,
+      preparationStore,
       translate,
       gitRunner,
       snapshotCommandRunner,
@@ -295,7 +306,7 @@ export async function mergeRemoteChanges({
     return remoteMergeFailure({
       repo,
       translate,
-      step: error.step ?? "merge remote",
+      step: error.step ?? "prepare remote merge",
       error: commandErrorText(error, { locale: translate.locale }),
       code: "merge_failed",
       files: remote.incomingFiles,
@@ -305,57 +316,211 @@ export async function mergeRemoteChanges({
   }
 }
 
-async function mergeRemoteIntoDirtyWorktree({
+export async function applyPreparedRemoteChanges({
+  repo,
+  preparationToken,
+  preparationStore,
+  locale,
+  language,
+  gitRunner = runGitCommand,
+  snapshotCommandRunner = runGitSnapshotCommand,
+  operationPathExists = gitOperationPathExists,
+  now = () => new Date(),
+}) {
+  if (!preparationStore?.take) {
+    throw new TypeError("A remote merge preparation store is required.");
+  }
+  const translate = remoteSyncTranslator({ locale, language });
+  const preparation = preparationStore.take(String(preparationToken || ""), repo);
+  if (!preparation) {
+    return remoteMergeFailure({
+      repo,
+      translate,
+      step: "load prepared remote merge",
+      error: translate("error.preparationExpired"),
+      code: "preparation_expired",
+      includeAgentPrompt: false,
+      checkedAt: now().toISOString(),
+    });
+  }
+
+  try {
+    await assertNoGitOperationInProgress(
+      { repo, locale: translate.locale },
+      gitRunner,
+      operationPathExists,
+    );
+    const currentRemoteCommit = parseGitOid(
+      (await runRemoteStep(repo, "confirm remote version", gitRunner, [
+        "rev-parse",
+        "--verify",
+        preparation.remote.remoteRef,
+      ])).stdout,
+      "remote commit",
+    );
+    if (currentRemoteCommit !== preparation.remote.remoteCommit) {
+      return preparedRemoteMergeDriftFailure({
+        repo,
+        preparation,
+        translate,
+        code: "remote_changed",
+      });
+    }
+    const guard = createGitSyncGuard({ repo, gitRunner });
+    const current = await guard.capture();
+    if (syncStateDriftKind(preparation.baseline, current) !== "none") {
+      return preparedRemoteMergeDriftFailure({
+        repo,
+        preparation,
+        translate,
+        code: "workspace_changed",
+      });
+    }
+    if (preparation.kind === "clean") {
+      await runRemoteStep(repo, "fast-forward", gitRunner, [
+        "merge",
+        "--ff-only",
+        preparation.remote.remoteCommit,
+      ]);
+      return successfulRemoteMerge({
+        remote: preparation.remote,
+        changes: [],
+        mode: "fast_forward",
+      });
+    }
+    return await applyPreparedDirtyRemoteMerge({
+      repo,
+      preparation,
+      translate,
+      gitRunner,
+      snapshotCommandRunner,
+      guard,
+    });
+  } catch (error) {
+    return remoteMergeFailure({
+      repo,
+      translate,
+      step: error.step ?? "apply prepared remote merge",
+      error: commandErrorText(error, { locale: translate.locale }),
+      code: "merge_failed",
+      files: preparation.remote.incomingFiles,
+      checkedAt: preparation.remote.checkedAt,
+      remote: preparation.remote,
+    });
+  } finally {
+    await preparation.cleanup();
+  }
+}
+
+export async function cancelPreparedRemoteChanges({
+  preparationToken,
+  preparationStore,
+}) {
+  if (!preparationStore?.cancel) {
+    return false;
+  }
+  return preparationStore.cancel(String(preparationToken || ""));
+}
+
+export async function mergeRemoteChanges(options) {
+  const preparationStore = createRemoteMergePreparationStore();
+  try {
+    const prepared = await prepareRemoteChanges({
+      ...options,
+      preparationStore,
+    });
+    if (!prepared.ok || !prepared.prepared) {
+      return prepared;
+    }
+    return await applyPreparedRemoteChanges({
+      repo: options.repo,
+      preparationToken: prepared.preparationToken,
+      preparationStore,
+      locale: options.locale,
+      language: options.language,
+      gitRunner: options.gitRunner,
+      snapshotCommandRunner: options.snapshotCommandRunner,
+      operationPathExists: options.operationPathExists,
+      now: options.now,
+    });
+  } finally {
+    await preparationStore.dispose();
+  }
+}
+
+async function prepareCleanRemoteMerge({
+  repo,
+  remote,
+  preparationStore,
+  translate,
+  gitRunner,
+}) {
+  const guard = createGitSyncGuard({ repo, gitRunner });
+  const baseline = await guard.capture();
+  const clean = await guard.isWorktreeClean();
+  const afterCheck = await guard.capture();
+  if (
+    !clean
+    || baseline.head !== remote.head
+    || syncStateDriftKind(baseline, afterCheck) !== "none"
+  ) {
+    return preparedRemoteMergeDriftFailure({
+      repo,
+      preparation: { remote, changedFiles: [] },
+      translate,
+      code: "workspace_changed",
+    });
+  }
+  const preparationToken = preparationStore.put({
+    kind: "clean",
+    repoId: repo.id,
+    repoRoot: repo.root,
+    branch: repo.branch,
+    remote,
+    baseline,
+    changedFiles: [],
+    cleanup: async () => {},
+  });
+  return preparedRemoteMergePayload({
+    remote,
+    preparationToken,
+    changes: [],
+    mode: "fast_forward",
+  });
+}
+
+async function prepareDirtyRemoteMerge({
   repo,
   remote,
   changes,
+  preparationStore,
   translate,
   gitRunner,
   snapshotCommandRunner,
 }) {
-  const temporaryRoot = await mkdtemp(path.join(tmpdir(), "git-leaf-remote-merge-"));
+  let temporaryRoot = await mkdtemp(path.join(tmpdir(), "git-leaf-remote-merge-"));
   const indexPath = path.join(temporaryRoot, "snapshot.index");
   const verificationIndexPath = path.join(temporaryRoot, "verification.index");
   const patchPath = path.join(temporaryRoot, "remote.patch");
   const guard = createGitSyncGuard({ repo, gitRunner });
   const changedFiles = changes.map((change) => change.path);
-  let baseline = null;
-  let recoveryRef = "";
-  let patchApplied = false;
-  let refMoved = false;
-
   try {
-    baseline = await guard.capture();
+    const baseline = await guard.capture();
     const snapshot = await createImmutableGitSnapshot({
       repoRoot: repo.root,
       indexPath,
       commandRunner: snapshotCommandRunner,
     });
     const afterSnapshot = await guard.capture();
-    if (syncStateDriftKind(baseline, afterSnapshot) !== "none") {
-      return remoteMergeFailure({
+    if (
+      snapshot.baseCommit !== remote.head
+      || syncStateDriftKind(baseline, afterSnapshot) !== "none"
+    ) {
+      return preparedRemoteMergeDriftFailure({
         repo,
+        preparation: { remote, changedFiles },
         translate,
-        step: "freeze workspace",
-        error: translate("error.workspaceChanged"),
         code: "workspace_changed",
-        files: changedFiles,
-        includeAgentPrompt: false,
-        checkedAt: remote.checkedAt,
-        remote,
-      });
-    }
-    if (snapshot.baseCommit !== remote.head) {
-      return remoteMergeFailure({
-        repo,
-        translate,
-        step: "freeze workspace",
-        error: translate("error.workspaceChanged"),
-        code: "workspace_changed",
-        files: changedFiles,
-        includeAgentPrompt: false,
-        checkedAt: remote.checkedAt,
-        remote,
       });
     }
 
@@ -390,19 +555,13 @@ async function mergeRemoteIntoDirtyWorktree({
     ]);
     const beforePatchCheck = await guard.capture();
     if (syncStateDriftKind(baseline, beforePatchCheck) !== "none") {
-      return remoteMergeFailure({
+      return preparedRemoteMergeDriftFailure({
         repo,
+        preparation: { remote, changedFiles },
         translate,
-        step: "verify workspace",
-        error: translate("error.workspaceChanged"),
         code: "workspace_changed",
-        files: changedFiles,
-        includeAgentPrompt: false,
-        checkedAt: remote.checkedAt,
-        remote,
       });
     }
-
     const hasPatch = (await stat(patchPath)).size > 0;
     if (hasPatch) {
       await snapshotCommandRunner(repo.root, [
@@ -413,19 +572,87 @@ async function mergeRemoteIntoDirtyWorktree({
         patchPath,
       ]);
     }
-
-    const beforeApply = await guard.capture();
-    if (syncStateDriftKind(baseline, beforeApply) !== "none") {
-      return remoteMergeFailure({
+    const afterPatchCheck = await guard.capture();
+    if (syncStateDriftKind(baseline, afterPatchCheck) !== "none") {
+      return preparedRemoteMergeDriftFailure({
         repo,
+        preparation: { remote, changedFiles },
         translate,
-        step: "verify workspace",
-        error: translate("error.workspaceChanged"),
         code: "workspace_changed",
-        files: changedFiles,
-        includeAgentPrompt: false,
-        checkedAt: remote.checkedAt,
-        remote,
+      });
+    }
+
+    const retainedTemporaryRoot = temporaryRoot;
+    const preparationToken = preparationStore.put({
+      kind: "dirty",
+      repoId: repo.id,
+      repoRoot: repo.root,
+      branch: repo.branch,
+      remote,
+      changes,
+      changedFiles,
+      baseline,
+      snapshot,
+      rebased,
+      patchPath,
+      verificationIndexPath,
+      hasPatch,
+      cleanup: async () => {
+        await rm(retainedTemporaryRoot, { recursive: true, force: true });
+      },
+    });
+    temporaryRoot = "";
+    return preparedRemoteMergePayload({
+      remote,
+      preparationToken,
+      changes,
+      mode: "preserve_local_changes",
+    });
+  } finally {
+    if (temporaryRoot) {
+      await rm(temporaryRoot, { recursive: true, force: true });
+    }
+  }
+}
+
+async function applyPreparedDirtyRemoteMerge({
+  repo,
+  preparation,
+  translate,
+  gitRunner,
+  snapshotCommandRunner,
+  guard,
+}) {
+  const {
+    remote,
+    snapshot,
+    rebased,
+    patchPath,
+    verificationIndexPath,
+    hasPatch,
+    changedFiles,
+  } = preparation;
+  let recoveryRef = "";
+  let patchApplied = false;
+  let refMoved = false;
+
+  try {
+    if (hasPatch) {
+      await snapshotCommandRunner(repo.root, [
+        "apply",
+        "--check",
+        "--binary",
+        "--whitespace=nowarn",
+        patchPath,
+      ]);
+    }
+    const beforeApply = await guard.capture();
+    if (syncStateDriftKind(preparation.baseline, beforeApply) !== "none") {
+      return preparedRemoteMergeDriftFailure({
+        repo,
+        preparation,
+        translate,
+        code: "workspace_changed",
       });
     }
 
@@ -489,7 +716,7 @@ async function mergeRemoteIntoDirtyWorktree({
     const rollback = await rollbackInterruptedMerge({
       repo,
       remote,
-      baseline,
+      baseline: preparation.baseline,
       patchPath,
       recoveryRef,
       patchApplied,
@@ -511,9 +738,108 @@ async function mergeRemoteIntoDirtyWorktree({
       recoveryRef: rollback.ok ? "" : recoveryRef,
       remote,
     });
-  } finally {
-    await rm(temporaryRoot, { recursive: true, force: true });
   }
+}
+
+function remoteMergePreflightFailure({
+  repo,
+  remote,
+  expectedHead,
+  expectedRemoteCommit,
+  translate,
+}) {
+  if (!remote.ok) {
+    return remoteMergeFailure({
+      repo,
+      translate,
+      step: "check remote",
+      error: remote.error,
+      code: remote.code,
+      includeAgentPrompt: false,
+      checkedAt: remote.checkedAt,
+    });
+  }
+  if (expectedRemoteCommit && remote.remoteCommit !== expectedRemoteCommit) {
+    return remoteMergeFailure({
+      repo,
+      translate,
+      step: "confirm remote version",
+      error: translate("error.remoteChanged"),
+      code: "remote_changed",
+      files: remote.incomingFiles,
+      includeAgentPrompt: false,
+      checkedAt: remote.checkedAt,
+      remote,
+    });
+  }
+  if (expectedHead && remote.head !== expectedHead) {
+    return remoteMergeFailure({
+      repo,
+      translate,
+      step: "confirm workspace version",
+      error: translate("error.workspaceChanged"),
+      code: "workspace_changed",
+      files: remote.incomingFiles,
+      includeAgentPrompt: false,
+      checkedAt: remote.checkedAt,
+      remote,
+    });
+  }
+  if (remote.ahead > 0 && remote.behind > 0) {
+    return remoteMergeFailure({
+      repo,
+      translate,
+      step: "compare remote",
+      error: translate("error.diverged", { branch: repo.branch }),
+      code: "diverged",
+      files: remote.incomingFiles,
+      checkedAt: remote.checkedAt,
+      remote,
+    });
+  }
+  return null;
+}
+
+function preparedRemoteMergePayload({
+  remote,
+  preparationToken,
+  changes,
+  mode,
+}) {
+  return {
+    ...remote,
+    prepared: true,
+    applied: false,
+    preparationToken,
+    mode,
+    localChangeCount: changes.length,
+    changes,
+  };
+}
+
+function preparedRemoteMergeDriftFailure({
+  repo,
+  preparation,
+  translate,
+  code,
+}) {
+  return remoteMergeFailure({
+    repo,
+    translate,
+    step: code === "remote_changed" ? "confirm remote version" : "verify workspace",
+    error: translate(code === "remote_changed" ? "error.remoteChanged" : "error.workspaceChanged"),
+    code,
+    files: preparation.changedFiles ?? preparation.remote.incomingFiles,
+    includeAgentPrompt: false,
+    checkedAt: preparation.remote.checkedAt,
+    remote: preparation.remote,
+  });
+}
+
+function preparedMergeMatchesRepository(preparation, repo) {
+  return preparation.repoId === repo.id
+    && preparation.repoRoot === repo.root
+    && preparation.branch === repo.branch;
 }
 
 async function rollbackInterruptedMerge({

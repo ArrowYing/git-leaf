@@ -40,8 +40,12 @@ import {
   syncSelectedFiles,
 } from "./git-sync.mjs";
 import {
+  applyPreparedRemoteChanges,
+  cancelPreparedRemoteChanges,
+  createRemoteMergePreparationStore,
   inspectRemoteSync,
   mergeRemoteChanges,
+  prepareRemoteChanges,
 } from "./git-remote-sync.mjs";
 import {
   cleanupManagedDirectoryPlaceholder,
@@ -116,6 +120,7 @@ export function createPreviewServer({
     mutateRepositoryFavorite,
     recordTelemetryActions,
     managedPlaceholders: new Set(),
+    remoteMergePreparations: createRemoteMergePreparationStore(),
   };
   const server = http.createServer(async (request, response) => {
     try {
@@ -132,6 +137,9 @@ export function createPreviewServer({
       ? { ...preferences }
       : null;
   };
+  server.on("close", () => {
+    void serverContext.remoteMergePreparations.dispose();
+  });
   return server;
 }
 
@@ -411,6 +419,79 @@ async function handleRequest(request, response, context) {
       ...payload,
       ...branchStatePayload(branchState),
     });
+    return;
+  }
+
+  if (requestUrl.pathname === "/api/git-prepare-remote-merge") {
+    let repo = await requestRepository(requestUrl, context);
+    requireEditableRequest(request, context, repo);
+    if (request.method !== "POST") {
+      sendText(response, 405, "Method Not Allowed");
+      return;
+    }
+    const branchState = await ensureRepositoryWriteBranch(repo, context);
+    repo = branchState.repo;
+    const body = await readJsonRequest(request);
+    const payload = await prepareRemoteChanges({
+      repo,
+      preparationStore: context.remoteMergePreparations,
+      allowLocalChanges: body.allowLocalChanges === true,
+      refresh: body.refresh !== false,
+      expectedHead: typeof body.expectedHead === "string" ? body.expectedHead : "",
+      expectedRemoteCommit: typeof body.expectedRemoteCommit === "string"
+        ? body.expectedRemoteCommit
+        : "",
+      locale: previewLocaleFromRequest(requestUrl),
+      gitRunner: context.gitRunner,
+    });
+    sendJson(response, payload.ok ? 200 : 409, {
+      ...payload,
+      ...branchStatePayload(branchState),
+    });
+    return;
+  }
+
+  if (requestUrl.pathname === "/api/git-apply-prepared-remote-merge") {
+    let repo = await requestRepository(requestUrl, context);
+    requireEditableRequest(request, context, repo);
+    if (request.method !== "POST") {
+      sendText(response, 405, "Method Not Allowed");
+      return;
+    }
+    const branchState = await ensureRepositoryWriteBranch(repo, context);
+    repo = branchState.repo;
+    const body = await readJsonRequest(request);
+    const payload = await applyPreparedRemoteChanges({
+      repo,
+      preparationToken: typeof body.preparationToken === "string"
+        ? body.preparationToken
+        : "",
+      preparationStore: context.remoteMergePreparations,
+      locale: previewLocaleFromRequest(requestUrl),
+      gitRunner: context.gitRunner,
+    });
+    sendJson(response, payload.ok ? 200 : 409, {
+      ...payload,
+      ...branchStatePayload(branchState),
+    });
+    return;
+  }
+
+  if (requestUrl.pathname === "/api/git-cancel-prepared-remote-merge") {
+    const repo = await requestRepository(requestUrl, context);
+    requireEditableRequest(request, context, repo);
+    if (request.method !== "POST") {
+      sendText(response, 405, "Method Not Allowed");
+      return;
+    }
+    const body = await readJsonRequest(request);
+    const cancelled = await cancelPreparedRemoteChanges({
+      preparationToken: typeof body.preparationToken === "string"
+        ? body.preparationToken
+        : "",
+      preparationStore: context.remoteMergePreparations,
+    });
+    sendJson(response, 200, { ok: true, cancelled });
     return;
   }
 

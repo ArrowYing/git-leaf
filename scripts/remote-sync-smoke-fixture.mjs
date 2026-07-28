@@ -35,6 +35,7 @@ export const REMOTE_SYNC_SMOKE_ACCEPTANCE = [
 export function createRemoteSyncSmokeFixture({
   temporaryRoot = tmpdir(),
   runGit = runGitCommand,
+  remoteAhead = true,
 } = {}) {
   const root = mkdtempSync(path.join(path.resolve(temporaryRoot), "git-leaf-remote-sync-smoke-"));
   const bare = path.join(root, "remote.git");
@@ -59,17 +60,9 @@ export function createRemoteSyncSmokeFixture({
 
     runGit(["clone", bare, coworker], root);
     configureIdentity(coworker, runGit);
-    writeFileSync(path.join(coworker, REMOTE_SYNC_SMOKE_FILE), [
-      "# Remote merge smoke",
-      "",
-      "Local baseline.",
-      "",
-      "Remote update arrived.",
-      "",
-    ].join("\n"), "utf8");
-    runGit(["add", "-A"], coworker);
-    runGit(["commit", "-m", "Remote smoke update"], coworker);
-    runGit(["push", "origin", "main"], coworker);
+    if (remoteAhead) {
+      publishRemoteSyncSmokeUpdate({ coworker }, { runGit });
+    }
 
     writeFileSync(
       path.join(repoRoot, REMOTE_SYNC_SMOKE_FILE),
@@ -88,6 +81,20 @@ export function createRemoteSyncSmokeFixture({
     rmSync(root, { recursive: true, force: true });
     throw error;
   }
+}
+
+export function publishRemoteSyncSmokeUpdate(fixture, { runGit = runGitCommand } = {}) {
+  writeFileSync(path.join(fixture.coworker, REMOTE_SYNC_SMOKE_FILE), [
+    "# Remote merge smoke",
+    "",
+    "Local baseline.",
+    "",
+    "Remote update arrived.",
+    "",
+  ].join("\n"), "utf8");
+  runGit(["add", "-A"], fixture.coworker);
+  runGit(["commit", "-m", "Remote smoke update"], fixture.coworker);
+  runGit(["push", "origin", "main"], fixture.coworker);
 }
 
 export function verifyRemoteSyncSmokeFixture(fixture) {

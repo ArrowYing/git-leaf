@@ -934,6 +934,7 @@ function releaseOptionsFromEnv() {
     smokeUserDataDir: process.env.GIT_LEAF_SMOKE_USER_DATA_DIR || DEFAULT_SMOKE_USER_DATA_DIR,
     smokeRepoRoot: process.env.GIT_LEAF_SMOKE_REPO_ROOT || "",
     smokeFile: process.env.GIT_LEAF_SMOKE_FILE || "",
+    smokeRemoteDebuggingPort: process.env.GIT_LEAF_SMOKE_REMOTE_DEBUGGING_PORT || "",
     formalRelease: ["1", "true", "yes"].includes(
       String(process.env.GIT_LEAF_FORMAL_RELEASE || "").trim().toLowerCase(),
     ),
@@ -1235,6 +1236,7 @@ function launchDevelopmentApp(options, paths, { wait = false } = {}) {
     wait,
     repoRoot: options.smoke ? options.smokeRepoRoot : "",
     file: options.smoke ? options.smokeFile : "",
+    remoteDebuggingPort: options.smoke ? options.smokeRemoteDebuggingPort : "",
   });
   run(command, args);
 }
@@ -1244,12 +1246,30 @@ export function launchDevelopmentAppCommand(paths, {
   wait = false,
   repoRoot = "",
   file = "",
+  remoteDebuggingPort = "",
 } = {}) {
   if (userDataDir && !path.isAbsolute(userDataDir)) {
     throw new Error("An isolated user-data path must be absolute.");
   }
   if (repoRoot && !path.isAbsolute(repoRoot)) {
     throw new Error("A smoke repository must use an absolute path.");
+  }
+  const hasRemoteDebuggingPort = String(remoteDebuggingPort ?? "").trim() !== "";
+  const normalizedRemoteDebuggingPort = !hasRemoteDebuggingPort
+    ? 0
+    : Number(remoteDebuggingPort);
+  if (
+    hasRemoteDebuggingPort
+    && (
+      !userDataDir
+      || !Number.isInteger(normalizedRemoteDebuggingPort)
+      || normalizedRemoteDebuggingPort < 1024
+      || normalizedRemoteDebuggingPort > 65_535
+    )
+  ) {
+    throw new Error(
+      "A smoke remote-debugging port requires isolated user data and an integer from 1024 to 65535.",
+    );
   }
   const normalizedFile = String(file || "").replaceAll("\\", "/");
   if (
@@ -1273,6 +1293,10 @@ export function launchDevelopmentAppCommand(paths, {
       ...(userDataDir ? [
         "--args",
         `--git-leaf-dev-user-data-dir=${path.resolve(userDataDir)}`,
+      ] : []),
+      ...(normalizedRemoteDebuggingPort ? [
+        "--remote-debugging-address=127.0.0.1",
+        `--remote-debugging-port=${normalizedRemoteDebuggingPort}`,
       ] : []),
       ...(repoRoot ? [`--repo=${path.resolve(repoRoot)}`] : []),
       ...(normalizedFile ? [`--file=${normalizedFile}`] : []),
@@ -1677,6 +1701,7 @@ Environment overrides:
   GIT_LEAF_SMOKE_USER_DATA_DIR
   GIT_LEAF_SMOKE_REPO_ROOT
   GIT_LEAF_SMOKE_FILE
+  GIT_LEAF_SMOKE_REMOTE_DEBUGGING_PORT
   UPDATE_BASE_URL
   UPDATE_CHANNEL
   UPDATE_REMOTE_HOST

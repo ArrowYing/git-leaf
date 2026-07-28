@@ -307,14 +307,20 @@ short-lived recovery ref protects the frozen snapshot during application. Worksp
 mutation; an object-layer conflict leaves the real branch, index, and files unchanged.
 
 Automatic application uses the remote-tracking ref that the background check just fetched, so network
-latency stays outside the apply phase. The apply request is bound to the inspected local HEAD and remote
-commit; if either changes before application, the stale result is discarded and the newer state is
-retried. It waits for a short pause after the latest editor input. If the open Source or Live document
-is one of the incoming paths, the editor becomes read-only only for the local verification-and-apply
-critical section; a minimal text update then preserves the mapped cursor and selection. An unrelated
-open document is not reloaded or locked. Automatic failures do not open an interrupting dialog:
-transient workspace drift may retry on a later check, while a conflict or other stable failure exposes
-the explicit action for the user.
+latency stays outside the apply phase. Automatic merging then has separate preparation and application
+phases. Preparation creates the immutable snapshot, validates the object-layer merge, and retains a
+short-lived result without changing the real branch, index, or files. It is bound to the inspected local
+HEAD, remote commit, complete workspace fingerprint, and current editor revision; new input or other
+workspace drift discards that result and prepares again after the next editing pause.
+
+If an incoming path is the focused Source or Live document, the verified result remains visibly pending
+and **Merge remote changes** stays available. Git Leaf applies it automatically after focus leaves the
+editor while the application remains in the foreground; moving to another application leaves the result
+pending. Only the short, revalidated application phase makes that editor surface inert, so preparation
+never drops keystrokes or blocks continued typing. A minimal text update preserves the mapped cursor and
+selection and briefly highlights the changed lines. An unrelated open document is not reloaded or made
+inert. Automatic failures do not open an interrupting dialog: transient workspace drift or an expired
+preparation retries, while a conflict or other stable failure exposes the explicit action for the user.
 
 The guarded publish strategy:
 

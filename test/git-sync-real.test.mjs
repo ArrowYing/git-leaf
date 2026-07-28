@@ -16,8 +16,11 @@ import test from "node:test";
 import { publishGitLeafShareLink } from "../src/server/git-share-publish.mjs";
 import { runGitSnapshotCommand } from "../src/server/git-immutable-snapshot.mjs";
 import {
+  applyPreparedRemoteChanges,
+  createRemoteMergePreparationStore,
   inspectRemoteSync,
   mergeRemoteChanges,
+  prepareRemoteChanges,
 } from "../src/server/git-remote-sync.mjs";
 import { syncSelectedFiles } from "../src/server/git-sync.mjs";
 
@@ -249,6 +252,90 @@ test("explicit remote merge combines non-overlapping edits in one file and leave
     );
     assert.equal((await git(fixture.repoRoot, ["status", "--porcelain"])).stdout, " M document.md\n");
   } finally {
+    await rm(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test("a prepared dirty remote merge leaves the workspace editable until it is applied", async () => {
+  const fixture = await createRemoteMergeFixture("git-leaf-prepared-remote-merge-", {
+    document: "first\nmiddle\nlast\n",
+  });
+  const preparationStore = createRemoteMergePreparationStore();
+  try {
+    await writeFile(path.join(fixture.repoRoot, "document.md"), "local first\nmiddle\nlast\n");
+    await writeFile(path.join(fixture.coworker, "document.md"), "first\nmiddle\nremote last\n");
+    await commitAndPush(fixture.coworker, "Remote document update");
+    const localHead = (await git(fixture.repoRoot, ["rev-parse", "HEAD"])).stdout.trim();
+
+    const prepared = await prepareRemoteChanges({
+      repo: fixture.repo,
+      allowLocalChanges: true,
+      preparationStore,
+    });
+
+    assert.equal(prepared.ok, true, prepared.error);
+    assert.equal(prepared.prepared, true);
+    assert.ok(prepared.preparationToken);
+    assert.equal((await git(fixture.repoRoot, ["rev-parse", "HEAD"])).stdout.trim(), localHead);
+    assert.equal(
+      await readFile(path.join(fixture.repoRoot, "document.md"), "utf8"),
+      "local first\nmiddle\nlast\n",
+    );
+
+    const applied = await applyPreparedRemoteChanges({
+      repo: fixture.repo,
+      preparationToken: prepared.preparationToken,
+      preparationStore,
+    });
+
+    assert.equal(applied.ok, true, applied.error);
+    assert.equal(applied.applied, true);
+    assert.equal(
+      normalizeCheckoutLineEndings(
+        await readFile(path.join(fixture.repoRoot, "document.md"), "utf8"),
+      ),
+      "local first\nmiddle\nremote last\n",
+    );
+  } finally {
+    await preparationStore.dispose();
+    await rm(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test("a prepared remote merge is discarded when editing resumes before apply", async () => {
+  const fixture = await createRemoteMergeFixture("git-leaf-prepared-merge-drift-");
+  const preparationStore = createRemoteMergePreparationStore();
+  try {
+    await writeFile(path.join(fixture.repoRoot, "document.md"), "local draft\n");
+    await writeFile(path.join(fixture.coworker, "remote.md"), "remote after\n");
+    await commitAndPush(fixture.coworker, "Remote update");
+    const localHead = (await git(fixture.repoRoot, ["rev-parse", "HEAD"])).stdout.trim();
+
+    const prepared = await prepareRemoteChanges({
+      repo: fixture.repo,
+      allowLocalChanges: true,
+      preparationStore,
+    });
+    assert.equal(prepared.ok, true, prepared.error);
+    assert.equal(prepared.prepared, true);
+
+    await writeFile(path.join(fixture.repoRoot, "document.md"), "local draft continues\n");
+    const applied = await applyPreparedRemoteChanges({
+      repo: fixture.repo,
+      preparationToken: prepared.preparationToken,
+      preparationStore,
+    });
+
+    assert.equal(applied.ok, false);
+    assert.equal(applied.code, "workspace_changed");
+    assert.equal((await git(fixture.repoRoot, ["rev-parse", "HEAD"])).stdout.trim(), localHead);
+    assert.equal(
+      await readFile(path.join(fixture.repoRoot, "document.md"), "utf8"),
+      "local draft continues\n",
+    );
+    assert.equal(await readFile(path.join(fixture.repoRoot, "remote.md"), "utf8"), "remote before\n");
+  } finally {
+    await preparationStore.dispose();
     await rm(fixture.root, { recursive: true, force: true });
   }
 });

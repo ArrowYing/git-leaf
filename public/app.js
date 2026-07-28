@@ -148,6 +148,7 @@ import {
 import {
   automaticRemoteMergeDelayMs,
   automaticRemoteMergeFailureIsBlocking,
+  automaticRemoteMergeShouldWaitForEditor,
   hasGitChangesChanged,
   remoteSyncCheckDue,
   remoteSyncDecision,
@@ -196,7 +197,7 @@ const DOCUMENT_OUTLINE_WIDTH_STEP = 24;
 const SOURCE_SPLIT_STEP = 5;
 const TREE_REFRESH_INTERVAL_MS = 5000;
 const SOURCE_SYNC_DELAY_MS = 500;
-const AUTOMATIC_REMOTE_MERGE_IDLE_MS = 1000;
+const AUTOMATIC_REMOTE_MERGE_IDLE_MS = 2500;
 const GIT_STATUS_REFRESH_DELAY_MS = 800;
 const TOOL_STATUS_CHECK_INTERVAL_MS = 30_000;
 const TOOL_RESTART_WAIT_INTERVAL_MS = 150;
@@ -321,6 +322,7 @@ const state = {
   sourceSyncTimer: null,
   sourceWriteInFlight: false,
   lastSourceEditAt: 0,
+  sourceRevision: 0,
   scrollSyncSource: null,
   lastSourceVisibleLine: null,
   lastPreviewVisibleLine: null,
@@ -356,7 +358,10 @@ const state = {
   lastRemoteSyncAttemptAt: 0,
   remoteSyncAutoMergeFailedKey: "",
   remoteSyncAutoMergeBlockedKey: "",
+  remoteSyncAutoMergeDeferredKey: "",
   remoteSyncAutoMergeTimer: null,
+  remoteSyncPreparedMerge: null,
+  remoteSyncApplyingDocumentPath: "",
   sidebarShortcutFeedbackTimer: null,
   treeOperationFeedbackTimer: null,
   treeOperationFeedbackElement: null,
@@ -419,6 +424,7 @@ const documentEmptyState = document.querySelector("#document-empty-state");
 const sourceSplitter = document.querySelector("#source-splitter");
 const sourceEditorPane = document.querySelector("#source-editor-pane");
 const sourceEditorHost = document.querySelector("#source-editor");
+const documentRemoteMergeStatus = document.querySelector("#document-remote-merge-status");
 const treeFilter = document.querySelector("#tree-filter");
 const uiTooltip = document.querySelector("#ui-tooltip");
 const treeItemSearchTooltips = new WeakMap();
@@ -631,6 +637,7 @@ window.addEventListener("git-leaf-desktop-update-status", handleDesktopUpdateSta
 window.addEventListener("git-leaf-desktop-preferences", handleDesktopPreferencesEvent);
 window.addEventListener("focus", handleToolStatusActivity);
 window.addEventListener("focus", refreshWorktreesOnWindowFocus);
+window.addEventListener("focus", handleRemoteSyncWindowFocus);
 window.addEventListener("resize", positionFrontmatterFilterPopover);
 window.addEventListener("resize", positionWorktreeSwitcherMenu);
 window.addEventListener("resize", scheduleAnchoredSourceLineGutterSync);
@@ -1189,7 +1196,11 @@ function handleRemoteSyncVisibilityChange() {
 }
 
 async function loadRemoteSyncStatus({ autoApply = false } = {}) {
-  if (!canEditCurrentRepo() || state.remoteSyncOperation) {
+  if (
+    !canEditCurrentRepo()
+    || state.remoteSyncOperation
+    || state.remoteSyncPreparedMerge
+  ) {
     return;
   }
 
@@ -1250,44 +1261,237 @@ async function loadRemoteSyncStatus({ autoApply = false } = {}) {
 }
 
 async function mergeRemoteIntoWorkspace({ automatic = false } = {}) {
+  if (automatic) {
+    await prepareAutomaticRemoteMerge();
+    return;
+  }
+  await mergeRemoteIntoWorkspaceManually();
+}
+
+async function prepareAutomaticRemoteMerge() {
   if (state.remoteSyncOperation) {
     return;
   }
   const initialDecision = currentRemoteSyncDecision();
+  if (!initialDecision.shouldAutoMerge) {
+    return;
+  }
+  const remoteAutoMergeKey = currentRemoteAutoMergeKey();
   if (
-    automatic
-      ? !initialDecision.shouldAutoMerge
-      : !initialDecision.canMergeRemote
+    state.remoteSyncPreparedMerge
+    && state.remoteSyncPreparedMerge.key === remoteAutoMergeKey
+    && state.remoteSyncPreparedMerge.scope === remoteSyncScope()
   ) {
+    await applyPreparedAutomaticRemoteMerge();
     return;
   }
-  if (automatic && deferAutomaticRemoteMergeUntilEditingPauses()) {
+  if (state.remoteSyncPreparedMerge) {
+    await discardPreparedAutomaticRemoteMerge();
+  }
+  if (deferAutomaticRemoteMergeUntilEditingPauses()) {
     return;
   }
-  if (state.remoteSyncAutoMergeTimer) {
-    window.clearTimeout(state.remoteSyncAutoMergeTimer);
-    state.remoteSyncAutoMergeTimer = null;
-  }
+  clearAutomaticRemoteMergeTimer();
 
   const scope = remoteSyncScope();
-  const remoteAutoMergeKey = currentRemoteAutoMergeKey();
   const incomingFiles = [...state.remoteSync.incomingFiles];
   const expectedHead = state.remoteSync.head;
   const expectedRemoteCommit = state.remoteSync.remoteCommit;
-  const currentDocumentHasRemoteUpdate = incomingFiles.includes(state.currentDocument?.path);
-  const shouldLockEditor = !automatic || (isEditorMode() && currentDocumentHasRemoteUpdate);
-  state.remoteSyncOperation = "merge";
-  if (shouldLockEditor) {
-    setRemoteMergeLock(true);
-  }
-  let editorLocked = shouldLockEditor;
+  state.remoteSyncOperation = "prepare";
   renderGitChangeToolbar();
   try {
     await flushPendingSourceSync();
     if (state.sourceWriteInFlight) {
-      if (!automatic) {
-        showCopyToast(t("error.editorStillSaving"));
+      scheduleAutomaticRemoteMergeRetry();
+      return;
+    }
+    await loadGitStatus();
+    if (scope !== remoteSyncScope()) {
+      return;
+    }
+    const sourceRevision = state.sourceRevision;
+
+    const response = await fetch(apiUrl("/api/git-prepare-remote-merge", {
+      locale: state.locale,
+    }), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        allowLocalChanges: true,
+        refresh: false,
+        expectedHead,
+        expectedRemoteCommit,
+      }),
+    });
+    const payload = await response.json().catch(() => ({
+      ok: false,
+      step: "prepare remote merge",
+      error: t("error.syncInvalidResponse"),
+    }));
+    if (scope !== remoteSyncScope()) {
+      await cancelRemoteMergePreparationToken(payload.preparationToken);
+      return;
+    }
+    await applyBranchProtectionPayload(payload);
+    state.remoteSync = normalizeRemoteSyncPayload({
+      ...state.remoteSync,
+      ...payload,
+    });
+
+    if (!response.ok || payload.ok === false) {
+      handleAutomaticRemoteMergeFailure(payload, remoteAutoMergeKey);
+      await loadGitStatus();
+      return;
+    }
+    if (!payload.prepared || !payload.preparationToken) {
+      clearRemoteAutoMergeFailure();
+      return;
+    }
+    if (sourceRevision !== state.sourceRevision) {
+      await cancelRemoteMergePreparationToken(payload.preparationToken);
+      markAutomaticRemoteMergeDeferred(remoteAutoMergeKey, incomingFiles);
+      scheduleAutomaticRemoteMergeRetry();
+      return;
+    }
+
+    state.remoteSyncPreparedMerge = {
+      token: payload.preparationToken,
+      key: remoteAutoMergeKey,
+      scope,
+      incomingFiles,
+      sourceRevision,
+    };
+    state.remoteSyncOperation = "";
+    renderGitChangeToolbar();
+    await applyPreparedAutomaticRemoteMerge();
+    return;
+  } catch {
+    scheduleAutomaticRemoteMergeRetry();
+  } finally {
+    if (state.remoteSyncOperation === "prepare") {
+      state.remoteSyncOperation = "";
+      renderGitChangeToolbar();
+    }
+  }
+}
+
+async function applyPreparedAutomaticRemoteMerge() {
+  if (state.remoteSyncOperation || !state.remoteSyncPreparedMerge) {
+    return;
+  }
+  const prepared = state.remoteSyncPreparedMerge;
+  if (
+    prepared.key !== currentRemoteAutoMergeKey()
+    || prepared.scope !== remoteSyncScope()
+  ) {
+    await discardPreparedAutomaticRemoteMerge();
+    return;
+  }
+  if (prepared.sourceRevision !== state.sourceRevision) {
+    await discardPreparedAutomaticRemoteMerge();
+    markAutomaticRemoteMergeDeferred(prepared.key, prepared.incomingFiles);
+    scheduleAutomaticRemoteMergeRetry();
+    return;
+  }
+
+  const currentDocumentPath = state.currentDocument?.path || "";
+  const currentDocumentAffected = prepared.incomingFiles.includes(currentDocumentPath);
+  if (automaticRemoteMergeShouldWaitForEditor({
+    editing: isEditorMode(),
+    currentDocumentAffected,
+    editorFocused: state.sourceEditor?.hasFocus?.() === true,
+    applicationFocused: document.hasFocus(),
+  })) {
+    markAutomaticRemoteMergeDeferred(prepared.key, prepared.incomingFiles);
+    return;
+  }
+
+  state.remoteSyncPreparedMerge = null;
+  state.remoteSyncAutoMergeDeferredKey = "";
+  state.remoteSyncOperation = "merge";
+  state.remoteSyncApplyingDocumentPath = currentDocumentAffected ? currentDocumentPath : "";
+  const protectEditor = isEditorMode() && currentDocumentAffected;
+  if (protectEditor) {
+    setAutomaticRemoteMergeCriticalSection(true);
+  }
+  renderGitChangeToolbar();
+  try {
+    const response = await fetch(apiUrl("/api/git-apply-prepared-remote-merge", {
+      locale: state.locale,
+    }), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ preparationToken: prepared.token }),
+    });
+    const payload = await response.json().catch(() => ({
+      ok: false,
+      step: "apply prepared remote merge",
+      error: t("error.syncInvalidResponse"),
+    }));
+    if (prepared.scope !== remoteSyncScope()) {
+      return;
+    }
+    await applyBranchProtectionPayload(payload);
+    if (payload.code !== "preparation_expired") {
+      state.remoteSync = normalizeRemoteSyncPayload({
+        ...state.remoteSync,
+        ...payload,
+      });
+    }
+    if (!response.ok || payload.ok === false) {
+      handleAutomaticRemoteMergeFailure(payload, prepared.key);
+      await loadGitStatus();
+      return;
+    }
+
+    closeGitSyncPanel();
+    clearRemoteAutoMergeFailure();
+    const visibleDocumentAffected = prepared.incomingFiles.includes(
+      state.currentDocument?.path,
+    );
+    if (visibleDocumentAffected) {
+      await refreshCurrentDocument({ remoteMerge: true });
+    }
+    await loadTree({ force: true });
+    await loadGitStatus();
+    if (visibleDocumentAffected) {
+      showCopyToast(t("toast.remoteAutoMerged"));
+    }
+  } catch {
+    scheduleAutomaticRemoteMergeRetry();
+  } finally {
+    if (state.remoteSyncOperation === "merge") {
+      state.remoteSyncOperation = "";
+      state.remoteSyncApplyingDocumentPath = "";
+      if (protectEditor) {
+        setAutomaticRemoteMergeCriticalSection(false);
       }
+      renderGitChangeToolbar();
+    }
+  }
+}
+
+async function mergeRemoteIntoWorkspaceManually() {
+  if (state.remoteSyncOperation) {
+    return;
+  }
+  const initialDecision = currentRemoteSyncDecision();
+  if (!initialDecision.canMergeRemote) {
+    return;
+  }
+  await discardPreparedAutomaticRemoteMerge();
+  clearAutomaticRemoteMergeTimer();
+
+  const scope = remoteSyncScope();
+  const incomingFiles = [...state.remoteSync.incomingFiles];
+  state.remoteSyncOperation = "merge";
+  setRemoteMergeLock(true);
+  let editorLocked = true;
+  renderGitChangeToolbar();
+  try {
+    await flushPendingSourceSync();
+    if (state.sourceWriteInFlight) {
+      showCopyToast(t("error.editorStillSaving"));
       return;
     }
     await loadGitStatus();
@@ -1302,8 +1506,7 @@ async function mergeRemoteIntoWorkspace({ automatic = false } = {}) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         allowLocalChanges: true,
-        refresh: !automatic,
-        ...(automatic ? { expectedHead, expectedRemoteCommit } : {}),
+        refresh: true,
       }),
     });
     const payload = await response.json().catch(() => ({
@@ -1319,22 +1522,11 @@ async function mergeRemoteIntoWorkspace({ automatic = false } = {}) {
       ...state.remoteSync,
       ...payload,
     });
-
     if (!response.ok || payload.ok === false) {
-      if (automatic) {
-        state.remoteSyncAutoMergeFailedKey = remoteAutoMergeKey;
-        if (automaticRemoteMergeFailureIsBlocking(payload)) {
-          state.remoteSyncAutoMergeBlockedKey = remoteAutoMergeKey;
-        }
-        reconcileRemoteAutoMergeFailure();
-        if (payload.code === "remote_changed") {
-          scheduleAutomaticRemoteMergeRetry();
-        }
-      }
       await loadGitStatus();
-      if (!automatic && payload.agentPrompt) {
+      if (payload.agentPrompt) {
         showGitSyncFailure(payload);
-      } else if (!automatic && payload.error) {
+      } else if (payload.error) {
         showCopyToast(payload.error);
       }
       return;
@@ -1342,20 +1534,16 @@ async function mergeRemoteIntoWorkspace({ automatic = false } = {}) {
 
     closeGitSyncPanel();
     clearRemoteAutoMergeFailure();
-    if (!automatic || currentDocumentHasRemoteUpdate) {
-      await refreshCurrentDocument();
+    if (incomingFiles.includes(state.currentDocument?.path)) {
+      await refreshCurrentDocument({ remoteMerge: true });
     }
-    if (editorLocked) {
-      setRemoteMergeLock(false);
-      editorLocked = false;
-    }
+    setRemoteMergeLock(false);
+    editorLocked = false;
     await loadTree({ force: true });
     await loadGitStatus();
-    showCopyToast(automatic ? t("toast.remoteAutoMerged") : t("toast.remoteMerged"));
+    showCopyToast(t("toast.remoteMerged"));
   } catch (error) {
-    if (!automatic) {
-      showCopyToast(error instanceof Error ? error.message : t("error.sync"));
-    }
+    showCopyToast(error instanceof Error ? error.message : t("error.sync"));
   } finally {
     if (state.remoteSyncOperation === "merge") {
       state.remoteSyncOperation = "";
@@ -1391,6 +1579,9 @@ function currentRemoteSyncDecision() {
     ),
     autoMergeBlocked: Boolean(
       currentAutoMergeKey && state.remoteSyncAutoMergeBlockedKey === currentAutoMergeKey
+    ),
+    autoMergeDeferred: Boolean(
+      currentAutoMergeKey && state.remoteSyncAutoMergeDeferredKey === currentAutoMergeKey
     ),
   });
 }
@@ -1450,20 +1641,94 @@ function deferAutomaticRemoteMergeUntilEditingPauses() {
   return true;
 }
 
-function scheduleAutomaticRemoteMergeRetry() {
+function scheduleAutomaticRemoteMergeRetry(delayMs = AUTOMATIC_REMOTE_MERGE_IDLE_MS) {
   const expectedKey = currentRemoteAutoMergeKey();
   if (!expectedKey) {
     return;
   }
-  if (state.remoteSyncAutoMergeTimer) {
-    window.clearTimeout(state.remoteSyncAutoMergeTimer);
-  }
+  clearAutomaticRemoteMergeTimer();
   state.remoteSyncAutoMergeTimer = window.setTimeout(() => {
     state.remoteSyncAutoMergeTimer = null;
     if (expectedKey === currentRemoteAutoMergeKey()) {
       void mergeRemoteIntoWorkspace({ automatic: true });
     }
-  }, AUTOMATIC_REMOTE_MERGE_IDLE_MS);
+  }, Math.max(0, Number(delayMs) || 0));
+}
+
+function clearAutomaticRemoteMergeTimer() {
+  if (!state.remoteSyncAutoMergeTimer) {
+    return;
+  }
+  window.clearTimeout(state.remoteSyncAutoMergeTimer);
+  state.remoteSyncAutoMergeTimer = null;
+}
+
+function handleAutomaticRemoteMergeFailure(payload, remoteAutoMergeKey) {
+  if (automaticRemoteMergeFailureIsBlocking(payload)) {
+    state.remoteSyncAutoMergeFailedKey = remoteAutoMergeKey;
+    state.remoteSyncAutoMergeBlockedKey = remoteAutoMergeKey;
+  } else {
+    state.remoteSyncAutoMergeFailedKey = "";
+    state.remoteSyncAutoMergeBlockedKey = "";
+    scheduleAutomaticRemoteMergeRetry();
+  }
+  reconcileRemoteAutoMergeFailure();
+}
+
+function markAutomaticRemoteMergeDeferred(remoteAutoMergeKey, incomingFiles) {
+  if (
+    remoteAutoMergeKey
+    && isEditorMode()
+    && incomingFiles.includes(state.currentDocument?.path)
+  ) {
+    state.remoteSyncAutoMergeDeferredKey = remoteAutoMergeKey;
+  }
+  renderGitChangeToolbar();
+}
+
+async function discardPreparedAutomaticRemoteMerge() {
+  const prepared = state.remoteSyncPreparedMerge;
+  state.remoteSyncPreparedMerge = null;
+  state.remoteSyncAutoMergeDeferredKey = "";
+  if (prepared?.token) {
+    await cancelRemoteMergePreparationToken(prepared.token);
+  }
+  renderGitChangeToolbar();
+}
+
+async function cancelRemoteMergePreparationToken(preparationToken) {
+  if (!preparationToken) {
+    return;
+  }
+  try {
+    await fetch(apiUrl("/api/git-cancel-prepared-remote-merge"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ preparationToken }),
+    });
+  } catch {
+    // Prepared results expire server-side; cancellation is opportunistic.
+  }
+}
+
+function handleSourceEditorFocusChange(focused) {
+  if (focused || !state.remoteSyncPreparedMerge) {
+    return;
+  }
+  state.remoteSyncAutoMergeDeferredKey = "";
+  renderGitChangeToolbar();
+  window.setTimeout(() => {
+    void applyPreparedAutomaticRemoteMerge();
+  }, 0);
+}
+
+function handleRemoteSyncWindowFocus() {
+  if (!state.remoteSyncPreparedMerge) {
+    return;
+  }
+  window.setTimeout(() => {
+    void applyPreparedAutomaticRemoteMerge();
+  }, 0);
 }
 
 function reconcileRemoteAutoMergeFailure() {
@@ -1479,10 +1744,18 @@ function reconcileRemoteAutoMergeFailure() {
 function clearRemoteAutoMergeFailure() {
   state.remoteSyncAutoMergeFailedKey = "";
   state.remoteSyncAutoMergeBlockedKey = "";
+  state.remoteSyncAutoMergeDeferredKey = "";
 }
 
 function setRemoteMergeLock(locked) {
   state.sourceEditor?.setEditable?.(!locked);
+  setAutomaticRemoteMergeCriticalSection(locked);
+}
+
+function setAutomaticRemoteMergeCriticalSection(locked) {
+  sourceEditorPane.inert = Boolean(locked);
+  sourceEditorPane.setAttribute("aria-disabled", String(locked));
+  documentWorkspace.classList.toggle("is-applying-remote-merge", Boolean(locked));
   documentWorkspace.setAttribute("aria-busy", String(locked));
 }
 
@@ -1822,6 +2095,7 @@ function applyDocumentData(
     initialHash = "",
     restoreScrollTop = null,
     preserveEditorState = false,
+    highlightEditorChanges = false,
   } = {},
 ) {
   const scrollTop = preserveScroll ? documentContent.scrollTop : 0;
@@ -1873,7 +2147,10 @@ function applyDocumentData(
   if (state.sourceEditor) {
     state.sourceEditor.setValue(
       canEditDocumentData(documentData) ? documentData.source ?? "" : "",
-      { preserveSelection: preserveEditorState },
+      {
+        preserveSelection: preserveEditorState,
+        highlightChanges: highlightEditorChanges,
+      },
     );
     state.sourceEditor.setMode(state.mode);
   }
@@ -2369,6 +2646,7 @@ function ensureSourceEditor() {
     doc: state.currentDocument?.source ?? "",
     locale: state.locale,
     onChange: scheduleSourceSync,
+    onFocusChange: handleSourceEditorFocusChange,
     onScroll: handleSourceEditorScroll,
     onLineSelect: selectSourceLine,
     onBlankClick: clearLineSelection,
@@ -2782,6 +3060,14 @@ function scheduleSourceSync(source) {
   }
   state.currentDocument.source = source;
   state.lastSourceEditAt = Date.now();
+  state.sourceRevision += 1;
+  if (state.remoteSyncPreparedMerge) {
+    const prepared = state.remoteSyncPreparedMerge;
+    state.remoteSyncPreparedMerge = null;
+    void cancelRemoteMergePreparationToken(prepared.token);
+    markAutomaticRemoteMergeDeferred(prepared.key, prepared.incomingFiles);
+    scheduleAutomaticRemoteMergeRetry();
+  }
   refreshDocumentSearch({ preserveIndex: true, reveal: false });
   updateSourceSyncStatus("syncing");
   window.clearTimeout(state.sourceSyncTimer);
@@ -5256,16 +5542,22 @@ function renderGitChangeToolbar() {
     gitSyncOpen.textContent = t("action.syncing");
   } else if (state.remoteSyncOperation === "check") {
     gitSyncOpen.textContent = t("action.checkingRemote");
+  } else if (state.remoteSyncOperation === "prepare") {
+    gitSyncOpen.textContent = t("remote.preparingMerge");
   } else {
     gitSyncOpen.textContent = decision.primaryAction === "publish"
       ? t("action.syncAndPublish")
       : t("action.checkRemote");
   }
+  renderDocumentRemoteMergeStatus();
 }
 
 function remoteSyncStatusLabel() {
   if (state.remoteSyncOperation === "check") {
     return t("remote.checking");
+  }
+  if (state.remoteSyncOperation === "prepare") {
+    return t("remote.preparingMerge");
   }
   if (state.remoteSyncOperation === "merge") {
     return t("action.mergingRemote");
@@ -5285,6 +5577,50 @@ function remoteSyncStatusLabel() {
     });
   }
   return t("remote.current");
+}
+
+function renderDocumentRemoteMergeStatus() {
+  const currentPath = state.currentDocument?.path || "";
+  const currentAffected = currentPath
+    && state.remoteSync.incomingFiles.includes(currentPath)
+    && isEditorMode();
+  const applying = Boolean(
+    currentPath
+    && state.remoteSyncOperation === "merge"
+    && state.remoteSyncApplyingDocumentPath === currentPath
+  );
+  const preparing = Boolean(
+    currentAffected
+    && state.remoteSyncOperation === "prepare"
+  );
+  const pending = Boolean(
+    currentAffected
+    && state.remoteSyncAutoMergeDeferredKey
+    && state.remoteSyncAutoMergeDeferredKey === currentRemoteAutoMergeKey()
+  );
+  if (!applying && !preparing && !pending) {
+    documentRemoteMergeStatus.hidden = true;
+    documentRemoteMergeStatus.textContent = "";
+    documentRemoteMergeStatus.title = "";
+    delete documentRemoteMergeStatus.dataset.state;
+    return;
+  }
+  documentRemoteMergeStatus.hidden = false;
+  if (applying) {
+    documentRemoteMergeStatus.dataset.state = "applying";
+    documentRemoteMergeStatus.textContent = t("action.mergingRemote");
+    documentRemoteMergeStatus.title = documentRemoteMergeStatus.textContent;
+    return;
+  }
+  if (preparing) {
+    documentRemoteMergeStatus.dataset.state = "preparing";
+    documentRemoteMergeStatus.textContent = t("remote.preparingMerge");
+    documentRemoteMergeStatus.title = documentRemoteMergeStatus.textContent;
+    return;
+  }
+  documentRemoteMergeStatus.dataset.state = "pending";
+  documentRemoteMergeStatus.textContent = t("remote.mergePendingEditing");
+  documentRemoteMergeStatus.title = t("remote.mergePendingEditingTitle");
 }
 
 function remoteSyncDetailLabel() {
@@ -5380,6 +5716,7 @@ async function submitGitSync() {
     return;
   }
 
+  await discardPreparedAutomaticRemoteMerge();
   const files = state.gitChanges.map((change) => change.path);
   const startedAt = performance.now();
   state.remoteSyncOperation = "publish";
@@ -7601,7 +7938,7 @@ async function checkDocumentStatus() {
   }
 }
 
-async function refreshCurrentDocument({ external = false } = {}) {
+async function refreshCurrentDocument({ external = false, remoteMerge = false } = {}) {
   const request = currentDocumentRequest();
   if (!request) {
     return;
@@ -7625,6 +7962,7 @@ async function refreshCurrentDocument({ external = false } = {}) {
   applyDocumentData(documentData, {
     preserveScroll: true,
     preserveEditorState: true,
+    highlightEditorChanges: remoteMerge,
   });
   if (external && isEditorMode()) {
     updateSourceSyncStatus("external");

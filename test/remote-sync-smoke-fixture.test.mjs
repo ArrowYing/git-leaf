@@ -9,6 +9,7 @@ import {
   REMOTE_SYNC_SMOKE_LOCAL_CONTENT,
   cleanupRemoteSyncSmokeFixture,
   createRemoteSyncSmokeFixture,
+  publishRemoteSyncSmokeUpdate,
 } from "../scripts/remote-sync-smoke-fixture.mjs";
 
 test("remote sync smoke fixture starts behind with one uncommitted local document", async () => {
@@ -21,6 +22,24 @@ test("remote sync smoke fixture starts behind with one uncommitted local documen
       REMOTE_SYNC_SMOKE_LOCAL_CONTENT,
     );
     assert.match(fixture.acceptance, /automatically merges/);
+  } finally {
+    cleanupRemoteSyncSmokeFixture(fixture);
+    await rm(temporaryRoot, { recursive: true, force: true });
+  }
+});
+
+test("remote sync editing fixture can publish the remote update after the editor is focused", async () => {
+  const temporaryRoot = await mkdtemp(path.join(tmpdir(), "git-leaf-remote-smoke-test-"));
+  const fixture = createRemoteSyncSmokeFixture({
+    temporaryRoot,
+    remoteAhead: false,
+  });
+  try {
+    publishRemoteSyncSmokeUpdate(fixture);
+    assert.equal(
+      await readFile(path.join(fixture.repoRoot, fixture.file), "utf8"),
+      REMOTE_SYNC_SMOKE_LOCAL_CONTENT,
+    );
   } finally {
     cleanupRemoteSyncSmokeFixture(fixture);
     await rm(temporaryRoot, { recursive: true, force: true });

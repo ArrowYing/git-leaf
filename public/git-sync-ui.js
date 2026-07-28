@@ -46,13 +46,15 @@ export function remoteSyncDecision({
   operation = "",
   autoMergeFailed = false,
   autoMergeBlocked = false,
+  autoMergeDeferred = false,
 } = {}) {
   const localChanges = Math.max(0, Number(localChangeCount) || 0);
   const behind = Math.max(0, Number(remote?.behind) || 0);
   const remoteAvailable = remote?.ok === true;
   const busy = Boolean(operation);
   const remoteIncoming = remoteAvailable && behind > 0;
-  const showMergeRemote = remoteIncoming && (autoMergeFailed || autoMergeBlocked);
+  const showMergeRemote = remoteIncoming
+    && (autoMergeFailed || autoMergeBlocked || autoMergeDeferred);
   return {
     shouldAutoMerge: canEdit && !busy && remoteIncoming && !autoMergeBlocked,
     showMergeRemote,
@@ -65,7 +67,7 @@ export function remoteSyncDecision({
 
 export function automaticRemoteMergeFailureIsBlocking(payload = {}) {
   return payload?.ok !== true
-    && !["remote_changed", "workspace_changed"].includes(payload?.code);
+    && !["preparation_expired", "remote_changed", "workspace_changed"].includes(payload?.code);
 }
 
 export function automaticRemoteMergeDelayMs({
@@ -78,4 +80,17 @@ export function automaticRemoteMergeDelayMs({
     return 0;
   }
   return Math.max(0, Math.max(0, Number(idleMs) || 0) - (Number(now) - lastEditAt));
+}
+
+export function automaticRemoteMergeShouldWaitForEditor({
+  editing = false,
+  currentDocumentAffected = false,
+  editorFocused = false,
+  applicationFocused = true,
+} = {}) {
+  return Boolean(
+    editing
+    && currentDocumentAffected
+    && (editorFocused || !applicationFocused)
+  );
 }

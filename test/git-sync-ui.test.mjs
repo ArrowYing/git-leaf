@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   automaticRemoteMergeDelayMs,
   automaticRemoteMergeFailureIsBlocking,
+  automaticRemoteMergeShouldWaitForEditor,
   REMOTE_SYNC_INTERVAL_MS,
   hasGitChangesChanged,
   remoteSyncCheckDue,
@@ -76,6 +77,30 @@ test("automatic merging waits only for the remainder of the active editing pause
   }), 0);
 });
 
+test("an affected focused editor keeps a prepared automatic merge pending", () => {
+  assert.equal(automaticRemoteMergeShouldWaitForEditor({
+    editing: true,
+    currentDocumentAffected: true,
+    editorFocused: true,
+  }), true);
+  assert.equal(automaticRemoteMergeShouldWaitForEditor({
+    editing: true,
+    currentDocumentAffected: false,
+    editorFocused: true,
+  }), false);
+  assert.equal(automaticRemoteMergeShouldWaitForEditor({
+    editing: true,
+    currentDocumentAffected: true,
+    editorFocused: false,
+  }), false);
+  assert.equal(automaticRemoteMergeShouldWaitForEditor({
+    editing: true,
+    currentDocumentAffected: true,
+    editorFocused: false,
+    applicationFocused: false,
+  }), true);
+});
+
 test("incoming changes auto-merge with clean or dirty local workspaces", () => {
   const remote = { ok: true, behind: 2 };
 
@@ -134,8 +159,28 @@ test("a failed automatic merge exposes a manual retry without retrying a blocked
     code: "remote_changed",
   }), false);
   assert.equal(automaticRemoteMergeFailureIsBlocking({
+    ok: false,
+    code: "preparation_expired",
+  }), false);
+  assert.equal(automaticRemoteMergeFailureIsBlocking({
     code: "invalid_response",
   }), true);
+});
+
+test("a prepared merge waiting for the focused editor keeps a manual action available", () => {
+  assert.deepEqual(remoteSyncDecision({
+    remote: { ok: true, behind: 1 },
+    localChangeCount: 1,
+    canEdit: true,
+    autoMergeDeferred: true,
+  }), {
+    shouldAutoMerge: true,
+    showMergeRemote: true,
+    canMergeRemote: true,
+    canRunPrimary: true,
+    primaryAction: "publish",
+    badge: "1",
+  });
 });
 
 test("remote sync actions remain disabled while another sync operation is running", () => {

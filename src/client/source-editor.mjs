@@ -336,6 +336,7 @@ const liveMarkdownDecorations = StateField.define({
 
 const selectedLinesEffect = StateEffect.define();
 const documentSearchEffect = StateEffect.define();
+const remoteMergeHighlightEffect = StateEffect.define();
 
 const documentSearchDecorations = StateField.define({
   create() {
@@ -345,6 +346,21 @@ const documentSearchDecorations = StateField.define({
     for (const effect of transaction.effects) {
       if (effect.is(documentSearchEffect)) {
         return buildDocumentSearchDecorations(transaction.state, effect.value);
+      }
+    }
+    return decorations.map(transaction.changes);
+  },
+  provide: (field) => EditorView.decorations.from(field),
+});
+
+const remoteMergeHighlightDecorations = StateField.define({
+  create() {
+    return Decoration.none;
+  },
+  update(decorations, transaction) {
+    for (const effect of transaction.effects) {
+      if (effect.is(remoteMergeHighlightEffect)) {
+        return buildRemoteMergeHighlightDecorations(transaction.state, effect.value);
       }
     }
     return decorations.map(transaction.changes);
@@ -728,6 +744,7 @@ export function createSourceEditor({
   locale,
   language,
   onChange,
+  onFocusChange,
   onScroll,
   onLineSelect,
   onBlankClick,
@@ -746,6 +763,7 @@ export function createSourceEditor({
   let currentMode = "source";
   let currentTheme = themeFromInput(theme);
   let currentEditable = true;
+  let remoteMergeHighlightTimer = null;
   const themeCompartment = new Compartment();
   const liveModeCompartment = new Compartment();
   const editableCompartment = new Compartment();
@@ -768,6 +786,7 @@ export function createSourceEditor({
       EditorView.lineWrapping,
       selectedLineGutterClasses,
       documentSearchDecorations,
+      remoteMergeHighlightDecorations,
       themeCompartment.of(editorThemeExtensions(currentTheme)),
       liveModeCompartment.of([]),
       editableCompartment.of([
@@ -787,6 +806,9 @@ export function createSourceEditor({
         icons: false,
       }),
       EditorView.updateListener.of((update) => {
+        if (update.focusChanged) {
+          onFocusChange?.(update.view.hasFocus);
+        }
         if (!update.docChanged || suppressChange) {
           return;
         }
@@ -925,29 +947,53 @@ export function createSourceEditor({
     getValue() {
       return view.state.doc.toString();
     },
-    setValue(value, { preserveSelection = false } = {}) {
+    setValue(value, { preserveSelection = false, highlightChanges = false } = {}) {
       const nextValue = String(value ?? "");
       const currentValue = view.state.doc.toString();
       if (currentValue === nextValue) {
         return;
       }
+      const changes = preserveSelection
+        ? minimalDocumentChange(currentValue, nextValue)
+        : {
+            from: 0,
+            to: view.state.doc.length,
+            insert: nextValue,
+          };
       suppressChange = true;
       try {
         view.dispatch({
-          changes: preserveSelection
-            ? minimalDocumentChange(currentValue, nextValue)
-            : {
-                from: 0,
-                to: view.state.doc.length,
-                insert: nextValue,
-              },
+          changes,
+          effects: remoteMergeHighlightEffect.of(
+            highlightChanges
+              ? {
+                  from: changes.from,
+                  to: changes.from + String(changes.insert ?? "").length,
+                }
+              : null,
+          ),
         });
       } finally {
         suppressChange = false;
       }
+      if (highlightChanges) {
+        globalThis.clearTimeout(remoteMergeHighlightTimer);
+        remoteMergeHighlightTimer = globalThis.setTimeout(() => {
+          remoteMergeHighlightTimer = null;
+          view.dispatch({
+            effects: remoteMergeHighlightEffect.of(null),
+          });
+        }, 2_400);
+      } else {
+        globalThis.clearTimeout(remoteMergeHighlightTimer);
+        remoteMergeHighlightTimer = null;
+      }
     },
     focus() {
       view.focus();
+    },
+    hasFocus() {
+      return view.hasFocus;
     },
     selectedText() {
       const range = view.state.selection.main;
@@ -1123,6 +1169,7 @@ export function createSourceEditor({
       return true;
     },
     destroy() {
+      globalThis.clearTimeout(remoteMergeHighlightTimer);
       view.dom.removeEventListener("mousedown", handleMouseDown, true);
       view.scrollDOM.removeEventListener("scroll", handleScroll);
       view.destroy();
@@ -1155,6 +1202,25 @@ export function minimalDocumentChange(currentValue, nextValue) {
     to: currentTo,
     insert: next.slice(from, nextTo),
   };
+}
+
+function buildRemoteMergeHighlightDecorations(state, range) {
+  if (!range) {
+    return Decoration.none;
+  }
+  const documentLength = state.doc.length;
+  const from = Math.min(documentLength, Math.max(0, Number(range.from) || 0));
+  const to = Math.min(documentLength, Math.max(from, Number(range.to) || from));
+  const firstLine = state.doc.lineAt(from);
+  const lastLine = state.doc.lineAt(to);
+  const decorations = [];
+  for (let lineNumber = firstLine.number; lineNumber <= lastLine.number; lineNumber += 1) {
+    decorations.push(
+      Decoration.line({ class: "cm-remote-merge-highlight" })
+        .range(state.doc.line(lineNumber).from),
+    );
+  }
+  return Decoration.set(decorations);
 }
 
 function buildDocumentSearchDecorations(state, { matches = [], activeIndex = -1 } = {}) {

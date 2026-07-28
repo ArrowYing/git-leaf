@@ -1353,7 +1353,7 @@ test("remote status API fetches origin and reports incoming files separately fro
   }
 });
 
-test("merge-remote API keeps dirty local edits uncommitted while advancing to origin", async () => {
+test("prepared merge API stays read-only until apply and then preserves dirty local edits", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "git-leaf-merge-remote-api-"));
   const bare = path.join(root, "remote.git");
   const repoRoot = path.join(root, "repo");
@@ -1383,10 +1383,33 @@ test("merge-remote API keeps dirty local edits uncommitted while advancing to or
   const baseUrl = await listen(server);
 
   try {
-    const response = await fetch(`${baseUrl}/api/git-merge-remote?locale=zh-CN`, {
+    const localHead = (
+      await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: repoRoot })
+    ).stdout.trim();
+    const prepareResponse = await fetch(
+      `${baseUrl}/api/git-prepare-remote-merge?locale=zh-CN`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ allowLocalChanges: true }),
+      },
+    );
+    const prepared = await prepareResponse.json();
+
+    assert.equal(prepareResponse.status, 200, prepared.error);
+    assert.equal(prepared.ok, true);
+    assert.equal(prepared.prepared, true);
+    assert.ok(prepared.preparationToken);
+    assert.equal(
+      (await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: repoRoot })).stdout.trim(),
+      localHead,
+    );
+    assert.equal(await readFile(path.join(repoRoot, "remote.md"), "utf8"), "remote before\n");
+
+    const response = await fetch(`${baseUrl}/api/git-apply-prepared-remote-merge?locale=zh-CN`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ allowLocalChanges: true }),
+      body: JSON.stringify({ preparationToken: prepared.preparationToken }),
     });
     const payload = await response.json();
 

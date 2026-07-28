@@ -729,6 +729,37 @@ input {
   color: var(--danger-text);
 }
 
+.document-remote-merge-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  border: 1px solid color-mix(in srgb, var(--accent) 42%, var(--panel-border));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 12%, var(--panel));
+  padding: 0 10px;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.document-remote-merge-status[data-state="applying"] {
+  color: var(--accent);
+}
+
+.document-remote-merge-status[hidden] {
+  display: none;
+}
+
+.document-workspace.is-applying-remote-merge .source-editor-pane {
+  cursor: progress;
+}
+
+.source-editor .cm-remote-merge-highlight {
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--accent) 72%, transparent);
+}
+
 .toolbar-system-controls button:hover,
 .floating-document-actions button:hover,
 .table-toolbar button:hover {

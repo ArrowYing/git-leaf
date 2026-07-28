@@ -1066,6 +1066,7 @@ test("dev install quits stale dist app and launches the installed Applications a
     wait: true,
     repoRoot: "/tmp/git-leaf-tree-tooltip-smoke-123",
     file: "research/projects/long-document-name.md",
+    remoteDebuggingPort: 9333,
   }), [
     "open",
     [
@@ -1074,10 +1075,25 @@ test("dev install quits stale dist app and launches the installed Applications a
       "/Applications/Git Leaf.app",
       "--args",
       "--git-leaf-dev-user-data-dir=/tmp/git-leaf-agent-smoke",
+      "--remote-debugging-address=127.0.0.1",
+      "--remote-debugging-port=9333",
       "--repo=/tmp/git-leaf-tree-tooltip-smoke-123",
       "--file=research/projects/long-document-name.md",
     ],
   ]);
+  assert.throws(
+    () => launchDevelopmentAppCommand(paths, {
+      remoteDebuggingPort: 9333,
+    }),
+    /requires isolated user data/,
+  );
+  assert.throws(
+    () => launchDevelopmentAppCommand(paths, {
+      userDataDir: "/tmp/git-leaf-agent-smoke",
+      remoteDebuggingPort: "not-a-port",
+    }),
+    /integer from 1024 to 65535/,
+  );
   assert.throws(
     () => launchDevelopmentAppCommand(paths, {
       userDataDir: "/tmp/git-leaf-agent-smoke",
