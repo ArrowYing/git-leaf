@@ -47,7 +47,15 @@ worktree。
 - 仓库与 worktree 切换，并分别恢复文档 Tab、导航历史、滚动位置和焦点。
 - 只读预览图片、PDF、CSV、JSON、YAML、HTML、代码和其他仓库附件。
 - 保留源文件行号与引用，说明选中内容来自哪里。
-- 通过受控 MDX-lite 组件呈现结构化内容，不执行任意文档脚本。
+
+## MDX-lite
+
+知识库可以使用 MDX-lite 呈现数据表、时间线、指标、决策、流程图和图表，同时在 Git 中保留可读的文本源文件。
+Git Leaf 只渲染受控组件，不执行任意 JSX、JavaScript、`import` 或文档脚本。
+
+![Git Leaf 在 MDX-lite 文档中呈现柱线组合图](marketing/assets/git-leaf-mdx-chart.png)
+
+[查看 MDX-lite 支持的组件和语法](docs/mdx-lite-guide.md)。
 
 ## 下载
 
@@ -106,26 +114,6 @@ Git 身份。完整事件语义与禁止推断项见英文技术文档
 - 公开 `/open`、`/share` 页面由 Mango Future 托管，只承担打开和分享中转。它们会接收仓库标识和文档元数据，
   不接收 Git 凭证或文档正文；完整说明见[托管链接的元数据与隐私](docs/hosted-links.zh-CN.md)。
 
-## 文档职责
-
-| 文档 | 维护内容 |
-| --- | --- |
-| 本文 | 产品定位、当前能力、使用入口和文档索引 |
-| [docs/README.md](docs/README.md) | 英文文档索引和读者路线 |
-| [docs/build-from-source.md](docs/build-from-source.md) | Community Build 的环境、运行、打包和身份 |
-| [CHANGELOG.md](CHANGELOG.md) | 版本变化、兼容性和安装包校验方式 |
-| [docs/architecture.md](docs/architecture.md) | 当前系统架构、跨模块行为协议和不可绕过的产品边界 |
-| [docs/mdx-lite-guide.md](docs/mdx-lite-guide.md) | MDX-lite 语法、组件白名单和渲染契约 |
-| [docs/mdx-lite-components-demo.mdx](docs/mdx-lite-components-demo.mdx) | MDX-lite 完整开发与视觉回归样例 |
-| [docs/release.md](docs/release.md) | 正式发布、candidate／stable、签名、公证和 tag 流程（英文） |
-| [docs/windows-portable-guide.zh-CN.md](docs/windows-portable-guide.zh-CN.md) | Windows unsigned Preview 的安装、更新和安全说明 |
-| [docs/hosted-links.zh-CN.md](docs/hosted-links.zh-CN.md) | `/open`、`/share` 传输的仓库元数据和隐私边界 |
-| [docs/app-usage-analytics-spec.md](docs/app-usage-analytics-spec.md) | 正式版使用统计、隐私、事件和指标的唯一口径（英文） |
-| [marketing/README.md](marketing/README.md) | 产品传播定位、开源推广方向和未来 Agent 推广设想（英文） |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | 贡献方式、开发验证和 Pull Request 要求 |
-| [SECURITY.md](SECURITY.md) | 安全边界和漏洞报告方式 |
-| [AGENTS.md](AGENTS.md) | Agent 的阅读路由、安全红线、验证门槛和交付流程；不维护功能清单 |
-
 ## 开发验证
 
 ```bash
@@ -136,7 +124,8 @@ npm run test:ci:win
 ```
 
 修改 `src/client/source-editor.mjs` 后还必须运行 `npm run build:client` 并提交生成的
-`public/source-editor.bundle.js`。UI 专项验收与 userData 隔离要求见 [AGENTS.md](AGENTS.md)。
+`public/source-editor.bundle.js`。贡献流程见 [CONTRIBUTING.md](CONTRIBUTING.md)，技术文档入口见
+[docs/README.md](docs/README.md)，UI 专项验收与 userData 隔离要求见 [AGENTS.md](AGENTS.md)。
 
 ## License
 

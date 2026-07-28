@@ -135,6 +135,7 @@ Reusable:
 - `assets/icons/git-leaf.png` and `.icns`;
 - real file tree, Live, Sync, and Agent Context UI;
 - `marketing/assets/git-leaf-product.png`;
+- `marketing/assets/git-leaf-mdx-chart.png` for a focused, real MDX-lite chart proof in the README;
 - the public [Lighthouse Garden knowledge base](https://github.com/MangoFuture1210/git-leaf-example-knowledge-base)
   for ordinary-user first-run and workflow demonstrations;
 - `docs/mdx-lite-components-demo.mdx` for development and visual regression only.

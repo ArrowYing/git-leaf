@@ -50,8 +50,16 @@ automation, and AI agents use directly.
 - Repository and worktree switching with restored tabs, navigation history, scroll positions, and focus.
 - Read-only previews for images, PDFs, CSV, JSON, YAML, HTML, code, and other repository attachments.
 - Source line references that preserve where selected text came from.
-- A restricted MDX-lite component set that presents structured content without executing arbitrary
-  document scripts.
+
+## MDX-lite
+
+A knowledge base can use MDX-lite for data tables, timelines, metrics, decisions, flow diagrams, and
+charts while keeping readable text source files in Git. Git Leaf renders only allowlisted components;
+it does not execute arbitrary JSX, JavaScript, imports, or document scripts.
+
+![Git Leaf rendering a bar-and-line chart in an MDX-lite document](marketing/assets/git-leaf-mdx-chart.png)
+
+[See the supported MDX-lite components and syntax](docs/mdx-lite-guide.md).
 
 ## Download
 
@@ -119,28 +127,6 @@ normative contract is the [usage analytics specification](docs/app-usage-analyti
   identifiers and document metadata, but never Git credentials or document content. See
   [Hosted link metadata and privacy](docs/hosted-links.md).
 
-## Documentation
-
-Technical and maintainer documentation is English-only. End-user documents may also provide a Simplified
-Chinese counterpart when it materially helps installation, privacy, or first-run use.
-
-| Document | Purpose |
-| --- | --- |
-| [Documentation index](docs/README.md) | Documentation map and audience guide |
-| [Build from source](docs/build-from-source.md) | Community Build setup, packaging, and identity |
-| [Changelog](CHANGELOG.md) | Version changes, compatibility, and artifact verification |
-| [Release process](docs/release.md) | Official builds, candidate/stable promotion, signing, notarization, and tags |
-| [Windows Preview](docs/windows-portable-guide.md) | Installation, updates, security warnings, and removal |
-| [Hosted link metadata and privacy](docs/hosted-links.md) | Data sent through Mango Future-hosted `/open` and `/share` |
-| [Architecture](docs/architecture.md) | Current architecture and cross-module contracts |
-| [MDX-lite reference](docs/mdx-lite-guide.md) | Syntax, component whitelist, and rendering contracts |
-| [MDX-lite demo](docs/mdx-lite-components-demo.mdx) | Complete visual and development fixture |
-| [Usage analytics specification](docs/app-usage-analytics-spec.md) | Normative privacy, event, and metric contract |
-| [Marketing workspace](marketing/README.md) | Positioning, open-source promotion, and future agent-led promotion |
-| [Contributing](CONTRIBUTING.md) | Contribution workflow and validation expectations |
-| [Security](SECURITY.md) | Security boundaries and vulnerability reporting |
-| [Agent instructions](AGENTS.md) | Repository routing, safety boundaries, validation gates, and delivery workflow |
-
 ## Development
 
 ```bash
@@ -151,8 +137,9 @@ npm run test:ci:win
 ```
 
 After changing `src/client/source-editor.mjs`, also run `npm run build:client` and commit the generated
-`public/source-editor.bundle.js`. UI-specific validation and userData isolation requirements are
-documented in [AGENTS.md](AGENTS.md).
+`public/source-editor.bundle.js`. See [Contributing](CONTRIBUTING.md) for the contribution workflow,
+the [documentation index](docs/README.md) for technical references, and [AGENTS.md](AGENTS.md) for
+UI-specific validation and userData isolation requirements.
 
 ## License
 
