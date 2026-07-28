@@ -47,7 +47,8 @@ desktop shell, the web workspace, tests, and packaging configuration are all mai
 - `src/server/`: flat local Node service and repository layer shared by the CLI and Electron host.
 - `src/content/`: browser-safe Markdown/MDX rendering shared by the local service and editor bundle.
 - `src/client/`: CodeMirror Source and Live editor source.
-- `public/`: browser workspace assets. `public/source-editor.bundle.js` is generated from
+- `public/`: browser workspace assets. Selected modules with no import-time DOM requirement are also
+  shared by the local service and Electron host. `public/source-editor.bundle.js` is generated from
   `src/client/source-editor.mjs`.
 - `src/desktop/`: Electron main-process entry point and desktop-only modules. Desktop configuration,
   environment checks, updates, analytics, home, and navigation live there.

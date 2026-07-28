@@ -105,8 +105,10 @@ document. No write path may bypass this boundary.
 
 ### External command contract
 
-Git, GitHub CLI, and operating-system helpers are runtime dependencies. Command callers classify both
-process execution and output:
+Git is required to open and operate on a repository. GitHub CLI is an optional environment-readiness
+check: remote operations use Git's configured credentials and remain available when `gh` is absent.
+Operating-system launch helpers are action-specific dependencies rather than prerequisites for opening a
+repository. Every external-command caller classifies both process execution and output:
 
 | State | Meaning | Required response |
 | --- | --- | --- |
@@ -166,10 +168,8 @@ presentation:
   folder while hiding the placeholder, and Sync exposes the placeholder whenever Git reports its change;
 - text search combines whitespace-separated terms with AND, matches each folder or file on its own
   searchable fields, and initially keeps only matches plus the ancestor folders needed to reach them;
-  when a file needs `ai_snippet` to satisfy the query, its tree row shows a highlighted matching excerpt
-  so every automatically revealed result has visible evidence; truncated matching file names expand to
-  their full highlighted name, while an `ai_snippet` result uses that same whole-row expansion timing
-  and file-name-aligned origin to show the full highlighted snippet;
+  every automatically revealed result provides visible matching evidence, including files matched only
+  through `ai_snippet` and matches truncated by the available row width;
   search has transient directory expansion state independent from the saved file tree, so explicitly
   expanding a matching folder may reveal its descendants without changing the tree restored afterward;
 - frontmatter filtering narrows Markdown and MDX documents only.
@@ -389,10 +389,10 @@ snapshot, passes explicit isolated `userData` and `sessionData`, verifies the pr
 fingerprint after the run, and deletes only the temporary snapshot. Failure to create or verify the
 snapshot must stop automation; it may not fall back to the real Profile.
 
-Five settings are user configurable: `language`, `colorMode`, `documentFont`, `documentFontSize`, and
-`fileTreeMode`. Tabs, tree expansion, scroll, focus, sidebar state, outline state, and split ratios are
-restored workbench state, not settings. Frontmatter rules are repository-owned data. Version and
-environment information are read-only status.
+Six preferences are user configurable: `language`, `colorMode`, `documentFont`, `documentFontSize`,
+`fileTreeMode`, and `gitRemoteCheckIntervalMinutes`. Tabs, tree expansion, scroll, focus, sidebar state,
+outline state, and split ratios are restored workbench state, not settings. Frontmatter rules are
+repository-owned data. Version and environment information are read-only status.
 
 Preference propagation is directional:
 
@@ -424,16 +424,33 @@ installer. Failed preparation remains retryable and must not masquerade as an ac
 
 ## Module boundaries
 
-Source directories follow runtime ownership. `src/content/` is browser-safe rendering code shared by the
-editor bundle and local Node service. `src/server/` is the local backend used by both the CLI and Electron
-host. `src/desktop/` contains Electron-only lifecycle and platform behavior. Dependency direction is
-`client -> content`, `server -> content`, and `cli/desktop -> server`; the server and content layers must
-not depend on the desktop layer. Repository-level `scripts/` contains development and release automation,
-while `tools/` contains standalone utilities intended to be copied into other repositories. Neither
-directory is part of the packaged desktop runtime.
+Source directories follow runtime ownership. Imports within one layer are implicit; cross-layer imports
+follow this table:
+
+| Layer | Runtime and responsibility | May import |
+| --- | --- | --- |
+| `public/` | Browser workbench assets and renderer modules; selected cross-runtime-safe modules also define shared state, localization, and validation contracts | `public/` only |
+| `src/content/` | Browser-safe Markdown and MDX rendering used by both the editor bundle and local service | `src/content/`, browser-safe `public/` modules |
+| `src/client/` | CodeMirror Source and Live editor implementation | `src/client/`, `src/content/`, browser-safe `public/` modules |
+| `src/server/` | Local Node service and repository layer used by the CLI and Electron host | `src/server/`, `src/content/`, Node-safe `public/` modules, root `src/` primitives |
+| `src/desktop/` | Electron-only lifecycle, Profile, platform, update, and analytics behavior | `src/desktop/`, `src/server/`, Node-safe `public/` modules, root `src/` primitives |
+| root `src/` | CLI entry point plus small build and process primitives | the CLI may depend on `src/server/`; shared primitives remain independent of feature layers |
+
+`public/`, `src/content/`, and `src/client/` must not import Node or Electron runtime APIs.
+`src/server/` must not depend on client or desktop code, and no non-desktop layer may import
+`src/desktop/`. A `public/` module imported by Node or Electron must remain safe to import without a
+browser DOM; browser-only behavior must stay behind an explicit call or runtime guard.
+
+Repository-level `scripts/` contains development and release automation, while `tools/` contains
+standalone utilities intended to be copied into other repositories. Neither directory is part of the
+packaged desktop runtime.
+
+The following files are key seams, not an exhaustive module inventory:
 
 | Module | Responsibility |
 | --- | --- |
+| `public/app.js` | Browser workbench orchestration and local-service API client |
+| `public/settings-preferences.js`, `public/workbench-session.js` | DOM-free preference and session contracts shared with Electron |
 | `src/desktop/main.mjs` | Electron lifecycle, windows, menus, repository selection, settings, deep links |
 | `src/desktop/settings-center.mjs`, `src/desktop/settings/` | Full-screen settings/help and restricted IPC |
 | `src/desktop/preference-sync.mjs` | Persistence, server snapshots, and renderer preference propagation |
@@ -482,6 +499,9 @@ Git Leaf does not currently provide:
 - Shared links never grant permissions or carry local absolute paths.
 - Community builds never impersonate Mango Future official identity or use official update/analytics
   services.
+- Runtime dependency edges remain one-way; browser-safe and server layers never import Electron-only
+  code.
+- Development automation and standalone repository tools remain outside the packaged desktop runtime.
 - Tables, images, links, and MDX-lite controls remain explainable from source text.
 
 Repository reading order, test commands, Profile safety, and delivery workflow live only in
