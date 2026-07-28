@@ -25,8 +25,6 @@ desktop shell, the web workspace, tests, and packaging configuration are all mai
 - Read this file before ordinary changes, then read the nearest relevant source files and tests for the
   area being changed.
 - Product capabilities, usage, and boundaries: `README.md`.
-- Product positioning, open-source promotion, and future agent-led promotion:
-  `marketing/README.md`.
 - Architecture, service boundaries, worktrees, local editing, and the desktop wrapper:
   `docs/architecture.md`.
 - MDX-lite implementation and component boundaries: `docs/mdx-lite-guide.md`. The complete

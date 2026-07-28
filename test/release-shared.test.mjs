@@ -67,7 +67,7 @@ test("release package ignores third-party test files from app.asar", () => {
     "/.gitleaks.toml",
     "/CHANGELOG.md",
     "/README.zh-CN.md",
-    "/marketing/positioning.md",
+    "/marketing/assets/git-leaf-product.png",
     "/node_modules/@lezer/css/test/test-css.js",
     "/node_modules/@lezer/html/tests/fixture.txt",
     "/node_modules/example/__tests__/fixture.js",

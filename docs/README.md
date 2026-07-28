@@ -1,9 +1,9 @@
 # Git Leaf documentation
 
 The repository root contains the standard open-source entry points: `README.md`, `LICENSE`,
-`CONTRIBUTING.md`, `SECURITY.md`, and `CHANGELOG.md`. Maintainer-facing technical and marketing
-documents use English as their single source. End-user documents may add a `.zh-CN` counterpart where a
-second language materially improves installation, privacy, or product use.
+`CONTRIBUTING.md`, `SECURITY.md`, and `CHANGELOG.md`. Maintainer-facing technical documents use English
+as their single source. End-user documents may add a `.zh-CN` counterpart where a second language
+materially improves installation, privacy, or product use.
 
 ## Documentation map
 
@@ -20,7 +20,6 @@ second language materially improves installation, privacy, or product use.
 | Windows Preview | [English](windows-portable-guide.md) · [简体中文](windows-portable-guide.zh-CN.md) | Installation and security guidance |
 | Usage analytics | [Specification](app-usage-analytics-spec.md) | Normative event, privacy, and metric contract |
 | Official release | [Release process](release.md) | Mango Future maintainer workflow |
-| Product marketing | [Marketing](../marketing/README.md) | Positioning and promotion strategy |
 
 Repository-specific agent rules remain in [AGENTS.md](../AGENTS.md). Contribution and vulnerability
 reporting guidance remain in [CONTRIBUTING.md](../CONTRIBUTING.md) and

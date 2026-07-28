@@ -78,8 +78,7 @@ Git 仓库是持久的共享上下文事实源：其中可以保存知识、指�
 
 当 Agent 直接使用仓库，而对其中内容含义和正确性负责的人需要以易读、专注的方式检查和修正同一批文件时，
 Git Leaf 才是更合适的选项。它不是为了让 Git 更强，而是让团队里不使用开发工具的人，也能参与 Agent
-上下文仓库的日常维护。完整论证见英文 marketing 文章
-[Why Git Leaf instead of VS Code or Obsidian?](marketing/why-git-leaf.md)。
+上下文仓库的日常维护。
 
 ## 下载
 

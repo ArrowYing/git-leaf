@@ -88,8 +88,7 @@ synchronization.
 Git Leaf is the option when agents work directly in the repository but the people responsible for its
 meaning and correctness need a readable, focused way to inspect and correct the same files. Its job is
 not to make Git more powerful; it is to let the rest of the team participate without turning their
-daily work into a developer workflow. Read the longer
-[reason for a separate app](marketing/why-git-leaf.md).
+daily work into a developer workflow.
 
 ## Download
 
