@@ -1,5 +1,5 @@
 ---
-last_updated: 2026-07-27
+last_updated: 2026-07-28
 ---
 
 # Git Leaf
@@ -29,35 +29,29 @@ truth. Git Leaf gives people a familiar interface for reading, searching, editin
 Markdown and MDX files, while preserving the paths, revisions, branches, and worktrees that developers,
 automation, and AI agents use directly.
 
-## What Git Leaf does
+## Core workflow
 
-- Opens any local Git repository and preserves a stable list of repositories and worktrees.
-- Shows either content-focused files or the full repository tree without changing Git discovery or sync scope.
-- Organizes the sidebar into All, Favorites, and Sync views: All is the regular repository tree, Favorites
-  collects favorite folders and Markdown/MDX documents, and Sync shows both unpublished local changes and
-  the latest checked remote state.
-- Stores favorites per repository and shares them across its worktrees. Use the file-tree context menu for
-  folders or Markdown/MDX documents, or the star beside the open document.
-- Supports Preview, Source, and Live modes for Markdown and MDX.
-- Previews images, PDFs, CSV, JSON, YAML, HTML, code, and other attachments according to file capability.
-- Restores document tabs, scroll positions, and focus independently for each worktree. All and Favorites
-  preserve separate folder expansion state; entering Sync automatically expands every directory leading
-  to an unpublished file.
-- Keeps Back and Forward history inside the active tab: a normal internal document link replaces that tab,
-  while Command/Ctrl-click opens a separate tab without changing the current one.
-- Preserves source line numbers in Preview and copies selections with repository-relative paths and line ranges.
-- Collects selected lines from Preview, Source, or Live into portable Markdown context for any AI agent.
-- Uses one CodeMirror source model for Source and Live, so Live never creates a second rich-text data model.
-- Renders a restricted MDX-lite component set without executing arbitrary JSX, JavaScript, imports, or scripts.
-- Checks the remote when a repository opens and every 10 minutes. A clean worktree fast-forwards
-  automatically; when local edits also exist, **Merge remote changes** incorporates the remote version
-  while keeping every local edit uncommitted.
-- Keeps publishing manual: **Sync and publish** commits and pushes all current repository changes, stopping
-  safely on divergence, conflicts, or an in-progress Git operation.
-- Publishes versioned share links only after pushing and verifying the exact revision on `origin/main`.
-- Keeps language, appearance, typography, repository-tree preferences, shortcuts, version details, and
-  environment status in a full-screen Settings & Help view. The interface follows the operating-system
-  language by default and can be fixed to English or Simplified Chinese.
+- **Open the knowledge base you already have.** Git Leaf works with any local Git repository without
+  importing its content into another system. The repository remains the source of truth.
+- **Read and edit through a familiar interface.** Search Markdown and MDX, switch between Preview,
+  Source, and Live, and keep every edit in the same plain-text files.
+- **Let people and AI agents work on the same files.** Collect exact lines as portable Agent Context,
+  let an agent read or modify the repository directly, then return to Git Leaf to review the changes.
+- **Bring in remote changes without losing unfinished work.** Git Leaf checks the remote when a
+  repository opens and every 10 minutes, fast-forwards a clean worktree, and can merge remote changes
+  while keeping local edits uncommitted.
+- **Review before publishing.** Sync shows unpublished work and remote status. **Sync and publish**
+  commits and pushes intentionally and stops safely when Git needs attention; **Copy share link** returns
+  a versioned link only after verifying the published revision.
+
+## More built in
+
+- All, Favorites, and Sync views, with a content-focused tree or the complete repository tree.
+- Repository and worktree switching with restored tabs, navigation history, scroll positions, and focus.
+- Read-only previews for images, PDFs, CSV, JSON, YAML, HTML, code, and other repository attachments.
+- Source line references that preserve where selected text came from.
+- A restricted MDX-lite component set that presents structured content without executing arbitrary
+  document scripts.
 
 ## Download
 
