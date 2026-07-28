@@ -3,10 +3,10 @@ title: Git Leaf system architecture
 domain: ai
 type: architecture
 owner: maintainer
-last_updated: 2026-07-27
+last_updated: 2026-07-28
 source: git-leaf
 canonical: true
-ai_snippet: "[Architecture] Git Leaf | desktop app for Git-based knowledge bases | local HTTP service | Git worktrees | Preview Source Live | CodeMirror 6 | guarded Git sync"
+ai_snippet: "[Architecture] Git Leaf | human desktop interface for shared context repositories | local HTTP service | Git worktrees | Preview Source Live | CodeMirror 6 | guarded Git sync"
 ---
 
 # Git Leaf system architecture
@@ -25,19 +25,22 @@ user guide or an MDX-lite syntax reference.
 
 ## Product and data model
 
-Git Leaf is a local desktop app for opening and maintaining Git-based knowledge bases, primarily made
-of Markdown and MDX documents.
+Git Leaf is a local desktop interface for Git repositories used as durable shared context by teams and
+AI agents. These repositories are primarily made of Markdown and MDX documents.
 
-The Git repository selected by the user is the knowledge base and its content source of truth. Git Leaf
-does not import documents into a separate database, CMS, or cloud store. Images, attachments, code, and
-other repository files remain ordinary files. Git Leaf provides a human interface over that repository;
-AI agents, developers, and automation can work with the same files directly.
+The Git repository selected by the user is the shared context system of record. It may contain a
+knowledge base, but it can also contain agent instructions, decisions, plans, playbooks, and operational
+context. Git Leaf does not import documents into a separate database, CMS, context engine, or cloud
+store. Images, attachments, code, and other repository files remain ordinary files. Git Leaf provides
+the human interface over that repository; AI agents, developers, and automation work with the same files
+directly.
 
 Git Leaf is optimized for three jobs:
 
-- give people who do not work in Git or Markdown a familiar way to read, search, edit, and sync;
+- give people who do not work in Git or Markdown a familiar way to read, search, inspect, and make
+  focused edits;
 - preserve source paths, line ranges, revisions, branches, and worktrees for agents and automation;
-- let people return to the app to inspect and continue changes made by external tools.
+- let people return to the app to inspect and continue changes made by external agents and tools.
 
 Git Leaf is not an agent runtime, model host, account service, public documentation site, or general
 code editor.
@@ -442,16 +445,18 @@ another's responsibilities.
 Git Leaf does not currently provide:
 
 - real-time multi-user editing;
-- cloud accounts, SSO, permissions, or a hosted knowledge base;
+- cloud accounts, SSO, permissions, or a hosted repository or context service;
 - arbitrary MDX, JSX, document scripts, or event handlers;
 - a full BI, mapping, graph, or dashboard system;
 - the Obsidian plugin ecosystem;
 - an embedded AI chat or agent runtime;
+- a context retrieval engine, semantic index, vector database, or MCP service;
+- attribution or a formal diff-approval workflow for agent changes;
 - a replacement for Git branching, code review, or conflict resolution.
 
 ## Architecture invariants
 
-- The selected Git repository remains the content source of truth.
+- The selected Git repository remains the shared context source of truth.
 - The local editing service remains bound to localhost.
 - Live never introduces a second rich-text storage model.
 - MDX-lite remains allowlisted and non-executable.

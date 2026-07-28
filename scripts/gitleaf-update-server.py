@@ -1314,15 +1314,14 @@ def download_page_html(language, downloads):
     is_chinese = language == "zh-CN"
     copy = {
         "title": "Git Leaf 下载" if is_chinese else "Download Git Leaf",
-        "category": "面向 Git 知识库的桌面应用。" if is_chinese
-        else "A desktop app for Git-based knowledge bases.",
-        "value": "让整个团队共同维护知识，无需要求每个人都使用 Git 或 Markdown。" if is_chinese
-        else "Let the whole team maintain shared knowledge without requiring everyone to use Git or Markdown.",
+        "category": "面向团队与 AI Agent 共享上下文仓库的桌面应用。" if is_chinese
+        else "A desktop interface for Git repositories used as shared context by teams and AI agents.",
+        "value": "一个供 Agent 直接工作的仓库，一个供人使用的熟悉界面。" if is_chinese
+        else "One repository for agents. A familiar interface for people.",
         "collaboration": (
-            "所有团队成员都可以通过 Git Leaf 参与，开发者和 AI Agent 仍直接使用 Git 中的同一份文件。"
+            "AI Agent 直接使用 Git 仓库；人通过 Git Leaf 阅读、检查并做范围明确的小修改。"
             if is_chinese else
-            "Everyone on the team can contribute through Git Leaf, while developers and AI agents work "
-            "with the same files directly in Git."
+            "AI agents work directly in Git. People use Git Leaf to read, inspect, and make focused edits."
         ),
         "latest": "最新公开版本" if is_chinese else "Latest public release",
         "unavailable_title": "公开安装包暂不可用" if is_chinese else "Public builds are not available yet",

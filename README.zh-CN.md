@@ -6,72 +6,72 @@ last_updated: 2026-07-28
 
 [English](README.md) | 简体中文
 
-面向 Git 知识库的桌面应用。
+面向团队与 AI Agent 共享上下文仓库的桌面应用。
 
-让整个团队共同维护知识，无需要求每个人都使用 Git 或 Markdown。
+一个供 Agent 直接工作的仓库，一个供人使用的熟悉界面。
 
-所有团队成员都可以通过 Git Leaf 参与，开发者和 AI Agent 仍直接使用 Git 中的同一份文件。
+AI Agent 直接使用 Git 仓库；人通过 Git Leaf 阅读、检查并做范围明确的小修改，无需直接操作 Git 或
+Markdown。
 
 [**下载 macOS 版**](https://gitleaf.mangofuture.com/download?lang=zh-CN#macos) ·
 [Windows Preview](https://gitleaf.mangofuture.com/download?lang=zh-CN#windows) ·
 [从源码构建](docs/build-from-source.md)
 
-![Git Leaf 展示团队的 Git 知识库、本地改动和 Agent 上下文](marketing/assets/git-leaf-product.png)
+![Git Leaf 展示共享上下文仓库、本地改动和 Agent 上下文](marketing/assets/git-leaf-product.png)
 
 [![CI](https://github.com/MangoFuture1210/git-leaf/actions/workflows/ci.yml/badge.svg)](https://github.com/MangoFuture1210/git-leaf/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
-安装 Git Leaf 后，可以直接[打开公开示例知识库](https://gitleaf.mangofuture.com/open?repo=mangofuture1210%2Fgit-leaf-example-knowledge-base&path=README.md)，
+安装 Git Leaf 后，可以直接[打开公开示例上下文仓库](https://gitleaf.mangofuture.com/open?repo=mangofuture1210%2Fgit-leaf-example-knowledge-base&path=README.md)，
 也可以先克隆到本机，完成一次完全本地的首次体验。
 
-## 核心工作流
+## 一个仓库，两种界面
 
-- **直接打开团队已有的知识库。** Git Leaf 可以使用任意本机 Git 仓库副本，无需把内容导入另一个系统；
-  Git 仓库始终是团队共同的内容事实源。
-- **沿着熟悉的目录找到文档。** 在目录树中按原有文件夹结构浏览知识库，也可以直接搜索。空格分隔的
-  多个关键词会共同收窄结果；命中的目录名和文件名会高亮，并且只保留命中项及到达它们所需的上级目录。
-- **在 Live Editor 中边看边改。** 标题、列表、链接等内容以接近阅读效果的方式呈现，每次修改仍保存到
-  原来的文件；需要时可以切换到 Preview 或 Source。
-- **让团队成员与 AI Agent 使用同一份文件。** 把准确行选区整理成通用 Agent 上下文，让 Agent 或开发者
-  直接读取或修改仓库，再回到 Git Leaf 检查改动。
-- **引入远端变化，同时保留尚未完成的编辑。** Git Leaf 会在打开仓库时及之后每隔 10 分钟检查远端；
-  工作区干净时自动快进，也可以在本地有改动时合入远端版本，并让全部本地编辑保持未提交。
-- **检查后再发布。** Sync 同时显示尚未发布的本地改动和远端状态；“同步并发布”由人主动触发提交与
-  推送，在 Git 需要处理时安全停止；“复制分享链接”只在复核已发布 revision 后返回版本化链接。
+Git 仓库是持久的共享上下文事实源：其中可以保存知识、指令、决策、计划、操作手册，以及帮助团队和 Agent
+保持一致的其他文件。知识库可以是仓库中的一部分，但这个仓库不只是供人查询资料，还直接服务 Agent 的工作。
 
-## 更多能力
+- **AI Agent、开发者和自动化直接使用 Git。** 它们继续使用原来的路径、文件、分支、revision 和指令。
+- **人使用 Git Leaf。** 通过熟悉的目录树、搜索、Preview 和范围明确的编辑参与，不必把内容搬到另一个系统。
+- **Git 始终是共同事实源。** Git Leaf 不会把仓库导入、索引或复制到另一个知识服务。
+
+## 人参与的工作闭环
+
+1. **找到并阅读相关上下文。** 沿仓库原有目录浏览或直接搜索；Preview 是默认阅读界面。
+2. **检查发生了什么变化。** Sync 显示尚未发布的本地文件和远端状态；打开相关文档，理解 Agent、开发者或
+   其他团队成员带来的更新。
+3. **把准确上下文交回 Agent。** 在 Preview、Source 或 Live 中选择保留源文件位置的行，整理成通用
+   Agent 上下文，再交给外部 Agent。
+4. **必要时直接做一个小修改。** Live 以接近阅读效果的方式呈现标题、列表和链接，同时仍写回原来的
+   Markdown／MDX 文件；需要精确控制文本时再使用 Source。
+5. **保持共享仓库最新。** Git Leaf 可以在保留未完成编辑的同时引入远端变化；“同步并发布”由人主动
+   提交和推送，“复制分享链接”只在复核已发布 revision 后返回版本化链接。
+
+## 为人读得懂的上下文
 
 - All、Favorites、Sync 三个视图，可在“内容文件”和完整仓库目录树之间切换。
-- 克制的目录树文件操作：重命名单个普通文件、新建可进入 Git 的文件夹，以及直接删除单个文件或空文件夹；
-  暂不提供移动和非空文件夹递归删除。
 - 仓库与 worktree 切换，并分别恢复文档 Tab、导航历史、滚动位置和焦点。
 - 只读预览图片、PDF、CSV、JSON、YAML、HTML、代码和其他仓库附件。
 - 保留源文件行号与引用，说明选中内容来自哪里。
+- 克制的文件操作，避免把 Git Leaf 变成通用文件管理器或 IDE。
 
-## 不只是文字
+上下文文档还可以直接呈现数据表、时间线、关键指标、决策、流程图和图表。源文件仍然是 Agent 可读的 Git
+文本，Git Leaf 则为人提供更安全的视觉呈现；文档本身不能运行代码或脚本。
 
-团队知识库中的文档还可以直接呈现数据表、时间线、关键指标、决策、流程图和图表。内容仍然以可读文本保存
-在 Git 中，团队成员与 AI Agent 可以继续读取和修改同一份文件。
+![Git Leaf 从 Agent 可读的上下文文档中呈现柱线组合图](marketing/assets/git-leaf-mdx-chart.png)
 
-Git Leaf 使用安全的内置组件呈现这些内容，文档本身不能运行代码或脚本。
+## 同一个仓库不要求所有人使用同一种 App
 
-![Git Leaf 在知识库文档中呈现柱线组合图](marketing/assets/git-leaf-mdx-chart.png)
+每个参与者可以继续使用适合自己的界面，而文件始终保持共享：
 
-## Git Leaf、Obsidian 和 VS Code 怎么选
-
-决定因素不是哪个 App 能打开 Markdown，而是 Git 是否是团队共同的内容事实源，以及维护知识的每个人是否
-都应该使用开发者工具：
-
-| 适合选择的情况 | 更适合 | 原因 |
+| 参与者 | 主要界面 | 与仓库的关系 |
 | --- | --- | --- |
-| 团队无论是几位协作者还是公司规模，都把共享知识放在 Git 中，但不应该要求每位成员掌握 Git 命令或 IDE。 | **Git Leaf** | 熟悉的目录树、搜索、Live Editor 和明确的检查发布流程，直接作用于原来的仓库。 |
-| 团队成员与 AI Agent 必须使用完全相同的文件，同时开发者仍要保留自己的 Git 工具。 | **Git Leaf** | Git Leaf 提供面向人的工作方式；Agent、开发者和自动化直接使用仓库，无需导入或复制内容。 |
-| 知识系统以链接、反向链接、关系图和插件为中心，而不是以 Git 作为团队共同的工作方式。 | [**Obsidian**](https://obsidian.md/help/obsidian) | 它围绕本机 Vault、关联笔记和丰富定制能力设计。 |
-| 主要工作是软件开发，并且希望直接控制暂存、分支、差异、冲突和 Coding Agent。 | [**VS Code**](https://code.visualstudio.com/docs/sourcecontrol/overview) | 它是开发环境，会完整呈现技术性的 Git 和代码工作流。 |
+| AI Agent | Codex、Claude、Copilot 或其他 Agent 客户端 | 直接读取和修改文件 |
+| 阅读或做范围明确修改的团队成员 | **Git Leaf** | 通过面向文档的桌面界面使用仓库 |
+| 开发者和仓库维护者 | IDE、终端和 Git 工具 | 完整控制分支、diff、冲突、代码和自动化 |
 
-Git Leaf 适合解决的不是“开发者如何编辑 Markdown”，而是“整个团队如何与开发者和 AI Agent 一起，
-安全地维护 Git 知识库”。同一个共享仓库仍然不要求所有人使用同一种工具：团队成员可以使用 Git Leaf，
-开发者、Agent 和自动化则通过各自原有的工具继续使用同一份文件。
+Git Leaf 不替代 Agent 客户端、IDE 或通用笔记系统。如果工作的中心是由反向链接、关系图和插件组成的
+Vault，而不是团队与 Agent 共享的 Git 上下文工作流，[Obsidian](https://obsidian.md/help/obsidian)
+仍然是更自然的选择。
 
 ## 下载
 
@@ -92,7 +92,7 @@ npm run desktop -- --repo /path/to/docs-repo
 ```
 
 [从源码构建指南](docs/build-from-source.md)说明了依赖、打包方式、Community Build 身份，以及它与
-Mango Future 官方发行版的区别。[公开示例知识库](https://github.com/MangoFuture1210/git-leaf-example-knowledge-base)
+Mango Future 官方发行版的区别。[公开示例上下文仓库](https://github.com/MangoFuture1210/git-leaf-example-knowledge-base)
 提供了一组可以直接打开的 Markdown／MDX 内容。
 
 CLI／Web 入口主要用于本机开发和浏览器工作台：

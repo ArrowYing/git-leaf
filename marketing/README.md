@@ -10,25 +10,27 @@ operating strategies should be designed only when that work actually begins.
 
 The baseline definition is:
 
-> A desktop app for Git-based knowledge bases.
+> A desktop interface for Git repositories used as shared context by teams and AI agents.
 >
-> Let the whole team maintain shared knowledge without requiring everyone to use Git or Markdown.
+> One repository for agents. A familiar interface for people.
 >
-> Everyone on the team can contribute through Git Leaf, while developers and AI agents work with the
-> same files directly in Git.
+> AI agents work directly in Git. People use Git Leaf to read, inspect, and make focused edits without
+> working directly in Git or Markdown.
 
-Git Leaf is the app; the Git repository it opens is the knowledge base and remains the content source of
-truth. The primary market is teams of any size that use Git as their shared knowledge source, from
-open-source projects and small teams to companies. AI-native teams are a flagship scenario, not a limit
-on the product category, and the positioning does not broaden into general-purpose note taking.
+Git Leaf is the app; the Git repository it opens is the shared context system of record. A knowledge
+base may be part of that repository, but the repository can also carry agent instructions, decisions,
+plans, playbooks, and other operational context. Agents and developers use the repository directly;
+Git Leaf is the human interface for reading, inspecting, handing back exact context, and making focused
+edits.
 
 ## Documents
 
 | Document | Purpose |
 | --- | --- |
-| [Positioning](positioning.md) | Product category, object model, audiences, boundaries, and comparison with Obsidian |
+| [Positioning](positioning.md) | Product category, object model, terminology, audiences, and boundaries |
+| [Human-agent workflow](human-agent-workflow.md) | The product loop, current evidence, and capability limits |
 | [Go to market](go-to-market.md) | External narrative, README hero, product visual, demo, download page, and campaign hierarchy |
-| [Agent-led promotion](agent-loop.md) | Future direction for agent-executed promotion; operating strategy is not yet defined |
+| [Agent-led promotion](agent-led-promotion.md) | Future direction for agent-executed promotion; operating strategy is not yet defined |
 
 Current product capabilities and usage boundaries are defined by the repository
 [README](../README.md). Marketing documents explain why Git Leaf exists, who it is for, and how it may

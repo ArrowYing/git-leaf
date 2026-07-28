@@ -3,7 +3,7 @@ title: Git Leaf MDX-lite renderer reference
 domain: ai
 type: guide
 owner: maintainer
-last_updated: 2026-07-27
+last_updated: 2026-07-28
 source: git-leaf
 canonical: true
 ai_snippet: "[AI Reference] Git Leaf MDX-lite renderer | DataTable Timeline Chart DecisionBox MetricGrid FlowDiagram"
@@ -30,7 +30,7 @@ HTML or SVG.
 - A component change updates code, tests, this reference, and the demo together.
 - Content repositories may maintain their own adoption rules and selected examples, but cannot override
   Git Leaf's implementation contract. The
-  [public example knowledge base](https://github.com/MangoFuture1210/git-leaf-example-knowledge-base)
+  [public example context repository](https://github.com/MangoFuture1210/git-leaf-example-knowledge-base)
   uses only a small, natural subset for first-run experience; it must not duplicate this full reference
   or regression matrix.
 

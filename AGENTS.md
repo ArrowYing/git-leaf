@@ -1,13 +1,13 @@
 ---
-last_updated: 2026-07-27
+last_updated: 2026-07-28
 ---
 
 # AGENTS.md - Git Leaf
 
-This is the standalone Git Leaf repository. It develops a local Markdown and MDX document workspace.
-Git Leaf can open any local Git repository selected by the user, whether it is a company repository or a
-third-party repository. Git Leaf source code, the desktop shell, the web workspace, tests, and packaging
-configuration are all maintained here.
+This is the standalone Git Leaf repository. It develops a local human interface for Git repositories
+used as shared context by teams and AI agents. Git Leaf can open any local Git repository selected by
+the user, whether it is a company repository or a third-party repository. Git Leaf source code, the
+desktop shell, the web workspace, tests, and packaging configuration are all maintained here.
 
 ## Purpose of this file
 

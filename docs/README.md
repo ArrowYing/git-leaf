@@ -15,7 +15,7 @@ second language materially improves installation, privacy, or product use.
 | System architecture | [Architecture](architecture.md) | Cross-module behavior and invariants |
 | MDX-lite reference | [Reference](mdx-lite-guide.md) | Syntax, allowlist, and renderer contract |
 | MDX-lite demo | [Demo](mdx-lite-components-demo.mdx) | Development and visual regression fixture |
-| Public example knowledge base | [Lighthouse Garden](https://github.com/MangoFuture1210/git-leaf-example-knowledge-base) | User-facing first-run content |
+| Public example context repository | [Lighthouse Garden](https://github.com/MangoFuture1210/git-leaf-example-knowledge-base) | User-facing first-run content |
 | Hosted link privacy | [Hosted links](hosted-links.md) · [简体中文](hosted-links.zh-CN.md) | End-user metadata disclosure |
 | Windows Preview | [English](windows-portable-guide.md) · [简体中文](windows-portable-guide.zh-CN.md) | Installation and security guidance |
 | Usage analytics | [Specification](app-usage-analytics-spec.md) | Normative event, privacy, and metric contract |
@@ -29,4 +29,4 @@ reporting guidance remain in [CONTRIBUTING.md](../CONTRIBUTING.md) and
 The public example repository and this source repository are intentionally complementary. User-facing
 sample content belongs in the example repository; technical contracts, release schemas, and executable
 test fixtures stay here. Do not mirror the complete MDX-lite reference or regression fixture into the
-example knowledge base.
+example context repository.

@@ -6,8 +6,8 @@ Git Leaf documents remain in local Git repositories. The public HTTPS links gene
 small Mango Future hosted handoff service at `gitleaf.mangofuture.com` so browsers and chat clients can
 launch the installed desktop app.
 
-The service is a protocol handoff, not a hosted knowledge base. It does not clone a repository, read a
-document body, grant GitHub access, or make a private repository public.
+The service is a protocol handoff, not a hosted repository, knowledge base, or context service. It does
+not clone a repository, read a document body, grant GitHub access, or make a private repository public.
 
 ## `/open`
 

@@ -121,18 +121,18 @@ test("tableLayoutAttributes gives long text columns more width before scrolling"
 
 test("wrapping tables keep proportional columns within their responsive container", () => {
   const layout = tableLayoutAttributes({
-    columnNames: ["适合选择的情况", "更适合", "原因"],
+    columnNames: ["参与者", "主要界面", "与仓库的关系"],
     cellsByColumn: [
       [
-        "适合选择的情况",
-        "团队把共享知识放在 Git 中，但不应该要求每位成员掌握 Git 命令或 IDE。",
-        "团队成员与 AI Agent 必须使用完全相同的文件，同时开发者仍要保留自己的 Git 工具。",
+        "参与者",
+        "阅读或做范围明确修改的团队成员",
+        "开发者和仓库维护者",
       ],
-      ["更适合", "Git Leaf", "Git Leaf"],
+      ["主要界面", "Git Leaf", "IDE、终端和 Git 工具"],
       [
-        "原因",
-        "熟悉的目录树、搜索、Live Editor 和明确的检查发布流程，直接作用于原来的仓库。",
-        "Git Leaf 提供面向人的工作方式；Agent、开发者和自动化直接使用仓库。",
+        "与仓库的关系",
+        "通过面向文档的桌面界面阅读、检查并做范围明确的修改，不需要直接操作 Git 或 Markdown。",
+        "通过 IDE、终端和 Git 工具控制分支、diff、冲突、代码和自动化，并保留完整的技术维护能力。",
       ],
     ],
   });

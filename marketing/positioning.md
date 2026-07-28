@@ -8,146 +8,157 @@ last_updated: 2026-07-28
 
 ## Baseline definition
 
-> A desktop app for Git-based knowledge bases.
+> A desktop interface for Git repositories used as shared context by teams and AI agents.
 >
-> Let the whole team maintain shared knowledge without requiring everyone to use Git or Markdown.
+> One repository for agents. A familiar interface for people.
 >
-> Everyone on the team can contribute through Git Leaf, while developers and AI agents work with the
-> same files directly in Git.
+> AI agents work directly in Git. People use Git Leaf to read, inspect, and make focused edits without
+> working directly in Git or Markdown.
 
-The first sentence defines the product category and the object it serves. The second states the primary
-team problem. The third states the cross-role human-agent collaboration value. Do not collapse these
-layers into one company-only or AI-only slogan: `team` describes the primary way the product is used,
-while a company is only one possible team scale.
+The first sentence describes the product and the repository it serves. The second is the memorable
+tagline. The third explains the division of work without implying embedded agent execution.
 
-## Object model
+## Object and role model
 
-Git Leaf is the app and tool. The Git repository opened in Git Leaf is the knowledge base, content
-container, and source of truth.
+Git Leaf is the app and human interface. The Git repository is the durable shared context system of
+record.
+
+The repository may contain:
+
+- knowledge and reference documents;
+- agent instructions and skills;
+- decisions, plans, and product context;
+- operating rules, playbooks, and checklists;
+- files produced or maintained by people, agents, developers, and automation.
+
+A knowledge base can therefore be a content layer inside the repository. It is no longer the highest
+level product category because the repository exists not only for human reference, but also to guide and
+support agent work.
 
 ```mermaid
 flowchart LR
-    H["Team members"] --> GL["Git Leaf app<br/>read, edit, sync"]
-    GL <--> G["Git repository<br/>knowledge base and content source of truth"]
+    H["Team members"] --> GL["Git Leaf<br/>human interface"]
+    GL <--> G["Git repository<br/>shared context system of record"]
     A["AI agents"] <--> G
     D["Developers and automation"] <--> G
 ```
 
-This establishes the product boundary:
+This model establishes four boundaries:
 
-- ordinary repository files remain the knowledge content and source of truth;
-- Git Leaf gives people a desktop interface to open, read, search, edit, and sync;
-- agents, developers, and automation can read and modify the repository without going through Git Leaf;
-- Git Leaf is not centered on agent chat, model hosting, or an agent runtime;
-- Agent Context, deep links, and sharing strengthen collaboration but do not define the category.
+- Git Leaf does not own or host the repository content;
+- agents do not need to go through Git Leaf;
+- people do not need to use the same interface as agents and developers;
+- all participants continue to act on the same ordinary files.
 
-## Why “knowledge base”
+## Terminology hierarchy
 
-“Knowledge base” is a recognizable object for ordinary people and naturally includes open-source
-documentation, small-team handbooks, project decisions, operating rules, and internal organizational
-knowledge. Git Leaf serves that object, so the category is “for Git-based knowledge bases”; the app
-itself is not “a knowledge base.”
+| Term | Use | Boundary |
+| --- | --- | --- |
+| `Git repositories used as shared context` | Public category explanation | Descriptive and immediately understandable; preferred in the first sentence |
+| `shared context repository` | Short product and strategy language | Define it on first use; do not capitalize it as a proprietary category |
+| `knowledge base` | Familiar name for the repository's knowledge content | A component of the repository, not the app and no longer the global category |
+| `shared context system of record` | Architecture and authority language | Explains durability and truth; too formal for the main tagline |
+| `The human interface for the repository your agents work from.` | Campaign tagline | Strong and accurate when paired with the descriptive category sentence |
+| `workspace` or `workbench` | Internal UI or session language | The app is not the content container; neither term defines the product |
 
-| Candidate | Strength | Risk | Role |
-| --- | --- | --- | --- |
-| `Git-based knowledge bases` | Names the object and its Git foundation in familiar language | Needs a follow-up explaining that users need not operate Git | Product category |
-| `Git-backed knowledge` | Emphasizes traceability and source-of-truth infrastructure | Sounds technical and “knowledge” is less concrete | Technical explanation |
-| `local-first documentation workspace` | Communicates local files and documents | Can imply the app is the content container and narrows the product to documentation | Capability description |
-| `The human interface for your AI-native knowledge base.` | Strong human-agent and AI-native campaign language | Can imply a technical or company-only audience | Campaign tagline |
+`Context` is broader than the files in one repository. A model session may also use conversation
+history, tools, MCP servers, retrieved data, and runtime state. Git Leaf therefore serves a durable
+shared context source; it is not a complete context engine.
 
-“Workspace” can name a content/member/configuration boundary in Slack, Notion, or Coda, and a project
-scope in VS Code. Using it as Git Leaf's product category conflicts with the fact that the repository is
-the content container. “Workbench” sounds more like an IDE or specialist surface. Both may describe
-internal UI state or a documentation working area, but neither defines the product.
+Avoid `AI context repository` as a standalone brand or unexplained category. The phrase can imply
+semantic retrieval, cross-tool synchronization, embeddings, or MCP capabilities that Git Leaf does not
+provide.
+
+## Product hierarchy
+
+### Primary object
+
+A Git repository that a team and its AI agents rely on as shared context.
+
+### Primary agent job
+
+Read and modify the repository directly through an external agent client.
+
+### Primary human job
+
+Read the context, understand what changed, provide judgment, hand exact context back to an agent, and
+make a focused edit when that is faster.
+
+### Git Leaf's role
+
+Provide the familiar, document-oriented desktop interface for that human job while preserving Git paths,
+files, revisions, branches, and worktrees.
 
 ## Audience hierarchy
 
+### Adopters
+
+- technical and AI-platform leaders establishing repository-native agent workflows;
+- repository maintainers who want durable team context to remain in Git;
+- project and product leaders who need domain experts to inspect and correct agent-facing context.
+
 ### Daily users
 
-Git Leaf prioritizes team members who do not work in Git or Markdown. They need to understand only that
-they are opening and maintaining shared knowledge through a familiar document interface.
+- product, operations, research, policy, and management staff reading what agents rely on;
+- domain experts checking an agent-updated document and supplying corrections;
+- open-source and small-team members who need a readable view of shared repository context;
+- knowledge owners maintaining high-value rules, decisions, and playbooks.
 
-Natural users include:
-
-- open-source contributors reading and updating shared documentation, rules, and decision records;
-- members of small teams sharing handbooks, product material, and operating rules;
-- operations, product, HR, sales, and management staff maintaining company knowledge;
-- knowledge owners reviewing documents changed by AI agents.
-
-### Adopters and influencers
-
-- repository maintainers and technical leads who already keep team knowledge in Git;
-- team leads who want members and multiple agents to share ordinary files;
-- founders, technical leaders, and AI-platform leaders building AI-native ways of working.
-
-### Primary market and flagship scenario
-
-Teams that keep shared knowledge in Git are the primary market, whether they are a few collaborators, an
-open-source project, a small organization, or a company. The common problem is not team size: it is that
-Git works well as a shared source of truth while many members should not need developer tools to
-participate.
-
-Within that market, an AI-native team keeping rules, architecture, process, product knowledge, and agent
-instructions in Git is the strongest flagship scenario. It has a clear adopter, a frequent human-agent
-loop, and an acute cross-role participation problem. It should lead focused campaigns and landing pages,
-without turning `AI-native company` into the global category.
+The primary market ranges from a few collaborators or an open-source project to a company. Team size is
+not the deciding factor. The deciding factor is whether the repository is shared operational context for
+people and agents.
 
 ## Product assumptions
 
-### Git files are the shared source for people and agents
+### Repository-native context
 
-Ordinary files are transparent, searchable, locally readable, versioned, and usable by team members,
-different agents, scripts, and developer tools. Online document products primarily optimize in-product
-human collaboration and often require an API, permission connector, export, or platform-specific adapter
-before an agent can act on their content.
+Ordinary files are transparent, searchable, locally readable, versioned, and portable across agent
+clients and developer tools. An agent can follow repository instructions, navigate to deeper documents,
+and propose changes without importing the content into a separate platform.
 
 Git Leaf assumes:
 
-- durable, text-heavy knowledge can live in ordinary Git-controlled files;
-- team members and agents should use the same files rather than synchronize two knowledge systems;
-- agents and automation can access the repository directly;
-- Git Leaf supplies the interface ordinary team members need.
+- durable context benefits from explicit paths, history, ownership, and reviewable files;
+- people and agents should act on the same source rather than synchronize two knowledge systems;
+- agent access remains independent of Git Leaf;
+- the human interface should emphasize reading and inspection before editing.
 
-### Git is friendly to agents and developers, not every team member
+### One repository, several interfaces
 
-A raw repository exposes Markdown source, paths, commits, pulls, pushes, branches, worktrees, conflicts,
-and developer tools. Git Leaf keeps that model correct underneath while presenting document-oriented
-reading, editing, and synchronization.
+| Participant | Interface | Primary action |
+| --- | --- | --- |
+| AI agent | Codex, Claude, Copilot, or another agent client | Read and modify repository files |
+| Team member | Git Leaf | Read, inspect, hand back context, and make focused edits |
+| Developer or maintainer | IDE, terminal, and Git tools | Control code, branches, diffs, conflicts, and automation |
 
-## Difference from Obsidian
+Git Leaf complements these tools instead of replacing them.
 
-Obsidian and Git Leaf can both help people maintain knowledge. Git Leaf has a clear advantage when a team
-uses Git as its shared source of truth and needs members, developers, and agents to use different tools
-over the same files. Without that shared Git workflow, Git Leaf does not claim a broad advantage over
-Obsidian.
+## Difference from a conventional knowledge-base app
 
-| Obsidian | Git Leaf |
-| --- | --- |
-| A Vault is the local knowledge directory | A Git repository is the knowledge base and versioned source of truth |
-| Centers note capture, linking, and organization | Centers teams and agents using the same Git files |
-| Git is usually added by plugin or external tooling | Git underpins sync, revision, branch, and worktree |
-| Emphasizes plugins, themes, and customization | Hides Git/Markdown complexity behind a consistent team experience |
-| AI normally enters through product features or plugins | Agents can operate on the repository without Git Leaf |
+A conventional knowledge-base app usually centers human capture, browsing, linking, retrieval, and
+in-product collaboration. Git Leaf centers a repository that agents can use directly, then supplies the
+human path back into that repository.
 
 Git Leaf does not aim to reproduce bidirectional-link ecosystems, graphs, Canvas, plugin marketplaces,
-general note-taking systems, or built-in model management. Product complexity goes into keeping Git and
-Markdown out of team members' way, safely publishing human edits, and making agent edits easy to reopen
-and inspect.
+general note-taking systems, built-in models, or hosted retrieval. If a Vault and its linking or plugin
+system is the center of the work, Obsidian remains the more natural fit.
 
-## Core workflow
+## Current evidence and boundaries
 
-1. A team member opens the shared Git knowledge base in Git Leaf.
-2. They find, read, and edit content through a document interface.
-3. Sync publishes the change into the team's Git history.
-4. Codex, Claude, or another agent reads the same repository and performs work.
-5. The agent updates relevant repository documents.
-6. The team member returns to Git Leaf to read, inspect, and continue those changes.
+The current product proves:
 
-Team members use Git Leaf, agents and developers use the repository directly, and Git maintains the
-shared source of truth.
+- direct use of ordinary Git repository files by external tools;
+- readable Preview and source-backed Source and Live modes;
+- exact line selections exported as portable Agent Context;
+- reload and continuation after external file changes;
+- explicit remote synchronization and publication.
 
-## Applicability
+The current product does not provide:
 
-Git Leaf does not replace every online document system. It is strongest for durable, versioned,
-text-heavy knowledge that agents may use directly. Content that depends on real-time co-editing, complex
-spreadsheets, or presentation layout can remain in a better-suited tool.
+- an embedded AI chat, agent runtime, or model host;
+- automatic context selection or injection into an agent;
+- semantic retrieval, embeddings, a vector database, or an MCP service;
+- agent authorship, run history, or a formal diff-approval workflow.
+
+See [Human-agent workflow](human-agent-workflow.md) for the complete product loop and the language that
+current capabilities can support.

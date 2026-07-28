@@ -10,124 +10,124 @@ last_updated: 2026-07-28
 
 ### Category
 
-> A desktop app for Git-based knowledge bases.
+> A desktop interface for Git repositories used as shared context by teams and AI agents.
 
-Use this in the README, GitHub description, download page, and general introductions. Do not add
-`company` or `AI-native company` to the category itself, and do not describe Git Leaf as the knowledge
-base. Follow the category immediately with the team problem: team collaboration is the primary use, while
-company size is only one scale.
+Use the descriptive sentence in the README, GitHub description, download page, and general
+introductions. It says what Git Leaf is without claiming to be the repository, an agent runtime, or a
+hosted context service.
+
+### Tagline
+
+> One repository for agents. A familiar interface for people.
+
+This is the shortest expression of the product model. Do not use it alone on a surface where the Git
+repository and shared-context meaning have not yet been introduced.
 
 ### Primary problem
 
-> Let the whole team maintain shared knowledge without requiring everyone to use Git or Markdown.
+> Agents can work directly in the repository, but the rest of the team needs a readable and safe way to
+> participate.
 
-This makes the cross-role team problem explicit: adoption does not require every member to become a
-developer or understand the implementation.
+This is not a generic Markdown-editing problem. It appears when repository-native agent work becomes
+important while domain experts, operators, product owners, or managers should not need an IDE or Git
+commands.
 
 ### Core value
 
-> Everyone on the team can contribute through Git Leaf, while developers and AI agents work with the
-> same files directly in Git.
+> AI agents work directly in Git. People use Git Leaf to read, inspect, and make focused edits.
 
-This highlights collaboration without implying an embedded agent chat or real-time co-editing. The
-current product proves that team members maintain files through the app, agents and developers use the
-same repository, and both kinds of change reopen in Git Leaf.
+This preserves the division of work. `Inspect` means opening and understanding affected files; it does
+not imply formal diff review, approval, or agent attribution.
 
-### Scenario campaign
+### Campaign tagline
 
-> The human interface for your AI-native knowledge base.
+> The human interface for the repository your agents work from.
 
-Reserve this for campaigns, articles, and landing pages about AI-native teams, agent engineering, and
-organizational knowledge. It is not the global category because open-source projects, small teams, and
-other groups using Git as their shared source of truth may not call themselves AI-native.
+Use this in agent-native articles, launch material, and focused landing pages after the descriptive
+category sentence has established the product boundary.
 
 ### GitHub description
 
-> A desktop app for teams maintaining Git-based knowledge bases without requiring everyone to use Git
-> or Markdown.
-
-This compact description combines the stable category with the primary team problem. Longer surfaces
-should use the complete three-layer message above.
+> Human interface for Git repositories used as shared context by teams and AI agents.
 
 ## Audience
 
-Daily users:
-
-- team members who maintain knowledge without knowing Git or Markdown;
-- open-source project members reading and updating shared documentation;
-- small-team members sharing handbooks and operating knowledge;
-- company teams maintaining internal product, operations, and policy knowledge;
-- people reviewing and continuing documents changed by agents.
-
 Adopters:
 
-- repository maintainers already storing team knowledge as Markdown/MDX in Git;
-- technical leaders who want several agents and people to share ordinary files;
-- founders and platform leads developing AI-native ways of working.
+- technical leaders establishing repository-native agent workflows;
+- AI-platform and automation leads who want durable context outside one agent client;
+- repository maintainers responsible for instructions, architecture, decisions, and operating rules;
+- project leaders who need non-developers to inspect and correct agent-facing context.
 
-The primary ICP is any team—from a few collaborators or an open-source project to a company—that already
-uses Git as the shared knowledge source but has members who should not need Git or an IDE. AI-native
-small teams and companies are the lead campaign segment because direct agent access makes the
-participation problem especially visible. Company language belongs in scenario content, not the global
-definition.
+Daily users:
+
+- domain experts reading a document that an agent relies on or changed;
+- product, operations, research, policy, and management staff;
+- small-team and open-source contributors using the repository through a document interface;
+- knowledge owners handing precise corrections back to an external agent.
+
+The primary ICP is a team of any size whose agents already read or modify a Git repository and whose
+human participants do not all work in developer tools. AI-native teams are the clearest campaign
+segment, but `company` and `AI-native company` are scenario language rather than the global category.
 
 ## README hero
 
 Order:
 
 1. Product name.
-2. Category, primary problem, and core value.
+2. Category sentence, tagline, and one supporting value sentence.
 3. Primary macOS download, secondary Windows Preview, tertiary build-from-source link.
-4. One complete real product screenshot.
+4. One complete real product screenshot showing the shared context repository from the human side.
 5. Quiet CI and Apache 2.0 badges.
 
-A Platform badge is redundant with the conversion links. Windows's unsigned Preview state appears at
-the CTA, download page, and platform guide.
+The first screen should make three facts visible without requiring the reader to infer them:
+
+- the source of truth is a Git repository;
+- agents use that repository directly;
+- Git Leaf is the readable human interface.
 
 ## Product screenshot
 
-The hero visual comes from a real isolated Git Leaf app with a fictitious team knowledge repository,
-never a concept mockup, private company content, or development fixture.
+Use a real isolated Git Leaf app with a fictitious shared context repository, never a concept mockup,
+private company content, or development fixture.
 
-It should prove:
+The complete window should show:
 
-- a complete desktop app and real repository identity;
-- a meaningful shared-knowledge tree and All/Favorites/Sync state;
-- a readable document in Preview or Live;
-- one or two local changes and the Sync action;
-- Agent Context without implying embedded chat;
-- no errors, debug data, personal paths, or sensitive content.
+- a repository name that reads as shared project context rather than a note garden;
+- visible paths such as `AGENTS.md`, `context/`, `decisions/`, `playbooks/`, and `projects/`;
+- Preview as the active mode on a readable context document;
+- one or two local changes in Sync;
+- Agent Context with one exact selection;
+- no fictional chat, agent attribution, diff approval, errors, personal paths, or sensitive content.
 
-Use neutral team content such as Project handbook, Decision record, and Release playbook. Keep the
-full-window ratio so viewers immediately recognize a usable desktop app. The current
-`marketing/assets/git-leaf-product.png` already demonstrates a project handbook, unpublished team
-changes, a Sync action, and Agent Context, so it remains aligned with this positioning.
+The document itself should explain what the team and its agents need to know. This proves the positioning
+more directly than a generic handbook screenshot.
 
 ## 30–60 second demo
 
-Use one 55-second loop, not a feature montage:
+Use one agent-first loop, not a feature montage:
 
 | Time | Image | Story |
 | --- | --- | --- |
-| 0–8 s | Open the team's Project handbook in Git Leaf | The shared knowledge base is in Git, but the team member sees a normal document interface |
-| 8–18 s | Edit one shared project rule | No Markdown or terminal work |
-| 18–27 s | Open Sync and publish | The team member's change enters the shared Git repository |
-| 27–40 s | An external agent reads the repository and updates Release playbook | The agent uses the same files without going through Git Leaf |
-| 40–53 s | Return to Git Leaf and inspect the changed document | The team can retake control and continue editing |
-| 53–60 s | Category, team value, and download entry | One Git knowledge base works for the whole team and its agents |
+| 0–8 s | An external agent opens the repository and follows its context entry point | The repository exists for agent work |
+| 8–18 s | The agent updates a decision or playbook | The agent changes ordinary Git files directly |
+| 18–30 s | A team member opens the affected document in Git Leaf Preview | The human side is readable and does not require an IDE |
+| 30–40 s | The person selects exact lines and copies Agent Context | Human judgment returns to the external agent with a precise source location |
+| 40–50 s | The external agent updates the same file | No content is imported or copied into another knowledge system |
+| 50–57 s | The person returns, inspects the result, and makes one focused Live edit | Git Leaf is the human continuation surface |
+| 57–60 s | Category, tagline, and download entry | One repository for agents; a familiar interface for people |
 
-Do not show fictional built-in chat, real-time collaboration, or an invented diff-approval product.
-Agent Context can be a separate short demonstration for handing exact source to an agent that cannot
-access the repository.
+Do not show fictional built-in chat, automatic model-context injection, real-time collaboration, agent
+authorship, or a formal approval workflow.
 
 ## Download page
 
-`https://gitleaf.mangofuture.com/download` is a normal product/download page and never launches
+`https://gitleaf.mangofuture.com/download` remains a normal product/download page and never launches
 `git-leaf://`. It uses browser language with an explicit English/Simplified Chinese switch.
 
 Order:
 
-1. Category, team problem, and human-agent value.
+1. Category, tagline, and human-interface value.
 2. Latest public release status.
 3. macOS version, signature/notarization, size, SHA-256, and download.
 4. Windows unsigned Preview warning, version, size, SHA-256, and download.
@@ -135,39 +135,52 @@ Order:
 6. Statement that only explicit public stable builds appear.
 
 `/open` only launches or locates local Git Leaf; `/share` only hands off a shared document. They are
-Mango Future hosted services and their metadata boundary is public documentation, not hidden product
-infrastructure.
+Mango Future-hosted services and their metadata boundary remains public documentation.
 
-The download page accepts only `stable` manifests with explicit `releaseTrack: public` and self-
-consistent channel, platform, HTTPS URL, SHA-256, size, and artifact. It never falls back to internal,
-legacy, or missing-track artifacts. When no public build qualifies, it says so and keeps the source
-entry.
+The download page accepts only `stable` manifests with explicit `releaseTrack: public` and
+self-consistent channel, platform, HTTPS URL, SHA-256, size, and artifact. It never falls back to
+internal, legacy, or missing-track artifacts.
+
+## Public example repository
+
+The public example should demonstrate a fictitious team context repository rather than a generic note
+collection. Its primary path should contain:
+
+- a short `AGENTS.md` that routes agents to deeper context;
+- a human-readable README explaining the same repository;
+- product or project context;
+- decisions and playbooks;
+- one structured visual document as a secondary capability proof.
+
+The example repository owns this natural first-run content. The main Git Leaf repository retains only
+development fixtures, schemas, and product documentation; the two repositories should remain
+complementary rather than mirrored.
 
 ## Assets
 
 Reusable:
 
 - `assets/icons/git-leaf.png` and `.icns`;
-- real file tree, Live, Sync, and Agent Context UI;
-- `marketing/assets/git-leaf-product.png`;
-- `marketing/assets/git-leaf-mdx-chart.png` for a focused, real MDX-lite chart proof in the README;
-- the public [Lighthouse Garden knowledge base](https://github.com/MangoFuture1210/git-leaf-example-knowledge-base)
-  for first-run and team-workflow demonstrations;
+- the real file tree, Preview, Live, Sync, and Agent Context UI;
+- `marketing/assets/git-leaf-product.png`, captured from an isolated real workspace with `team-context`,
+  two local changes, and one source-backed Agent Context selection;
+- `marketing/assets/git-leaf-mdx-chart.png` as a secondary proof that agent-readable text can remain
+  visually readable for people;
 - `docs/mdx-lite-components-demo.mdx` for development and visual regression only.
 
 Create when campaign execution begins:
 
-- a 30–60 second MP4/WebM or short GIF following the workflow above;
-- an AI-native-company cut of the same real workflow if a dedicated landing page is justified.
+- a 30–60 second MP4/WebM or short GIF following the agent-first workflow;
+- channel-specific cuts that begin with the role relevant to that audience.
 
 ## Communication principles
 
-- Begin with the ordinary team member's work, not a feature list or Git vocabulary.
-- Show the real product and a complete workflow.
-- Adapt content to each channel rather than copy-pasting one post.
-- State where Git Leaf fits and does not fit.
-- Tie capabilities, metrics, and audience claims to verifiable evidence.
-- Treat stars, views, and likes as channel signals; prioritize real installation and continued use.
+- Begin with the shared repository and human-agent division of work, not a feature list.
+- Show real agent use outside Git Leaf and real human use inside Git Leaf.
+- Use `read`, `inspect`, `hand back context`, and `focused edit` for the human role.
+- Do not call Git Leaf a knowledge base, context engine, agent runtime, or review system.
+- State current boundaries wherever an audience might otherwise infer retrieval, MCP, chat, or approval.
+- Tie capabilities and audience claims to real product evidence.
 
 ## Open-source distribution
 
