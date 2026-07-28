@@ -176,12 +176,17 @@ test("search result tooltips show full text and preserve highlighted match range
       }),
       key: (target) => target.id,
       placement: "expansion",
-      focusDelay: 0,
+      delay: 0,
     }],
     windowTarget,
   });
 
-  root.emit("focusin", { target: item });
+  root.emit("pointerover", {
+    target: item,
+    relatedTarget: null,
+    clientX: 60,
+    clientY: 74,
+  });
   const title = tooltip.children[0];
   const match = title.children.find(
     (child) => child.className === "ui-tooltip-search-match",
