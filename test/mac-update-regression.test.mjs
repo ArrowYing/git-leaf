@@ -1,9 +1,15 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { createServer } from "node:http";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import test from "node:test";
 import vm from "node:vm";
 
 import {
   assertSafeMacUpdateRegressionHost,
+  downloadUpdateRegressionArtifact,
   updateRegressionInstallExpression,
   updateRegressionChannels,
   validateMacUpdateRegressionEvidence,
@@ -20,6 +26,56 @@ test("mac update regression maps release tracks to their stable and candidate la
     candidate: "internal-candidate",
   });
   assert.throws(() => updateRegressionChannels("source"), /Unsupported release track/);
+});
+
+test("mac update regression downloads redirected artifacts without relying on global fetch", async (t) => {
+  const payload = Buffer.from("signed candidate bytes\n");
+  const server = createServer((request, response) => {
+    if (request.url === "/redirect") {
+      response.writeHead(302, { location: "/artifact.zip" });
+      response.end();
+      return;
+    }
+    if (request.url === "/artifact.zip") {
+      response.writeHead(200, {
+        "content-length": payload.length,
+        "content-type": "application/zip",
+      });
+      response.end(payload);
+      return;
+    }
+    response.writeHead(404);
+    response.end();
+  });
+  await new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", resolve);
+  });
+  t.after(() => new Promise((resolve) => server.close(resolve)));
+
+  const temporaryRoot = await mkdtemp(path.join(tmpdir(), "git-leaf-update-download."));
+  t.after(() => rm(temporaryRoot, { recursive: true, force: true }));
+  const destinationPath = path.join(temporaryRoot, "artifact.zip");
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => {
+    throw new TypeError("fetch transport is unavailable");
+  };
+  t.after(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  const contract = await downloadUpdateRegressionArtifact({
+    name: "artifact.zip",
+    url: `http://127.0.0.1:${server.address().port}/redirect`,
+    sha256: createHash("sha256").update(payload).digest("hex"),
+    size: payload.length,
+  }, destinationPath);
+
+  assert.deepEqual(contract, {
+    sha256: createHash("sha256").update(payload).digest("hex"),
+    size: payload.length,
+  });
+  assert.deepEqual(await readFile(destinationPath), payload);
 });
 
 test("mac update regression refuses conflicting local updater state before launching an App", () => {

@@ -2,6 +2,8 @@
 
 import { spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
+import { get as httpGet } from "node:http";
+import { get as httpsGet } from "node:https";
 import {
   appendFileSync,
   chmodSync,
@@ -22,7 +24,6 @@ import {
 } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import path from "node:path";
-import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { fileURLToPath } from "node:url";
 
@@ -44,6 +45,8 @@ export const SQUIRREL_DIRECT_CONTENTS_WRITE_KEY =
 const PLATFORM_KEY = "darwin-universal";
 const DEFAULT_BASE_URL = "https://updates.mangofuture.com/git-leaf";
 const FIRST_NONPRIVILEGED_ONLY_VERSION = "1.12.3";
+const MAX_HTTP_REDIRECTS = 5;
+const MAX_MANIFEST_BYTES = 1024 * 1024;
 
 export function updateRegressionChannels(track) {
   if (track === "public") {
@@ -202,25 +205,134 @@ function assertCurrentHostSafe() {
   };
 }
 
-async function fetchJson(url) {
-  const response = await fetch(url, { cache: "no-store" });
-  if (!response.ok) {
-    throw new Error(`Could not download ${url}: HTTP ${response.status}`);
-  }
-  return response.json();
+function openHttpResponse(url, { redirectsRemaining = MAX_HTTP_REDIRECTS } = {}) {
+  return new Promise((resolve, reject) => {
+    let parsedUrl;
+    try {
+      parsedUrl = new URL(url);
+    } catch (error) {
+      reject(new Error(`Could not download ${url}: ${error.message}`, {
+        cause: error,
+      }));
+      return;
+    }
+
+    const get = parsedUrl.protocol === "https:"
+      ? httpsGet
+      : parsedUrl.protocol === "http:"
+        ? httpGet
+        : null;
+    if (!get) {
+      reject(new Error(
+        `Could not download ${url}: unsupported protocol ${parsedUrl.protocol}`,
+      ));
+      return;
+    }
+
+    const request = get(parsedUrl, {
+      headers: {
+        "accept-encoding": "identity",
+        "cache-control": "no-cache",
+        pragma: "no-cache",
+        "user-agent": "Git-Leaf-Release-Update-Regression/1",
+      },
+    }, (response) => {
+      const status = response.statusCode || 0;
+      if (
+        [301, 302, 303, 307, 308].includes(status)
+        && response.headers.location
+      ) {
+        response.resume();
+        if (redirectsRemaining <= 0) {
+          reject(new Error(
+            `Could not download ${url}: too many HTTP redirects`,
+          ));
+          return;
+        }
+        let redirectedUrl;
+        try {
+          redirectedUrl = new URL(response.headers.location, parsedUrl);
+        } catch (error) {
+          reject(new Error(
+            `Could not download ${url}: invalid redirect URL`,
+            { cause: error },
+          ));
+          return;
+        }
+        if (
+          parsedUrl.protocol === "https:"
+          && redirectedUrl.protocol !== "https:"
+        ) {
+          reject(new Error(
+            `Could not download ${url}: refused an insecure redirect`,
+          ));
+          return;
+        }
+        openHttpResponse(redirectedUrl.href, {
+          redirectsRemaining: redirectsRemaining - 1,
+        }).then(resolve, reject);
+        return;
+      }
+      resolve({ response, status });
+    });
+    request.once("error", (error) => {
+      reject(new Error(`Could not download ${url}: ${error.message}`, {
+        cause: error,
+      }));
+    });
+  });
 }
 
-async function downloadArtifact(artifact, destinationPath) {
-  const response = await fetch(artifact.url, { cache: "no-store" });
-  if (!response.ok || !response.body) {
+async function fetchJson(url) {
+  const { response, status } = await openHttpResponse(url);
+  if (status < 200 || status >= 300) {
+    response.resume();
+    throw new Error(`Could not download ${url}: HTTP ${status}`);
+  }
+
+  const chunks = [];
+  let size = 0;
+  for await (const chunk of response) {
+    size += chunk.length;
+    if (size > MAX_MANIFEST_BYTES) {
+      response.destroy();
+      throw new Error(
+        `Could not download ${url}: manifest exceeds ${MAX_MANIFEST_BYTES} bytes`,
+      );
+    }
+    chunks.push(chunk);
+  }
+  try {
+    return JSON.parse(Buffer.concat(chunks).toString("utf8"));
+  } catch (error) {
+    throw new Error(`Could not parse ${url}: ${error.message}`, {
+      cause: error,
+    });
+  }
+}
+
+export async function downloadUpdateRegressionArtifact(
+  artifact,
+  destinationPath,
+) {
+  const { response, status } = await openHttpResponse(artifact.url);
+  if (status < 200 || status >= 300) {
+    response.resume();
     throw new Error(
-      `Could not download ${artifact.url}: HTTP ${response.status}`,
+      `Could not download ${artifact.url}: HTTP ${status}`,
     );
   }
-  await pipeline(
-    Readable.fromWeb(response.body),
-    createWriteStream(destinationPath, { flags: "wx" }),
-  );
+  try {
+    await pipeline(
+      response,
+      createWriteStream(destinationPath, { flags: "wx" }),
+    );
+  } catch (error) {
+    throw new Error(
+      `Could not download ${artifact.url}: ${error.message}`,
+      { cause: error },
+    );
+  }
   const actual = await fileContract(destinationPath);
   if (
     actual.sha256 !== artifact.sha256
@@ -602,11 +714,11 @@ async function runHarness({
 
     const baselineZipPath = path.join(downloadsDir, stableManifest.files.zip.name);
     const candidateZipPath = path.join(downloadsDir, candidateManifest.files.zip.name);
-    const baselineContract = await downloadArtifact(
+    const baselineContract = await downloadUpdateRegressionArtifact(
       stableManifest.files.zip,
       baselineZipPath,
     );
-    const candidateContract = await downloadArtifact(
+    const candidateContract = await downloadUpdateRegressionArtifact(
       candidateManifest.files.zip,
       candidateZipPath,
     );
