@@ -28,8 +28,9 @@ after installing Git Leaf, or clone it for a completely local first run.
 
 - **Open the knowledge base you already have.** Git Leaf works with any local Git repository without
   importing its content into another system. The repository remains the source of truth.
-- **Read and edit through a familiar interface.** Search Markdown and MDX, switch between Preview,
-  Source, and Live, and keep every edit in the same plain-text files.
+- **Find, read, and edit through a familiar file tree.** Browse the knowledge base in its existing
+  folder structure or search directly. Open a document in Preview, Source, or Live; every edit goes
+  back to the original file.
 - **Let people and AI agents work on the same files.** Collect exact lines as portable Agent Context,
   let an agent read or modify the repository directly, then return to Git Leaf to review the changes.
 - **Bring in remote changes without losing unfinished work.** Git Leaf checks the remote when a
