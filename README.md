@@ -28,9 +28,10 @@ after installing Git Leaf, or clone it for a completely local first run.
 
 - **Open the knowledge base you already have.** Git Leaf works with any local Git repository without
   importing its content into another system. The repository remains the source of truth.
-- **Find, read, and edit through a familiar file tree.** Browse the knowledge base in its existing
-  folder structure or search directly. Open a document in Preview, Source, or Live; every edit goes
-  back to the original file.
+- **Find documents through a familiar file tree.** Browse the knowledge base in its existing folder
+  structure or search directly.
+- **Read and edit in Live Editor.** Headings, lists, links, and other content stay close to their reading
+  appearance while every edit goes back to the original file. Switch to Preview or Source when needed.
 - **Let people and AI agents work on the same files.** Collect exact lines as portable Agent Context,
   let an agent read or modify the repository directly, then return to Git Leaf to review the changes.
 - **Bring in remote changes without losing unfinished work.** Git Leaf checks the remote when a
@@ -56,6 +57,20 @@ update the same files.
 Git Leaf presents this content through safe built-in components; documents cannot run their own code or scripts.
 
 ![Git Leaf rendering a bar-and-line chart in a knowledge-base document](marketing/assets/git-leaf-mdx-chart.png)
+
+## Choosing Git Leaf, Obsidian, or VS Code
+
+All three can open local text files, but they start from different needs:
+
+| Primary need | Best fit |
+| --- | --- |
+| Knowledge already lives in Git. Product, operations, project owners, and AI agents need to maintain it together without requiring everyone to work directly in Git or Markdown | **Git Leaf** |
+| Notes, backlinks, and an extensible local Markdown knowledge base are central; Git is not the primary workflow | [**Obsidian**](https://obsidian.md/help/obsidian) |
+| Writing code is central, and you are comfortable working directly with project files, staging, commits, branches, and conflicts | [**VS Code**](https://code.visualstudio.com/docs/sourcecontrol/overview) |
+
+One repository does not require one tool for everyone. Product, operations, and project teams can use
+Git Leaf; developers can keep using VS Code or the command line; AI agents work with the repository
+files directly. Everyone still maintains the same content in the Git repository.
 
 ## Download
 

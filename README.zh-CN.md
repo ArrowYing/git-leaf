@@ -28,8 +28,9 @@ last_updated: 2026-07-28
 
 - **直接打开已有知识库。** Git Leaf 可以使用任意本机 Git 仓库，无需把内容导入另一个系统；Git
   仓库始终是知识库的内容事实源。
-- **沿着熟悉的目录查找、阅读和编辑。** 在目录树中按原有文件夹结构浏览知识库，也可以直接搜索；
-  打开文档后，可以在 Preview、Source、Live 之间切换，所有修改仍保存到原来的文件。
+- **沿着熟悉的目录找到文档。** 在目录树中按原有文件夹结构浏览知识库，也可以直接搜索。
+- **在 Live Editor 中边看边改。** 标题、列表、链接等内容以接近阅读效果的方式呈现，每次修改仍保存到
+  原来的文件；需要时可以切换到 Preview 或 Source。
 - **让人与 AI Agent 使用同一份文件。** 把准确行选区整理成通用 Agent 上下文，让 Agent 直接读取或修改
   仓库，再回到 Git Leaf 检查改动。
 - **引入远端变化，同时保留尚未完成的编辑。** Git Leaf 会在打开仓库时及之后每隔 10 分钟检查远端；
@@ -52,6 +53,19 @@ Git 中，人与 AI Agent 可以继续读取和修改同一份文件。
 Git Leaf 使用安全的内置组件呈现这些内容，文档本身不能运行代码或脚本。
 
 ![Git Leaf 在知识库文档中呈现柱线组合图](marketing/assets/git-leaf-mdx-chart.png)
+
+## Git Leaf、Obsidian 和 VS Code 怎么选
+
+这三个工具都能打开本机文本文件，但设计出发点不同：
+
+| 主要需求 | 更适合 |
+| --- | --- |
+| 知识已经放在 Git 中，希望产品、运营、项目负责人和 AI Agent 共同维护，但不希望每个人都直接操作 Git 或 Markdown | **Git Leaf** |
+| 以笔记、双向链接和可扩展的本地 Markdown 知识库为中心，Git 不是主要工作流 | [**Obsidian**](https://obsidian.md/help/obsidian) |
+| 主要编写代码，并愿意直接处理项目文件、Git 暂存、提交、分支和冲突 | [**VS Code**](https://code.visualstudio.com/docs/sourcecontrol/overview) |
+
+同一个仓库不必让所有人使用同一种工具。产品、运营和项目人员可以使用 Git Leaf；开发者可以继续使用
+VS Code 或命令行；AI Agent 直接使用仓库文件。大家维护的仍是同一个 Git 仓库中的内容。
 
 ## 下载
 
