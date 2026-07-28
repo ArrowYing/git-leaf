@@ -238,6 +238,7 @@ export function createUiTooltip({
 
     const titleElement = renderTooltip(tooltip, {
       name,
+      nameRanges: details.nameRanges,
       path: String(details.path ?? details.detail ?? "").trim(),
       shortcut: String(details.shortcut ?? "").trim(),
     });
@@ -411,11 +412,11 @@ export function uiTooltipPosition({
   };
 }
 
-function renderTooltip(tooltip, { name, path, shortcut }) {
+function renderTooltip(tooltip, { name, nameRanges, path, shortcut }) {
   const documentRef = tooltip.ownerDocument ?? globalThis.document;
   const nameElement = documentRef.createElement("div");
   nameElement.className = "ui-tooltip-title";
-  nameElement.textContent = name;
+  appendHighlightedText(nameElement, name, nameRanges, documentRef);
   const children = [];
   if (shortcut) {
     const row = documentRef.createElement("div");
@@ -436,6 +437,59 @@ function renderTooltip(tooltip, { name, path, shortcut }) {
   }
   tooltip.replaceChildren(...children);
   return nameElement;
+}
+
+function appendHighlightedText(element, text, ranges, documentRef) {
+  const normalizedRanges = normalizeHighlightRanges(text, ranges);
+  if (normalizedRanges.length === 0) {
+    element.textContent = text;
+    return;
+  }
+
+  let cursor = 0;
+  for (const range of normalizedRanges) {
+    if (range.from > cursor) {
+      element.append(documentRef.createTextNode(text.slice(cursor, range.from)));
+    }
+    const mark = documentRef.createElement("mark");
+    mark.className = "ui-tooltip-search-match";
+    mark.textContent = text.slice(range.from, range.to);
+    element.append(mark);
+    cursor = range.to;
+  }
+  if (cursor < text.length) {
+    element.append(documentRef.createTextNode(text.slice(cursor)));
+  }
+}
+
+function normalizeHighlightRanges(text, ranges) {
+  const length = text.length;
+  const candidates = [];
+  for (const range of Array.isArray(ranges) ? ranges : []) {
+    const rawFrom = Number(range?.from);
+    const rawTo = Number(range?.to);
+    if (!Number.isFinite(rawFrom) || !Number.isFinite(rawTo)) {
+      continue;
+    }
+    const from = Math.max(0, Math.min(length, Math.trunc(rawFrom)));
+    const to = Math.max(from, Math.min(length, Math.trunc(rawTo)));
+    if (to <= from) {
+      continue;
+    }
+    candidates.push({ from, to });
+  }
+
+  candidates.sort((left, right) => left.from - right.from || left.to - right.to);
+  const normalized = [];
+  for (const { from, to } of candidates) {
+    const previous = normalized.at(-1);
+    if (previous && from <= previous.to) {
+      previous.to = Math.max(previous.to, to);
+    } else {
+      normalized.push({ from, to });
+    }
+  }
+  return normalized;
 }
 
 function applyExpansionTypography({

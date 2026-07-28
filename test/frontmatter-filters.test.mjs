@@ -147,6 +147,10 @@ test("file text search explains an ai_snippet-only match with highlighted eviden
     matches: true,
     nameMatchesAllTokens: false,
     nameRanges: [],
+    snippetMatch: {
+      text: "[Marketing Context] Violy 品牌上下文：Violy 公司故事。",
+      ranges: [{ from: 11, to: 18 }],
+    },
     snippetExcerpt: {
       text: "[Marketing Context] Violy 品牌上下文：Violy 公司故事。",
       ranges: [{ from: 11, to: 18 }],
@@ -214,6 +218,14 @@ test("file text search excerpts keep a late ai_snippet match visible", () => {
   const highlighted = details.snippetExcerpt?.ranges
     .map(({ from, to }) => details.snippetExcerpt.text.slice(from, to));
   assert.deepEqual(highlighted, ["Governance"]);
+  assert.equal(
+    details.snippetMatch?.text,
+    "This summary begins with background that does not fit in a narrow sidebar before Governance appears.",
+  );
+  assert.deepEqual(
+    details.snippetMatch?.ranges.map(({ from, to }) => details.snippetMatch.text.slice(from, to)),
+    ["Governance"],
+  );
 });
 
 test("tree text search keeps only matching nodes and the ancestors needed to reach them", () => {

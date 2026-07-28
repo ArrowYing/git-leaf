@@ -409,6 +409,7 @@ const sourceEditorPane = document.querySelector("#source-editor-pane");
 const sourceEditorHost = document.querySelector("#source-editor");
 const treeFilter = document.querySelector("#tree-filter");
 const uiTooltip = document.querySelector("#ui-tooltip");
+const treeSearchEvidenceTooltips = new WeakMap();
 const worktreeSwitcher = document.querySelector("#worktree-switcher");
 const worktreeSwitcherToggle = document.querySelector("#worktree-switcher-toggle");
 const worktreeSwitcherMenu = document.querySelector("#worktree-switcher-menu");
@@ -504,6 +505,18 @@ const uiTooltipController = createUiTooltip({
       placement: "bottom-start",
       variant: "content",
       delay: 300,
+    },
+    {
+      name: "file-tree-search-evidence",
+      container: fileTree,
+      itemFromTarget: treeSearchEvidenceFromEventTarget,
+      details: treeSearchEvidenceTooltipDetails,
+      key: treeSearchEvidenceTooltipKey,
+      anchorElement: treeSearchEvidenceLabelElement,
+      describedElement: (item) => item,
+      placement: "expansion",
+      variant: "expansion",
+      delay: 250,
     },
     {
       name: "file-tree",
@@ -3312,6 +3325,23 @@ function treeItemFromEventTarget(target) {
   return item && fileTree.contains(item) ? item : null;
 }
 
+function treeSearchEvidenceFromEventTarget(target) {
+  const item = target?.closest?.(".tree-file-search-evidence");
+  return item && fileTree.contains(item) ? item : null;
+}
+
+function treeSearchEvidenceLabelElement(item) {
+  return item?.querySelector?.(".tree-file-search-snippet") || item;
+}
+
+function treeSearchEvidenceTooltipDetails(item) {
+  return treeSearchEvidenceTooltips.get(item) ?? {};
+}
+
+function treeSearchEvidenceTooltipKey(item) {
+  return item?.dataset.treePath || treeSearchEvidenceTooltipDetails(item).name || "";
+}
+
 function treeItemLabelElement(item) {
   if (item?.dataset.treeItem === "file") {
     return item.querySelector(".tree-file-label") || item;
@@ -3327,6 +3357,9 @@ function treeItemTooltipDetails(item) {
   const name = label?.textContent?.trim() || "";
   return {
     name,
+    nameRanges: isTreeTextSearchActive()
+      ? textFilterMatchRanges(name, state.filter)
+      : [],
     path: "",
   };
 }
@@ -4207,14 +4240,19 @@ function renderNode(node, parentPath) {
     label.className = "tree-file-label";
     appendTreeSearchLabel(label, node.name);
     copy.append(label);
-    if (textMatchDetails?.snippetExcerpt) {
+    if (textMatchDetails?.snippetExcerpt && textMatchDetails.snippetMatch) {
       button.dataset.searchMatchSource = "ai-snippet";
       button.setAttribute(
         "aria-description",
-        `AI snippet: ${textMatchDetails.snippetExcerpt.text}`,
+        `AI snippet: ${textMatchDetails.snippetMatch.text}`,
       );
       const evidence = document.createElement("span");
       evidence.className = "tree-file-search-evidence";
+      evidence.dataset.treePath = node.path;
+      treeSearchEvidenceTooltips.set(evidence, {
+        name: textMatchDetails.snippetMatch.text,
+        nameRanges: textMatchDetails.snippetMatch.ranges,
+      });
       const source = document.createElement("span");
       source.className = "tree-file-search-source";
       source.textContent = "AI";

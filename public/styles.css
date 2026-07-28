@@ -1664,7 +1664,8 @@ summary:focus-visible {
   text-overflow: ellipsis;
 }
 
-.tree-search-match {
+.tree-search-match,
+.ui-tooltip-search-match {
   border-radius: 2px;
   background: var(--find-match-bg);
   color: var(--find-match-text);

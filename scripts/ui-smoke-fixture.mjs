@@ -18,8 +18,13 @@ export const TREE_TOOLTIP_SMOKE_RELATIVE_FILE = [
 export const DOCUMENT_OUTLINE_SMOKE_HEADING =
   "这是一个明显超过文档导航最小宽度并且必须通过快速自绘浮层才能完整阅读的二级标题";
 
+export const TREE_TOOLTIP_SMOKE_SEARCH_TERM = "boundary";
+
+export const TREE_TOOLTIP_SMOKE_AI_SNIPPET =
+  "AI search context boundary evidence that is intentionally longer than the narrow sidebar";
+
 export const TREE_TOOLTIP_SMOKE_ACCEPTANCE =
-  "目录树和文档导航中的截断项都应在悬停后快速显示同款浮层；文档导航分隔线可向右拖宽但不能小于初始宽度；浮层出现后保持鼠标静止至少 10 秒，期间不得消失、闪动或重建。";
+  `目录树和文档导航中的截断项都应在悬停后快速显示同款浮层；搜索 ${TREE_TOOLTIP_SMOKE_SEARCH_TERM} 后，截断文件名浮层和 README 的 AI snippet 浮层都应展示完整内容并高亮关键词；文档导航分隔线可向右拖宽但不能小于初始宽度；浮层出现后保持鼠标静止至少 10 秒，期间不得消失、闪动或重建。`;
 
 const SIBLING_FILE_NAMES = [
   "2026-07-12-market-research-interview-evidence-card-with-a-long-title-v01.md",
@@ -37,7 +42,27 @@ export function createTreeTooltipSmokeFixture({
     const documentPath = path.join(repoRoot, ...TREE_TOOLTIP_SMOKE_RELATIVE_FILE.split("/"));
     const documentDirectory = path.dirname(documentPath);
     mkdirSync(documentDirectory, { recursive: true });
-    writeFileSync(path.join(repoRoot, "README.md"), "# Git Leaf UI Smoke Fixture\n", "utf8");
+    mkdirSync(path.join(repoRoot, "docs"), { recursive: true });
+    writeFileSync(
+      path.join(repoRoot, "docs", "frontmatter-rules.json"),
+      `${JSON.stringify({
+        version: 1,
+        basicFields: ["title", "domain", "ai_snippet"],
+      }, null, 2)}\n`,
+      "utf8",
+    );
+    writeFileSync(
+      path.join(repoRoot, "README.md"),
+      [
+        "---",
+        `ai_snippet: "${TREE_TOOLTIP_SMOKE_AI_SNIPPET}"`,
+        "---",
+        "",
+        "# Git Leaf UI Smoke Fixture",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
     writeFileSync(
       documentPath,
       [
@@ -64,6 +89,7 @@ export function createTreeTooltipSmokeFixture({
       repoRoot,
       file: TREE_TOOLTIP_SMOKE_RELATIVE_FILE,
       acceptance: TREE_TOOLTIP_SMOKE_ACCEPTANCE,
+      searchTerm: TREE_TOOLTIP_SMOKE_SEARCH_TERM,
     };
   } catch (error) {
     rmSync(repoRoot, { recursive: true, force: true });

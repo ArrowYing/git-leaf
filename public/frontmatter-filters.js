@@ -76,6 +76,7 @@ export function fileTextFilterMatchDetails(
       matches: true,
       nameMatchesAllTokens: true,
       nameRanges: [],
+      snippetMatch: null,
       snippetExcerpt: null,
     };
   }
@@ -85,11 +86,19 @@ export function fileTextFilterMatchDetails(
     .join(" ");
   const matches = textIncludesAllTokens(searchableText, tokens);
   const nameMatchesAllTokens = textIncludesAllTokens(name, tokens);
+  const snippetMatch =
+    matches && !nameMatchesAllTokens
+      ? {
+          text: snippet,
+          ranges: textMatchRangesForTokens(snippet, tokens),
+        }
+      : null;
 
   return {
     matches,
     nameMatchesAllTokens,
     nameRanges: matches ? textMatchRangesForTokens(name, tokens) : [],
+    snippetMatch,
     snippetExcerpt:
       matches && !nameMatchesAllTokens
         ? textFilterExcerpt(snippet, tokens, maxSnippetLength)

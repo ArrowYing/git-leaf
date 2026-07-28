@@ -141,6 +141,57 @@ test("expansion tooltips preserve source typography without changing action prom
   controller.destroy();
 });
 
+test("search result tooltips show full text and preserve highlighted match ranges", () => {
+  const root = createEventTarget();
+  const windowTarget = {
+    ...createEventTarget(),
+    innerWidth: 1200,
+    innerHeight: 800,
+  };
+  const item = createElement({
+    id: "search-result",
+    rect: { left: 40, top: 60, width: 180, height: 28 },
+  });
+  const tooltip = createElement({
+    id: "ui-tooltip",
+    hidden: true,
+    rect: { width: 440, height: 28 },
+  });
+  root.contains = (candidate) => candidate === item || candidate === tooltip;
+  const fullName = "dr-04-company-code-repository-context-boundaries.md";
+  const matchFrom = fullName.indexOf("context");
+  const controller = createUiTooltip({
+    tooltip,
+    eventRoot: root,
+    boundsElement: {
+      getBoundingClientRect: () => ({ left: 0, top: 0, width: 1200, height: 800 }),
+    },
+    sources: [{
+      name: "search-result",
+      container: root,
+      itemFromTarget: (target) => target === item ? item : null,
+      details: () => ({
+        name: fullName,
+        nameRanges: [{ from: matchFrom, to: matchFrom + "context".length }],
+      }),
+      key: (target) => target.id,
+      placement: "expansion",
+      focusDelay: 0,
+    }],
+    windowTarget,
+  });
+
+  root.emit("focusin", { target: item });
+  const title = tooltip.children[0];
+  const match = title.children.find(
+    (child) => child.className === "ui-tooltip-search-match",
+  );
+  assert.equal(tooltip.hidden, false);
+  assert.equal(match?.textContent, "context");
+
+  controller.destroy();
+});
+
 test("one shared controller renders actions, exposes shortcuts, and remains hoverable", () => {
   const root = createEventTarget();
   const windowTarget = {
@@ -310,6 +361,7 @@ function createElement({
     isConnected: true,
     ownerDocument: {
       createElement: () => createElement(),
+      createTextNode: (text) => ({ nodeType: 3, textContent: String(text) }),
     },
     append(...children) {
       this.children.push(...children);
