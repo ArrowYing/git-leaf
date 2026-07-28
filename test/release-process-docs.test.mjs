@@ -37,7 +37,7 @@ test("release documentation exposes the dual-track build and publication boundar
   assert.match(releaseDoc, /legacyInternalMigrationConfirmed/);
   assert.match(releaseDoc, /Windows is currently distributed as an unsigned Preview ZIP/);
   assert.match(releaseDoc, /secret scanner/);
-  assert.match(releaseDoc, /packages exclude `\.agents\/`, `marketing\/`, `test\/`, `dist\/`, `\.git\/`/);
+  assert.match(releaseDoc, /packages exclude `\.agents\/`, `docs\/`, `test\/`, `dist\/`, `\.git\/`/);
   assert.match(releaseDoc, /must never contain:[\s\S]*Apple credentials or private keys/);
   assert.match(
     releaseDoc,

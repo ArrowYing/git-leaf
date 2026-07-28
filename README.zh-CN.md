@@ -17,13 +17,14 @@ Markdown。
 [Windows Preview](https://gitleaf.mangofuture.com/download?lang=zh-CN#windows) ·
 [从源码构建](docs/build-from-source.md)
 
-![Git Leaf 展示共享上下文仓库、本地改动和 Agent 上下文](marketing/assets/git-leaf-product.png)
+![Git Leaf 展示共享上下文仓库、本地改动和 Agent 上下文](docs/assets/user-guide/workspace-overview.png)
 
 [![CI](https://github.com/MangoFuture1210/git-leaf/actions/workflows/ci.yml/badge.svg)](https://github.com/MangoFuture1210/git-leaf/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
 安装 Git Leaf 后，可以直接[打开公开示例上下文仓库](https://gitleaf.mangofuture.com/open?repo=mangofuture1210%2Fgit-leaf-example-knowledge-base&path=README.md)，
 也可以先克隆到本机，完成一次完全本地的首次体验。
+更完整的界面介绍和日常工作方式见 [Git Leaf 用户手册](docs/user-guide.zh-CN.md)。
 
 ## 一个仓库，两种界面
 
@@ -56,7 +57,7 @@ Git Leaf 支持 Markdown 和受控的 MDX，让结构化数据直接保存在文
 Preview 负责呈现文档，Source 和 Live 仍编辑原文件，不需要同步第二份视觉数据模型。Git Leaf 只呈现
 白名单中的组件；文档不能运行任意 JSX、JavaScript、`import` 或脚本。
 
-![Git Leaf 从 Agent 可读的上下文文档中呈现柱线组合图](marketing/assets/git-leaf-mdx-chart.png)
+![Git Leaf 从 Agent 可读的上下文文档中呈现柱线组合图](docs/assets/user-guide/mdx-visuals.png)
 
 ## 为人读得懂的上下文
 

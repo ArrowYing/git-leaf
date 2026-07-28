@@ -25,6 +25,8 @@ desktop shell, the web workspace, tests, and packaging configuration are all mai
 - Read this file before ordinary changes, then read the nearest relevant source files and tests for the
   area being changed.
 - Product capabilities, usage, and boundaries: `README.md`.
+- End-user workflows and the visual product tour: `docs/user-guide.md`, with
+  `docs/user-guide.zh-CN.md` as its Simplified Chinese counterpart.
 - Architecture, service boundaries, worktrees, local editing, and the desktop wrapper:
   `docs/architecture.md`.
 - MDX-lite implementation and component boundaries: `docs/mdx-lite-guide.md`. The complete

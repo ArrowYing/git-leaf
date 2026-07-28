@@ -10,6 +10,7 @@ materially improves installation, privacy, or product use.
 | Topic | Document | Audience and authority |
 | --- | --- | --- |
 | Product overview | [README](../README.md) · [简体中文](../README.zh-CN.md) | User-facing product entry |
+| User guide | [English](user-guide.md) · [简体中文](user-guide.zh-CN.md) | Visual product tour and day-to-day use |
 | Changes and compatibility | [Changelog](../CHANGELOG.md) | Version changes, verification, compatibility |
 | Build from source | [Community Build guide](build-from-source.md) | Contributors and third-party builders |
 | System architecture | [Architecture](architecture.md) | Cross-module behavior and invariants |

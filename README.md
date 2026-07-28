@@ -17,13 +17,14 @@ working directly in Git or Markdown.
 [Windows Preview](https://gitleaf.mangofuture.com/download#windows) ·
 [Build from source](docs/build-from-source.md)
 
-![Git Leaf showing a shared context repository, local changes, and Agent Context](marketing/assets/git-leaf-product.png)
+![Git Leaf showing a shared context repository, local changes, and Agent Context](docs/assets/user-guide/workspace-overview.png)
 
 [![CI](https://github.com/MangoFuture1210/git-leaf/actions/workflows/ci.yml/badge.svg)](https://github.com/MangoFuture1210/git-leaf/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
 [Open the public example context repository](https://gitleaf.mangofuture.com/open?repo=mangofuture1210%2Fgit-leaf-example-knowledge-base&path=README.md)
 after installing Git Leaf, or clone it for a completely local first run.
+For a fuller visual tour and day-to-day workflows, read the [Git Leaf user guide](docs/user-guide.md).
 
 ## One repository, two interfaces
 
@@ -65,7 +66,7 @@ Preview renders the document, while Source and Live edit the original file. Ther
 data model to keep in sync. Only allowlisted components are rendered; documents cannot run arbitrary
 JSX, JavaScript, imports, or scripts.
 
-![Git Leaf rendering a bar-and-line chart from an agent-readable context document](marketing/assets/git-leaf-mdx-chart.png)
+![Git Leaf rendering a bar-and-line chart from an agent-readable context document](docs/assets/user-guide/mdx-visuals.png)
 
 ## Built for readable context
 
