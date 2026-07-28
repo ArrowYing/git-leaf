@@ -48,14 +48,14 @@ worktree。
 - 只读预览图片、PDF、CSV、JSON、YAML、HTML、代码和其他仓库附件。
 - 保留源文件行号与引用，说明选中内容来自哪里。
 
-## MDX-lite
+## 不只是文字
 
-知识库可以使用 MDX-lite 呈现数据表、时间线、指标、决策、流程图和图表，同时在 Git 中保留可读的文本源文件。
-Git Leaf 只渲染受控组件，不执行任意 JSX、JavaScript、`import` 或文档脚本。
+知识库中的文档还可以直接呈现数据表、时间线、关键指标、决策、流程图和图表。内容仍然以可读文本保存在
+Git 中，人与 AI Agent 可以继续读取和修改同一份文件。
 
-![Git Leaf 在 MDX-lite 文档中呈现柱线组合图](marketing/assets/git-leaf-mdx-chart.png)
+Git Leaf 使用安全的内置组件呈现这些内容，文档本身不能运行代码或脚本。
 
-[查看 MDX-lite 支持的组件和语法](docs/mdx-lite-guide.md)。
+![Git Leaf 在知识库文档中呈现柱线组合图](marketing/assets/git-leaf-mdx-chart.png)
 
 ## 下载
 

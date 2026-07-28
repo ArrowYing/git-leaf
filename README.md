@@ -51,15 +51,15 @@ automation, and AI agents use directly.
 - Read-only previews for images, PDFs, CSV, JSON, YAML, HTML, code, and other repository attachments.
 - Source line references that preserve where selected text came from.
 
-## MDX-lite
+## More than text
 
-A knowledge base can use MDX-lite for data tables, timelines, metrics, decisions, flow diagrams, and
-charts while keeping readable text source files in Git. Git Leaf renders only allowlisted components;
-it does not execute arbitrary JSX, JavaScript, imports, or document scripts.
+Knowledge-base documents can also present data tables, timelines, key metrics, decisions, flow diagrams,
+and charts. The content stays as readable text in Git, so people and AI agents can continue to read and
+update the same files.
 
-![Git Leaf rendering a bar-and-line chart in an MDX-lite document](marketing/assets/git-leaf-mdx-chart.png)
+Git Leaf presents this content through safe built-in components; documents cannot run their own code or scripts.
 
-[See the supported MDX-lite components and syntax](docs/mdx-lite-guide.md).
+![Git Leaf rendering a bar-and-line chart in a knowledge-base document](marketing/assets/git-leaf-mdx-chart.png)
 
 ## Download
 
