@@ -6,34 +6,103 @@ export const MARKDOWN_TABLE_TEXT_COLORS = Object.freeze([
   Object.freeze({ name: "gray", value: "#64748b" }),
 ]);
 
+export const MARKDOWN_TABLE_HIGHLIGHT_COLORS = Object.freeze([
+  Object.freeze({ name: "green", value: "#16a34a33" }),
+  Object.freeze({ name: "red", value: "#dc262633" }),
+  Object.freeze({ name: "orange", value: "#d9770633" }),
+  Object.freeze({ name: "blue", value: "#2563eb33" }),
+  Object.freeze({ name: "gray", value: "#64748b33" }),
+]);
+
 const MARKDOWN_TABLE_TEXT_COLOR_VALUES = new Set(
   MARKDOWN_TABLE_TEXT_COLORS.map(({ value }) => value),
 );
+const MARKDOWN_TABLE_HIGHLIGHT_COLOR_VALUES = new Set(
+  MARKDOWN_TABLE_HIGHLIGHT_COLORS.map(({ value }) => value),
+);
 const TABLE_SEPARATOR_CELL = /^:?-{3,}:?$/;
-const CONTROLLED_TEXT_COLOR_SPAN =
-  /^<span\s+style=(["'])\s*color\s*:\s*(#[0-9a-fA-F]{6})\s*;?\s*\1\s*>([^\n]*?)<\/span>/i;
+const CONTROLLED_TABLE_STYLE_SPAN =
+  /^<span\s+style=(["'])([^"'\n]*)\1\s*>([^\n]*?)<\/span>/i;
+const MARKDOWN_TABLE_TEXT_STYLES = new Set([
+  "bold",
+  "italic",
+  "strikethrough",
+]);
 
 export function normalizeMarkdownTableTextColor(value) {
   const normalized = String(value ?? "").trim().toLowerCase();
   return MARKDOWN_TABLE_TEXT_COLOR_VALUES.has(normalized) ? normalized : null;
 }
 
-export function controlledTextColorSpanAt(source) {
-  const match = CONTROLLED_TEXT_COLOR_SPAN.exec(String(source ?? ""));
+export function normalizeMarkdownTableHighlightColor(value) {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  return MARKDOWN_TABLE_HIGHLIGHT_COLOR_VALUES.has(normalized)
+    ? normalized
+    : null;
+}
+
+export function controlledTableStyleSpanAt(source) {
+  const match = CONTROLLED_TABLE_STYLE_SPAN.exec(String(source ?? ""));
   if (!match) {
     return null;
   }
 
-  const color = normalizeMarkdownTableTextColor(match[2]);
-  if (!color) {
+  const declarations = match[2]
+    .split(";")
+    .map((declaration) => declaration.trim())
+    .filter(Boolean);
+  if (declarations.length === 0 || declarations.length > 2) {
     return null;
   }
 
+  let color = null;
+  let backgroundColor = null;
+  for (const declaration of declarations) {
+    const property = declaration.match(
+      /^(color|background-color)\s*:\s*(#[0-9a-fA-F]{6,8})$/i,
+    );
+    if (!property) {
+      return null;
+    }
+    if (property[1].toLowerCase() === "color") {
+      if (color) {
+        return null;
+      }
+      color = normalizeMarkdownTableTextColor(property[2]);
+      if (!color) {
+        return null;
+      }
+      continue;
+    }
+    if (backgroundColor) {
+      return null;
+    }
+    backgroundColor = normalizeMarkdownTableHighlightColor(property[2]);
+    if (!backgroundColor) {
+      return null;
+    }
+  }
+
+  if (!color && !backgroundColor) {
+    return null;
+  }
   return {
     color,
+    backgroundColor,
     content: match[3],
     length: match[0].length,
     source: match[0],
+  };
+}
+
+export function controlledTextColorSpanAt(source) {
+  const span = controlledTableStyleSpanAt(source);
+  if (!span?.color) {
+    return null;
+  }
+  return {
+    ...span,
+    color: span.color,
   };
 }
 
@@ -229,26 +298,111 @@ export function normalizeMarkdownTableSelection(selection, table) {
 }
 
 export function colorMarkdownTableCellContent(content, color) {
-  const source = String(content ?? "");
-  const controlledSpan = controlledTextColorSpanAt(source);
-  const unwrapped =
-    controlledSpan?.length === source.length
-      ? controlledSpan.content
-      : source;
+  return formatMarkdownTableCellContent(content, {
+    color: color ?? null,
+  });
+}
 
-  if (color === null || color === undefined || color === "") {
-    return unwrapped;
+export function parseMarkdownTableCellFormat(content) {
+  let inner = String(content ?? "");
+  const format = {
+    content: inner,
+    bold: false,
+    italic: false,
+    strikethrough: false,
+    color: null,
+    backgroundColor: null,
+  };
+
+  let changed = true;
+  while (changed && inner) {
+    changed = false;
+
+    const span = controlledTableStyleSpanAt(inner);
+    if (span?.length === inner.length && span.content) {
+      if (span.color) {
+        format.color = span.color;
+      }
+      if (span.backgroundColor) {
+        format.backgroundColor = span.backgroundColor;
+      }
+      inner = span.content;
+      changed = true;
+      continue;
+    }
+
+    const envelopes = [
+      { property: "bold", open: "**", close: "**" },
+      { property: "bold", open: "__", close: "__" },
+      { property: "strikethrough", open: "~~", close: "~~" },
+      { property: "italic", open: "_", close: "_" },
+      { property: "italic", open: "*", close: "*" },
+    ];
+    for (const envelope of envelopes) {
+      const unwrapped = unwrapMarkdownFormatEnvelope(
+        inner,
+        envelope.open,
+        envelope.close,
+      );
+      if (unwrapped === null) {
+        continue;
+      }
+      format[envelope.property] = true;
+      inner = unwrapped;
+      changed = true;
+      break;
+    }
   }
 
-  const normalizedColor = normalizeMarkdownTableTextColor(color);
-  if (!normalizedColor) {
+  return {
+    ...format,
+    content: inner,
+  };
+}
+
+export function serializeMarkdownTableCellFormat(format) {
+  const normalized = normalizeMarkdownTableCellFormat(format);
+  if (!normalized) {
     return null;
   }
-  if (!unwrapped) {
-    return unwrapped;
+
+  let content = normalized.content;
+  if (!content) {
+    return content;
   }
 
-  return `<span style="color: ${normalizedColor};">${unwrapped}</span>`;
+  const declarations = [
+    normalized.color ? `color: ${normalized.color}` : "",
+    normalized.backgroundColor
+      ? `background-color: ${normalized.backgroundColor}`
+      : "",
+  ].filter(Boolean);
+  if (declarations.length > 0) {
+    content = `<span style="${declarations.join("; ")};">${content}</span>`;
+  }
+  if (normalized.strikethrough) {
+    content = `~~${content}~~`;
+  }
+  if (normalized.italic) {
+    content = `_${content}_`;
+  }
+  if (normalized.bold) {
+    content = `**${content}**`;
+  }
+  return content;
+}
+
+export function formatMarkdownTableCellContent(content, patch) {
+  const normalizedPatch = normalizeMarkdownTableFormatPatch(patch);
+  if (!normalizedPatch) {
+    return null;
+  }
+
+  const current = parseMarkdownTableCellFormat(content);
+  return serializeMarkdownTableCellFormat({
+    ...current,
+    ...normalizedPatch,
+  });
 }
 
 export function replaceMarkdownTableCell(source, row, column, content) {
@@ -281,17 +435,53 @@ export function replaceMarkdownTableCell(source, row, column, content) {
 }
 
 export function applyMarkdownTableTextColor(source, selection, color) {
-  const table = parseMarkdownTable(source);
-  const normalizedSelection = normalizeMarkdownTableSelection(selection, table);
-  if (!table || !normalizedSelection) {
+  return applyMarkdownTableCellFormat(source, selection, {
+    color: color ?? null,
+  });
+}
+
+export function applyMarkdownTableHighlightColor(
+  source,
+  selection,
+  backgroundColor,
+) {
+  return applyMarkdownTableCellFormat(source, selection, {
+    backgroundColor: backgroundColor ?? null,
+  });
+}
+
+export function applyMarkdownTableTextStyle(
+  source,
+  selection,
+  style,
+  enabled,
+) {
+  if (
+    !MARKDOWN_TABLE_TEXT_STYLES.has(style) ||
+    typeof enabled !== "boolean"
+  ) {
     return null;
   }
-  if (
-    color !== null &&
-    color !== undefined &&
-    color !== "" &&
-    !normalizeMarkdownTableTextColor(color)
-  ) {
+  return applyMarkdownTableCellFormat(source, selection, {
+    [style]: enabled,
+  });
+}
+
+export function clearMarkdownTableTextFormatting(source, selection) {
+  return applyMarkdownTableCellFormat(source, selection, {
+    bold: false,
+    italic: false,
+    strikethrough: false,
+    color: null,
+    backgroundColor: null,
+  });
+}
+
+export function applyMarkdownTableCellFormat(source, selection, patch) {
+  const table = parseMarkdownTable(source);
+  const normalizedSelection = normalizeMarkdownTableSelection(selection, table);
+  const normalizedPatch = normalizeMarkdownTableFormatPatch(patch);
+  if (!table || !normalizedSelection || !normalizedPatch) {
     return null;
   }
 
@@ -308,9 +498,9 @@ export function applyMarkdownTableTextColor(source, selection, color) {
       columnIndex <= normalizedSelection.maxColumn;
       columnIndex += 1
     ) {
-      const nextContent = colorMarkdownTableCellContent(
+      const nextContent = formatMarkdownTableCellContent(
         row.cells[columnIndex].content,
-        color,
+        normalizedPatch,
       );
       if (nextContent === null) {
         return null;
@@ -329,6 +519,111 @@ export function applyMarkdownTableTextColor(source, selection, color) {
     changed: nextSource !== table.source,
     selection: normalizedSelection,
   };
+}
+
+export function markdownTableSelectionFormatState(source, selection) {
+  const table = parseMarkdownTable(source);
+  const normalizedSelection = normalizeMarkdownTableSelection(selection, table);
+  if (!table || !normalizedSelection) {
+    return null;
+  }
+
+  const formats = [];
+  for (
+    let rowIndex = normalizedSelection.minRow;
+    rowIndex <= normalizedSelection.maxRow;
+    rowIndex += 1
+  ) {
+    for (
+      let columnIndex = normalizedSelection.minColumn;
+      columnIndex <= normalizedSelection.maxColumn;
+      columnIndex += 1
+    ) {
+      formats.push(
+        parseMarkdownTableCellFormat(
+          table.visualRows[rowIndex].cells[columnIndex].content,
+        ),
+      );
+    }
+  }
+
+  const alignments = table.alignments.slice(
+    normalizedSelection.minColumn,
+    normalizedSelection.maxColumn + 1,
+  );
+  return {
+    bold: uniformValue(formats.map((format) => format.bold)),
+    italic: uniformValue(formats.map((format) => format.italic)),
+    strikethrough: uniformValue(
+      formats.map((format) => format.strikethrough),
+    ),
+    color: uniformValue(formats.map((format) => format.color)),
+    backgroundColor: uniformValue(
+      formats.map((format) => format.backgroundColor),
+    ),
+    alignment: uniformValue(alignments),
+    alignments: [...new Set(alignments)],
+    selection: normalizedSelection,
+  };
+}
+
+export function alignMarkdownTableColumns(source, selection, alignment) {
+  if (!["left", "center", "right"].includes(alignment)) {
+    return null;
+  }
+
+  const table = parseMarkdownTable(source);
+  const normalizedSelection = normalizeMarkdownTableSelection(selection, table);
+  if (!table || !normalizedSelection) {
+    return null;
+  }
+
+  const separator = table.separator;
+  const nextCells = separator.cells.map((cell) => cell.raw);
+  for (
+    let columnIndex = normalizedSelection.minColumn;
+    columnIndex <= normalizedSelection.maxColumn;
+    columnIndex += 1
+  ) {
+    const cell = separator.cells[columnIndex];
+    const nextContent = separatorContentForAlignment(cell.content, alignment);
+    nextCells[columnIndex] = cellRawWithContent(cell, nextContent);
+  }
+
+  const nextLines = [...table.lines];
+  nextLines[separator.lineIndex] = serializeMarkdownTableRow(
+    separator,
+    nextCells,
+  );
+  const nextSource = nextLines.join(table.newline);
+  return {
+    source: nextSource,
+    changed: nextSource !== table.source,
+    alignment,
+    selection: normalizedSelection,
+  };
+}
+
+export function separatorContentForAlignment(content, alignment) {
+  const source = String(content ?? "");
+  if (
+    !TABLE_SEPARATOR_CELL.test(source) ||
+    !["left", "center", "right"].includes(alignment)
+  ) {
+    return null;
+  }
+  if (separatorAlignment(source) === alignment) {
+    return source;
+  }
+
+  const hyphens = "-".repeat(source.replaceAll(":", "").length);
+  if (alignment === "center") {
+    return `:${hyphens}:`;
+  }
+  if (alignment === "right") {
+    return `${hyphens}:`;
+  }
+  return `:${hyphens}`;
 }
 
 export function reorderMarkdownTableColumn(source, fromColumn, toColumn) {
@@ -408,6 +703,114 @@ function separatorAlignment(content) {
     return "right";
   }
   return "left";
+}
+
+function normalizeMarkdownTableCellFormat(format) {
+  if (!format || typeof format !== "object") {
+    return null;
+  }
+  const content = String(format.content ?? "");
+  if (/[\r\n]/.test(content)) {
+    return null;
+  }
+
+  const booleans = ["bold", "italic", "strikethrough"];
+  if (booleans.some((property) => typeof format[property] !== "boolean")) {
+    return null;
+  }
+
+  const color = format.color
+    ? normalizeMarkdownTableTextColor(format.color)
+    : null;
+  const backgroundColor = format.backgroundColor
+    ? normalizeMarkdownTableHighlightColor(format.backgroundColor)
+    : null;
+  if (
+    (format.color && !color) ||
+    (format.backgroundColor && !backgroundColor)
+  ) {
+    return null;
+  }
+
+  return {
+    content,
+    bold: format.bold,
+    italic: format.italic,
+    strikethrough: format.strikethrough,
+    color,
+    backgroundColor,
+  };
+}
+
+function normalizeMarkdownTableFormatPatch(patch) {
+  if (!patch || typeof patch !== "object" || Array.isArray(patch)) {
+    return null;
+  }
+
+  const allowedProperties = new Set([
+    "bold",
+    "italic",
+    "strikethrough",
+    "color",
+    "backgroundColor",
+  ]);
+  const properties = Object.keys(patch);
+  if (
+    properties.length === 0 ||
+    properties.some((property) => !allowedProperties.has(property))
+  ) {
+    return null;
+  }
+
+  const normalized = {};
+  for (const property of properties) {
+    const value = patch[property];
+    if (MARKDOWN_TABLE_TEXT_STYLES.has(property)) {
+      if (typeof value !== "boolean") {
+        return null;
+      }
+      normalized[property] = value;
+      continue;
+    }
+
+    if (value === null || value === undefined || value === "") {
+      normalized[property] = null;
+      continue;
+    }
+    const nextValue = property === "color"
+      ? normalizeMarkdownTableTextColor(value)
+      : normalizeMarkdownTableHighlightColor(value);
+    if (!nextValue) {
+      return null;
+    }
+    normalized[property] = nextValue;
+  }
+  return normalized;
+}
+
+function unwrapMarkdownFormatEnvelope(source, open, close) {
+  if (
+    !source.startsWith(open) ||
+    !source.endsWith(close) ||
+    source.length <= open.length + close.length
+  ) {
+    return null;
+  }
+  const inner = source.slice(open.length, -close.length);
+  if (!inner || /^\s|\s$/.test(inner)) {
+    return null;
+  }
+  return inner;
+}
+
+function uniformValue(values) {
+  if (values.length === 0) {
+    return null;
+  }
+  const [first] = values;
+  return values.every((value) => Object.is(value, first))
+    ? first
+    : "mixed";
 }
 
 function cellRawWithContent(cell, content) {

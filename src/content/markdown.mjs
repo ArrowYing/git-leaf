@@ -1,7 +1,7 @@
 import MarkdownIt from "markdown-it";
 
 import { createTranslator } from "../../public/i18n.js";
-import { controlledTextColorSpanAt } from "./markdown-table.mjs";
+import { controlledTableStyleSpanAt } from "./markdown-table.mjs";
 import { mdxLiteBlockRule, renderMdxLiteComponent } from "./mdx-lite.mjs";
 import {
   renderTableToolbar,
@@ -150,9 +150,28 @@ function createRenderer(options) {
     renderSafeImageHtml(tokens[index].content, options, { inline: true });
 
   renderer.renderer.rules.safe_html_break_inline = () => "<br>";
-  renderer.renderer.rules.safe_text_color_span_open = (tokens, index) =>
-    `<span class="git-leaf-text-color" style="color:${tokens[index].meta.color}">`;
-  renderer.renderer.rules.safe_text_color_span_close = () => "</span>";
+  renderer.renderer.rules.safe_table_style_span = (
+    tokens,
+    index,
+    rendererOptions,
+    env,
+    self,
+  ) => {
+    const { color, backgroundColor } = tokens[index].meta;
+    const classes = [
+      color ? "git-leaf-text-color" : "",
+      backgroundColor ? "git-leaf-text-highlight" : "",
+    ].filter(Boolean);
+    const declarations = [
+      color ? `color:${color}` : "",
+      backgroundColor ? `background-color:${backgroundColor}` : "",
+    ].filter(Boolean);
+    return [
+      `<span class="${classes.join(" ")}" style="${declarations.join(";")}">`,
+      self.renderInline(tokens[index].children ?? [], rendererOptions, env),
+      "</span>",
+    ].join("");
+  };
 
   renderer.renderer.rules.heading_open = (tokens, index, rendererOptions, env, self) => {
     const nextToken = tokens[index + 1];
@@ -368,16 +387,19 @@ function safeHtmlBreakInlineRule(state, silent) {
 }
 
 function safeTextColorSpanInlineRule(state, silent) {
-  const span = controlledTextColorSpanAt(state.src.slice(state.pos));
+  const span = controlledTableStyleSpanAt(state.src.slice(state.pos));
   if (!span) {
     return false;
   }
 
   if (!silent) {
-    const open = state.push("safe_text_color_span_open", "span", 1);
-    open.meta = { color: span.color };
-    state.md.inline.parse(span.content, state.md, state.env, state.tokens);
-    state.push("safe_text_color_span_close", "span", -1);
+    const token = state.push("safe_table_style_span", "span", 0);
+    token.meta = {
+      color: span.color,
+      backgroundColor: span.backgroundColor,
+    };
+    token.children = [];
+    state.md.inline.parse(span.content, state.md, state.env, token.children);
   }
   state.pos += span.length;
   return true;
@@ -676,19 +698,24 @@ function tableCellMeasurementText(inlineToken) {
   }
 
   return inlineToken.children
-    .map((token) => {
-      if (token.nesting !== 0) {
-        return "";
-      }
-      if (token.type === "softbreak" || token.type === "hardbreak") {
-        return " ";
-      }
-      if (token.type === "safe_image_html_inline") {
-        return parseHtmlAttributes(token.content).alt ?? "";
-      }
-      return String(token.content ?? "");
-    })
+    .map(inlineTokenMeasurementText)
     .join("");
+}
+
+function inlineTokenMeasurementText(token) {
+  if (token.nesting !== 0) {
+    return "";
+  }
+  if (token.type === "softbreak" || token.type === "hardbreak") {
+    return " ";
+  }
+  if (token.type === "safe_image_html_inline") {
+    return parseHtmlAttributes(token.content).alt ?? "";
+  }
+  if (Array.isArray(token.children)) {
+    return token.children.map(inlineTokenMeasurementText).join("");
+  }
+  return String(token.content ?? "");
 }
 
 function beginList(env, token) {

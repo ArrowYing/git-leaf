@@ -219,10 +219,13 @@ Native Markdown tables remain rendered in Live while the user works with them. C
 that cell's source without replacing the whole table with raw pipe syntax. Pointer dragging, including
 a gesture that starts in the active cell editor and crosses into another cell, selects the contiguous
 rectangular range bounded by the first and last cell. Horizontal, vertical, and diagonal gestures share
-this behavior. The transient color toolbar stays anchored above the table and closes through its close
-button or Escape. A column may be reordered from the explicit handle shown after at least two cells are
-selected vertically within that column; the whole column moves even when the selection covers only part
-of it. These controls rewrite only the current table block. Preview remains read-only.
+this behavior. The transient formatting toolbar stays anchored above the table and closes through its
+close button or Escape. It applies bold, italic, strikethrough, a fixed foreground-color palette, a
+fixed text-highlight palette, or clear formatting to every complete cell in the selected rectangle.
+Left, center, and right alignment apply to every column intersecting the selection. A column may be
+reordered from the explicit handle shown after at least two cells are selected vertically within that
+column; the whole column moves even when the selection covers only part of it. Each action is one
+CodeMirror transaction and rewrites only the current table block. Preview remains read-only.
 
 Source and Live reload external changes made by Git, editors, or AI agents. Git conflict markers remain
 ordinary source text; Git Leaf does not own conflict resolution.
@@ -235,11 +238,15 @@ control is an interface over portable source, not permission to introduce a Git 
 hidden metadata, or a second document representation. Exact rendering and editor affordances may still
 differ between applications.
 
-In particular, table rows and alignment remain native pipe-table syntax. Table text color writes a
-narrowly controlled inline HTML span using only `style="color: <fixed-palette-value>;"`; no class,
-event handler, arbitrary style declaration, or Git Leaf data attribute is stored in the document.
-Git Leaf renders only its fixed color palette and escapes unsupported HTML. Column movement reorders the
-header cell, its separator/alignment cell, and every body cell together.
+In particular, table rows and alignment remain native pipe-table syntax. Bold, italic, and
+strikethrough use standard Markdown delimiters. Foreground color and text-only highlight use one
+narrowly controlled inline HTML span whose `style` may contain only fixed-palette `color` and
+`background-color` values. Highlight never fills the table cell. No class, event handler, font size,
+arbitrary style declaration, hidden metadata, or Git Leaf data attribute is stored in the document.
+Git Leaf renders only the fixed palettes and escapes unsupported HTML. Alignment changes only the
+colons in the native separator row; clearing text formatting does not change alignment. Column
+movement reorders the header cell, its separator/alignment cell, and every body cell together. These
+sources remain editable in Obsidian even though its toolbar and exact rendering affordances may differ.
 
 MDX-lite is the explicit interoperability exception. It is a Git Leaf controlled extension and is not
 expected to open as an interactive component in Obsidian.

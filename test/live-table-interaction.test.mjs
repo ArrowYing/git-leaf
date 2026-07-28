@@ -254,6 +254,64 @@ test("the table-top toolbar closes through its close button and Escape", async (
   assert.equal(cell.querySelector(".cm-live-table-cell-editor"), null);
 });
 
+test("the Live table toolbar formats a rectangular range and aligns its columns", async () => {
+  const fixture = liveTableFixture();
+  const first = fixture.cell(1, 1);
+  const last = fixture.cell(2, 2);
+
+  fixture.interaction.handlePointerDown(pointerEvent(first, {
+    pointerId: 20,
+    clientX: 280,
+    clientY: 260,
+  }));
+  fixture.document.pointTarget = last;
+  fixture.interaction.handlePointerMove(pointerEvent(last, {
+    pointerId: 20,
+    clientX: 400,
+    clientY: 300,
+  }));
+  fixture.interaction.handlePointerUp(pointerEvent(last, {
+    pointerId: 20,
+    clientX: 400,
+    clientY: 300,
+  }));
+
+  fixture.interaction.handlePointerDown(pointerEvent(fixture.boldButton));
+  await nextTask();
+  assert.equal(fixture.boldButton.getAttribute("aria-pressed"), "true");
+
+  fixture.interaction.handlePointerDown(pointerEvent(fixture.colorTrigger));
+  assert.equal(fixture.colorMenu.hidden, false);
+  assert.equal(fixture.colorTrigger.getAttribute("aria-expanded"), "true");
+  assert.equal(fixture.colorMenu.classList.contains("opens-below"), true);
+  fixture.interaction.handlePointerDown(pointerEvent(fixture.greenButton));
+  await nextTask();
+  assert.equal(fixture.colorMenu.hidden, true);
+
+  fixture.interaction.handlePointerDown(pointerEvent(fixture.highlightButton));
+  fixture.interaction.handlePointerDown(pointerEvent(fixture.alignRightButton));
+  await nextTask();
+
+  let parsed = parseMarkdownTable(fixture.view.state.doc.toString());
+  assert.equal(
+    parsed?.visualRows[1].cells[1].content,
+    '**<span style="color: #16a34a; background-color: #d9770633;">B1</span>**',
+  );
+  assert.equal(
+    parsed?.visualRows[2].cells[2].content,
+    '**<span style="color: #16a34a; background-color: #d9770633;">C2</span>**',
+  );
+  assert.deepEqual(parsed?.alignments, ["left", "right", "right"]);
+
+  fixture.interaction.handlePointerDown(pointerEvent(fixture.clearFormatButton));
+  await nextTask();
+  parsed = parseMarkdownTable(fixture.view.state.doc.toString());
+  assert.equal(parsed?.visualRows[1].cells[1].content, "B1");
+  assert.equal(parsed?.visualRows[2].cells[2].content, "C2");
+  assert.deepEqual(parsed?.alignments, ["left", "right", "right"]);
+  assert.equal(fixture.boldButton.getAttribute("aria-pressed"), "false");
+});
+
 test("Escape is scoped to the editor that owns the table selection", async () => {
   const fixture = liveTableFixture();
   const cell = fixture.cell(2, 1);
@@ -341,12 +399,44 @@ function liveTableFixture() {
   }
 
   const toolbar = document.createElement("div");
-  toolbar.className = "cm-live-table-color-toolbar";
+  toolbar.className =
+    "cm-live-table-format-toolbar cm-live-table-color-toolbar";
   toolbar.hidden = true;
   toolbar.rect = rect(0, 0, 250, 38);
+  const boldButton = document.createElement("button");
+  boldButton.dataset.liveTableFormatAction = "bold";
+  boldButton.setAttribute("aria-pressed", "false");
+  toolbar.append(boldButton);
+
+  const colorTrigger = document.createElement("button");
+  colorTrigger.dataset.liveTableMenuToggle = "text-color";
+  colorTrigger.setAttribute("aria-expanded", "false");
+  toolbar.append(colorTrigger);
+  const colorMenu = document.createElement("span");
+  colorMenu.dataset.liveTablePalette = "text-color";
+  colorMenu.hidden = true;
+  const greenButton = document.createElement("button");
+  greenButton.className = "cm-live-table-swatch-button";
+  greenButton.dataset.liveTableColorAction = "#16a34a";
+  greenButton.setAttribute("aria-checked", "false");
+  colorMenu.append(greenButton);
   const resetButton = document.createElement("button");
+  resetButton.className = "cm-live-table-swatch-button";
   resetButton.dataset.liveTableColorAction = "clear";
-  toolbar.append(resetButton);
+  resetButton.setAttribute("aria-checked", "true");
+  colorMenu.append(resetButton);
+  toolbar.append(colorMenu);
+
+  const highlightButton = document.createElement("button");
+  highlightButton.dataset.liveTableHighlightAction = "#d9770633";
+  toolbar.append(highlightButton);
+  const alignRightButton = document.createElement("button");
+  alignRightButton.dataset.liveTableAlignAction = "right";
+  alignRightButton.setAttribute("aria-pressed", "false");
+  toolbar.append(alignRightButton);
+  const clearFormatButton = document.createElement("button");
+  clearFormatButton.dataset.liveTableFormatAction = "clear";
+  toolbar.append(clearFormatButton);
   const closeButton = document.createElement("button");
   closeButton.dataset.liveTableToolbarClose = "true";
   toolbar.append(closeButton);
@@ -385,6 +475,13 @@ function liveTableFixture() {
     view,
     interaction,
     toolbar,
+    boldButton,
+    colorTrigger,
+    colorMenu,
+    greenButton,
+    highlightButton,
+    alignRightButton,
+    clearFormatButton,
     closeButton,
     handle,
     cell(row, column) {
@@ -435,6 +532,9 @@ class FakeElement {
     this.style = {
       setProperty(name, value) {
         this[name] = value;
+      },
+      removeProperty(name) {
+        delete this[name];
       },
     };
     this.hidden = false;

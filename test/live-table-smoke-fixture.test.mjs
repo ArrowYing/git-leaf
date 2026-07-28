@@ -29,6 +29,8 @@ test("Live table smoke fixture provides native editable table scenarios", () => 
     assert.match(LIVE_TABLE_SMOKE_ACCEPTANCE, /固定在表格顶部/);
     assert.match(LIVE_TABLE_SMOKE_ACCEPTANCE, /至少两个单元格/);
     assert.match(LIVE_TABLE_SMOKE_ACCEPTANCE, /Esc 关闭/);
+    assert.match(LIVE_TABLE_SMOKE_ACCEPTANCE, /粗体、斜体、删除线/);
+    assert.match(LIVE_TABLE_SMOKE_ACCEPTANCE, /清除文字格式不改变列对齐/);
     assert.match(LIVE_TABLE_SMOKE_ACCEPTANCE, /Preview 保持只读/);
 
     const source = readLiveTableSmokeDocument(fixture);
@@ -38,7 +40,12 @@ test("Live table smoke fixture provides native editable table scenarios", () => 
     assert.equal(block?.table.columnCount, 4);
     assert.equal(block?.table.rowCount, 5);
     assert.ok(parseMarkdownTable(block?.source));
-    assert.match(source, /style="color: #16a34a;"/);
+    assert.match(
+      source,
+      /style="color: #16a34a; background-color: #16a34a33;"/,
+    );
+    assert.match(source, /\*\*128\.4（↑ 12\.4%）\*\*/);
+    assert.match(source, /~~96\.7（↓ 8\.7%）~~/);
     assert.equal(containsNativeLiveTableSmokeTable(source), true);
     assert.equal(
       containsNativeLiveTableSmokeTable(source.replace(

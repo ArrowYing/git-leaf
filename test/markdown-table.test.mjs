@@ -2,12 +2,20 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  alignMarkdownTableColumns,
+  applyMarkdownTableHighlightColor,
+  applyMarkdownTableTextStyle,
   applyMarkdownTableTextColor,
+  clearMarkdownTableTextFormatting,
   colorMarkdownTableCellContent,
+  controlledTableStyleSpanAt,
   controlledTextColorSpanAt,
+  formatMarkdownTableCellContent,
   markdownTableBlockAtLines,
+  markdownTableSelectionFormatState,
   normalizeMarkdownTableSelection,
   parseMarkdownTable,
+  parseMarkdownTableCellFormat,
   parseMarkdownTableRow,
   reorderMarkdownTableColumn,
   replaceMarkdownTableCell,
@@ -118,6 +126,67 @@ test("table text colors wrap, replace, and clear only controlled palette spans",
   );
 });
 
+test("table cell formats combine standard Markdown with controlled colors", () => {
+  const formatted = formatMarkdownTableCellContent("健康", {
+    bold: true,
+    italic: true,
+    strikethrough: true,
+    color: "#16A34A",
+    backgroundColor: "#16A34A33",
+  });
+
+  assert.equal(
+    formatted,
+    '**_~~<span style="color: #16a34a; background-color: #16a34a33;">健康</span>~~_**',
+  );
+  assert.deepEqual(parseMarkdownTableCellFormat(formatted), {
+    content: "健康",
+    bold: true,
+    italic: true,
+    strikethrough: true,
+    color: "#16a34a",
+    backgroundColor: "#16a34a33",
+  });
+  assert.equal(
+    formatMarkdownTableCellContent("查看 **局部强调**", { italic: true }),
+    "_查看 **局部强调**_",
+  );
+});
+
+test("controlled table style spans reject arbitrary or duplicate declarations", () => {
+  assert.deepEqual(
+    controlledTableStyleSpanAt(
+      '<span style="background-color: #dc262633; color: #2563eb;">风险</span>',
+    ),
+    {
+      color: "#2563eb",
+      backgroundColor: "#dc262633",
+      content: "风险",
+      length: 68,
+      source:
+        '<span style="background-color: #dc262633; color: #2563eb;">风险</span>',
+    },
+  );
+  assert.equal(
+    controlledTableStyleSpanAt(
+      '<span style="background-color: #ffffff;">不受控</span>',
+    ),
+    null,
+  );
+  assert.equal(
+    controlledTableStyleSpanAt(
+      '<span style="color: #16a34a; color: #dc2626;">重复</span>',
+    ),
+    null,
+  );
+  assert.equal(
+    controlledTableStyleSpanAt(
+      '<span style="font-size: 24px; color: #16a34a;">过大</span>',
+    ),
+    null,
+  );
+});
+
 test("applyMarkdownTableTextColor colors every cell in a rectangular selection", () => {
   const result = applyMarkdownTableTextColor(
     tableSource,
@@ -141,6 +210,144 @@ test("applyMarkdownTableTextColor colors every cell in a rectangular selection",
   assert.doesNotMatch(
     result?.source ?? "",
     /<span[^>]*>自然流量<\/span>/,
+  );
+});
+
+test("table text styles and highlights apply to a rectangular selection", () => {
+  const selected = {
+    anchorRow: 1,
+    anchorColumn: 1,
+    focusRow: 2,
+    focusColumn: 2,
+  };
+  const highlighted = applyMarkdownTableHighlightColor(
+    tableSource,
+    selected,
+    "#d9770633",
+  );
+  const bold = applyMarkdownTableTextStyle(
+    highlighted?.source,
+    selected,
+    "bold",
+    true,
+  );
+
+  assert.match(
+    bold?.source ?? "",
+    /\| 自然流量 \| \*\*<span style="background-color: #d9770633;">128\.4（↑ 12\.4%）<\/span>\*\* \|/,
+  );
+  assert.match(
+    bold?.source ?? "",
+    /\*\*<span style="background-color: #d9770633;">风险<\/span>\*\*/,
+  );
+  assert.equal(
+    applyMarkdownTableTextStyle(tableSource, selected, "underline", true),
+    null,
+  );
+});
+
+test("table selection format state reports uniform and mixed values", () => {
+  const selected = {
+    anchorRow: 1,
+    anchorColumn: 2,
+    focusRow: 2,
+    focusColumn: 2,
+  };
+  const oneColored = applyMarkdownTableTextColor(
+    tableSource,
+    {
+      anchorRow: 1,
+      anchorColumn: 2,
+      focusRow: 1,
+      focusColumn: 2,
+    },
+    "#16a34a",
+  );
+
+  assert.deepEqual(
+    markdownTableSelectionFormatState(oneColored?.source, selected),
+    {
+      bold: false,
+      italic: false,
+      strikethrough: false,
+      color: "mixed",
+      backgroundColor: null,
+      alignment: "center",
+      alignments: ["center"],
+      selection: {
+        ...selected,
+        minRow: 1,
+        maxRow: 2,
+        minColumn: 2,
+        maxColumn: 2,
+      },
+    },
+  );
+});
+
+test("clearing table text formatting preserves cell content and alignment", () => {
+  const source = [
+    "| 状态 |",
+    "| ---: |",
+    '| **_~~<span style="color: #dc2626; background-color: #d9770633;">[风险](risk.md)</span>~~_** |',
+  ].join("\n");
+  const result = clearMarkdownTableTextFormatting(source, {
+    anchorRow: 1,
+    anchorColumn: 0,
+    focusRow: 1,
+    focusColumn: 0,
+  });
+
+  assert.equal(
+    result?.source,
+    [
+      "| 状态 |",
+      "| ---: |",
+      "| [风险](risk.md) |",
+    ].join("\n"),
+  );
+});
+
+test("alignMarkdownTableColumns updates only intersecting separator cells", () => {
+  const centered = alignMarkdownTableColumns(
+    tableSource,
+    {
+      anchorRow: 1,
+      anchorColumn: 0,
+      focusRow: 2,
+      focusColumn: 1,
+    },
+    "center",
+  );
+
+  assert.equal(
+    centered?.source,
+    [
+      "| 渠道 | 收入与变化 | 状态 |",
+      "| :---: | :---: | :---: |",
+      "| 自然流量 | 128.4（↑ 12.4%） | 健康 |",
+      "| 付费投放 | 96.7（↓ 8.7%） | 风险 |",
+    ].join("\n"),
+  );
+  const leftAgain = alignMarkdownTableColumns(
+    centered?.source,
+    {
+      anchorRow: 0,
+      anchorColumn: 1,
+      focusRow: 0,
+      focusColumn: 1,
+    },
+    "left",
+  );
+  assert.match(leftAgain?.source ?? "", /^\| :---: \| :--- \| :---: \|$/m);
+  assert.equal(
+    alignMarkdownTableColumns(tableSource, {
+      anchorRow: 0,
+      anchorColumn: 0,
+      focusRow: 0,
+      focusColumn: 0,
+    }, "justify"),
+    null,
   );
 });
 

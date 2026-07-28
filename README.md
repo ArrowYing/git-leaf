@@ -53,8 +53,8 @@ part of that repository, but the repository's operational role is broader than h
 4. **Make a focused edit when that is faster.** Live keeps headings, lists, links, and other content
    close to their reading appearance while writing the original Markdown or MDX file. Source remains
    available when precise text control is needed. Native Markdown tables support cell-local source
-   editing, rectangular range color, and basic column reordering without introducing a private table
-   format.
+   editing, rectangular range formatting, fixed text and highlight colors, column alignment, and basic
+   column reordering without introducing a private table format.
 5. **Keep the shared repository current.** Git Leaf can bring in remote changes while preserving
    unfinished local edits. **Sync and publish** commits and pushes intentionally; **Copy share link**
    returns a versioned link only after verifying the published revision.

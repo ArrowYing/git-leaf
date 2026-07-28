@@ -105,11 +105,14 @@ belongs to the repository and remains readable to agents and other tools.
 
 In a native Markdown table, click a cell to edit only that cell's source. You can start a drag while that
 cell is still being edited; crossing into neighboring cells selects the rectangle between the start and
-end cells in any direction. The color palette stays above the table, applies or clears one text color
-across the range, and closes with its close button or Escape. Selecting two or more cells vertically in
-one column reveals the small column handle; drag it to move the whole column. These controls are
-available in Live, while Preview remains read-only. The saved document stays a native pipe table with an
-Obsidian-compatible inline color span rather than a Git Leaf-only table format.
+end cells in any direction. The formatting toolbar stays above the table and applies bold, italic,
+strikethrough, foreground color, or text-only highlight to every selected cell. Its alignment controls
+align every column touched by the selection; clearing text formatting leaves alignment unchanged. The
+two fixed color palettes open only when needed, and the toolbar closes with its close button or Escape.
+Selecting two or more cells vertically in one column reveals the small column handle; drag it to move
+the whole column. These controls are available in Live, while Preview remains read-only. The saved
+document stays a native pipe table using standard Markdown, separator-row alignment, and narrowly
+controlled Obsidian-compatible inline styles rather than a Git Leaf-only table format.
 
 ![Source exposes the exact Markdown beside the rendered document](assets/user-guide/source-editor.jpg)
 

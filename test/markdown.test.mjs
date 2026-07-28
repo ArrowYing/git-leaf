@@ -313,12 +313,15 @@ test("renderMarkdown renders safe HTML images inside Markdown table cells", () =
   assert.doesNotMatch(html, /&lt;br/);
 });
 
-test("renderMarkdown renders only the controlled table text-color palette", () => {
+test("renderMarkdown renders only controlled table text and highlight colors", () => {
   const html = renderMarkdown([
     "| 状态 | 说明 |",
     "| --- | --- |",
     '| <span style="color: #16a34a;">**健康**</span> | <span style="color: #ffffff;">不受控颜色</span> |',
-    '| <span style="font-size: 40px;">不受控样式</span> | <span style="color: #dc2626;" onclick="alert(1)">风险</span> |',
+    '| <span style="background-color: #d9770633;">_观察_</span> | <span style="color: #dc2626; background-color: #dc262633;">~~风险~~</span> |',
+    '| **~~<span style="background-color: #2563eb33;">复核</span>~~** | 普通 |',
+    '| <span style="background-color: #ffffff;">不受控高亮</span> | <span style="font-size: 40px;">不受控样式</span> |',
+    '| <span style="color: #dc2626;" onclick="alert(1)">风险</span> | 普通 |',
   ].join("\n"));
 
   assert.match(
@@ -331,13 +334,29 @@ test("renderMarkdown renders only the controlled table text-color palette", () =
   );
   assert.match(
     html,
+    /<span class="git-leaf-text-highlight" style="background-color:#d9770633"><em>观察<\/em><\/span>/,
+  );
+  assert.match(
+    html,
+    /<span class="git-leaf-text-color git-leaf-text-highlight" style="color:#dc2626;background-color:#dc262633"><s>风险<\/s><\/span>/,
+  );
+  assert.match(
+    html,
+    /<strong><s><span class="git-leaf-text-highlight" style="background-color:#2563eb33">复核<\/span><\/s><\/strong>/,
+  );
+  assert.match(
+    html,
+    /&lt;span style=&quot;background-color: #ffffff;&quot;&gt;不受控高亮&lt;\/span&gt;/,
+  );
+  assert.match(
+    html,
     /&lt;span style=&quot;font-size: 40px;&quot;&gt;不受控样式&lt;\/span&gt;/,
   );
   assert.doesNotMatch(html, /<span[^>]*onclick=/);
   assert.doesNotMatch(html, /style="color:#ffffff"/);
 });
 
-test("controlled table text colors do not change table width measurement", () => {
+test("controlled table text formats do not change table width measurement", () => {
   const source = [
     "| 渠道 | 收入与变化 | 状态 |",
     "| --- | ---: | --- |",
@@ -345,9 +364,18 @@ test("controlled table text colors do not change table width measurement", () =>
     "| 付费投放 | 96.7（↓ 8.7%） | 风险 |",
   ].join("\n");
   const coloredSource = source
-    .replace("自然流量", '<span style="color: #d97706;">自然流量</span>')
-    .replace("128.4（↑ 12.4%）", '<span style="color: #d97706;">128.4（↑ 12.4%）</span>')
-    .replace("健康", '<span style="color: #16a34a;">健康</span>');
+    .replace(
+      "自然流量",
+      '**<span style="color: #d97706;">自然流量</span>**',
+    )
+    .replace(
+      "128.4（↑ 12.4%）",
+      '<span style="background-color: #d9770633;">128.4（↑ 12.4%）</span>',
+    )
+    .replace(
+      "健康",
+      '<span style="color: #16a34a; background-color: #16a34a33;">健康</span>',
+    );
   const layoutMarkup = (html) => ({
     cardStyle: html.match(/<div class="table-card[^>]+style="([^"]+)"/)?.[1],
     colgroup: html.match(/<colgroup>[\s\S]*?<\/colgroup>/)?.[0],

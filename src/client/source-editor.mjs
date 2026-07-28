@@ -34,9 +34,15 @@ import { EditorView, minimalSetup } from "codemirror";
 
 import { renderMarkdown } from "../content/markdown.mjs";
 import {
+  MARKDOWN_TABLE_HIGHLIGHT_COLORS,
   MARKDOWN_TABLE_TEXT_COLORS,
+  alignMarkdownTableColumns,
+  applyMarkdownTableHighlightColor,
+  applyMarkdownTableTextStyle,
   applyMarkdownTableTextColor,
+  clearMarkdownTableTextFormatting,
   markdownTableBlockAtLines,
+  markdownTableSelectionFormatState,
   normalizeMarkdownTableSelection,
   parseMarkdownTable,
   reorderMarkdownTableColumn,
@@ -161,26 +167,58 @@ const SOURCE_EDITOR_SLASH_MESSAGES = {
 
 const SOURCE_EDITOR_TABLE_MESSAGES = {
   en: {
-    "toolbar.label": "Table text color",
+    "toolbar.label": "Table formatting",
     "toolbar.close": "Close table tools",
+    "format.bold": "Bold",
+    "format.italic": "Italic",
+    "format.strikethrough": "Strikethrough",
+    "format.clear": "Clear text formatting",
+    "palette.textColor": "Text color",
+    "palette.highlight": "Text highlight",
     "color.green": "Positive green",
     "color.red": "Risk red",
     "color.orange": "Warning orange",
     "color.blue": "Information blue",
     "color.gray": "Neutral gray",
     "color.clear": "Clear text color",
+    "highlight.green": "Green highlight",
+    "highlight.red": "Red highlight",
+    "highlight.orange": "Orange highlight",
+    "highlight.blue": "Blue highlight",
+    "highlight.gray": "Gray highlight",
+    "highlight.clear": "Clear text highlight",
+    "align.group": "Column alignment",
+    "align.left": "Align selected columns left",
+    "align.center": "Align selected columns center",
+    "align.right": "Align selected columns right",
     "cell.edit": "Edit table cell source",
     "column.drag": "Drag to reorder the selected column",
   },
   "zh-CN": {
-    "toolbar.label": "表格文字颜色",
+    "toolbar.label": "表格格式",
     "toolbar.close": "关闭表格工具栏",
+    "format.bold": "粗体",
+    "format.italic": "斜体",
+    "format.strikethrough": "删除线",
+    "format.clear": "清除文字格式",
+    "palette.textColor": "文字颜色",
+    "palette.highlight": "文字高亮",
     "color.green": "正向绿色",
     "color.red": "风险红色",
     "color.orange": "提醒橙色",
     "color.blue": "信息蓝色",
     "color.gray": "中性灰色",
     "color.clear": "清除文字颜色",
+    "highlight.green": "绿色高亮",
+    "highlight.red": "红色高亮",
+    "highlight.orange": "橙色高亮",
+    "highlight.blue": "蓝色高亮",
+    "highlight.gray": "灰色高亮",
+    "highlight.clear": "清除文字高亮",
+    "align.group": "列对齐",
+    "align.left": "选中列左对齐",
+    "align.center": "选中列居中对齐",
+    "align.right": "选中列右对齐",
     "cell.edit": "编辑表格单元格源码",
     "column.drag": "拖动调整选中列的顺序",
   },
@@ -1609,30 +1647,78 @@ export function createLiveTableInteraction({
     } else {
       cancelEditor();
     }
+    closeLiveTableToolbarMenus(getView()?.dom);
     pointerSelection = null;
     columnDrag = null;
     selection = null;
     scheduleRefresh();
   };
 
-  const applyTextColor = (color) => {
+  const applySelectionTransform = (transform) => {
     if (!selection || !isEditable()) {
       return false;
     }
     commitEditor();
     const block = currentTableBlock(selection.startLine);
-    const result = applyMarkdownTableTextColor(
-      block?.source,
-      selection,
-      color,
-    );
+    const result = block ? transform(block) : null;
     if (!block || !result) {
       return false;
     }
+    closeLiveTableToolbarMenus(getView()?.dom);
     if (result.changed) {
       dispatchTableSource(block, result.source);
     } else {
       scheduleRefresh();
+    }
+    return true;
+  };
+
+  const applyTextColor = (color) =>
+    applySelectionTransform((block) =>
+      applyMarkdownTableTextColor(block.source, selection, color));
+
+  const applyHighlightColor = (color) =>
+    applySelectionTransform((block) =>
+      applyMarkdownTableHighlightColor(block.source, selection, color));
+
+  const applyTextStyle = (style) =>
+    applySelectionTransform((block) => {
+      const state = markdownTableSelectionFormatState(
+        block.source,
+        selection,
+      );
+      return applyMarkdownTableTextStyle(
+        block.source,
+        selection,
+        style,
+        state?.[style] !== true,
+      );
+    });
+
+  const clearTextFormatting = () =>
+    applySelectionTransform((block) =>
+      clearMarkdownTableTextFormatting(block.source, selection));
+
+  const applyAlignment = (alignment) =>
+    applySelectionTransform((block) =>
+      alignMarkdownTableColumns(block.source, selection, alignment));
+
+  const toggleToolbarMenu = (button) => {
+    const toolbar = button.closest(".cm-live-table-format-toolbar");
+    const menuName = button.dataset.liveTableMenuToggle;
+    const menu = toolbar?.querySelector(
+      `[data-live-table-palette="${menuName}"]`,
+    );
+    if (!toolbar || !menu) {
+      return false;
+    }
+
+    const shouldOpen = menu.hidden;
+    closeLiveTableToolbarMenus(toolbar);
+    if (shouldOpen) {
+      menu.hidden = false;
+      button.setAttribute("aria-expanded", "true");
+      positionLiveTablePalette(menu);
     }
     return true;
   };
@@ -1761,6 +1847,33 @@ export function createLiveTableInteraction({
       return;
     }
 
+    const menuButton = closestElement(
+      event.target,
+      "[data-live-table-menu-toggle]",
+    );
+    if (menuButton) {
+      event.preventDefault();
+      event.stopPropagation();
+      toggleToolbarMenu(menuButton);
+      return;
+    }
+
+    const formatButton = closestElement(
+      event.target,
+      "[data-live-table-format-action]",
+    );
+    if (formatButton) {
+      event.preventDefault();
+      event.stopPropagation();
+      const action = formatButton.dataset.liveTableFormatAction;
+      if (action === "clear") {
+        clearTextFormatting();
+      } else {
+        applyTextStyle(action);
+      }
+      return;
+    }
+
     const colorButton = closestElement(
       event.target,
       "[data-live-table-color-action]",
@@ -1770,6 +1883,29 @@ export function createLiveTableInteraction({
       event.stopPropagation();
       const action = colorButton.dataset.liveTableColorAction;
       applyTextColor(action === "clear" ? null : action);
+      return;
+    }
+
+    const highlightButton = closestElement(
+      event.target,
+      "[data-live-table-highlight-action]",
+    );
+    if (highlightButton) {
+      event.preventDefault();
+      event.stopPropagation();
+      const action = highlightButton.dataset.liveTableHighlightAction;
+      applyHighlightColor(action === "clear" ? null : action);
+      return;
+    }
+
+    const alignmentButton = closestElement(
+      event.target,
+      "[data-live-table-align-action]",
+    );
+    if (alignmentButton) {
+      event.preventDefault();
+      event.stopPropagation();
+      applyAlignment(alignmentButton.dataset.liveTableAlignAction);
       return;
     }
 
@@ -1791,6 +1927,7 @@ export function createLiveTableInteraction({
       return;
     }
 
+    closeLiveTableToolbarMenus(getView()?.dom);
     event.preventDefault();
     event.stopPropagation();
     if (
@@ -2036,6 +2173,10 @@ export function createLiveTableInteraction({
 
     const toolbar = container.querySelector(".cm-live-table-color-toolbar");
     if (toolbar && selectedCells.length > 0 && isEditable()) {
+      updateLiveTableToolbar(
+        toolbar,
+        markdownTableSelectionFormatState(block.source, selection),
+      );
       toolbar.hidden = false;
       const table = container.querySelector(".cm-live-table");
       positionFloatingControl(toolbar, table?.getBoundingClientRect(), {
@@ -2142,39 +2283,68 @@ function prepareLiveTablePreview(container, block, translate) {
   }
 
   const toolbar = document.createElement("div");
-  toolbar.className = "cm-live-table-color-toolbar";
+  toolbar.className =
+    "cm-live-table-format-toolbar cm-live-table-color-toolbar";
   toolbar.setAttribute("role", "toolbar");
   toolbar.setAttribute("aria-label", translate("toolbar.label"));
   toolbar.hidden = true;
-  for (const color of MARKDOWN_TABLE_TEXT_COLORS) {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "cm-live-table-color-button";
-    button.dataset.liveTableColorAction = color.value;
-    button.dataset.colorName = color.name;
-    button.style.setProperty("--live-table-color", color.value);
-    button.setAttribute("aria-label", translate(`color.${color.name}`));
-    button.title = translate(`color.${color.name}`);
+
+  for (const style of ["bold", "italic", "strikethrough"]) {
+    const button = createLiveTableToolbarButton(
+      translate(`format.${style}`),
+      style === "bold" ? "B" : (style === "italic" ? "I" : "S"),
+      `is-${style}`,
+    );
+    button.dataset.liveTableFormatAction = style;
+    button.setAttribute("aria-pressed", "false");
     toolbar.append(button);
   }
 
-  const clearButton = document.createElement("button");
-  clearButton.type = "button";
-  clearButton.className =
-    "cm-live-table-color-button cm-live-table-color-reset";
-  clearButton.dataset.liveTableColorAction = "clear";
-  clearButton.setAttribute("aria-label", translate("color.clear"));
-  clearButton.title = translate("color.clear");
+  toolbar.append(createLiveTableToolbarSeparator());
+  toolbar.append(
+    createLiveTablePaletteControl({
+      kind: "text-color",
+      label: translate("palette.textColor"),
+      clearLabel: translate("color.clear"),
+      palette: MARKDOWN_TABLE_TEXT_COLORS,
+      translateColor: (name) => translate(`color.${name}`),
+    }),
+    createLiveTablePaletteControl({
+      kind: "highlight",
+      label: translate("palette.highlight"),
+      clearLabel: translate("highlight.clear"),
+      palette: MARKDOWN_TABLE_HIGHLIGHT_COLORS,
+      translateColor: (name) => translate(`highlight.${name}`),
+    }),
+  );
+
+  toolbar.append(createLiveTableToolbarSeparator());
+  for (const alignment of ["left", "center", "right"]) {
+    const button = createLiveTableToolbarButton(
+      translate(`align.${alignment}`),
+    );
+    button.classList.add("cm-live-table-align-button");
+    button.dataset.liveTableAlignAction = alignment;
+    button.setAttribute("aria-pressed", "false");
+    button.append(createLiveTableAlignmentIcon(alignment));
+    toolbar.append(button);
+  }
+
+  toolbar.append(createLiveTableToolbarSeparator());
+  const clearButton = createLiveTableToolbarButton(
+    translate("format.clear"),
+    "Tx",
+    "is-clear-format",
+  );
+  clearButton.dataset.liveTableFormatAction = "clear";
   toolbar.append(clearButton);
 
-  const closeButton = document.createElement("button");
-  closeButton.type = "button";
-  closeButton.className =
-    "cm-live-table-color-button cm-live-table-toolbar-close";
+  const closeButton = createLiveTableToolbarButton(
+    translate("toolbar.close"),
+    "×",
+    "cm-live-table-toolbar-close",
+  );
   closeButton.dataset.liveTableToolbarClose = "true";
-  closeButton.setAttribute("aria-label", translate("toolbar.close"));
-  closeButton.title = translate("toolbar.close");
-  closeButton.textContent = "×";
   toolbar.append(closeButton);
 
   const columnHandle = document.createElement("button");
@@ -2188,6 +2358,210 @@ function prepareLiveTablePreview(container, block, translate) {
 
   container.append(toolbar, columnHandle);
   return true;
+}
+
+function createLiveTableToolbarButton(label, text = "", modifier = "") {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "cm-live-table-format-button";
+  if (modifier) {
+    button.classList.add(modifier);
+  }
+  button.setAttribute("aria-label", label);
+  button.title = label;
+  if (text) {
+    const symbol = document.createElement("span");
+    symbol.className = "cm-live-table-format-symbol";
+    symbol.setAttribute("aria-hidden", "true");
+    symbol.textContent = text;
+    button.append(symbol);
+  }
+  return button;
+}
+
+function createLiveTableToolbarSeparator() {
+  const separator = document.createElement("span");
+  separator.className = "cm-live-table-format-separator";
+  separator.setAttribute("aria-hidden", "true");
+  return separator;
+}
+
+function createLiveTablePaletteControl({
+  kind,
+  label,
+  clearLabel,
+  palette,
+  translateColor,
+}) {
+  const wrapper = document.createElement("span");
+  wrapper.className = "cm-live-table-palette-control";
+
+  const trigger = createLiveTableToolbarButton(label);
+  trigger.classList.add("cm-live-table-palette-trigger", `is-${kind}`);
+  trigger.dataset.liveTableMenuToggle = kind;
+  trigger.setAttribute("aria-haspopup", "menu");
+  trigger.setAttribute("aria-expanded", "false");
+
+  const symbol = document.createElement("span");
+  symbol.className = "cm-live-table-palette-symbol";
+  symbol.setAttribute("aria-hidden", "true");
+  symbol.textContent = "A";
+  const chevron = document.createElement("span");
+  chevron.className = "cm-live-table-palette-chevron";
+  chevron.setAttribute("aria-hidden", "true");
+  chevron.textContent = "▾";
+  trigger.append(symbol, chevron);
+
+  const menu = document.createElement("span");
+  menu.className = `cm-live-table-palette is-${kind}`;
+  menu.dataset.liveTablePalette = kind;
+  menu.setAttribute("role", "menu");
+  menu.setAttribute("aria-label", label);
+  menu.hidden = true;
+
+  for (const color of palette) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "cm-live-table-swatch-button";
+    if (kind === "text-color") {
+      button.dataset.liveTableColorAction = color.value;
+    } else {
+      button.dataset.liveTableHighlightAction = color.value;
+    }
+    button.style.setProperty("--live-table-swatch", color.value);
+    button.setAttribute("role", "menuitemradio");
+    button.setAttribute("aria-checked", "false");
+    button.setAttribute("aria-label", translateColor(color.name));
+    button.title = translateColor(color.name);
+    menu.append(button);
+  }
+
+  const clearButton = document.createElement("button");
+  clearButton.type = "button";
+  clearButton.className =
+    "cm-live-table-swatch-button cm-live-table-swatch-clear";
+  if (kind === "text-color") {
+    clearButton.dataset.liveTableColorAction = "clear";
+  } else {
+    clearButton.dataset.liveTableHighlightAction = "clear";
+  }
+  clearButton.setAttribute("role", "menuitemradio");
+  clearButton.setAttribute("aria-checked", "true");
+  clearButton.setAttribute("aria-label", clearLabel);
+  clearButton.title = clearLabel;
+  clearButton.textContent = "×";
+  menu.append(clearButton);
+
+  wrapper.append(trigger, menu);
+  return wrapper;
+}
+
+function createLiveTableAlignmentIcon(alignment) {
+  const icon = document.createElement("span");
+  icon.className = `cm-live-table-align-icon is-${alignment}`;
+  icon.setAttribute("aria-hidden", "true");
+  for (const width of [14, 9, 14, 11]) {
+    const line = document.createElement("span");
+    line.style.width = `${width}px`;
+    icon.append(line);
+  }
+  return icon;
+}
+
+function closeLiveTableToolbarMenus(root) {
+  for (const menu of root?.querySelectorAll?.(
+    "[data-live-table-palette]",
+  ) ?? []) {
+    menu.hidden = true;
+  }
+  for (const trigger of root?.querySelectorAll?.(
+    "[data-live-table-menu-toggle]",
+  ) ?? []) {
+    trigger.setAttribute("aria-expanded", "false");
+  }
+}
+
+function positionLiveTablePalette(menu) {
+  menu.classList.remove("opens-below");
+  if (menu.getBoundingClientRect().top < 8) {
+    menu.classList.add("opens-below");
+  }
+}
+
+function updateLiveTableToolbar(toolbar, state) {
+  if (!toolbar || !state) {
+    return;
+  }
+
+  for (const button of toolbar.querySelectorAll(
+    "[data-live-table-format-action]",
+  )) {
+    const action = button.dataset.liveTableFormatAction;
+    if (action !== "clear") {
+      updateLiveTablePressedState(button, state[action]);
+    }
+  }
+  for (const button of toolbar.querySelectorAll(
+    "[data-live-table-align-action]",
+  )) {
+    const alignment = button.dataset.liveTableAlignAction;
+    updateLiveTablePressedState(
+      button,
+      state.alignment === alignment
+        ? true
+        : (
+            state.alignment === "mixed" &&
+            state.alignments?.includes(alignment)
+              ? "mixed"
+              : false
+          ),
+    );
+  }
+
+  updateLiveTablePaletteState(toolbar, "text-color", state.color);
+  updateLiveTablePaletteState(
+    toolbar,
+    "highlight",
+    state.backgroundColor,
+  );
+}
+
+function updateLiveTablePressedState(button, value) {
+  const pressed = value === "mixed" ? "mixed" : String(value === true);
+  button.setAttribute("aria-pressed", pressed);
+  button.classList.toggle("is-mixed", value === "mixed");
+}
+
+function updateLiveTablePaletteState(toolbar, kind, value) {
+  const trigger = toolbar.querySelector(
+    `[data-live-table-menu-toggle="${kind}"]`,
+  );
+  const menu = toolbar.querySelector(`[data-live-table-palette="${kind}"]`);
+  if (!trigger || !menu) {
+    return;
+  }
+
+  const attribute = kind === "text-color"
+    ? "liveTableColorAction"
+    : "liveTableHighlightAction";
+  const activeValue = typeof value === "string" && value !== "mixed"
+    ? value
+    : null;
+  trigger.classList.toggle("has-value", Boolean(activeValue));
+  trigger.classList.toggle("is-mixed", value === "mixed");
+  if (activeValue) {
+    trigger.style.setProperty("--live-table-active-swatch", activeValue);
+  } else {
+    trigger.style.removeProperty("--live-table-active-swatch");
+  }
+
+  for (const button of menu.querySelectorAll(".cm-live-table-swatch-button")) {
+    const action = button.dataset[attribute];
+    const checked = action === "clear"
+      ? value === null
+      : action === activeValue;
+    button.setAttribute("aria-checked", String(checked));
+  }
 }
 
 function positionFloatingControl(
