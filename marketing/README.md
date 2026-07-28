@@ -1,5 +1,5 @@
 ---
-last_updated: 2026-07-27
+last_updated: 2026-07-28
 ---
 
 # Git Leaf marketing
@@ -12,13 +12,15 @@ The baseline definition is:
 
 > A desktop app for Git-based knowledge bases.
 >
-> Open and maintain your knowledge base without working directly in Git or Markdown.
+> Let the whole team maintain shared knowledge without requiring everyone to use Git or Markdown.
 >
-> Anyone can use Git Leaf, while AI agents work with the same files directly in Git.
+> Everyone on the team can contribute through Git Leaf, while developers and AI agents work with the
+> same files directly in Git.
 
 Git Leaf is the app; the Git repository it opens is the knowledge base and remains the content source of
-truth. AI-native companies are a flagship use case and initial organizational audience, not a limit on
-the product category.
+truth. The primary market is teams of any size that use Git as their shared knowledge source, from
+open-source projects and small teams to companies. AI-native teams are a flagship scenario, not a limit
+on the product category, and the positioning does not broaden into general-purpose note taking.
 
 ## Documents
 

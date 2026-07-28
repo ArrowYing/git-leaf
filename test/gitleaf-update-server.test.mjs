@@ -519,8 +519,8 @@ test("gitleaf download page renders validated public macOS and Windows releases 
     assert.match(response.headers.get("content-security-policy"), /default-src 'none'/);
     assert.doesNotMatch(response.headers.get("content-security-policy"), /script-src/);
     assert.match(english, /A desktop app for Git-based knowledge bases\./);
-    assert.match(english, /Open and maintain your knowledge base without working directly in Git or Markdown\./);
-    assert.match(english, /Anyone can use Git Leaf, while AI agents work with the same files directly in Git\./);
+    assert.match(english, /Let the whole team maintain shared knowledge without requiring everyone to use Git or Markdown\./);
+    assert.match(english, /Everyone on the team can contribute through Git Leaf, while developers and AI agents work with the same files directly in Git\./);
     assert.match(english, /Developer ID signed and Apple notarized/);
     assert.match(english, /Unsigned Preview/);
     assert.match(
@@ -542,8 +542,8 @@ test("gitleaf download page renders validated public macOS and Windows releases 
     const chinese = await chineseResponse.text();
     assert.equal(chineseResponse.headers.get("content-language"), "zh-CN");
     assert.match(chinese, /面向 Git 知识库的桌面应用。/);
-    assert.match(chinese, /无需直接操作 Git 或 Markdown，即可打开并维护知识库。/);
-    assert.match(chinese, /任何人都可以使用 Git Leaf，AI Agent 则直接使用 Git 中的同一份文件。/);
+    assert.match(chinese, /让整个团队共同维护知识，无需要求每个人都使用 Git 或 Markdown。/);
+    assert.match(chinese, /所有团队成员都可以通过 Git Leaf 参与，开发者和 AI Agent 仍直接使用 Git 中的同一份文件。/);
     assert.match(chinese, /Windows 会显示未知发布者警告/);
 
     const head = await fetch(`http://127.0.0.1:${port}/download`, {

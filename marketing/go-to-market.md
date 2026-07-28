@@ -1,5 +1,5 @@
 ---
-last_updated: 2026-07-27
+last_updated: 2026-07-28
 ---
 
 # Go to market
@@ -13,50 +13,63 @@ last_updated: 2026-07-27
 > A desktop app for Git-based knowledge bases.
 
 Use this in the README, GitHub description, download page, and general introductions. Do not add
-`company`, `team`, or `AI-native company`, and do not describe Git Leaf as the knowledge base itself.
+`company` or `AI-native company` to the category itself, and do not describe Git Leaf as the knowledge
+base. Follow the category immediately with the team problem: team collaboration is the primary use, while
+company size is only one scale.
 
 ### Primary problem
 
-> Open and maintain your knowledge base without working directly in Git or Markdown.
+> Let the whole team maintain shared knowledge without requiring everyone to use Git or Markdown.
 
-This makes the ordinary-user audience explicit: adoption does not require becoming a developer or
-understanding the implementation.
+This makes the cross-role team problem explicit: adoption does not require every member to become a
+developer or understand the implementation.
 
 ### Core value
 
-> Anyone can use Git Leaf, while AI agents work with the same files directly in Git.
+> Everyone on the team can contribute through Git Leaf, while developers and AI agents work with the
+> same files directly in Git.
 
-This highlights collaboration without implying an embedded agent chat. The current product proves that
-people maintain files through the app, agents use the same repository, and both kinds of change reopen
-in Git Leaf.
+This highlights collaboration without implying an embedded agent chat or real-time co-editing. The
+current product proves that team members maintain files through the app, agents and developers use the
+same repository, and both kinds of change reopen in Git Leaf.
 
 ### Scenario campaign
 
 > The human interface for your AI-native knowledge base.
 
 Reserve this for campaigns, articles, and landing pages about AI-native teams, agent engineering, and
-organizational knowledge. It is not the global category because personal users, open-source projects,
-and teams that do not call themselves AI-native remain natural users.
+organizational knowledge. It is not the global category because open-source projects, small teams, and
+other groups using Git as their shared source of truth may not call themselves AI-native.
+
+### GitHub description
+
+> A desktop app for teams maintaining Git-based knowledge bases without requiring everyone to use Git
+> or Markdown.
+
+This compact description combines the stable category with the primary team problem. Longer surfaces
+should use the complete three-layer message above.
 
 ## Audience
 
 Daily users:
 
-- people who maintain knowledge without knowing Git or Markdown;
-- personal Git knowledge-base owners who want less source and terminal work;
-- open-source contributors reading and updating documentation;
+- team members who maintain knowledge without knowing Git or Markdown;
+- open-source project members reading and updating shared documentation;
 - small-team members sharing handbooks and operating knowledge;
+- company teams maintaining internal product, operations, and policy knowledge;
 - people reviewing and continuing documents changed by agents.
 
 Adopters:
 
-- individuals and maintainers already storing Markdown/MDX in Git;
+- repository maintainers already storing team knowledge as Markdown/MDX in Git;
 - technical leaders who want several agents and people to share ordinary files;
 - founders and platform leads developing AI-native ways of working.
 
-AI-native small teams and companies are the lead organizational ICP because they already have a Git
-knowledge source, direct agent access, and ordinary-member participation friction. Company language
-belongs in scenario content, not the global definition.
+The primary ICP is any team—from a few collaborators or an open-source project to a company—that already
+uses Git as the shared knowledge source but has members who should not need Git or an IDE. AI-native
+small teams and companies are the lead campaign segment because direct agent access makes the
+participation problem especially visible. Company language belongs in scenario content, not the global
+definition.
 
 ## README hero
 
@@ -73,20 +86,22 @@ the CTA, download page, and platform guide.
 
 ## Product screenshot
 
-The hero visual comes from a real isolated Git Leaf app with a fictitious knowledge repository, never a
-concept mockup, private company content, or development fixture.
+The hero visual comes from a real isolated Git Leaf app with a fictitious team knowledge repository,
+never a concept mockup, private company content, or development fixture.
 
 It should prove:
 
 - a complete desktop app and real repository identity;
-- a meaningful knowledge tree and All/Favorites/Sync state;
+- a meaningful shared-knowledge tree and All/Favorites/Sync state;
 - a readable document in Preview or Live;
 - one or two local changes and the Sync action;
 - Agent Context without implying embedded chat;
 - no errors, debug data, personal paths, or sensitive content.
 
-Use neutral content such as Project handbook, Decision record, and Release playbook. Keep the full-window
-ratio so ordinary viewers immediately recognize a usable desktop app.
+Use neutral team content such as Project handbook, Decision record, and Release playbook. Keep the
+full-window ratio so viewers immediately recognize a usable desktop app. The current
+`marketing/assets/git-leaf-product.png` already demonstrates a project handbook, unpublished team
+changes, a Sync action, and Agent Context, so it remains aligned with this positioning.
 
 ## 30–60 second demo
 
@@ -94,12 +109,12 @@ Use one 55-second loop, not a feature montage:
 
 | Time | Image | Story |
 | --- | --- | --- |
-| 0–8 s | Open Project handbook in Git Leaf | The knowledge base is in Git, but the person sees a normal document interface |
-| 8–18 s | Edit one project rule | No Markdown or terminal work |
-| 18–27 s | Open Sync and synchronize | The human change enters the shared Git repository |
+| 0–8 s | Open the team's Project handbook in Git Leaf | The shared knowledge base is in Git, but the team member sees a normal document interface |
+| 8–18 s | Edit one shared project rule | No Markdown or terminal work |
+| 18–27 s | Open Sync and publish | The team member's change enters the shared Git repository |
 | 27–40 s | An external agent reads the repository and updates Release playbook | The agent uses the same files without going through Git Leaf |
-| 40–53 s | Return to Git Leaf and inspect the changed document | The person can retake control and continue editing |
-| 53–60 s | Category, value, and download entry | Git knowledge works for ordinary people and agents |
+| 40–53 s | Return to Git Leaf and inspect the changed document | The team can retake control and continue editing |
+| 53–60 s | Category, team value, and download entry | One Git knowledge base works for the whole team and its agents |
 
 Do not show fictional built-in chat, real-time collaboration, or an invented diff-approval product.
 Agent Context can be a separate short demonstration for handing exact source to an agent that cannot
@@ -112,7 +127,7 @@ access the repository.
 
 Order:
 
-1. Category, primary problem, and human-agent value.
+1. Category, team problem, and human-agent value.
 2. Latest public release status.
 3. macOS version, signature/notarization, size, SHA-256, and download.
 4. Windows unsigned Preview warning, version, size, SHA-256, and download.
@@ -137,7 +152,7 @@ Reusable:
 - `marketing/assets/git-leaf-product.png`;
 - `marketing/assets/git-leaf-mdx-chart.png` for a focused, real MDX-lite chart proof in the README;
 - the public [Lighthouse Garden knowledge base](https://github.com/MangoFuture1210/git-leaf-example-knowledge-base)
-  for ordinary-user first-run and workflow demonstrations;
+  for first-run and team-workflow demonstrations;
 - `docs/mdx-lite-components-demo.mdx` for development and visual regression only.
 
 Create when campaign execution begins:
@@ -147,7 +162,7 @@ Create when campaign execution begins:
 
 ## Communication principles
 
-- Begin with the ordinary user's work, not a feature list or Git vocabulary.
+- Begin with the ordinary team member's work, not a feature list or Git vocabulary.
 - Show the real product and a complete workflow.
 - Adapt content to each channel rather than copy-pasting one post.
 - State where Git Leaf fits and does not fit.

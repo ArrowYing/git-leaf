@@ -8,15 +8,15 @@ last_updated: 2026-07-28
 
 面向 Git 知识库的桌面应用。
 
-无需直接操作 Git 或 Markdown，即可打开并维护知识库。
+让整个团队共同维护知识，无需要求每个人都使用 Git 或 Markdown。
 
-任何人都可以使用 Git Leaf，AI Agent 则直接使用 Git 中的同一份文件。
+所有团队成员都可以通过 Git Leaf 参与，开发者和 AI Agent 仍直接使用 Git 中的同一份文件。
 
 [**下载 macOS 版**](https://gitleaf.mangofuture.com/download?lang=zh-CN#macos) ·
 [Windows Preview](https://gitleaf.mangofuture.com/download?lang=zh-CN#windows) ·
 [从源码构建](docs/build-from-source.md)
 
-![Git Leaf 展示 Git 知识库、本地改动和 Agent 上下文](marketing/assets/git-leaf-product.png)
+![Git Leaf 展示团队的 Git 知识库、本地改动和 Agent 上下文](marketing/assets/git-leaf-product.png)
 
 [![CI](https://github.com/MangoFuture1210/git-leaf/actions/workflows/ci.yml/badge.svg)](https://github.com/MangoFuture1210/git-leaf/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
@@ -26,14 +26,14 @@ last_updated: 2026-07-28
 
 ## 核心工作流
 
-- **直接打开已有知识库。** Git Leaf 可以使用任意本机 Git 仓库，无需把内容导入另一个系统；Git
-  仓库始终是知识库的内容事实源。
+- **直接打开团队已有的知识库。** Git Leaf 可以使用任意本机 Git 仓库副本，无需把内容导入另一个系统；
+  Git 仓库始终是团队共同的内容事实源。
 - **沿着熟悉的目录找到文档。** 在目录树中按原有文件夹结构浏览知识库，也可以直接搜索。空格分隔的
   多个关键词会共同收窄结果；命中的目录名和文件名会高亮，并且只保留命中项及到达它们所需的上级目录。
 - **在 Live Editor 中边看边改。** 标题、列表、链接等内容以接近阅读效果的方式呈现，每次修改仍保存到
   原来的文件；需要时可以切换到 Preview 或 Source。
-- **让人与 AI Agent 使用同一份文件。** 把准确行选区整理成通用 Agent 上下文，让 Agent 直接读取或修改
-  仓库，再回到 Git Leaf 检查改动。
+- **让团队成员与 AI Agent 使用同一份文件。** 把准确行选区整理成通用 Agent 上下文，让 Agent 或开发者
+  直接读取或修改仓库，再回到 Git Leaf 检查改动。
 - **引入远端变化，同时保留尚未完成的编辑。** Git Leaf 会在打开仓库时及之后每隔 10 分钟检查远端；
   工作区干净时自动快进，也可以在本地有改动时合入远端版本，并让全部本地编辑保持未提交。
 - **检查后再发布。** Sync 同时显示尚未发布的本地改动和远端状态；“同步并发布”由人主动触发提交与
@@ -50,8 +50,8 @@ last_updated: 2026-07-28
 
 ## 不只是文字
 
-知识库中的文档还可以直接呈现数据表、时间线、关键指标、决策、流程图和图表。内容仍然以可读文本保存在
-Git 中，人与 AI Agent 可以继续读取和修改同一份文件。
+团队知识库中的文档还可以直接呈现数据表、时间线、关键指标、决策、流程图和图表。内容仍然以可读文本保存
+在 Git 中，团队成员与 AI Agent 可以继续读取和修改同一份文件。
 
 Git Leaf 使用安全的内置组件呈现这些内容，文档本身不能运行代码或脚本。
 
@@ -59,17 +59,18 @@ Git Leaf 使用安全的内置组件呈现这些内容，文档本身不能运�
 
 ## Git Leaf、Obsidian 和 VS Code 怎么选
 
-决定因素不是哪个 App 能打开 Markdown，而是谁在维护知识，以及 Git 是否是共同的内容事实源：
+决定因素不是哪个 App 能打开 Markdown，而是 Git 是否是团队共同的内容事实源，以及维护知识的每个人是否
+都应该使用开发者工具：
 
 | 适合选择的情况 | 更适合 | 原因 |
 | --- | --- | --- |
-| 个人或团队的知识库已经放在 Git 中，但维护它的人不应该先学习 Git 命令或 IDE；这包括个人用户、产品、运营、研究和项目负责人。 | **Git Leaf** | 熟悉的目录树、搜索、Live Editor 和明确的检查发布流程，直接作用于原来的仓库。 |
-| 人与 AI Agent 必须使用完全相同的文件，同时开发者仍要保留自己的 Git 工具。 | **Git Leaf** | Git Leaf 提供面向人的工作方式；Agent、开发者和自动化直接使用仓库，无需导入或复制内容。 |
-| 主要目标是建立以链接、反向链接、关系图和插件为中心的个人笔记网络，Git 只是次要需求。 | [**Obsidian**](https://obsidian.md/help/obsidian) | 它的中心是相互连接的本地笔记和个人定制。 |
+| 团队无论是几位协作者还是公司规模，都把共享知识放在 Git 中，但不应该要求每位成员掌握 Git 命令或 IDE。 | **Git Leaf** | 熟悉的目录树、搜索、Live Editor 和明确的检查发布流程，直接作用于原来的仓库。 |
+| 团队成员与 AI Agent 必须使用完全相同的文件，同时开发者仍要保留自己的 Git 工具。 | **Git Leaf** | Git Leaf 提供面向人的工作方式；Agent、开发者和自动化直接使用仓库，无需导入或复制内容。 |
+| 知识系统以链接、反向链接、关系图和插件为中心，而不是以 Git 作为团队共同的工作方式。 | [**Obsidian**](https://obsidian.md/help/obsidian) | 它围绕本机 Vault、关联笔记和丰富定制能力设计。 |
 | 主要工作是软件开发，并且希望直接控制暂存、分支、差异、冲突和 Coding Agent。 | [**VS Code**](https://code.visualstudio.com/docs/sourcecontrol/overview) | 它是开发环境，会完整呈现技术性的 Git 和代码工作流。 |
 
-Git Leaf 适合解决的不是“开发者如何编辑 Markdown”，而是“普通使用者如何与开发者和 AI Agent
-一起，安全地维护 Git 知识库”。同一个仓库仍然不要求所有人使用同一种工具：人可以使用 Git Leaf，
+Git Leaf 适合解决的不是“开发者如何编辑 Markdown”，而是“整个团队如何与开发者和 AI Agent 一起，
+安全地维护 Git 知识库”。同一个共享仓库仍然不要求所有人使用同一种工具：团队成员可以使用 Git Leaf，
 开发者、Agent 和自动化则通过各自原有的工具继续使用同一份文件。
 
 ## 下载

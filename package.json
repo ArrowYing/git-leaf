@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "main": "desktop/main.mjs",
-  "description": "Desktop app for Git-based knowledge bases: read, edit, and sync Markdown and MDX.",
+  "description": "Desktop app for teams maintaining Git-based knowledge bases without requiring everyone to use Git or Markdown.",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",

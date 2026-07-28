@@ -1316,10 +1316,14 @@ def download_page_html(language, downloads):
         "title": "Git Leaf 下载" if is_chinese else "Download Git Leaf",
         "category": "面向 Git 知识库的桌面应用。" if is_chinese
         else "A desktop app for Git-based knowledge bases.",
-        "value": "无需直接操作 Git 或 Markdown，即可打开并维护知识库。" if is_chinese
-        else "Open and maintain your knowledge base without working directly in Git or Markdown.",
-        "collaboration": "任何人都可以使用 Git Leaf，AI Agent 则直接使用 Git 中的同一份文件。" if is_chinese
-        else "Anyone can use Git Leaf, while AI agents work with the same files directly in Git.",
+        "value": "让整个团队共同维护知识，无需要求每个人都使用 Git 或 Markdown。" if is_chinese
+        else "Let the whole team maintain shared knowledge without requiring everyone to use Git or Markdown.",
+        "collaboration": (
+            "所有团队成员都可以通过 Git Leaf 参与，开发者和 AI Agent 仍直接使用 Git 中的同一份文件。"
+            if is_chinese else
+            "Everyone on the team can contribute through Git Leaf, while developers and AI agents work "
+            "with the same files directly in Git."
+        ),
         "latest": "最新公开版本" if is_chinese else "Latest public release",
         "unavailable_title": "公开安装包暂不可用" if is_chinese else "Public builds are not available yet",
         "unavailable_detail": (

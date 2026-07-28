@@ -8,15 +8,16 @@ English | [简体中文](README.zh-CN.md)
 
 A desktop app for Git-based knowledge bases.
 
-Open and maintain your knowledge base without working directly in Git or Markdown.
+Let the whole team maintain shared knowledge without requiring everyone to use Git or Markdown.
 
-Anyone can use Git Leaf, while AI agents work with the same files directly in Git.
+Everyone on the team can contribute through Git Leaf, while developers and AI agents work with the same
+files directly in Git.
 
 [**Download for macOS**](https://gitleaf.mangofuture.com/download#macos) ·
 [Windows Preview](https://gitleaf.mangofuture.com/download#windows) ·
 [Build from source](docs/build-from-source.md)
 
-![Git Leaf showing a Git-based knowledge base, local changes, and Agent Context](marketing/assets/git-leaf-product.png)
+![Git Leaf showing a team's Git-based knowledge base, local changes, and Agent Context](marketing/assets/git-leaf-product.png)
 
 [![CI](https://github.com/MangoFuture1210/git-leaf/actions/workflows/ci.yml/badge.svg)](https://github.com/MangoFuture1210/git-leaf/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
@@ -26,15 +27,17 @@ after installing Git Leaf, or clone it for a completely local first run.
 
 ## Core workflow
 
-- **Open the knowledge base you already have.** Git Leaf works with any local Git repository without
-  importing its content into another system. The repository remains the source of truth.
+- **Open the knowledge base your team already shares.** Git Leaf works with any local checkout of a Git
+  repository without importing its content into another system. The repository remains the shared
+  source of truth.
 - **Find documents through a familiar file tree.** Browse the knowledge base in its existing folder
   structure or search directly. Space-separated terms narrow results together, highlight matching
   folder and file names, and keep only matching items plus the folders needed to reach them.
 - **Read and edit in Live Editor.** Headings, lists, links, and other content stay close to their reading
   appearance while every edit goes back to the original file. Switch to Preview or Source when needed.
-- **Let people and AI agents work on the same files.** Collect exact lines as portable Agent Context,
-  let an agent read or modify the repository directly, then return to Git Leaf to review the changes.
+- **Let teammates and AI agents work on the same files.** Collect exact lines as portable Agent Context,
+  let an agent or developer read or modify the repository directly, then return to Git Leaf to review
+  the changes.
 - **Bring in remote changes without losing unfinished work.** Git Leaf checks the remote when a
   repository opens and every 10 minutes, fast-forwards a clean worktree, and can merge remote changes
   while keeping local edits uncommitted.
@@ -53,9 +56,9 @@ after installing Git Leaf, or clone it for a completely local first run.
 
 ## More than text
 
-Knowledge-base documents can also present data tables, timelines, key metrics, decisions, flow diagrams,
-and charts. The content stays as readable text in Git, so people and AI agents can continue to read and
-update the same files.
+Documents in the team's knowledge base can also present data tables, timelines, key metrics, decisions,
+flow diagrams, and charts. The content stays as readable text in Git, so teammates and AI agents can
+continue to read and update the same files.
 
 Git Leaf presents this content through safe built-in components; documents cannot run their own code or scripts.
 
@@ -63,20 +66,20 @@ Git Leaf presents this content through safe built-in components; documents canno
 
 ## Choosing Git Leaf, Obsidian, or VS Code
 
-The deciding question is not which app can open Markdown. It is who maintains the knowledge and whether
-Git is the shared source of truth:
+The deciding question is not which app can open Markdown. It is whether Git is the team's shared source
+of truth and whether everyone maintaining the knowledge should have to use developer tools:
 
 | Choose when… | Best fit | Why |
 | --- | --- | --- |
-| Your personal or shared knowledge base already lives in Git, but the people maintaining it should not need Git commands or an IDE. This includes individual users, product and operations teams, researchers, and project owners. | **Git Leaf** | A familiar file tree, search, Live Editor, and an explicit review-and-publish flow sit directly on the original repository. |
-| People and AI agents must work on exactly the same files, while developers keep their existing Git tools. | **Git Leaf** | Git Leaf provides the human-facing workflow; agents, developers, and automation use the repository directly, without importing or copying the content. |
-| Your main goal is a personal network of notes built around links, backlinks, graph exploration, and plugins; Git is secondary. | [**Obsidian**](https://obsidian.md/help/obsidian) | It is centered on linked local notes and personal customization. |
+| Your team—from a few collaborators to a company—keeps shared knowledge in Git, but not every member should need Git commands or an IDE. | **Git Leaf** | A familiar file tree, search, Live Editor, and an explicit review-and-publish flow sit directly on the original repository. |
+| Teammates and AI agents must work on exactly the same files, while developers keep their existing Git tools. | **Git Leaf** | Git Leaf provides the human-facing workflow; agents, developers, and automation use the repository directly, without importing or copying the content. |
+| Your knowledge system centers on links, backlinks, graph exploration, and plugins rather than a shared Git workflow. | [**Obsidian**](https://obsidian.md/help/obsidian) | It is designed around a local Vault, linked notes, and extensive customization. |
 | Your main work is software development, and you want direct control of staging, branches, diffs, conflicts, and coding agents. | [**VS Code**](https://code.visualstudio.com/docs/sourcecontrol/overview) | It is a development environment that exposes the complete technical Git and coding workflow. |
 
-Git Leaf is the fit when the question is not “How should developers edit Markdown?” but “How can
-ordinary people safely maintain a Git-based knowledge base together with developers and AI agents?”
-One repository still does not require one tool for everyone: people can use Git Leaf while developers,
-agents, and automation keep using the same files through their existing tools.
+Git Leaf is the fit when the question is not “How should developers edit Markdown?” but “How can the
+whole team safely maintain a Git-based knowledge base together with developers and AI agents?” One
+shared repository still does not require one tool for everyone: team members can use Git Leaf while
+developers, agents, and automation keep using the same files through their existing tools.
 
 ## Download
 

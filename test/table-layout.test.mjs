@@ -125,8 +125,8 @@ test("wrapping tables keep proportional columns within their responsive containe
     cellsByColumn: [
       [
         "适合选择的情况",
-        "个人或团队的知识库已经放在 Git 中，但维护它的人不应该先学习 Git 命令或 IDE。",
-        "人与 AI Agent 必须使用完全相同的文件，同时开发者仍要保留自己的 Git 工具。",
+        "团队把共享知识放在 Git 中，但不应该要求每位成员掌握 Git 命令或 IDE。",
+        "团队成员与 AI Agent 必须使用完全相同的文件，同时开发者仍要保留自己的 Git 工具。",
       ],
       ["更适合", "Git Leaf", "Git Leaf"],
       [

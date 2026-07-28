@@ -1,5 +1,5 @@
 ---
-last_updated: 2026-07-27
+last_updated: 2026-07-28
 ---
 
 # Agent-led promotion direction
@@ -10,7 +10,9 @@ Git Leaf intends to make its own promotion an AI-native practice where agents ca
 information, produce content, execute channel work, and feed results back into planning.
 
 This operating model serves promotion but does not change the product category. Git Leaf remains a
-desktop app for Git-based knowledge bases; AI-native companies are one important scenario.
+desktop app for Git-based knowledge bases, focused on teams that use Git as their shared source of truth.
+Those teams may range from a few collaborators or an open-source project to a company; AI-native teams
+are the flagship scenario.
 
 Agent-created material follows [Product positioning](positioning.md) and
 [Go to market](go-to-market.md), including their evidence and public-release boundaries.
