@@ -17,6 +17,12 @@ This is the authoritative renderer and editor reference for Git Leaf's MDX-lite 
 opened by Git Leaf can be any local Git repository; the implementation in Git Leaf defines the supported
 syntax and security boundary.
 
+The design goal is one source for two consumers. Component data stays as readable CSV, TSV, JSON, or
+Markdown inside the `.mdx` file so AI agents can inspect and update the facts directly as repository
+text. Preview renders those same values as charts, tables, timelines, metrics, decisions, or flows for
+people, while Source and Live continue to edit the original file. The rendered view is never a second
+data source.
+
 MDX-lite is a local presentation layer. It is not Next.js, Docusaurus, or a general MDX runtime. It does
 not support imports, exports, JavaScript expressions, arbitrary JSX, custom components, or script
 execution. Git Leaf recognizes only the components documented here and renders their body data to static

@@ -53,6 +53,20 @@ part of that repository, but the repository's operational role is broader than h
    unfinished local edits. **Sync and publish** commits and pushes intentionally; **Copy share link**
    returns a versioned link only after verifying the published revision.
 
+## Data for agents, visuals for people
+
+Git Leaf supports Markdown and a controlled subset of MDX so structured data can stay directly in the
+document instead of being trapped in a screenshot or a separate dashboard. Chart series, table rows,
+timelines, headline metrics, decisions, and flows can be written as readable CSV, TSV, JSON, or
+Markdown inside the `.mdx` file. AI agents can read and update those values as ordinary repository
+text; Git Leaf renders the same source as charts and other visual blocks for people.
+
+Preview renders the document, while Source and Live edit the original file. There is no second visual
+data model to keep in sync. Only allowlisted components are rendered; documents cannot run arbitrary
+JSX, JavaScript, imports, or scripts.
+
+![Git Leaf rendering a bar-and-line chart from an agent-readable context document](marketing/assets/git-leaf-mdx-chart.png)
+
 ## Built for readable context
 
 - All, Favorites, and Sync views, with a content-focused tree or the complete repository tree.
@@ -60,12 +74,6 @@ part of that repository, but the repository's operational role is broader than h
 - Read-only previews for images, PDFs, CSV, JSON, YAML, HTML, code, and other repository attachments.
 - Source line references that preserve where selected text came from.
 - Conservative file operations that avoid turning Git Leaf into a general file manager or IDE.
-
-Context documents can also present data tables, timelines, key metrics, decisions, flow diagrams, and
-charts. The source stays as readable text in Git for agents, while Git Leaf gives people a safer visual
-presentation. Documents cannot run their own code or scripts.
-
-![Git Leaf rendering a bar-and-line chart from an agent-readable context document](marketing/assets/git-leaf-mdx-chart.png)
 
 ## One repository does not require one app
 

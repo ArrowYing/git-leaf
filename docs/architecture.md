@@ -220,6 +220,11 @@ ordinary source text; Git Leaf does not own conflict resolution.
 
 ## Rendering and MDX-lite
 
+MDX-lite keeps structured facts explicit in repository text for agents while presenting the same source
+as human-readable tables, timelines, metrics, decisions, flows, and charts. Component data remains in
+the `.mdx` file as readable CSV, TSV, JSON, or Markdown; rendering never creates a second authoritative
+data model. Preview renders the visual result, and Source and Live continue to edit the original file.
+
 Markdown uses `markdown-it`. MDX-lite is parsed by Git Leaf before rendering and produces static HTML or
 SVG. It is not a general MDX runtime and cannot execute imports, exports, arbitrary JSX, scripts,
 expressions, or event handlers.

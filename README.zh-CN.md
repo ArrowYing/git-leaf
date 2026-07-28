@@ -46,6 +46,18 @@ Git 仓库是持久的共享上下文事实源：其中可以保存知识、指�
 5. **保持共享仓库最新。** Git Leaf 可以在保留未完成编辑的同时引入远端变化；“同步并发布”由人主动
    提交和推送，“复制分享链接”只在复核已发布 revision 后返回版本化链接。
 
+## 同一份数据，Agent 直接读写，人直接看图表
+
+Git Leaf 支持 Markdown 和受控的 MDX，让结构化数据直接保存在文档中，而不是藏在截图或独立仪表盘里。
+图表序列、数据表、时间线、关键指标、决策和流程，可以用可读的 CSV、TSV、JSON 或 Markdown 写在
+`.mdx` 文件内。AI Agent 把这些值当作普通仓库文本直接读取和修改；Git Leaf 则把同一份源文件呈现为
+图表和其他视觉内容，供人理解。
+
+Preview 负责呈现文档，Source 和 Live 仍编辑原文件，不需要同步第二份视觉数据模型。Git Leaf 只呈现
+白名单中的组件；文档不能运行任意 JSX、JavaScript、`import` 或脚本。
+
+![Git Leaf 从 Agent 可读的上下文文档中呈现柱线组合图](marketing/assets/git-leaf-mdx-chart.png)
+
 ## 为人读得懂的上下文
 
 - All、Favorites、Sync 三个视图，可在“内容文件”和完整仓库目录树之间切换。
@@ -53,11 +65,6 @@ Git 仓库是持久的共享上下文事实源：其中可以保存知识、指�
 - 只读预览图片、PDF、CSV、JSON、YAML、HTML、代码和其他仓库附件。
 - 保留源文件行号与引用，说明选中内容来自哪里。
 - 克制的文件操作，避免把 Git Leaf 变成通用文件管理器或 IDE。
-
-上下文文档还可以直接呈现数据表、时间线、关键指标、决策、流程图和图表。源文件仍然是 Agent 可读的 Git
-文本，Git Leaf 则为人提供更安全的视觉呈现；文档本身不能运行代码或脚本。
-
-![Git Leaf 从 Agent 可读的上下文文档中呈现柱线组合图](marketing/assets/git-leaf-mdx-chart.png)
 
 ## 同一个仓库不要求所有人使用同一种 App
 
