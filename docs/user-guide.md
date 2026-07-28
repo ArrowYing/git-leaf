@@ -255,10 +255,10 @@ Open in Git Leaf:
 
 ### Teach an Agent to return the link
 
-The Git Leaf source repository includes a
-[reference link generator](../scripts/generate-open-link.mjs) for its own documents. A different
-content repository should keep a small compatible generator at a stable, trusted path. Mango OS uses
-this pattern in its repository instructions; adapt the script path to your own generator:
+This repository includes a
+[ready-to-copy standalone generator](../tools/generate-git-leaf-open-link.mjs). It depends only on
+Node.js and Git. A content repository can keep the file at the same path and add a repository
+instruction like the following:
 
 ```markdown
 ## Git Leaf document previews

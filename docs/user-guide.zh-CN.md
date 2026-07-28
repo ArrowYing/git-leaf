@@ -225,9 +225,9 @@ Open in Git Leaf：
 
 ### 让 Agent 在交付时返回链接
 
-Git Leaf 源码仓库提供了用于自身文档的
-[参考链接生成器](../scripts/generate-open-link.mjs)。其他内容仓库应在稳定、可信的路径中维护一个兼容的
-小型生成器。Mango OS 在仓库提示词中采用了下面的写法；使用时把脚本路径调整为自己仓库的生成器：
+本仓库提供了一份
+[可以直接复制使用的独立生成器](../tools/generate-git-leaf-open-link.mjs)，只依赖 Node.js 和 Git。
+内容仓库可以把它放在同一路径，再在 `AGENTS.md` 等仓库提示文件中加入下面的通用写法：
 
 ```markdown
 ## Git Leaf 文档预览链接
