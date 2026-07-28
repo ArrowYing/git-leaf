@@ -116,7 +116,37 @@ test("tableLayoutAttributes gives long text columns more width before scrolling"
   assert.notEqual(layout.mode, "scroll");
   assert.equal(layout.columns[1].width > layout.columns[0].width * 1.5, true);
   assert.equal(layout.columns[1].width >= 280, true);
-  assert.match(renderTableColgroup(layout), /<colgroup><col style="width: \d+px"><col style="width: \d+px"><col style="width: \d+px"><\/colgroup>/);
+  assert.match(renderTableColgroup(layout), /<colgroup><col style="width: [\d.]+%"><col style="width: [\d.]+%"><col style="width: [\d.]+%"><\/colgroup>/);
+});
+
+test("wrapping tables keep proportional columns within their responsive container", () => {
+  const layout = tableLayoutAttributes({
+    columnNames: ["适合选择的情况", "更适合", "原因"],
+    cellsByColumn: [
+      [
+        "适合选择的情况",
+        "个人或团队的知识库已经放在 Git 中，但维护它的人不应该先学习 Git 命令或 IDE。",
+        "人与 AI Agent 必须使用完全相同的文件，同时开发者仍要保留自己的 Git 工具。",
+      ],
+      ["更适合", "Git Leaf", "Git Leaf"],
+      [
+        "原因",
+        "熟悉的目录树、搜索、Live Editor 和明确的检查发布流程，直接作用于原来的仓库。",
+        "Git Leaf 提供面向人的工作方式；Agent、开发者和自动化直接使用仓库。",
+      ],
+    ],
+  });
+
+  assert.equal(layout.mode, "wrap");
+  const colgroup = renderTableColgroup(layout);
+  const relativeWidths = Array.from(
+    colgroup.matchAll(/width: ([\d.]+)%/g),
+    (match) => Number(match[1]),
+  );
+
+  assert.equal(relativeWidths.length, 3);
+  assert.equal(Math.abs(relativeWidths.reduce((sum, width) => sum + width, 0) - 100) < 0.01, true);
+  assert.doesNotMatch(colgroup, /width: \d+px/);
 });
 
 test("tableLayoutAttributes scrolls wide tables with many columns", () => {
@@ -126,4 +156,5 @@ test("tableLayoutAttributes scrolls wide tables with many columns", () => {
   });
 
   assert.equal(layout.mode, "scroll");
+  assert.match(renderTableColgroup(layout), /<col style="width: \d+px">/);
 });

@@ -82,7 +82,7 @@ test("renderMarkdown renders small markdown tables without table tools", () => {
   assert.doesNotMatch(html, /data-table-copy/);
   assert.doesNotMatch(html, /data-table-freeze/);
   assert.match(html, /<div class="table-scroll" data-table-layout="fit" style="--table-preferred-width: \d+px; --table-min-width: \d+px;"><table>/);
-  assert.match(html, /<colgroup><col style="width: \d+px"><col style="width: \d+px"><\/colgroup>/);
+  assert.match(html, /<colgroup><col style="width: [\d.]+%"><col style="width: [\d.]+%"><\/colgroup>/);
   assert.match(html, /<th>Name<\/th>/);
   assert.match(html, /<td>Ready<\/td>/);
 });

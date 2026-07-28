@@ -33500,7 +33500,10 @@ function renderTableColgroup(layout) {
   }
   return [
     "<colgroup>",
-    layout.columns.map((column) => `<col style="width: ${column.width}px">`).join(""),
+    layout.columns.map((column) => {
+      const width = layout.mode === "scroll" ? `${column.width}px` : `${Number((column.width / layout.preferredWidth * 100).toFixed(4))}%`;
+      return `<col style="width: ${width}">`;
+    }).join(""),
     "</colgroup>"
   ].join("");
 }
