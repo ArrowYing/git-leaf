@@ -62,7 +62,10 @@ import {
   DESKTOP_OPEN_WORKTREE_URL,
 } from "./home.mjs";
 import { classifyDesktopNavigation } from "./navigation.mjs";
-import { waitForWebContentsPaint } from "./paint.mjs";
+import {
+  loadWebContentsUrl,
+  waitForWebContentsPaint,
+} from "./paint.mjs";
 import {
   repositorySelectionErrorMessage,
 } from "./repository-errors.mjs";
@@ -1559,12 +1562,15 @@ async function showProgressPage({ title, message }) {
     mainWindow.setTitle(`${APP_DISPLAY_NAME} - ${title}`);
     return;
   }
-  await mainWindow.loadURL(htmlDataUrl(desktopProgressHtml({
-    title,
-    message,
-    preferences: desktopRepositoryState.preferences ?? {},
-    systemLanguages: preferredSystemLanguages(app),
-  })));
+  await loadWebContentsUrl(
+    mainWindow.webContents,
+    htmlDataUrl(desktopProgressHtml({
+      title,
+      message,
+      preferences: desktopRepositoryState.preferences ?? {},
+      systemLanguages: preferredSystemLanguages(app),
+    })),
+  );
   await waitForWebContentsPaint(mainWindow.webContents);
   mainWindow.setTitle(`${APP_DISPLAY_NAME} - ${title}`);
 }
@@ -1583,12 +1589,22 @@ async function showRepositoryTransitionView(browserWindow, { title, message }) {
   });
   repositoryTransitionView = view;
   try {
-    await view.webContents.loadURL(htmlDataUrl(desktopProgressHtml({
-      title,
-      message,
-      preferences: desktopRepositoryState.preferences ?? {},
-      systemLanguages: preferredSystemLanguages(app),
-    })));
+    const loaded = await loadWebContentsUrl(
+      view.webContents,
+      htmlDataUrl(desktopProgressHtml({
+        title,
+        message,
+        preferences: desktopRepositoryState.preferences ?? {},
+        systemLanguages: preferredSystemLanguages(app),
+      })),
+    );
+    if (!loaded) {
+      if (repositoryTransitionView === view) {
+        repositoryTransitionView = null;
+      }
+      closeWebContentsView(view);
+      return false;
+    }
     if (repositoryTransitionView !== view || browserWindow.isDestroyed?.()) {
       closeWebContentsView(view);
       return false;
