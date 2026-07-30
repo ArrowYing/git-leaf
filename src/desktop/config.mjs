@@ -12,6 +12,10 @@ import {
   normalizeSidebarFavoriteScopes,
 } from "../../public/sidebar-favorites.js";
 import { normalizeWorkbenchSessions } from "../../public/workbench-session.js";
+import {
+  developmentHandoffReceiptMatchesBuild,
+  normalizeDevelopmentHandoffReceipt,
+} from "./development-handoff.mjs";
 
 const CONFIG_FILENAME = "desktop-config.json";
 const CONFIG_BACKUP_FILENAME = "desktop-config.backup.json";
@@ -148,6 +152,69 @@ export async function saveDesktopUsageAnalyticsEnabled({
 
       await writeDesktopConfig({ userDataDir, config: next });
       return next;
+    },
+  });
+}
+
+export async function saveDesktopDevelopmentHandoff({
+  userDataDir,
+  handoff,
+  repoRoot = "",
+}) {
+  const normalizedHandoff = normalizeDevelopmentHandoffReceipt(handoff);
+  if (!normalizedHandoff) {
+    throw new TypeError("developmentHandoff must contain a valid target identity");
+  }
+  return queueDesktopConfigMutation({
+    userDataDir,
+    mutation: async () => {
+      const current = await readDesktopConfig({ userDataDir });
+      const next = normalizeDesktopConfig({
+        ...withRuntimeRepository(current, repoRoot),
+        developmentHandoff: normalizedHandoff,
+      });
+
+      await writeDesktopConfig({ userDataDir, config: next });
+      return next;
+    },
+  });
+}
+
+export async function completeDesktopDevelopmentHandoff({
+  userDataDir,
+  buildInfo,
+  platformKey,
+  repoRoot = "",
+}) {
+  return queueDesktopConfigMutation({
+    userDataDir,
+    mutation: async () => {
+      const current = await readDesktopConfig({ userDataDir });
+      if (
+        buildInfo?.usageAnalyticsDefault !== true
+        || !developmentHandoffReceiptMatchesBuild({
+          receipt: current.developmentHandoff,
+          buildInfo,
+          platformKey,
+        })
+      ) {
+        return {
+          applied: false,
+          config: current,
+        };
+      }
+
+      const nextPayload = {
+        ...withRuntimeRepository(current, repoRoot),
+        usageAnalyticsEnabled: true,
+      };
+      delete nextPayload.developmentHandoff;
+      const next = normalizeDesktopConfig(nextPayload);
+      await writeDesktopConfig({ userDataDir, config: next });
+      return {
+        applied: true,
+        config: next,
+      };
     },
   });
 }
@@ -293,6 +360,7 @@ export function normalizeDesktopConfig(payload, { newInstall = false } = {}) {
     "preferences",
     "repositoryFavorites",
     "usageAnalyticsEnabled",
+    "developmentHandoff",
   ]) {
     delete unknownFields[key];
   }
@@ -307,6 +375,9 @@ export function normalizeDesktopConfig(payload, { newInstall = false } = {}) {
   const usageAnalyticsEnabled = typeof source.usageAnalyticsEnabled === "boolean"
     ? source.usageAnalyticsEnabled
     : null;
+  const developmentHandoff = normalizeDevelopmentHandoffReceipt(
+    source.developmentHandoff,
+  );
 
   return {
     ...unknownFields,
@@ -316,6 +387,7 @@ export function normalizeDesktopConfig(payload, { newInstall = false } = {}) {
     ...(Object.keys(preferences).length > 0 ? { preferences } : {}),
     ...(Object.keys(repositoryFavorites).length > 0 ? { repositoryFavorites } : {}),
     ...(usageAnalyticsEnabled === null ? {} : { usageAnalyticsEnabled }),
+    ...(developmentHandoff ? { developmentHandoff } : {}),
   };
 }
 

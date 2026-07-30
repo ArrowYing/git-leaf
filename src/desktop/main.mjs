@@ -18,6 +18,7 @@ import path from "node:path";
 import process from "node:process";
 
 import { createDesktopUpdateController } from "./updates.mjs";
+import { appUpdatePlatformKey } from "./app-updates.mjs";
 import { configureMacUpdateInstallation } from "./mac-update-installation.mjs";
 import { createSettingsCenterController } from "./settings-center.mjs";
 import {
@@ -46,6 +47,7 @@ import {
 } from "../build-info.mjs";
 import {
   closeDesktopRepository,
+  completeDesktopDevelopmentHandoff,
   mutateDesktopRepositoryFavorites,
   readDesktopConfig,
   saveDesktopPreferences,
@@ -149,6 +151,7 @@ let telemetryActivityTracker = null;
 let telemetryUploadScheduler = null;
 let telemetryMode = "preview";
 let usageAnalyticsEnabled = false;
+let developmentHandoffCompletionFailed = false;
 let currentHomeErrorState = null;
 const settingsShortcutBridges = new WeakSet();
 let desktopRepositoryState = {
@@ -370,6 +373,11 @@ function userDataDir() {
 }
 
 async function initializeDesktopTelemetry() {
+  if (developmentHandoffCompletionFailed) {
+    telemetryClient = null;
+    usageAnalyticsEnabled = false;
+    return;
+  }
   try {
     const setting = await initializeUsageAnalyticsSetting({
       userDataDir: userDataDir(),
@@ -420,6 +428,23 @@ async function initializeDesktopTelemetry() {
     // Usage analytics is strictly best-effort and must never block App startup.
     telemetryClient = null;
     usageAnalyticsEnabled = false;
+  }
+}
+
+async function completeDevelopmentHandoffBeforeTelemetry() {
+  try {
+    const completion = await completeDesktopDevelopmentHandoff({
+      userDataDir: userDataDir(),
+      buildInfo: BUILD_INFO,
+      platformKey: appUpdatePlatformKey({
+        platform: process.platform,
+        arch: process.arch,
+      }),
+      repoRoot: desktopRepositoryState.repoRoot ?? "",
+    });
+    desktopRepositoryState = completion.config;
+  } catch {
+    developmentHandoffCompletionFailed = true;
   }
 }
 
@@ -2783,6 +2808,7 @@ if (manualWindowsBootstrapBlocked) {
 
   app.whenReady().then(async () => {
     await loadDesktopRepositoryState();
+    await completeDevelopmentHandoffBeforeTelemetry();
     installAboutPanelOptions();
     await initializeDesktopTelemetry();
     installUpdateController();
