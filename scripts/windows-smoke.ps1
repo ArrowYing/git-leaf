@@ -29,7 +29,7 @@ function Write-SmokeLog {
   param([string]$Message)
 
   $line = "{0} {1}" -f (Get-Date -Format "o"), $Message
-  $line | Tee-Object -FilePath $logPathValue -Append
+  $line | Tee-Object -FilePath $logPathValue -Append | Out-Host
 }
 
 function Save-DesktopScreenshot {
