@@ -1091,9 +1091,32 @@ function packageMac(options) {
     rootDir: REPO_ROOT,
   });
   applyMacBundleIcon(options, macDevelopmentInstallPaths(options));
+  if (options.distribution === "source") {
+    signMacAppAdHoc({ appDir: macReleasePaths(options).appDir });
+  }
   verifySquirrelMacPolicy({
     appDir: macReleasePaths(options).appDir,
   });
+}
+
+export function signMacAppAdHoc({ appDir } = {}) {
+  requirePath(appDir);
+  run("codesign", [
+    "--force",
+    "--deep",
+    "--sign",
+    "-",
+    "--timestamp=none",
+    appDir,
+  ]);
+  run("codesign", [
+    "--verify",
+    "--deep",
+    "--strict",
+    "--verbose=2",
+    appDir,
+  ]);
+  return true;
 }
 
 export function applyMacBundleIcon(options, paths) {

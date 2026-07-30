@@ -187,16 +187,19 @@ No environment variable may select another packaged target. Community builds wit
 or candidate channels, Windows source packages, and unpackaged desktop runs remain ineligible.
 
 Discovery validates the manifest track, channel, platform, semantic version, build ID, and commit. The
-user's choice persists that complete target identity before download. The Squirrel feed may return an
-equal-version package only when the request repeats the exact identity in the current
-`internal-stable` manifest; ordinary equal-version requests still return no package.
+user's choice persists that complete target identity before download. The development App downloads the
+manifest's exact internal ZIP directly, verifies its size and SHA-256, extracts it into a private update
+cache, and verifies its official Bundle ID, Developer ID team, version, and embedded build identity.
+Ordinary Squirrel feeds remain strictly newer-version-only.
 
-Immediately before `quitAndInstall`, the App revalidates the persisted receipt and atomically removes
-both the receipt and the development build's explicit analytics value. If this write fails or the
-receipt differs, installation does not start. The signed internal package—including the existing
-`1.16.0` package, which predates this handoff—then initializes from its embedded
-`usageAnalyticsDefault=true` before telemetry starts. An internal-to-internal update does not use this
-exception.
+When the package is ready and the user chooses installation, normal shutdown launches a detached
+nonprivileged helper and exits. The helper waits for the dev process, revalidates the persisted receipt,
+and atomically removes both the receipt and the development build's explicit analytics value before a
+transactional direct-`Contents` replacement. It confirms the signed internal App can relaunch before
+discarding the rollback copy. A mismatch, write failure, replacement failure, or launch failure restores
+the dev App and its previous receipt/analytics state. The existing signed internal `1.16.0` package then
+initializes from its embedded `usageAnalyticsDefault=true` before telemetry starts. An
+internal-to-internal update does not use this exception.
 
 ## Formal official release
 
@@ -377,9 +380,10 @@ npm run verify:dev-handoff:mac -- \
 
 It packages the current source dev App, uses the exact signed `internal-stable` ZIP, drives the real
 user-visible update action, and proves the Bundle ID transition, target signature, preserved App
-directory inode, nonprivileged Squirrel behavior, target analytics default, telemetry initialization,
-receipt consumption, cleanup, and unchanged real Profile/cache fingerprints. It refuses to run while
-the installed human App or either official/community ShipIt job is active.
+directory inode, nonprivileged `Contents` bridge, absence of Squirrel/ShipIt use, target analytics
+default, telemetry initialization, receipt consumption, cleanup, and unchanged real Profile/cache
+fingerprints. It refuses to run while the installed human App or either official/community ShipIt job
+is active.
 
 An update regression that requests system account credentials or starts a privileged Helper is a
 failure, not an installation step. Do not authorize it or manually load, unload, or boot out ShipIt jobs

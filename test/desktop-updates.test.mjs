@@ -221,6 +221,10 @@ test("packaged source development builds can choose an equal-version internal ha
       operations.push("save");
       savedHandoffs.push(handoff);
     },
+    prepareDevelopmentHandoffUpdate: async ({ handoff }) => {
+      operations.push("prepare");
+      return { readyFile: "/tmp/internal-ready.json", handoff };
+    },
   });
 
   assert.equal(await controller.checkForUpdates({ manual: true }), "available");
@@ -228,8 +232,8 @@ test("packaged source development builds can choose an equal-version internal ha
   assert.deepEqual(fetch.urls, [
     "https://updates.mangofuture.com/git-leaf/internal-stable/darwin-universal/latest.json",
   ]);
-  assert.equal(await controller.handleUpdateAction(), "downloading");
-  assert.deepEqual(operations, ["save", "feed", "download"]);
+  assert.equal(await controller.handleUpdateAction(), "downloaded");
+  assert.deepEqual(operations, ["save", "prepare"]);
   assert.deepEqual(savedHandoffs, [{
     kind: "dev-to-internal",
     version: "1.16.0",
@@ -239,13 +243,8 @@ test("packaged source development builds can choose an equal-version internal ha
     channel: "internal-stable",
     platform: "darwin-universal",
   }]);
-  assert.deepEqual(autoUpdater.feedUrls, [
-    "https://updates.mangofuture.com/git-leaf/internal-stable/darwin-universal/releases/1.16.0"
-      + "?transition=dev-to-internal"
-      + "&targetVersion=1.16.0"
-      + "&targetBuildId=2c3e9d8cfcfb.20260728T235326Z.internal"
-      + "&targetCommit=2c3e9d8cfcfb",
-  ]);
+  assert.deepEqual(autoUpdater.feedUrls, []);
+  assert.equal(autoUpdater.checked, false);
 });
 
 test("development handoff never downgrades to an older internal build", async () => {
@@ -323,6 +322,7 @@ test("a saved identity-bound development handoff resumes without another choice"
     platform: "darwin-universal",
   };
   let saveCalls = 0;
+  let prepareCalls = 0;
   const controller = createDesktopUpdateController({
     autoUpdater,
     buildInfo: {
@@ -346,16 +346,21 @@ test("a saved identity-bound development handoff resumes without another choice"
     saveDevelopmentHandoff: async () => {
       saveCalls += 1;
     },
+    prepareDevelopmentHandoffUpdate: async () => {
+      prepareCalls += 1;
+      return { readyFile: "/tmp/internal-ready.json" };
+    },
   });
 
   assert.equal(await controller.restoreKnownUpdate(), true);
-  assert.equal(await controller.checkForUpdates({ manual: false }), "downloading");
+  assert.equal(await controller.checkForUpdates({ manual: false }), "downloaded");
   assert.equal(saveCalls, 0);
-  assert.equal(autoUpdater.checked, true);
-  assert.match(autoUpdater.feedUrls[0], /transition=dev-to-internal/);
+  assert.equal(prepareCalls, 1);
+  assert.equal(autoUpdater.checked, false);
+  assert.deepEqual(autoUpdater.feedUrls, []);
 });
 
-test("development handoff clears the dev analytics initialization before install", async () => {
+test("development handoff launches the prepared bridge instead of Squirrel", async () => {
   const autoUpdater = fakeAutoUpdater();
   const operations = [];
   autoUpdater.quitAndInstall = () => {
@@ -382,24 +387,27 @@ test("development handoff clears the dev analytics initialization before install
     platform: "darwin",
     arch: "arm64",
     saveDevelopmentHandoff: async () => {},
-    prepareDevelopmentHandoffInstallation: async (handoff) => {
-      operations.push(`prepare:${handoff.buildId}`);
-      return true;
+    prepareDevelopmentHandoffUpdate: async ({ handoff }) => {
+      operations.push(`download:${handoff.buildId}`);
+      return { readyFile: "/tmp/internal-ready.json" };
+    },
+    launchDevelopmentHandoffUpdate: (prepared) => {
+      operations.push(`launch:${prepared.readyFile}`);
     },
   });
 
   await controller.checkForUpdates({ manual: true });
   await controller.handleUpdateAction();
-  autoUpdater.listeners.get("update-downloaded")();
 
-  assert.equal(await controller.installPendingUpdateOnQuit(), true);
+  assert.equal(await controller.installPendingUpdateOnQuit(), false);
   assert.deepEqual(operations, [
-    "prepare:2c3e9d8cfcfb.20260728T235326Z.internal",
-    "install",
+    "download:2c3e9d8cfcfb.20260728T235326Z.internal",
+    "launch:/tmp/internal-ready.json",
   ]);
+  assert.equal(autoUpdater.installed, false);
 });
 
-test("development handoff refuses installation when analytics initialization cannot be reset", async () => {
+test("development handoff refuses installation when the bridge cannot launch", async () => {
   const autoUpdater = fakeAutoUpdater();
   const controller = createDesktopUpdateController({
     autoUpdater,
@@ -421,12 +429,16 @@ test("development handoff refuses installation when analytics initialization can
     platform: "darwin",
     arch: "arm64",
     saveDevelopmentHandoff: async () => {},
-    prepareDevelopmentHandoffInstallation: async () => false,
+    prepareDevelopmentHandoffUpdate: async () => ({
+      readyFile: "/tmp/internal-ready.json",
+    }),
+    launchDevelopmentHandoffUpdate: () => {
+      throw new Error("bridge launch failed");
+    },
   });
 
   await controller.checkForUpdates({ manual: true });
   await controller.handleUpdateAction();
-  autoUpdater.listeners.get("update-downloaded")();
 
   assert.equal(await controller.installPendingUpdateOnQuit(), false);
   assert.equal(autoUpdater.installed, false);

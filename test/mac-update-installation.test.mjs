@@ -38,7 +38,7 @@ test("official packaged mac builds persist Squirrel direct Contents updates", ()
   ]]);
 });
 
-test("eligible packaged source dev builds persist Squirrel direct Contents updates", () => {
+test("eligible packaged source dev builds leave Squirrel disabled for the bridge handoff", () => {
   const calls = [];
   const result = configureMacUpdateInstallation({
     platform: "darwin",
@@ -51,12 +51,11 @@ test("eligible packaged source dev builds persist Squirrel direct Contents updat
     log: () => {},
   });
 
-  assert.deepEqual(result, { configured: true });
-  assert.deepEqual(calls, [[
-    SQUIRREL_DIRECT_CONTENTS_WRITE_KEY,
-    "boolean",
-    true,
-  ]]);
+  assert.deepEqual(
+    result,
+    { configured: false, reason: "not-official-packaged-mac" },
+  );
+  assert.deepEqual(calls, []);
 });
 
 test("ineligible source, unpackaged, and non-mac builds do not change native defaults", () => {

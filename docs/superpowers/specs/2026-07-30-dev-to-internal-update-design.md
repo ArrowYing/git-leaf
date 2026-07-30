@@ -144,10 +144,11 @@ minimum target identity is:
 This lets `1.16.0 source/dev` distinguish `1.16.0 official/internal` and prevents an existing
 version-only preference from completing the wrong transition.
 
-The update service's macOS feed must keep returning no package for ordinary equal-version requests. It
-may return the equal-version internal package only for the explicit development-handoff request shape.
-The client first validates `latest.json`; the feed response must remain bound to the same channel,
-platform, version, and artifact. A feed race or identity mismatch fails before installation.
+The update service's Squirrel feed keeps returning no package for ordinary equal-version requests. The
+development handoff does not use that feed. After validating `latest.json`, the client downloads the
+exact internal ZIP URL named by that manifest and verifies its declared size and SHA-256. The extracted
+App must match the same channel, platform, version, build ID, commit, Bundle ID, and Developer ID team
+before installation becomes available.
 
 ## User flow
 
@@ -176,9 +177,11 @@ channel.
 
 ## macOS installation and Bundle ID transition
 
-The eligible development build must enable the existing direct-`Contents` installation policy before
-starting the handoff. The updater must never request administrator credentials or start a privileged
-ShipIt Helper.
+The eligible development build uses a dedicated nonprivileged `Contents` bridge and must not load
+Squirrel or start ShipIt. Source packages receive an ad-hoc signature after their packaged Squirrel
+policy and icon are finalized so macOS code-integrity checks remain valid, but that local signature is
+not accepted as official target identity. The updater must never request administrator credentials or
+start a privileged Helper.
 
 The starting App has `org.gitleaf.community`. The installed signed package has
 `com.mangofuture.gitleaf`. The handoff is successful only when the relaunched App proves:
@@ -187,7 +190,8 @@ The starting App has `org.gitleaf.community`. The installed signed package has
 - the embedded build identity exactly matches the requested internal target;
 - the resulting Bundle ID is `com.mangofuture.gitleaf`;
 - the result carries Mango Future's expected Developer ID identity;
-- the packaged nonprivileged Squirrel policy is intact;
+- the target's packaged nonprivileged Squirrel policy is intact for its later official updates;
+- Squirrel and ShipIt were not invoked for the identity handoff;
 - no privileged ShipIt job was created;
 - LaunchServices and `git-leaf://` resolve the resulting official App correctly.
 
@@ -206,21 +210,21 @@ telemetry.
 
 The already-published internal `1.16.0` package predates this handoff and therefore cannot consume a new
 receipt on launch. The compatibility boundary must use the analytics initialization behavior that is
-already embedded in that package. Immediately before `quitAndInstall`, the development App:
+already embedded in that package. After the dev process exits, the detached helper:
 
 1. Re-reads and validates the exact persisted target receipt.
 2. Atomically removes both the receipt and the development build's explicit
    `usageAnalyticsEnabled=false`.
-3. Starts Squirrel installation only if that atomic mutation succeeds.
-4. Still emits no telemetry because the running development build remains ineligible.
+3. Transactionally replaces only the existing `.app/Contents`.
+4. Confirms the signed internal App can start before deleting the rollback copy.
 
 The official internal package then sees an uninitialized analytics setting on its first launch, applies
 its embedded `usageAnalyticsDefault=true`, persists `usageAnalyticsEnabled=true`, and initializes
 telemetry from that value. This works with the existing signed `1.16.0` artifact and keeps the
 distribution attribute owned by the target package rather than hard-coding `true` in the updater.
 
-If installation fails after preparation and the development App relaunches, its own packaged default
-restores `false`; the user may choose the handoff again. A missing, malformed, stale, or mismatched
+If replacement or relaunch fails, the helper restores both the previous `Contents` and the exact
+preparation receipt/analytics state before relaunching dev. A missing, malformed, stale, or mismatched
 receipt never clears the analytics setting and blocks installation.
 
 Ordinary `internal -> internal` updates do not create this receipt and continue to preserve the existing
@@ -250,10 +254,10 @@ unrelated configuration fields remain unchanged.
 - Equal-version ordinary update without the development transition: return current.
 - Network or download failure: retain a retryable identity-bound request without changing analytics.
 - App shutdown failure: do not launch installation.
-- Install-preparation receipt mismatch or configuration write failure: do not call Squirrel installation
-  and preserve the existing analytics value.
-- Installation or relaunch failure after successful preparation: preserve the updater rollback behavior;
-  a relaunched development App restores its own `false` default and requires a new user choice.
+- Install-preparation receipt mismatch or configuration write failure: do not replace `Contents` and
+  preserve the existing analytics value.
+- Installation or relaunch failure after successful preparation: restore the old `Contents`, receipt,
+  and prior analytics value before relaunching dev.
 - Cleanup failure: report it and preserve diagnostic state; never clean the real Profile broadly.
 
 ## Verification
@@ -270,9 +274,10 @@ Add behavior-level tests that prove:
 - Ordinary official discovery still requires a strictly newer version.
 - Requested update state distinguishes equal versions by build ID and transition identity.
 - Restored state cannot bypass development eligibility or manifest validation.
-- The server returns an equal-version package only for the bounded internal development handoff.
-- Direct-`Contents` installation is enabled only for official packages and the eligible development
-  handoff.
+- Ordinary Squirrel feeds remain strictly newer-version-only; the handoff downloads only the exact
+  artifact bound by the validated internal manifest.
+- Squirrel direct-`Contents` installation remains official-only; the eligible development handoff uses
+  its separately verified nonprivileged bridge.
 - Exact install preparation atomically removes the receipt and the development build's explicit
   analytics value.
 - Missing, malformed, stale, or mismatched receipts block installation and do not change analytics.

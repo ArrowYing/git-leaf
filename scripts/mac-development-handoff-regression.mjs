@@ -23,11 +23,13 @@ import {
   normalizeDevelopmentHandoffReceipt,
   sameDevelopmentHandoffReceipt,
 } from "../src/desktop/development-handoff.mjs";
+import { macDevelopmentHandoffCachePaths } from "../src/desktop/mac-development-handoff-update.mjs";
 import {
   applyMacBundleIcon,
   DEFAULT_RELEASE_OPTIONS,
   developmentProfileFingerprint,
   electronPackagerArgs,
+  signMacAppAdHoc,
 } from "./release-mac.mjs";
 import {
   COMMUNITY_PACKAGE_IDENTITY,
@@ -39,7 +41,6 @@ import {
 } from "./release-shared.mjs";
 import {
   SHIPIT_JOB_LABEL,
-  SQUIRREL_DIRECT_CONTENTS_WRITE_KEY,
   assertCurrentHostSafe,
   assertSafeMacUpdateRegressionHost,
   bootoutUserShipItJob,
@@ -139,7 +140,9 @@ export function validateDevelopmentHandoffRegressionEvidence(evidence) {
     || evidence?.analyticsDefaultAdopted !== true
     || evidence?.handoffReceiptConsumed !== true
     || evidence?.telemetryInitialized !== true
-    || evidence?.directContentsWrite !== true
+    || evidence?.nonprivilegedContentsBridge !== true
+    || evidence?.squirrelInvoked !== false
+    || evidence?.preparedUpdateRemoved !== true
     || evidence?.appDirectoryInodePreserved !== true
     || evidence?.installParentWritable !== false
     || evidence?.privilegedShipItJobObserved !== false
@@ -341,51 +344,38 @@ export async function runDevelopmentHandoffRegression({
       timeoutMs: 120_000,
       label: "the isolated development renderer",
     });
-    await waitFor(() => {
-      try {
-        return runChecked(
-          "defaults",
-          [
-            "read",
-            COMMUNITY_PACKAGE_IDENTITY.macBundleId,
-            SQUIRREL_DIRECT_CONTENTS_WRITE_KEY,
-          ],
-          { env: appEnv },
-        ) === "1";
-      } catch {
-        return false;
-      }
-    }, {
-      timeoutMs: 30_000,
-      label: "the development App direct-Contents preference",
+    const preparedPaths = macDevelopmentHandoffCachePaths({
+      userDataDir,
+      handoff: receipt,
     });
-
     await waitFor(async () => {
       await evaluateInRenderer({
         userDataDir,
         expression: updateRegressionInstallExpression(),
       });
-      return sameDevelopmentHandoffReceipt(
-        readJsonIfPresent(path.join(userDataDir, "desktop-config.json"))
-          ?.developmentHandoff,
-        receipt,
+      return (
+        sameDevelopmentHandoffReceipt(
+          readJsonIfPresent(path.join(userDataDir, "desktop-config.json"))
+            ?.developmentHandoff,
+          receipt,
+        )
+        && existsSync(preparedPaths.readyFile)
       );
     }, {
       timeoutMs: 240_000,
       intervalMs: 1_000,
-      label: "the user-selected identity-bound handoff download",
+      label: "the user-selected signed internal handoff preparation",
     });
 
     const isolatedShipItCaches = [
       path.join(isolatedHome, "Library", "Caches", SHIPIT_JOB_LABEL),
       path.join(isolatedHome, "Library", "Caches", SOURCE_SHIPIT_JOB_LABEL),
     ];
-    await waitFor(() => isolatedShipItCaches.some((cachePath) => (
+    if (isolatedShipItCaches.some((cachePath) => (
       existsSync(path.join(cachePath, "ShipItState.plist"))
-    )), {
-      timeoutMs: 240_000,
-      label: "Squirrel.Mac to prepare the internal package",
-    });
+    ))) {
+      throw new Error("The development handoff invoked Squirrel.Mac");
+    }
     if (
       launchctlJobExists({ domain: "system", label: SHIPIT_JOB_LABEL })
       || launchctlJobExists({
@@ -468,7 +458,9 @@ export async function runDevelopmentHandoffRegression({
         path.join(userDataDir, "telemetry-state.json"),
       ),
       protocolScheme: "git-leaf",
-      directContentsWrite: true,
+      nonprivilegedContentsBridge: true,
+      squirrelInvoked: false,
+      preparedUpdateRemoved: !existsSync(preparedPaths.versionRoot),
       appDirectoryInodePreserved: true,
       installParentWritable: false,
       privilegedShipItJobObserved: false,
@@ -617,6 +609,7 @@ function packageSourceDevelopmentApp({ outputDir } = {}) {
   );
   patchSquirrelMacPolicy({ appDir: appPath, rootDir: REPO_ROOT });
   applyMacBundleIcon(options, { appDir: appPath });
+  signMacAppAdHoc({ appDir: appPath });
   verifySquirrelMacPolicy({ appDir: appPath });
   return appPath;
 }

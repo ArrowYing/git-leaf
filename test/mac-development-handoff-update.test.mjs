@@ -1,0 +1,241 @@
+import assert from "node:assert/strict";
+import { Readable } from "node:stream";
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import test from "node:test";
+
+import {
+  installPreparedMacDevelopmentHandoff,
+  launchMacDevelopmentHandoffUpdate,
+  prepareMacDevelopmentHandoffUpdate,
+} from "../src/desktop/mac-development-handoff-update.mjs";
+
+const RECEIPT = Object.freeze({
+  kind: "dev-to-internal",
+  version: "1.16.0",
+  buildId: "2c3e9d8cfcfb.20260728T235326Z.internal",
+  commit: "2c3e9d8cfcfb",
+  releaseTrack: "internal",
+  channel: "internal-stable",
+  platform: "darwin-universal",
+});
+
+const ARCHIVE = Buffer.from("signed internal archive");
+const ARCHIVE_SHA256 =
+  "946d65515109449dc0cf9f92205385f9d2bb9d9c52792051ce128d049f1279c3";
+
+function manifest() {
+  return {
+    ...RECEIPT,
+    files: {
+      zip: {
+        name: "GitLeaf-1.16.0-internal-darwin-universal.zip",
+        url: "https://updates.example.test/internal.zip",
+        sha256: ARCHIVE_SHA256,
+        size: ARCHIVE.length,
+      },
+    },
+  };
+}
+
+function inspectedTarget() {
+  return {
+    bundleId: "com.mangofuture.gitleaf",
+    teamIdentifier: "HN6X79BUSR",
+    version: RECEIPT.version,
+    buildInfo: {
+      distribution: "official",
+      dev: false,
+      usageAnalyticsDefault: true,
+      ...RECEIPT,
+    },
+  };
+}
+
+test("mac development handoff prepares only the exact signed internal target", async () => {
+  const root = mkdtempSync(path.join(tmpdir(), "git-leaf-mac-handoff-test."));
+  try {
+    const userDataDir = path.join(root, "user-data");
+    const targetAppPath = path.join(root, "installed", "Git Leaf.app");
+    mkdirSync(targetAppPath, { recursive: true });
+    const prepared = await prepareMacDevelopmentHandoffUpdate({
+      manifest: manifest(),
+      handoff: RECEIPT,
+      userDataDir,
+      targetAppPath,
+      fetchFn: async () => ({
+        ok: true,
+        status: 200,
+        body: Readable.from([ARCHIVE]),
+      }),
+      extractArchive: async (_archivePath, { dir }) => {
+        mkdirSync(path.join(dir, "Git Leaf.app"), { recursive: true });
+      },
+      inspectApp: () => inspectedTarget(),
+    });
+
+    assert.equal(prepared.version, RECEIPT.version);
+    assert.equal(prepared.handoff.buildId, RECEIPT.buildId);
+    const ready = JSON.parse(readFileSync(prepared.readyFile, "utf8"));
+    assert.equal(ready.schemaVersion, 1);
+    assert.equal(ready.sourceAppPath.endsWith("Git Leaf.app"), true);
+    assert.equal(ready.targetAppPath, targetAppPath);
+    assert.deepEqual(ready.handoff, RECEIPT);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("mac development handoff rejects an extracted App with another build identity", async () => {
+  const root = mkdtempSync(path.join(tmpdir(), "git-leaf-mac-handoff-test."));
+  try {
+    mkdirSync(path.join(root, "installed", "Git Leaf.app"), {
+      recursive: true,
+    });
+    await assert.rejects(
+      prepareMacDevelopmentHandoffUpdate({
+        manifest: manifest(),
+        handoff: RECEIPT,
+        userDataDir: path.join(root, "user-data"),
+        targetAppPath: path.join(root, "installed", "Git Leaf.app"),
+        fetchFn: async () => ({
+          ok: true,
+          status: 200,
+          body: Readable.from([ARCHIVE]),
+        }),
+        extractArchive: async (_archivePath, { dir }) => {
+          mkdirSync(path.join(dir, "Git Leaf.app"), { recursive: true });
+        },
+        inspectApp: () => ({
+          ...inspectedTarget(),
+          buildInfo: {
+            ...inspectedTarget().buildInfo,
+            buildId: "another.internal",
+          },
+        }),
+      }),
+      /target identity/i,
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("mac development handoff helper prepares config before switching Contents", async () => {
+  const calls = [];
+  const transaction = {
+    commit() {
+      calls.push("commit");
+    },
+    rollback() {
+      calls.push("rollback");
+    },
+  };
+  await installPreparedMacDevelopmentHandoff({
+    ready: {
+      schemaVersion: 1,
+      handoff: RECEIPT,
+      sourceAppPath: "/tmp/internal/Git Leaf.app",
+      targetAppPath: "/Applications/Git Leaf.app",
+      userDataDir: "/tmp/profile",
+      launchArgs: ["--repo", "/tmp/repo"],
+    },
+    normalizeReady: (value) => value,
+    waitForProcessExit: async () => calls.push("wait"),
+    prepareInstallation: async () => {
+      calls.push("prepare-config");
+      return {
+        prepared: true,
+        hadUsageAnalyticsSetting: true,
+        previousUsageAnalyticsEnabled: false,
+      };
+    },
+    beginContentsReplacement: () => {
+      calls.push("replace");
+      return transaction;
+    },
+    launchApp: async () => calls.push("launch"),
+    cleanupPreparedUpdate: async () => calls.push("cleanup"),
+  });
+  assert.deepEqual(calls, [
+    "wait",
+    "prepare-config",
+    "replace",
+    "launch",
+    "commit",
+    "cleanup",
+  ]);
+});
+
+test("mac development handoff helper rolls back Contents and config when relaunch fails", async () => {
+  const calls = [];
+  await assert.rejects(
+    installPreparedMacDevelopmentHandoff({
+      ready: {
+        schemaVersion: 1,
+        handoff: RECEIPT,
+        sourceAppPath: "/tmp/internal/Git Leaf.app",
+        targetAppPath: "/Applications/Git Leaf.app",
+        userDataDir: "/tmp/profile",
+        launchArgs: [],
+      },
+      normalizeReady: (value) => value,
+      waitForProcessExit: async () => calls.push("wait"),
+      prepareInstallation: async () => ({
+        prepared: true,
+        hadUsageAnalyticsSetting: true,
+        previousUsageAnalyticsEnabled: false,
+      }),
+      beginContentsReplacement: () => ({
+        commit() {
+          calls.push("commit");
+        },
+        rollback() {
+          calls.push("rollback");
+        },
+      }),
+      launchApp: async () => {
+        calls.push("launch");
+        throw new Error("synthetic launch failure");
+      },
+      restoreInstallation: async () => calls.push("restore-config"),
+    }),
+    /synthetic launch failure/,
+  );
+  assert.deepEqual(calls, ["wait", "launch", "rollback", "restore-config"]);
+});
+
+test("mac development handoff launches a detached Node helper from the current App", () => {
+  const spawned = [];
+  const child = { unrefCalled: false, unref() { this.unrefCalled = true; } };
+  const result = launchMacDevelopmentHandoffUpdate({
+    prepared: {
+      readyFile: "/tmp/profile/updates/handoff/ready.json",
+    },
+    currentProcessId: 1234,
+    executable: "/Applications/Git Leaf.app/Contents/MacOS/Git Leaf",
+    helperPath: "/Applications/Git Leaf.app/Contents/Resources/app.asar/src/desktop/mac-development-handoff-update.mjs",
+    spawnProcess(command, args, options) {
+      spawned.push({ command, args, options });
+      return child;
+    },
+  });
+  assert.equal(result.status, "launched");
+  assert.equal(child.unrefCalled, true);
+  assert.equal(spawned[0].command, "/Applications/Git Leaf.app/Contents/MacOS/Git Leaf");
+  assert.deepEqual(spawned[0].args, [
+    "/Applications/Git Leaf.app/Contents/Resources/app.asar/src/desktop/mac-development-handoff-update.mjs",
+    "--install-ready",
+    "/tmp/profile/updates/handoff/ready.json",
+    "--wait-pid",
+    "1234",
+  ]);
+  assert.equal(spawned[0].options.detached, true);
+  assert.equal(spawned[0].options.env.ELECTRON_RUN_AS_NODE, "1");
+});

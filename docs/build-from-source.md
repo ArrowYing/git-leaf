@@ -82,9 +82,11 @@ Community packages have an explicit non-official identity:
 | Official updates | Disabled |
 | Usage analytics | Disabled |
 
-They are not signed or notarized by Mango Future and must not be redistributed as an official Git Leaf
-release. The official identity depends on the Mango Future signature, official package metadata,
-download channel, checksum, tag, and matching public commit.
+They are not Developer ID-signed or notarized by Mango Future and must not be redistributed as an
+official Git Leaf release. macOS source packages receive only a local ad-hoc signature after packaging
+so their modified bundled frameworks retain code integrity. The official identity depends on the Mango
+Future signature, official package metadata, download channel, checksum, tag, and matching public
+commit.
 
 ## Install a maintainer development build on macOS
 
@@ -132,7 +134,8 @@ Platform and UI changes have additional gates in [AGENTS.md](../AGENTS.md).
 - **Git is not found:** make sure `git --version` works in the same terminal.
 - **Electron download fails:** retry on a stable network or configure the standard Electron mirror used
   by your environment.
-- **macOS blocks an unsigned package:** run the unpackaged app with `npm run desktop`, or build/sign it
-  with your own identity. Do not present a locally signed package as a Mango Future release.
+- **macOS blocks a non-notarized package:** run the unpackaged app with `npm run desktop`, or sign and
+  notarize it with your own identity. Do not present a locally or ad-hoc signed package as a Mango
+  Future release.
 - **Windows SmartScreen:** Community Builds and the current official Windows Preview are not
   Authenticode-signed. Only run code you built from a verified checkout.

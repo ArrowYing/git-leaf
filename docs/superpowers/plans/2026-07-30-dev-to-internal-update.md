@@ -4,9 +4,17 @@
 
 **Goal:** Let a packaged macOS `source` development build discover and install the latest `internal-stable` official build, including an equal-version build, while preserving the two existing Bundle IDs and enabling the installed internal build's packaged analytics default exactly once.
 
-**Architecture:** Add one explicit `dev-to-internal` transition contract shared by discovery, Squirrel.Mac feed requests, and persisted receipts. The ordinary public/internal updater remains strictly newer-version-only. The Python update server may serve an equal-version macOS package only when the request carries a complete transition identity that matches the current `internal-stable` manifest. A receipt is saved before Squirrel starts; immediately before installation, an exact receipt match atomically removes the receipt and the dev build's explicit analytics value so even the already-published internal `1.16.0` package applies its embedded `usageAnalyticsDefault=true` on launch.
+**Architecture:** Add one explicit `dev-to-internal` transition contract shared by discovery, direct artifact preparation, and persisted receipts. The ordinary public/internal Squirrel updater remains strictly newer-version-only. The dev client downloads the exact internal ZIP bound by `latest.json`, verifies its checksum, official signature, Bundle ID, and complete embedded build identity, then hands it to a detached nonprivileged `Contents` helper. After the dev process exits, an exact receipt match atomically removes the receipt and the dev build's explicit analytics value so even the already-published internal `1.16.0` package applies its embedded `usageAnalyticsDefault=true` on launch. Replacement or relaunch failure restores both the App and configuration transaction.
 
-**Tech Stack:** Node.js ESM, Electron `autoUpdater`, Squirrel.Mac, Python `ThreadingHTTPServer`, `node:test`.
+**Tech Stack:** Node.js ESM, Electron, `extract-zip`, macOS `codesign`, transactional `Contents` replacement, `node:test`.
+
+> Execution correction, 2026-07-30: the initial Tasks 1–5 below record the first Squirrel-based
+> hypothesis. Packaged execution proved that a source App whose patched Squirrel framework had not
+> been re-signed is terminated by macOS code-signing enforcement, and Squirrel's current-signature
+> requirement is not the correct cross-Bundle-ID boundary. The implemented path therefore supersedes
+> the feed-query/server exception and dev-Squirrel steps: source packages are ad-hoc signed for local
+> integrity, dev downloads and verifies the manifest ZIP directly, and a detached nonprivileged helper
+> performs the receipt-gated transactional replacement. The update server remains unchanged.
 
 ---
 
@@ -150,7 +158,9 @@ export async function prepareDesktopDevelopmentHandoffInstallation({
 }) {}
 ```
 
-Both functions must reuse the existing atomic config mutation path. Wire preparation into the real install entry before `quitAndInstall`; replace the in-memory state only after the exact receipt is prepared.
+Both functions must reuse the existing atomic config mutation path. The final implementation invokes
+preparation from the detached helper after the dev process exits and before transactional `Contents`
+replacement; replacement failure restores the captured configuration state.
 
 - [ ] **Step 4: Run focused tests**
 
@@ -188,7 +198,7 @@ Cover:
 - `1.16.0 dev` reports `1.16.0 internal` as available.
 - An older internal target is reported as current and is never downloaded.
 - Automatic checks fetch metadata only.
-- The first user action saves the complete receipt before calling `setFeedURL`/`checkForUpdates`.
+- The first user action saves the complete receipt before downloading and inspecting the manifest ZIP.
 - A receipt write failure prevents the download.
 - Restart restoration requires the complete matching receipt rather than version-only preferences.
 - Community builds with `dev: false` remain disabled.
@@ -227,7 +237,7 @@ Compute an optional `handoffTarget` once in `createDesktopUpdateController`. Whe
 - accept `target >= current`;
 - attach the normalized receipt to pending state;
 - persist that receipt before any download call;
-- include the receipt query in the Squirrel feed URL;
+- prepare only the checksum-bound ZIP in the validated internal manifest;
 - restore only from a matching persisted receipt;
 - atomically prepare the matching receipt before the real install call;
 - use explicit handoff copy such as “Switch to the internal build” for equal-version availability.
@@ -251,7 +261,10 @@ git add src/desktop/updates.mjs src/desktop/main.mjs src/desktop/localization.mj
 git commit -m "feat: let dev builds switch to internal"
 ```
 
-### Task 4: Permit only identity-bound equal-version macOS feeds
+### Task 4: Superseded identity-bound equal-version macOS feed
+
+Packaged diagnosis made this server change unnecessary. It was removed: ordinary Squirrel feeds remain
+strictly newer-version-only, and the handoff prepares the exact artifact from `latest.json` directly.
 
 **Files:**
 
@@ -314,7 +327,7 @@ git add scripts/gitleaf-update-server.py test/gitleaf-update-server.test.mjs
 git commit -m "feat: serve identity-bound dev handoffs"
 ```
 
-### Task 5: Enable nonprivileged Squirrel and add a real packaged regression
+### Task 5: Add the nonprivileged bridge and real packaged regression
 
 **Files:**
 
@@ -344,7 +357,7 @@ Run:
 node --test test/mac-update-installation.test.mjs test/mac-development-handoff-regression.test.mjs
 ```
 
-Expected: the dev Squirrel policy is rejected and the harness does not exist.
+Expected: the dev bridge path and harness do not exist.
 
 - [ ] **Step 3: Implement the isolated regression harness**
 
@@ -355,7 +368,7 @@ Add `npm run verify:dev-handoff:mac` / `make verify-dev-handoff-mac`. The harnes
 3. Package the current source dev build into an isolated installation.
 4. Download and validate the current `internal-stable` signed ZIP.
 5. Rewrite that manifest into a temporary local update root served by the repository Python server.
-6. Launch the dev app with isolated `HOME`, `TMPDIR`, `userData`, and Squirrel defaults.
+6. Launch the ad-hoc-signed dev app with isolated `HOME`, `TMPDIR`, and `userData`.
 7. Drive the real Settings update action through the renderer.
 8. Confirm install preparation consumes the receipt and explicit dev analytics value, then the installed app switches Bundle ID, retains the directory inode, applies its packaged analytics default, and initializes telemetry.
 9. Remove only temporary state and prove the real Profile/cache fingerprints are unchanged.
@@ -403,7 +416,9 @@ Document that:
 
 - [ ] **Step 2: Update release and architecture contracts**
 
-Document the identity-bound receipt, server exception, install ordering, target-default initialization, non-downgrade rule, and mandatory packaged regression. Keep `docs/release.md` as the release-policy source and do not duplicate the controller stages.
+Document the identity-bound receipt, direct artifact verification, helper install ordering,
+target-default initialization, non-downgrade rule, and mandatory packaged regression. Keep
+`docs/release.md` as the release-policy source and do not duplicate the controller stages.
 
 - [ ] **Step 3: Run documentation checks**
 

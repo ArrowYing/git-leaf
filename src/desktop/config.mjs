@@ -193,6 +193,11 @@ export async function prepareDesktopDevelopmentHandoffInstallation({
     userDataDir,
     mutation: async () => {
       const current = await readDesktopConfig({ userDataDir });
+      const hadUsageAnalyticsSetting = Object.hasOwn(
+        current,
+        "usageAnalyticsEnabled",
+      );
+      const previousUsageAnalyticsEnabled = current.usageAnalyticsEnabled;
       if (!sameDevelopmentHandoffReceipt(
         current.developmentHandoff,
         normalizedHandoff,
@@ -200,6 +205,8 @@ export async function prepareDesktopDevelopmentHandoffInstallation({
         return {
           prepared: false,
           config: current,
+          hadUsageAnalyticsSetting,
+          previousUsageAnalyticsEnabled,
         };
       }
 
@@ -213,7 +220,41 @@ export async function prepareDesktopDevelopmentHandoffInstallation({
       return {
         prepared: true,
         config: next,
+        hadUsageAnalyticsSetting,
+        previousUsageAnalyticsEnabled,
       };
+    },
+  });
+}
+
+export async function restoreDesktopDevelopmentHandoffInstallation({
+  userDataDir,
+  handoff,
+  hadUsageAnalyticsSetting = false,
+  previousUsageAnalyticsEnabled = false,
+  repoRoot = "",
+}) {
+  const normalizedHandoff = normalizeDevelopmentHandoffReceipt(handoff);
+  if (!normalizedHandoff) {
+    throw new TypeError("developmentHandoff must contain a valid target identity");
+  }
+  return queueDesktopConfigMutation({
+    userDataDir,
+    mutation: async () => {
+      const current = await readDesktopConfig({ userDataDir });
+      const nextPayload = {
+        ...withRuntimeRepository(current, repoRoot),
+        developmentHandoff: normalizedHandoff,
+      };
+      if (hadUsageAnalyticsSetting) {
+        nextPayload.usageAnalyticsEnabled =
+          previousUsageAnalyticsEnabled === true;
+      } else {
+        delete nextPayload.usageAnalyticsEnabled;
+      }
+      const next = normalizeDesktopConfig(nextPayload);
+      await writeDesktopConfig({ userDataDir, config: next });
+      return next;
     },
   });
 }

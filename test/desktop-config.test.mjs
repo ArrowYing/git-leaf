@@ -12,6 +12,7 @@ import {
   queueDesktopConfigMutation,
   readDesktopConfig,
   prepareDesktopDevelopmentHandoffInstallation,
+  restoreDesktopDevelopmentHandoffInstallation,
   saveDesktopDevelopmentHandoff,
   saveDesktopPreferences,
   saveDesktopRepository,
@@ -122,11 +123,37 @@ test("install preparation atomically clears the dev analytics value and consumes
   });
 
   assert.equal(result.prepared, true);
+  assert.equal(result.hadUsageAnalyticsSetting, true);
+  assert.equal(result.previousUsageAnalyticsEnabled, false);
   assert.equal(Object.hasOwn(result.config, "usageAnalyticsEnabled"), false);
   assert.equal(Object.hasOwn(result.config, "developmentHandoff"), false);
   const persisted = JSON.parse(await readFile(desktopConfigPath(userDataDir), "utf8"));
   assert.equal(Object.hasOwn(persisted, "usageAnalyticsEnabled"), false);
   assert.equal(Object.hasOwn(persisted, "developmentHandoff"), false);
+});
+
+test("failed handoff installation restores its receipt and prior analytics value", async () => {
+  const userDataDir = await mkdtemp(path.join(tmpdir(), "git-leaf-user-data-"));
+  await saveDesktopUsageAnalyticsEnabled({ userDataDir, enabled: false });
+  await saveDesktopDevelopmentHandoff({
+    userDataDir,
+    handoff: INTERNAL_HANDOFF,
+  });
+  const preparation = await prepareDesktopDevelopmentHandoffInstallation({
+    userDataDir,
+    handoff: INTERNAL_HANDOFF,
+  });
+
+  const restored = await restoreDesktopDevelopmentHandoffInstallation({
+    userDataDir,
+    handoff: INTERNAL_HANDOFF,
+    hadUsageAnalyticsSetting: preparation.hadUsageAnalyticsSetting,
+    previousUsageAnalyticsEnabled:
+      preparation.previousUsageAnalyticsEnabled,
+  });
+
+  assert.equal(restored.usageAnalyticsEnabled, false);
+  assert.deepEqual(restored.developmentHandoff, INTERNAL_HANDOFF);
 });
 
 test("mismatched or absent install preparation never changes analytics", async () => {

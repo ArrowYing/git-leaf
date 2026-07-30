@@ -19,6 +19,11 @@ import process from "node:process";
 
 import { createDesktopUpdateController } from "./updates.mjs";
 import { configureMacUpdateInstallation } from "./mac-update-installation.mjs";
+import {
+  launchMacDevelopmentHandoffUpdate,
+  macAppBundlePathFromExecutable,
+  prepareMacDevelopmentHandoffUpdate,
+} from "./mac-development-handoff-update.mjs";
 import { createSettingsCenterController } from "./settings-center.mjs";
 import {
   createDesktopTranslatorForLanguage,
@@ -46,7 +51,6 @@ import {
 import {
   closeDesktopRepository,
   mutateDesktopRepositoryFavorites,
-  prepareDesktopDevelopmentHandoffInstallation,
   readDesktopConfig,
   saveDesktopDevelopmentHandoff,
   saveDesktopPreferences,
@@ -777,15 +781,21 @@ function installUpdateController() {
       });
       return desktopRepositoryState.developmentHandoff;
     },
-    prepareDevelopmentHandoffInstallation: async (handoff) => {
-      const preparation = await prepareDesktopDevelopmentHandoffInstallation({
-        userDataDir: userDataDir(),
+    prepareDevelopmentHandoffUpdate: ({ manifest, handoff }) => (
+      prepareMacDevelopmentHandoffUpdate({
+        manifest,
         handoff,
-        repoRoot: activeServer?.repoRoot ?? "",
-      });
-      desktopRepositoryState = preparation.config;
-      return preparation.prepared;
-    },
+        userDataDir: userDataDir(),
+        targetAppPath: macAppBundlePathFromExecutable(),
+        launchArgs: process.argv.slice(1),
+      })
+    ),
+    launchDevelopmentHandoffUpdate: (prepared) => (
+      launchMacDevelopmentHandoffUpdate({
+        prepared,
+        currentProcessId: process.pid,
+      })
+    ),
     recordUpdateState: recordTelemetryUpdateState,
     translate: (key, values) => desktopText(key, values),
     prepareWindowsUpdate: (manifest) => prepareWindowsAppUpdate({

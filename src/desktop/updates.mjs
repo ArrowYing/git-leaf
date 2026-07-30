@@ -45,8 +45,11 @@ export function createDesktopUpdateController({
   saveDevelopmentHandoff = async () => {
     throw new Error("Development handoff persistence is unavailable.");
   },
-  prepareDevelopmentHandoffInstallation = async () => {
-    throw new Error("Development handoff installation preparation is unavailable.");
+  prepareDevelopmentHandoffUpdate = async () => {
+    throw new Error("Development handoff update preparation is unavailable.");
+  },
+  launchDevelopmentHandoffUpdate = () => {
+    throw new Error("Development handoff update launch is unavailable.");
   },
   recordUpdateState = () => {},
   prepareWindowsUpdate = async () => {
@@ -237,6 +240,10 @@ export function createDesktopUpdateController({
       }
       try {
         await recordInstallStarted(update);
+        if (update.handoff) {
+          launchDevelopmentHandoffUpdate(update.prepared);
+          return false;
+        }
         if (update.platform === "win32") {
           launchWindowsUpdate(update.prepared);
           return false;
@@ -666,6 +673,50 @@ export function createDesktopUpdateController({
     });
 
     if (pending.platform === "darwin") {
+      if (pending.handoff) {
+        try {
+          pending.prepared = await prepareDevelopmentHandoffUpdate({
+            manifest: pending.manifest,
+            handoff: pending.handoff,
+          });
+        } catch (error) {
+          pending.state = "error";
+          notifyUpdateTelemetry(recordUpdateState, {
+            state: "failed",
+            trigger: pending.trigger,
+            from_version: buildInfo?.version,
+            to_version: pending.version || null,
+            error_code: "copy",
+            stage: "prepare",
+          });
+          await notifyUpdateStatus(showUpdateStatus, {
+            state: "error",
+            version: pending.version,
+            manual: trigger === "manual",
+            message: text("updates.prepareFailedRetry"),
+            detail: errorDetail(error),
+          });
+          if (trigger === "manual") {
+            await showUpdateInfo("updates.prepareFailed", {
+              detail: errorDetail(error),
+            });
+          }
+          return "error";
+        }
+        pending.state = "downloaded";
+        notifyUpdateTelemetry(recordUpdateState, {
+          state: "downloaded",
+          trigger: pending.trigger,
+          from_version: buildInfo?.version,
+          to_version: pending.version || null,
+        });
+        await notifyUpdateStatus(showUpdateStatus, {
+          state: "downloaded",
+          version: pending.version,
+          message: text("updates.downloaded"),
+        });
+        return "downloaded";
+      }
       try {
         autoUpdater.setFeedURL({
           url: macAutoUpdaterFeedUrl({
@@ -673,7 +724,6 @@ export function createDesktopUpdateController({
             channel,
             platformKey,
             currentVersion: buildInfo?.version,
-            handoff: pending.handoff,
           }),
         });
         await autoUpdater.checkForUpdates();
@@ -754,14 +804,6 @@ export function createDesktopUpdateController({
   async function recordInstallStarted(update) {
     if (!update?.version || installStartedForVersion === update.version) {
       return false;
-    }
-    if (update.handoff) {
-      const prepared = await prepareDevelopmentHandoffInstallation(
-        update.handoff,
-      );
-      if (prepared !== true) {
-        throw new Error("Development handoff installation was not prepared.");
-      }
     }
     installStartedForVersion = update.version;
     await notifyUpdateTelemetryAsync(recordUpdateState, {

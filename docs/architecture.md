@@ -480,19 +480,25 @@ resolves only `official + internal` on `internal-stable`, accepts the same or a 
 persists the full target version/build ID/commit/track/channel/platform before download. `dev=false`
 Community packages, unpackaged runs, and other platforms remain disconnected from official feeds.
 
-Ordinary Squirrel feeds return a package only when the manifest version is newer. The update service
-permits equality only for a complete `dev-to-internal` query matching the current
-`internal-stable/darwin-universal` manifest. The query is routing identity, not access control.
+Ordinary Squirrel feeds still return a package only when the manifest version is newer. A development
+handoff does not use Squirrel: after validating `latest.json`, it downloads the exact ZIP URL and
+SHA-256 already named by the internal manifest. Equality is therefore a client-side identity rule and
+does not require a same-version exception in the update service.
 
 Official update checks read metadata only on launch, hourly, after reactivation, and after sleep. A
 package download starts only after the user chooses Update or a previously persisted update intent is
 resumed. The app saves state and shuts down its local service and windows before launching the platform
 installer. Failed preparation remains retryable and must not masquerade as an active download.
 
-For a development handoff, the install entry revalidates the persisted receipt and atomically removes
-the dev-initialized analytics value before calling Squirrel. A failure blocks installation. This lets
-already-published internal packages initialize from their embedded analytics default without requiring
-target-side receipt code; ordinary official upgrades keep the existing analytics value.
+For a development handoff, the client verifies the extracted App's complete embedded build identity,
+official Bundle ID, and Developer ID team before offering installation. Shutdown starts a detached,
+nonprivileged Node helper from the current App. After the dev process exits, the helper revalidates the
+persisted receipt, atomically removes the dev-initialized analytics value, transactionally replaces
+only the existing App's `Contents`, and confirms the official App can relaunch before discarding the
+rollback copy. A failure restores both the old `Contents` and the previous receipt/analytics state.
+This lets already-published internal packages initialize from their embedded analytics default without
+target-side receipt code; ordinary official upgrades keep the existing analytics value and Squirrel
+path.
 
 ## Module boundaries
 
