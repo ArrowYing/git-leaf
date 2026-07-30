@@ -14,6 +14,10 @@ import path from "node:path";
 import test from "node:test";
 
 import { replaceMacAppContents } from "../scripts/mac-update-bridge.mjs";
+import {
+  assertMacAppNotRunning,
+  runningMacAppProcessIds,
+} from "../src/desktop/mac-app-contents.mjs";
 
 function fixtureApp(root, name, version) {
   const appPath = path.join(root, name);
@@ -25,6 +29,39 @@ function fixtureApp(root, name, version) {
 function readFixtureVersion(appPath) {
   return readFileSync(path.join(appPath, "Contents", "version.txt"), "utf8");
 }
+
+test("mac App process checks exclude the in-bundle update helper only", () => {
+  const appPath = "/private/tmp/Git Leaf.app";
+  const currentHelper = `${appPath}/Contents/MacOS/Git Leaf helper.mjs`;
+  const lingeringRenderer =
+    `${appPath}/Contents/Frameworks/Git Leaf Helper.app/Contents/MacOS/Git Leaf Helper --type=renderer`;
+  const processList = [
+    `101 ${currentHelper}`,
+    `202 ${lingeringRenderer}`,
+    "303 /usr/bin/other-process",
+  ].join("\n");
+
+  assert.deepEqual(
+    runningMacAppProcessIds(appPath, {
+      excludedProcessIds: [101],
+      processList,
+    }),
+    [202],
+  );
+  assert.throws(
+    () => assertMacAppNotRunning(appPath, {
+      excludedProcessIds: [101],
+      processList,
+    }),
+    /202/,
+  );
+  assert.doesNotThrow(
+    () => assertMacAppNotRunning(appPath, {
+      excludedProcessIds: [101, 202],
+      processList,
+    }),
+  );
+});
 
 test("mac update bridge replaces only Contents and preserves the App inode", () => {
   const root = mkdtempSync(path.join(tmpdir(), "git-leaf-update-bridge-test."));

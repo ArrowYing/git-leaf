@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { EventEmitter } from "node:events";
 import { Readable } from "node:stream";
 import {
   mkdirSync,
@@ -11,6 +12,7 @@ import path from "node:path";
 import test from "node:test";
 
 import {
+  extractMacDevelopmentHandoffArchive,
   installPreparedMacDevelopmentHandoff,
   launchMacDevelopmentHandoffUpdate,
   prepareMacDevelopmentHandoffUpdate,
@@ -51,12 +53,40 @@ function inspectedTarget() {
     version: RECEIPT.version,
     buildInfo: {
       distribution: "official",
-      dev: false,
       usageAnalyticsDefault: true,
       ...RECEIPT,
     },
   };
 }
+
+test("mac development handoff extracts the signed App with native ditto", async () => {
+  const root = mkdtempSync(path.join(tmpdir(), "git-leaf-mac-handoff-test."));
+  try {
+    const archivePath = path.join(root, "update.zip");
+    const extractRoot = path.join(root, "extracted");
+    const calls = [];
+    mkdirSync(extractRoot, { recursive: true });
+    const child = new EventEmitter();
+
+    const extraction = extractMacDevelopmentHandoffArchive(archivePath, {
+      dir: extractRoot,
+      spawnProcess(command, args, options) {
+        calls.push({ command, args, options });
+        queueMicrotask(() => child.emit("close", 0, null));
+        return child;
+      },
+    });
+    await extraction;
+
+    assert.deepEqual(calls, [{
+      command: "ditto",
+      args: ["-x", "-k", archivePath, extractRoot],
+      options: { stdio: ["ignore", "ignore", "pipe"] },
+    }]);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
 
 test("mac development handoff prepares only the exact signed internal target", async () => {
   const root = mkdtempSync(path.join(tmpdir(), "git-leaf-mac-handoff-test."));
@@ -88,6 +118,59 @@ test("mac development handoff prepares only the exact signed internal target", a
     assert.equal(ready.targetAppPath, targetAppPath);
     assert.deepEqual(ready.handoff, RECEIPT);
   } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("mac development handoff shares one preparation for concurrent retries", async () => {
+  const root = mkdtempSync(path.join(tmpdir(), "git-leaf-mac-handoff-test."));
+  let releaseExtraction;
+  const extractionReleased = new Promise((resolve) => {
+    releaseExtraction = resolve;
+  });
+  let extractionStarted;
+  const extractionDidStart = new Promise((resolve) => {
+    extractionStarted = resolve;
+  });
+  try {
+    const userDataDir = path.join(root, "user-data");
+    const targetAppPath = path.join(root, "installed", "Git Leaf.app");
+    mkdirSync(targetAppPath, { recursive: true });
+    let fetchCalls = 0;
+    let extractCalls = 0;
+    const options = {
+      manifest: manifest(),
+      handoff: RECEIPT,
+      userDataDir,
+      targetAppPath,
+      fetchFn: async () => {
+        fetchCalls += 1;
+        return {
+          ok: true,
+          status: 200,
+          body: Readable.from([ARCHIVE]),
+        };
+      },
+      extractArchive: async (_archivePath, { dir }) => {
+        extractCalls += 1;
+        extractionStarted();
+        await extractionReleased;
+        mkdirSync(path.join(dir, "Git Leaf.app"), { recursive: true });
+      },
+      inspectApp: () => inspectedTarget(),
+    };
+
+    const first = prepareMacDevelopmentHandoffUpdate(options);
+    await extractionDidStart;
+    const retry = prepareMacDevelopmentHandoffUpdate(options);
+    releaseExtraction();
+    const [firstPrepared, retryPrepared] = await Promise.all([first, retry]);
+
+    assert.equal(fetchCalls, 1);
+    assert.equal(extractCalls, 1);
+    assert.equal(retryPrepared.readyFile, firstPrepared.readyFile);
+  } finally {
+    releaseExtraction?.();
     rmSync(root, { recursive: true, force: true });
   }
 });
@@ -148,6 +231,11 @@ test("mac development handoff helper prepares config before switching Contents",
     },
     normalizeReady: (value) => value,
     waitForProcessExit: async () => calls.push("wait"),
+    waitForAppProcessesExit: async (appPath, options) => {
+      calls.push("wait-app");
+      assert.equal(appPath, "/Applications/Git Leaf.app");
+      assert.deepEqual(options.excludedProcessIds, [process.pid]);
+    },
     prepareInstallation: async () => {
       calls.push("prepare-config");
       return {
@@ -165,6 +253,7 @@ test("mac development handoff helper prepares config before switching Contents",
   });
   assert.deepEqual(calls, [
     "wait",
+    "wait-app",
     "prepare-config",
     "replace",
     "launch",
@@ -187,6 +276,7 @@ test("mac development handoff helper rolls back Contents and config when relaunc
       },
       normalizeReady: (value) => value,
       waitForProcessExit: async () => calls.push("wait"),
+      waitForAppProcessesExit: async () => calls.push("wait-app"),
       prepareInstallation: async () => ({
         prepared: true,
         hadUsageAnalyticsSetting: true,
@@ -208,7 +298,13 @@ test("mac development handoff helper rolls back Contents and config when relaunc
     }),
     /synthetic launch failure/,
   );
-  assert.deepEqual(calls, ["wait", "launch", "rollback", "restore-config"]);
+  assert.deepEqual(calls, [
+    "wait",
+    "wait-app",
+    "launch",
+    "rollback",
+    "restore-config",
+  ]);
 });
 
 test("mac development handoff launches a detached Node helper from the current App", () => {

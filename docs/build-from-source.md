@@ -108,8 +108,10 @@ analytics value so the internal package applies its own embedded default. This c
 routing, not proof of publisher identity or authorization to obtain confidential artifacts.
 
 Agent automation must not use this command or the real Profile. Use `make smoke-dev-mac` for an isolated
-one-time snapshot, and use `npm run verify:dev-handoff:mac -- --output /absolute/temp/evidence.json`
-when the cross-identity updater itself changes.
+one-time snapshot. When the cross-identity updater itself changes, run
+`npm run verify:dev-handoff:mac -- --output /absolute/temp/evidence.json --allow-visible-app` only
+when desktop interruption is acceptable: its Profile is isolated, but its temporary App still opens
+and restarts visibly.
 
 ## Validate a change
 

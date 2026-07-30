@@ -6,7 +6,7 @@
 
 **Architecture:** Add one explicit `dev-to-internal` transition contract shared by discovery, direct artifact preparation, and persisted receipts. The ordinary public/internal Squirrel updater remains strictly newer-version-only. The dev client downloads the exact internal ZIP bound by `latest.json`, verifies its checksum, official signature, Bundle ID, and complete embedded build identity, then hands it to a detached nonprivileged `Contents` helper. After the dev process exits, an exact receipt match atomically removes the receipt and the dev build's explicit analytics value so even the already-published internal `1.16.0` package applies its embedded `usageAnalyticsDefault=true` on launch. Replacement or relaunch failure restores both the App and configuration transaction.
 
-**Tech Stack:** Node.js ESM, Electron, `extract-zip`, macOS `codesign`, transactional `Contents` replacement, `node:test`.
+**Tech Stack:** Node.js ESM, Electron, macOS `ditto` and `codesign`, transactional `Contents` replacement, `node:test`.
 
 > Execution correction, 2026-07-30: the initial Tasks 1–5 below record the first Squirrel-based
 > hypothesis. Packaged execution proved that a source App whose patched Squirrel framework had not
@@ -14,7 +14,9 @@
 > requirement is not the correct cross-Bundle-ID boundary. The implemented path therefore supersedes
 > the feed-query/server exception and dev-Squirrel steps: source packages are ad-hoc signed for local
 > integrity, dev downloads and verifies the manifest ZIP directly, and a detached nonprivileged helper
-> performs the receipt-gated transactional replacement. The update server remains unchanged.
+> performs the receipt-gated transactional replacement. Native `ditto` preserves the signed App during
+> extraction, concurrent retries share one preparation, and the helper excludes itself while waiting
+> for the old App process tree. The update server remains unchanged.
 
 ---
 
@@ -381,10 +383,14 @@ Run:
 
 ```bash
 evidence_dir="$(mktemp -d /tmp/git-leaf-dev-handoff.XXXXXX)"
-npm run verify:dev-handoff:mac -- --output "$evidence_dir/evidence.json"
+npm run verify:dev-handoff:mac -- \
+  --output "$evidence_dir/evidence.json" \
+  --allow-visible-app
 ```
 
-Expected: real packaged equal-version handoff passes with isolated state.
+Expected: real packaged equal-version handoff passes with isolated state. The explicit flag acknowledges
+that the isolated temporary App is still visible on the current desktop; the harness clicks each
+transition action only once and must never automate a restart loop.
 
 - [ ] **Step 5: Commit**
 

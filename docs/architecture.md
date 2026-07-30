@@ -493,9 +493,11 @@ installer. Failed preparation remains retryable and must not masquerade as an ac
 For a development handoff, the client verifies the extracted App's complete embedded build identity,
 official Bundle ID, and Developer ID team before offering installation. Shutdown starts a detached,
 nonprivileged Node helper from the current App. After the dev process exits, the helper revalidates the
-persisted receipt, atomically removes the dev-initialized analytics value, transactionally replaces
-only the existing App's `Contents`, and confirms the official App can relaunch before discarding the
-rollback copy. A failure restores both the old `Contents` and the previous receipt/analytics state.
+persisted receipt, waits for the old App's remaining child processes while excluding its own
+Electron-as-Node process, atomically removes the dev-initialized analytics value, transactionally
+replaces only the existing App's `Contents`, and confirms the official App can relaunch before
+discarding the rollback copy. A failure restores both the old `Contents` and the previous
+receipt/analytics state.
 This lets already-published internal packages initialize from their embedded analytics default without
 target-side receipt code; ordinary official upgrades keep the existing analytics value and Squirrel
 path.

@@ -174,9 +174,16 @@ export async function runDevelopmentHandoffRegression({
   outputPath,
   logPath,
   baseUrl = DEFAULT_BASE_URL,
+  allowVisibleApp = false,
 } = {}) {
   if (!outputPath || !logPath) {
     throw new TypeError("outputPath and logPath are required");
+  }
+  if (!allowVisibleApp) {
+    throw new Error(
+      "This regression launches and restarts a visible temporary App. "
+      + "Run it only when desktop interruption is acceptable and pass --allow-visible-app.",
+    );
   }
   const host = assertDevelopmentHandoffHostSafe();
   const realShipItCacheBefore = realShipItCacheFingerprint();
@@ -349,22 +356,39 @@ export async function runDevelopmentHandoffRegression({
       handoff: receipt,
     });
     await waitFor(async () => {
-      await evaluateInRenderer({
+      const action = await evaluateInRenderer({
         userDataDir,
         expression: updateRegressionInstallExpression(),
       });
-      return (
-        sameDevelopmentHandoffReceipt(
-          readJsonIfPresent(path.join(userDataDir, "desktop-config.json"))
-            ?.developmentHandoff,
-          receipt,
-        )
-        && existsSync(preparedPaths.readyFile)
-      );
+      return action?.clicked === true;
     }, {
+      timeoutMs: 120_000,
+      intervalMs: 500,
+      label: "the development handoff action",
+    });
+    await waitFor(() => (
+      sameDevelopmentHandoffReceipt(
+        readJsonIfPresent(path.join(userDataDir, "desktop-config.json"))
+          ?.developmentHandoff,
+        receipt,
+      )
+      && existsSync(preparedPaths.readyFile)
+    ), {
       timeoutMs: 240_000,
-      intervalMs: 1_000,
+      intervalMs: 500,
       label: "the user-selected signed internal handoff preparation",
+    });
+
+    await waitFor(async () => {
+      const action = await evaluateInRenderer({
+        userDataDir,
+        expression: updateRegressionInstallExpression(),
+      });
+      return action?.clicked === true;
+    }, {
+      timeoutMs: 120_000,
+      intervalMs: 500,
+      label: "the prepared development handoff install action",
     });
 
     const isolatedShipItCaches = [
@@ -386,21 +410,12 @@ export async function runDevelopmentHandoffRegression({
       throw new Error("The development handoff attempted to register a privileged ShipIt job");
     }
 
-    await waitFor(async () => {
-      if (
-        readAppPlistValue(sourceAppPath, "CFBundleIdentifier")
-        === OFFICIAL_PACKAGE_IDENTITY.macBundleId
-      ) {
-        return true;
-      }
-      await evaluateInRenderer({
-        userDataDir,
-        expression: updateRegressionInstallExpression(),
-      });
-      return false;
-    }, {
+    await waitFor(() => (
+      readAppPlistValue(sourceAppPath, "CFBundleIdentifier")
+      === OFFICIAL_PACKAGE_IDENTITY.macBundleId
+    ), {
       timeoutMs: 240_000,
-      intervalMs: 2_000,
+      intervalMs: 500,
       label: "the internal App to replace the development App",
     });
 
@@ -730,9 +745,12 @@ function printHelp() {
     --output FILE
     [--log FILE]
     [--base-url URL]
+    --allow-visible-app
 
 This harness packages the current source dev build, switches it to the signed
-same-version internal-stable App, and keeps all automated state isolated.`);
+same-version internal-stable App, and keeps all automated state isolated. It
+still opens and restarts a visible temporary App, so the acknowledgement flag
+is mandatory.`);
 }
 
 async function main(args = process.argv.slice(2)) {
@@ -751,6 +769,7 @@ async function main(args = process.argv.slice(2)) {
     outputPath,
     logPath,
     baseUrl: optionValue(args, "--base-url") || DEFAULT_BASE_URL,
+    allowVisibleApp: args.includes("--allow-visible-app"),
   });
   console.log(`macOS development handoff regression passed: ${outputPath}`);
 }

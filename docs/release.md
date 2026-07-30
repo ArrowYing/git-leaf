@@ -193,12 +193,13 @@ cache, and verifies its official Bundle ID, Developer ID team, version, and embe
 Ordinary Squirrel feeds remain strictly newer-version-only.
 
 When the package is ready and the user chooses installation, normal shutdown launches a detached
-nonprivileged helper and exits. The helper waits for the dev process, revalidates the persisted receipt,
-and atomically removes both the receipt and the development build's explicit analytics value before a
+nonprivileged helper and exits. The helper waits for the dev main process and its remaining child
+processes while excluding its own Electron-as-Node process, revalidates the persisted receipt, and
+atomically removes both the receipt and the development build's explicit analytics value before a
 transactional direct-`Contents` replacement. It confirms the signed internal App can relaunch before
-discarding the rollback copy. A mismatch, write failure, replacement failure, or launch failure restores
-the dev App and its previous receipt/analytics state. The existing signed internal `1.16.0` package then
-initializes from its embedded `usageAnalyticsDefault=true` before telemetry starts. An
+discarding the rollback copy. A mismatch, write failure, replacement failure, or launch failure
+restores the dev App and its previous receipt/analytics state. The existing signed internal `1.16.0`
+package then initializes from its embedded `usageAnalyticsDefault=true` before telemetry starts. An
 internal-to-internal update does not use this exception.
 
 ## Formal official release
@@ -375,15 +376,18 @@ Changes to the development handoff additionally require the same-version isolate
 
 ```bash
 npm run verify:dev-handoff:mac -- \
-  --output /absolute/temporary/path/development-handoff.json
+  --output /absolute/temporary/path/development-handoff.json \
+  --allow-visible-app
 ```
 
 It packages the current source dev App, uses the exact signed `internal-stable` ZIP, drives the real
 user-visible update action, and proves the Bundle ID transition, target signature, preserved App
 directory inode, nonprivileged `Contents` bridge, absence of Squirrel/ShipIt use, target analytics
 default, telemetry initialization, receipt consumption, cleanup, and unchanged real Profile/cache
-fingerprints. It refuses to run while the installed human App or either official/community ShipIt job
-is active.
+fingerprints. The acknowledgement flag is mandatory because the temporary App opens and restarts on
+the current desktop even though its data is isolated. Each transition action is clicked at most once;
+a failed helper may not create an automated restart loop. The harness refuses to run while the
+installed human App or either official/community ShipIt job is active.
 
 An update regression that requests system account credentials or starts a privileged Helper is a
 failure, not an installation step. Do not authorize it or manually load, unload, or boot out ShipIt jobs

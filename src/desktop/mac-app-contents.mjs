@@ -5,6 +5,7 @@ import {
   existsSync,
   lstatSync,
   mkdtempSync,
+  realpathSync,
   renameSync,
   rmSync,
   statSync,
@@ -69,15 +70,73 @@ export function verifySignedMacApp(appPath) {
   return true;
 }
 
-export function assertMacAppNotRunning(appPath) {
-  const executable = path.join(appPath, "Contents", "MacOS", "Git Leaf");
-  const processes = spawnSync("ps", ["-axo", "command="], { encoding: "utf8" });
-  if (
-    String(processes.stdout || "")
-      .split("\n")
-      .some((command) => command.trim().startsWith(executable))
-  ) {
-    throw new Error(`Refusing to update a running App: ${appPath}`);
+export function runningMacAppProcessIds(appPath, {
+  excludedProcessIds = [],
+  processList,
+} = {}) {
+  const roots = new Set([path.resolve(appPath)]);
+  try {
+    roots.add(realpathSync.native(appPath));
+  } catch {
+    // The logical App path remains sufficient for validation below.
+  }
+  const output = processList === undefined
+    ? spawnSync("ps", ["-axo", "pid=,command="], { encoding: "utf8" }).stdout
+    : typeof processList === "function"
+      ? processList()
+      : processList;
+  const excluded = new Set(
+    excludedProcessIds
+      .filter((processId) => Number.isInteger(processId) && processId > 0),
+  );
+  return String(output || "")
+    .split("\n")
+    .map((line) => line.trim().match(/^(\d+)\s+(.+)$/))
+    .filter(Boolean)
+    .map((match) => ({
+      processId: Number(match[1]),
+      command: match[2],
+    }))
+    .filter(({ processId, command }) => (
+      !excluded.has(processId)
+      && [...roots].some((root) => (
+        command.startsWith(`${root}${path.sep}Contents${path.sep}`)
+      ))
+    ))
+    .map(({ processId }) => processId);
+}
+
+export function assertMacAppNotRunning(appPath, options = {}) {
+  const processIds = runningMacAppProcessIds(appPath, options);
+  if (processIds.length > 0) {
+    throw new Error(
+      `Refusing to update a running App: ${appPath} (${processIds.join(", ")})`,
+    );
+  }
+}
+
+export async function waitForMacAppProcessesExit(appPath, {
+  excludedProcessIds = [],
+  timeoutMs = 15_000,
+  pollMs = 100,
+  findProcessIds = runningMacAppProcessIds,
+  wait = (milliseconds) => new Promise((resolve) => {
+    setTimeout(resolve, milliseconds);
+  }),
+  now = Date.now,
+} = {}) {
+  const startedAt = now();
+  let processIds = findProcessIds(appPath, { excludedProcessIds });
+  while (processIds.length > 0) {
+    if (now() - startedAt >= timeoutMs) {
+      throw new Error(
+        `Timed out waiting for Git Leaf App processes to exit: ${
+          processIds.join(", ")
+        }`,
+      );
+    }
+    await wait(pollMs);
+    processIds = findProcessIds(appPath, { excludedProcessIds });
   }
 }
 

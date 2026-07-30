@@ -571,7 +571,7 @@ export async function evaluateInRenderer({ userDataDir, expression }) {
   if (!target) {
     throw new Error("No renderer target is available through the isolated DevTools port");
   }
-  await new Promise((resolve, reject) => {
+  return new Promise((resolve, reject) => {
     const socket = new WebSocket(target.webSocketDebuggerUrl);
     const timeout = setTimeout(() => {
       socket.close();

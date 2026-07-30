@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  runDevelopmentHandoffRegression,
   validateDevelopmentHandoffBuildPair,
   validateDevelopmentHandoffRegressionEvidence,
 } from "../scripts/mac-development-handoff-regression.mjs";
@@ -30,11 +31,20 @@ const TARGET_BUILD = {
   version: RECEIPT.version,
   buildId: RECEIPT.buildId,
   commit: RECEIPT.commit,
-  dev: false,
   distribution: "official",
   releaseTrack: "internal",
   usageAnalyticsDefault: true,
 };
+
+test("development handoff regression requires an explicit visible-App acknowledgement", async () => {
+  await assert.rejects(
+    runDevelopmentHandoffRegression({
+      outputPath: "/tmp/development-handoff-evidence.json",
+      logPath: "/tmp/development-handoff.log",
+    }),
+    /allow-visible-app/i,
+  );
+});
 
 test("development handoff regression binds a same-version source app to the official internal target", () => {
   assert.deepEqual(validateDevelopmentHandoffBuildPair({

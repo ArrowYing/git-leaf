@@ -11,15 +11,12 @@ import {
   readFile,
   readdir,
   rename,
-  rm,
   writeFile,
 } from "node:fs/promises";
 import path from "node:path";
 import { Readable, Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { fileURLToPath } from "node:url";
-
-import extractZip from "extract-zip";
 
 import {
   developmentHandoffReceiptForManifest,
@@ -34,11 +31,11 @@ import {
 import {
   OFFICIAL_MAC_BUNDLE_ID,
   OFFICIAL_MAC_TEAM_IDENTIFIER,
-  assertMacAppNotRunning,
   beginMacAppContentsReplacement,
   readMacAppBundleId,
   readMacAppVersion,
   verifySignedMacApp,
+  waitForMacAppProcessesExit,
 } from "./mac-app-contents.mjs";
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
@@ -48,6 +45,7 @@ const MAC_APP_NAME = "Git Leaf.app";
 const MAC_EXECUTABLE_NAME = "Git Leaf";
 const HELPER_READY_ARGUMENT = "--install-ready";
 const HELPER_PID_ARGUMENT = "--wait-pid";
+const activePreparations = new Map();
 
 export function macDevelopmentHandoffCachePaths({
   userDataDir,
@@ -82,14 +80,99 @@ export function macAppBundlePathFromExecutable(execPath = process.execPath) {
   return path.dirname(path.dirname(path.dirname(executable)));
 }
 
-export async function prepareMacDevelopmentHandoffUpdate({
+export async function extractMacDevelopmentHandoffArchive(
+  archivePath,
+  {
+    dir,
+    spawnProcess = spawn,
+  } = {},
+) {
+  const archive = path.resolve(requiredPath(archivePath, "archivePath"));
+  const destination = path.resolve(requiredPath(dir, "dir"));
+  await new Promise((resolve, reject) => {
+    let settled = false;
+    let stderr = "";
+    const finish = (callback, value) => {
+      if (settled) return;
+      settled = true;
+      callback(value);
+    };
+    const child = spawnProcess(
+      "ditto",
+      ["-x", "-k", archive, destination],
+      { stdio: ["ignore", "ignore", "pipe"] },
+    );
+    child.stderr?.setEncoding?.("utf8");
+    child.stderr?.on?.("data", (chunk) => {
+      if (stderr.length < 16_384) {
+        stderr += String(chunk).slice(0, 16_384 - stderr.length);
+      }
+    });
+    child.once("error", (error) => finish(reject, error));
+    child.once("close", (code, signal) => {
+      if (code === 0) {
+        finish(resolve);
+        return;
+      }
+      finish(
+        reject,
+        new Error(
+          `macOS development handoff extraction failed: ${
+            signal ? `signal ${signal}` : `exit ${code}`
+          }${stderr.trim() ? `: ${stderr.trim()}` : ""}`,
+        ),
+      );
+    });
+  });
+}
+
+export function prepareMacDevelopmentHandoffUpdate(options = {}) {
+  const receipt = requiredReceipt(options.handoff);
+  const targetAppPath = validatedExistingAppPath(
+    options.targetAppPath,
+    "installed",
+  );
+  const artifact = macDevelopmentHandoffArtifact(options.manifest);
+  const paths = macDevelopmentHandoffCachePaths({
+    userDataDir: options.userDataDir,
+    handoff: receipt,
+  });
+  const identity = JSON.stringify({
+    receipt,
+    artifact,
+    targetAppPath,
+    launchArgs: Array.isArray(options.launchArgs)
+      ? options.launchArgs.map((argument) => String(argument))
+      : process.argv.slice(1),
+  });
+  const active = activePreparations.get(paths.updateRoot);
+  if (active) {
+    if (active.identity === identity) {
+      return active.promise;
+    }
+    return active.promise
+      .catch(() => {})
+      .then(() => prepareMacDevelopmentHandoffUpdate(options));
+  }
+
+  let tracked;
+  tracked = prepareMacDevelopmentHandoffUpdateOnce(options).finally(() => {
+    if (activePreparations.get(paths.updateRoot)?.promise === tracked) {
+      activePreparations.delete(paths.updateRoot);
+    }
+  });
+  activePreparations.set(paths.updateRoot, { identity, promise: tracked });
+  return tracked;
+}
+
+async function prepareMacDevelopmentHandoffUpdateOnce({
   manifest,
   handoff,
   userDataDir,
   targetAppPath,
   launchArgs = process.argv.slice(1),
   fetchFn = globalThis.fetch,
-  extractArchive = extractZip,
+  extractArchive = extractMacDevelopmentHandoffArchive,
   inspectApp = inspectOfficialMacApp,
 } = {}) {
   const receipt = requiredReceipt(handoff);
@@ -112,7 +195,7 @@ export async function prepareMacDevelopmentHandoffUpdate({
     return cached;
   }
 
-  await rm(paths.updateRoot, { recursive: true, force: true });
+  await removePreparedTree(paths.updateRoot);
   await mkdir(paths.versionRoot, { recursive: true, mode: 0o700 });
   try {
     const downloaded = await downloadArchive({
@@ -149,7 +232,12 @@ export async function prepareMacDevelopmentHandoffUpdate({
     );
     return preparedUpdate({ ready, readyFile: paths.readyFile });
   } catch (error) {
-    await rm(paths.versionRoot, { recursive: true, force: true });
+    try {
+      await removePreparedTree(paths.versionRoot);
+    } catch {
+      // Keep the preparation failure as the actionable error. A later retry
+      // removes this identity-bound cache before writing anything new.
+    }
     throw error;
   }
 }
@@ -195,6 +283,7 @@ export async function installPreparedMacDevelopmentHandoff({
   ready,
   waitForProcessId,
   waitForProcessExit = waitForMacProcessExit,
+  waitForAppProcessesExit = waitForMacAppProcessesExit,
   prepareInstallation = prepareDesktopDevelopmentHandoffInstallation,
   restoreInstallation = restoreDesktopDevelopmentHandoffInstallation,
   beginContentsReplacement = beginMacAppContentsReplacement,
@@ -209,7 +298,9 @@ export async function installPreparedMacDevelopmentHandoff({
   let installationCommitted = false;
   try {
     await waitForProcessExit(waitForProcessId);
-    assertMacAppNotRunning(normalized.targetAppPath);
+    await waitForAppProcessesExit(normalized.targetAppPath, {
+      excludedProcessIds: [process.pid],
+    });
     preparation = await prepareInstallation({
       userDataDir: normalized.userDataDir,
       handoff: normalized.handoff,
@@ -384,7 +475,7 @@ function assertOfficialTargetIdentity({ inspected, receipt }) {
     inspected?.bundleId !== OFFICIAL_MAC_BUNDLE_ID
     || inspected?.teamIdentifier !== OFFICIAL_MAC_TEAM_IDENTIFIER
     || inspected?.version !== receipt.version
-    || inspected?.buildInfo?.dev !== false
+    || inspected?.buildInfo?.dev === true
     || inspected?.buildInfo?.usageAnalyticsDefault !== true
     || !developmentHandoffReceiptMatchesBuild({
       receipt,
@@ -471,7 +562,65 @@ async function cleanupReadyUpdate(ready) {
     userDataDir: ready.userDataDir,
     handoff: ready.handoff,
   });
-  await rm(paths.versionRoot, { recursive: true, force: true });
+  await removePreparedTree(paths.versionRoot);
+}
+
+async function removePreparedTree(targetPath) {
+  const target = validatedPreparedTreePath(targetPath);
+  await new Promise((resolve, reject) => {
+    let settled = false;
+    let stderr = "";
+    const finish = (callback, value) => {
+      if (settled) return;
+      settled = true;
+      callback(value);
+    };
+    const child = spawn(
+      "/bin/rm",
+      ["-rf", target],
+      { stdio: ["ignore", "ignore", "pipe"] },
+    );
+    child.stderr?.setEncoding?.("utf8");
+    child.stderr?.on?.("data", (chunk) => {
+      if (stderr.length < 16_384) {
+        stderr += String(chunk).slice(0, 16_384 - stderr.length);
+      }
+    });
+    child.once("error", (error) => finish(reject, error));
+    child.once("close", (code, signal) => {
+      if (code === 0) {
+        finish(resolve);
+        return;
+      }
+      finish(
+        reject,
+        new Error(
+          `macOS development handoff cache cleanup failed: ${
+            signal ? `signal ${signal}` : `exit ${code}`
+          }${stderr.trim() ? `: ${stderr.trim()}` : ""}`,
+        ),
+      );
+    });
+  });
+}
+
+function validatedPreparedTreePath(value) {
+  const target = path.resolve(requiredPath(value, "preparedTreePath"));
+  const segments = target.split(path.sep);
+  const markerIndex = segments.lastIndexOf("development-handoff");
+  const isCacheRoot = markerIndex === segments.length - 1;
+  const isBuildRoot = (
+    markerIndex === segments.length - 2
+    && /^[0-9A-Za-z._-]{1,256}$/.test(segments.at(-1) || "")
+  );
+  if (
+    markerIndex < 2
+    || segments[markerIndex - 1] !== "updates"
+    || (!isCacheRoot && !isBuildRoot)
+  ) {
+    throw new Error(`Refusing to remove an unexpected update path: ${target}`);
+  }
+  return target;
 }
 
 async function launchAndConfirmMacApp({

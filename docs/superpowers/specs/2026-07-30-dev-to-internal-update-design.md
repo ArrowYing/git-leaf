@@ -168,9 +168,10 @@ existing official update contract. After that choice:
 3. Preserve the request across an App restart or transient download failure.
 4. When the package is ready, close the local service and windows through the normal update shutdown
    path.
-5. Install by replacing the existing App's `Contents`, preserving the App directory inode.
-6. Start the official internal build from the same App path and Profile.
-7. Confirm the transition and apply its analytics semantics.
+5. Wait for the old App process tree while excluding the detached helper itself.
+6. Install by replacing the existing App's `Contents`, preserving the App directory inode.
+7. Start the official internal build from the same App path and Profile.
+8. Confirm the transition and apply its analytics semantics.
 
 The development App remains update-disabled for every public, candidate, legacy, or environment-selected
 channel.
@@ -212,11 +213,13 @@ The already-published internal `1.16.0` package predates this handoff and theref
 receipt on launch. The compatibility boundary must use the analytics initialization behavior that is
 already embedded in that package. After the dev process exits, the detached helper:
 
-1. Re-reads and validates the exact persisted target receipt.
-2. Atomically removes both the receipt and the development build's explicit
+1. Waits for the old main and child processes while excluding its own in-bundle Electron-as-Node
+   process.
+2. Re-reads and validates the exact persisted target receipt.
+3. Atomically removes both the receipt and the development build's explicit
    `usageAnalyticsEnabled=false`.
-3. Transactionally replaces only the existing `.app/Contents`.
-4. Confirms the signed internal App can start before deleting the rollback copy.
+4. Transactionally replaces only the existing `.app/Contents`.
+5. Confirms the signed internal App can start before deleting the rollback copy.
 
 The official internal package then sees an uninitialized analytics setting on its first launch, applies
 its embedded `usageAnalyticsDefault=true`, persists `usageAnalyticsEnabled=true`, and initializes
