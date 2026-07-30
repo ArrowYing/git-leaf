@@ -86,6 +86,29 @@ They are not signed or notarized by Mango Future and must not be redistributed a
 release. The official identity depends on the Mango Future signature, official package metadata,
 download channel, checksum, tag, and matching public commit.
 
+## Install a maintainer development build on macOS
+
+For human testing on a maintainer Mac:
+
+```bash
+make install-dev-mac
+```
+
+This is intentionally different from a distributable Community package. It installs `Git Leaf dev`
+with `dev=true` and the Community Bundle ID at `/Applications/Git Leaf.app`, replacing the current App
+and using the same real Profile. Repositories, workbench sessions, appearance, language, favorites, and
+sidebar state therefore survive replacement. The development build remains telemetry-ineligible.
+
+The installed dev build may make one user-selected, one-way switch to the latest signed
+`internal-stable` package, including an internal package with the same version number. It cannot select
+public, candidate, or environment-provided channels. Before installation it removes the dev-initialized
+analytics value so the internal package applies its own embedded default. This capability is product
+routing, not proof of publisher identity or authorization to obtain confidential artifacts.
+
+Agent automation must not use this command or the real Profile. Use `make smoke-dev-mac` for an isolated
+one-time snapshot, and use `npm run verify:dev-handoff:mac -- --output /absolute/temp/evidence.json`
+when the cross-identity updater itself changes.
+
 ## Validate a change
 
 Run the cross-platform core suite:

@@ -3,7 +3,7 @@ title: Git Leaf system architecture
 domain: ai
 type: architecture
 owner: maintainer
-last_updated: 2026-07-28
+last_updated: 2026-07-30
 source: git-leaf
 canonical: true
 ai_snippet: "[Architecture] Git Leaf | human desktop interface for shared context repositories | local HTTP service | Git worktrees | Preview Source Live | CodeMirror 6 | guarded Git sync"
@@ -435,6 +435,12 @@ Profile so replacing an app preserves repositories, sessions, appearance, langua
 sidebar state. Build identity controls labeling, updater eligibility, and analytics eligibility; it
 must not select another `userData` directory by itself.
 
+The single identity-changing exception is a packaged macOS source development handoff to the official
+internal build. Its requested target is stored as a bounded receipt in the same Profile. Immediately
+before installation, an exact match atomically removes the receipt and the dev build's explicit
+analytics initialization; the installed internal package then applies its own embedded default. This
+does not create another Profile or move ordinary Community builds onto an official channel.
+
 Agent automation is a separate launch intent. `make smoke-dev-mac` creates a one-time read-only-derived
 snapshot, passes explicit isolated `userData` and `sessionData`, verifies the production Profile
 fingerprint after the run, and deletes only the temporary snapshot. Failure to create or verify the
@@ -468,10 +474,25 @@ Official builds require a reviewed release profile, use `distribution=official`,
 public or internal release track. Only official builds use Mango Future's macOS bundle ID, Windows
 CompanyName, code signature, and update services. See [Release process](release.md).
 
+A human-installed macOS build with `dev=true, distribution=source, releaseTrack=source` keeps the
+Community Bundle ID and remains telemetry-ineligible. It has one additional routing capability: it
+resolves only `official + internal` on `internal-stable`, accepts the same or a newer version, and
+persists the full target version/build ID/commit/track/channel/platform before download. `dev=false`
+Community packages, unpackaged runs, and other platforms remain disconnected from official feeds.
+
+Ordinary Squirrel feeds return a package only when the manifest version is newer. The update service
+permits equality only for a complete `dev-to-internal` query matching the current
+`internal-stable/darwin-universal` manifest. The query is routing identity, not access control.
+
 Official update checks read metadata only on launch, hourly, after reactivation, and after sleep. A
 package download starts only after the user chooses Update or a previously persisted update intent is
 resumed. The app saves state and shuts down its local service and windows before launching the platform
 installer. Failed preparation remains retryable and must not masquerade as an active download.
+
+For a development handoff, the install entry revalidates the persisted receipt and atomically removes
+the dev-initialized analytics value before calling Squirrel. A failure blocks installation. This lets
+already-published internal packages initialize from their embedded analytics default without requiring
+target-side receipt code; ordinary official upgrades keep the existing analytics value.
 
 ## Module boundaries
 

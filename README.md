@@ -1,5 +1,5 @@
 ---
-last_updated: 2026-07-28
+last_updated: 2026-07-30
 ---
 
 # Git Leaf
@@ -153,21 +153,31 @@ npm start -- /path/to/docs-repo/README.md
 npm start -- /path/to/docs-repo/README.md --no-open
 ```
 
-The desktop app and CLI/browser service listen on localhost only. Development installs and automated
-smoke tests use isolated application data; see [AGENTS.md](AGENTS.md) for the repository's development
-and safety requirements.
+The desktop app and CLI/browser service listen on localhost only. A human-installed `Git Leaf dev`
+replaces the same `Git Leaf.app` and shares the real Profile so normal work survives replacement.
+Automated smoke tests alone use isolated application data; see [AGENTS.md](AGENTS.md) for the
+repository's development and safety requirements.
 
 ## Build identity and privacy
 
 | Build | Update channel | Usage analytics default |
 | --- | --- | --- |
 | Community or local source build | Disabled | Disabled |
+| Human-installed `Git Leaf dev` | One-way handoff to `internal-stable` | Disabled while dev |
 | Official Mango Future public build | `stable` | Disabled |
 | Official Mango Future internal build | `internal-stable` | Enabled |
 
 Settings identifies source, official public, official internal, and development builds and shows the
-effective usage-analytics state. A build default is used only for first-time initialization; updates
-preserve an existing `usageAnalyticsEnabled` value in user data.
+effective usage-analytics state. There are still only two official release tracks—public and
+internal—and two macOS Bundle IDs. An installed source development build is not a third release: it may
+only switch to the latest official internal package, including the same version, after the user chooses
+Update. A Community package without the development marker remains disconnected from official feeds.
+
+A build default is normally used only for first-time initialization, and ordinary updates preserve an
+existing `usageAnalyticsEnabled` value. The source-dev-to-internal identity handoff is the bounded
+exception: immediately before installation it clears the dev build's initialized value so the target
+internal package applies its embedded enabled default. Later internal updates again preserve the
+resulting setting.
 
 Usage analytics run only in company-managed official builds when enabled locally. They do not send
 repository names, paths, file names, search terms, document content, or Git identity. The current

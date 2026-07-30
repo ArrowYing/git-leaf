@@ -1,5 +1,5 @@
 ---
-last_updated: 2026-07-28
+last_updated: 2026-07-30
 ---
 
 # Git Leaf
@@ -135,19 +135,27 @@ npm start -- /path/to/docs-repo/README.md
 npm start -- /path/to/docs-repo/README.md --no-open
 ```
 
-桌面版和 CLI／Web 服务都只监听 localhost。开发版人工检查使用独立、持久的开发配置；Agent 自动化 smoke
-使用一次性副本，不能写入正式版配置。具体命令和安全边界见 [AGENTS.md](AGENTS.md)。
+桌面版和 CLI／Web 服务都只监听 localhost。人工安装的 `Git Leaf dev` 会替换同一个 `Git Leaf.app`，并与
+正式版共用真实 Profile，因此正常工作的仓库和界面状态会保留。只有 Agent 自动化 smoke 使用隔离的一次性
+副本，不能写入真实 Profile。具体命令和安全边界见 [AGENTS.md](AGENTS.md)。
 
 ## 构建身份与隐私
 
 | 构建 | 更新轨道 | 新安装默认使用统计 |
 | --- | --- | --- |
 | 社区或本机源码构建 | 关闭 | 关闭 |
+| 人工安装的 `Git Leaf dev` | 只可单向切换到 `internal-stable` | dev 运行时关闭 |
 | Mango Future 官方公开包 | `stable` | 关闭 |
 | Mango Future 官方内部包 | `internal-stable` | 开启 |
 
 Settings 会显示当前是“社区构建”“官方公开构建”“官方内部构建”还是“开发构建”，并显示实际使用统计状态。
-构建包里的默认值只用于首次初始化；后续更新不会覆盖 userData 中已经存在的 `usageAnalyticsEnabled`。
+官方仍然只有公开版和内部版两个发行轨道，macOS 也仍然只有两个 Bundle ID。安装的源码开发构建不是第三种
+发行版：用户点击更新后，它只能切换到最新的官方内部包，即使两边版本号相同也可以；没有开发标记的
+Community 包仍不会连接官方更新源。
+
+通常，构建包里的默认值只用于首次初始化；普通更新不会覆盖 userData 中已经存在的
+`usageAnalyticsEnabled`。只有从源码开发构建切换到内部正式包是受限例外：安装开始前会清除开发构建写入的
+初始化值，让目标内部包应用它自身打包的“开启”默认值；此后的内部版更新继续保留该设置。
 
 使用统计只在公司管理的官方构建且本机设置已启用时运行。它不发送仓库名、路径、文件名、搜索词、文档内容或
 Git 身份。完整事件语义与禁止推断项见英文技术文档

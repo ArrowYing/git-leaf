@@ -31,7 +31,13 @@ Build metadata is informational and can be changed by anyone compiling the sourc
 established by the Mango Future code signature, official download channel, SHA-256, release tag, and
 matching public commit.
 
-The analytics default is used only when initializing a new local setting. Once `usageAnalyticsEnabled` exists in userData, an update must preserve it. Release-track selection and telemetry eligibility are separate contracts: an internal official build remains an official stable build even though its update channel is `internal-stable`.
+The analytics default is normally used only when initializing a new local setting. Once
+`usageAnalyticsEnabled` exists in userData, an ordinary update must preserve it. The bounded
+source-dev-to-internal handoff clears the development build's initialized value immediately before
+installation so the target internal package applies its own embedded default; subsequent internal
+updates preserve the resulting value. Release-track selection and telemetry eligibility are separate
+contracts: an internal official build remains an official stable build even though its update channel
+is `internal-stable`.
 
 Telemetry event fields, version capability boundaries, privacy requirements, storage, and retention rules are defined only by `docs/app-usage-analytics-spec.md`.
 
@@ -94,8 +100,9 @@ official profile and track are present.
 
 The installed formal app and a development build installed for human use are the same `Git Leaf.app`.
 They use the same real Electron Profile so replacing one build with the other preserves repositories,
-workbench sessions, favorites, language, and preferences. Development build metadata still disables
-production updates; it does not select a `git-leaf-dev` directory.
+workbench sessions, favorites, language, and preferences. A packaged `dev=true, source, source` build
+may perform only the one-way internal handoff defined below; the build marker does not make it official,
+enable telemetry, or select a `git-leaf-dev` directory.
 
 Agent-driven automated UI verification, when run as a separate development task, is the only macOS flow
 that selects another Profile. It creates a one-time snapshot of the real Profile, passes its temporary
@@ -162,6 +169,34 @@ Verify that packaged `git-leaf-build-info.json` contains:
 A Community Build must not query or download from Mango Future's update service and must not create
 telemetry state or send telemetry requests. It must also retain the Community Build operating-system
 identity documented above; official identity is available only through a validated official profile.
+This rule applies to distributable source packages with `dev=false`. A human development install has
+the same source identity plus `dev=true` and the narrow handoff capability below; it is not a third
+release track or Bundle ID.
+
+### Human development handoff to internal
+
+On macOS, a packaged human development install may return to the official internal build without a
+manual download. Eligibility is fixed to:
+
+- current build: packaged `dev=true, distribution=source, releaseTrack=source`;
+- target: `distribution=official, releaseTrack=internal`, channel `internal-stable`;
+- version rule: target version greater than or equal to the current version, never lower;
+- installation: user-selected, nonprivileged direct-`Contents` replacement at the same App path.
+
+No environment variable may select another packaged target. Community builds with `dev=false`, public
+or candidate channels, Windows source packages, and unpackaged desktop runs remain ineligible.
+
+Discovery validates the manifest track, channel, platform, semantic version, build ID, and commit. The
+user's choice persists that complete target identity before download. The Squirrel feed may return an
+equal-version package only when the request repeats the exact identity in the current
+`internal-stable` manifest; ordinary equal-version requests still return no package.
+
+Immediately before `quitAndInstall`, the App revalidates the persisted receipt and atomically removes
+both the receipt and the development build's explicit analytics value. If this write fails or the
+receipt differs, installation does not start. The signed internal package—including the existing
+`1.16.0` package, which predates this handoff—then initializes from its embedded
+`usageAnalyticsDefault=true` before telemetry starts. An internal-to-internal update does not use this
+exception.
 
 ## Formal official release
 
@@ -332,6 +367,19 @@ than the first nonprivileged-only package, it uses the one-time `Contents` bridg
 that legacy package's defective privileged Helper path. Its mandatory `finally` cleanup removes only
 state owned by that run. It then proves the real Profile and real ShipIt cache fingerprints did not change.
 A failure never creates passing evidence.
+
+Changes to the development handoff additionally require the same-version isolated regression:
+
+```bash
+npm run verify:dev-handoff:mac -- \
+  --output /absolute/temporary/path/development-handoff.json
+```
+
+It packages the current source dev App, uses the exact signed `internal-stable` ZIP, drives the real
+user-visible update action, and proves the Bundle ID transition, target signature, preserved App
+directory inode, nonprivileged Squirrel behavior, target analytics default, telemetry initialization,
+receipt consumption, cleanup, and unchanged real Profile/cache fingerprints. It refuses to run while
+the installed human App or either official/community ShipIt job is active.
 
 An update regression that requests system account credentials or starts a privileged Helper is a
 failure, not an installation step. Do not authorize it or manually load, unload, or boot out ShipIt jobs
