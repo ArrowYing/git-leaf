@@ -61,6 +61,108 @@ test("gitleaf update server serves universal and ARM migration Squirrel.Mac feed
   }
 });
 
+test("gitleaf update server serves equal versions only for an exact internal dev handoff", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "gitleaf-dev-handoff-"));
+  const manifest = {
+    version: "1.16.0",
+    buildId: "2c3e9d8cfcfb.20260728T235326Z.internal",
+    commit: "2c3e9d8cfcfb",
+    releaseTrack: "internal",
+    channel: "internal-stable",
+    platform: "darwin-universal",
+    autoUpdater: {
+      url: "https://updates.mangofuture.com/git-leaf/internal-stable/darwin-universal/GitLeaf-1.16.0.zip",
+      name: "Git Leaf 1.16.0",
+      notes: "Internal release",
+      pub_date: "2026-07-28T23:53:26.000Z",
+    },
+  };
+  for (const [channel, platform] of [
+    ["internal-stable", "darwin-universal"],
+    ["internal-stable", "darwin-arm64"],
+    ["stable", "darwin-universal"],
+  ]) {
+    const platformDir = path.join(root, "git-leaf", channel, platform);
+    await mkdir(platformDir, { recursive: true });
+    await writeFile(path.join(platformDir, "latest.json"), JSON.stringify({
+      ...manifest,
+      channel,
+      platform,
+    }));
+  }
+
+  const server = spawn("python3", [
+    "scripts/gitleaf-update-server.py",
+    "--root",
+    root,
+    "--bind",
+    "127.0.0.1",
+    "--port",
+    "0",
+  ], {
+    cwd: path.dirname(import.meta.dirname),
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  try {
+    const port = await waitForServerPort(server);
+    const baseUrl =
+      `http://127.0.0.1:${port}/git-leaf/internal-stable/darwin-universal/releases`;
+    const matchingQuery = new URLSearchParams({
+      transition: "dev-to-internal",
+      targetVersion: manifest.version,
+      targetBuildId: manifest.buildId,
+      targetCommit: manifest.commit,
+    });
+
+    assert.equal((await fetch(`${baseUrl}/1.16.0`)).status, 204);
+    assert.equal(
+      (await fetch(`${baseUrl}/1.16.0?${matchingQuery}`)).status,
+      200,
+    );
+    assert.equal(
+      (await fetch(`${baseUrl}/1.15.0`)).status,
+      200,
+      "ordinary newer-version feeds must remain available",
+    );
+    assert.equal(
+      (await fetch(`${baseUrl}/1.16.1?${matchingQuery}`)).status,
+      204,
+      "a handoff must never downgrade",
+    );
+
+    for (const mismatch of [
+      { transition: "source-to-public" },
+      { targetVersion: "1.16.1" },
+      { targetBuildId: "aaaaaaaaaaaa.20260730T010000Z.internal" },
+      { targetCommit: "aaaaaaaaaaaa" },
+    ]) {
+      const query = new URLSearchParams({
+        transition: "dev-to-internal",
+        targetVersion: manifest.version,
+        targetBuildId: manifest.buildId,
+        targetCommit: manifest.commit,
+        ...mismatch,
+      });
+      assert.equal((await fetch(`${baseUrl}/1.16.0?${query}`)).status, 204);
+    }
+
+    assert.equal(
+      (await fetch(
+        `http://127.0.0.1:${port}/git-leaf/stable/darwin-universal/releases/1.16.0?${matchingQuery}`,
+      )).status,
+      204,
+    );
+    assert.equal(
+      (await fetch(
+        `http://127.0.0.1:${port}/git-leaf/internal-stable/darwin-arm64/releases/1.16.0?${matchingQuery}`,
+      )).status,
+      204,
+    );
+  } finally {
+    server.kill("SIGTERM");
+  }
+});
+
 test("gitleaf update server appends validated telemetry batches as JSONL", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "gitleaf-telemetry-server-"));
   const telemetryRoot = path.join(root, "telemetry");

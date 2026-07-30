@@ -33,6 +33,12 @@ TELEMETRY_DIRECTORY_MODE = 0o750
 TELEMETRY_FILE_MODE = 0o640
 TELEMETRY_MAINTENANCE_INTERVAL_SECONDS = 6 * 60 * 60
 TELEMETRY_STRICT_UPDATE_CONTRACT_VERSION = "1.10.0"
+DEVELOPMENT_HANDOFF_QUERY_KEYS = {
+    "transition",
+    "targetVersion",
+    "targetBuildId",
+    "targetCommit",
+}
 SEMVER_PATTERN = re.compile(
     r"(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)"
     r"(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?"
@@ -774,9 +780,10 @@ class GitLeafUpdateHandler(SimpleHTTPRequestHandler):
         return True
 
     def _handle_mac_release_feed(self, send_body):
+        parsed = urlparse(self.path)
         match = re.fullmatch(
             r"/git-leaf/([^/]+)/(darwin-(?:universal|arm64))/releases/([^/]+)",
-            urlparse(self.path).path,
+            parsed.path,
         )
         if not match:
             return False
@@ -794,7 +801,19 @@ class GitLeafUpdateHandler(SimpleHTTPRequestHandler):
             self.send_error(HTTPStatus.INTERNAL_SERVER_ERROR, "latest.json is invalid")
             return True
 
-        if compare_versions(str(manifest.get("version", "")), current_version) <= 0:
+        version_comparison = compare_versions(
+            str(manifest.get("version", "")),
+            current_version,
+        )
+        if version_comparison < 0 or (
+            version_comparison == 0
+            and not valid_development_handoff_feed(
+                parse_qs(parsed.query, keep_blank_values=True),
+                manifest=manifest,
+                channel=channel,
+                platform=platform,
+            )
+        ):
             self.send_response(HTTPStatus.NO_CONTENT)
             self.end_headers()
             return True
@@ -813,6 +832,33 @@ class GitLeafUpdateHandler(SimpleHTTPRequestHandler):
         if send_body:
             self.wfile.write(body)
         return True
+
+
+def valid_development_handoff_feed(query, *, manifest, channel, platform):
+    if (
+        channel != "internal-stable"
+        or platform != "darwin-universal"
+        or not isinstance(manifest, dict)
+        or manifest.get("releaseTrack") != "internal"
+        or manifest.get("channel") != channel
+        or manifest.get("platform") != platform
+        or set(query) != DEVELOPMENT_HANDOFF_QUERY_KEYS
+        or any(len(query.get(key, [])) != 1 for key in DEVELOPMENT_HANDOFF_QUERY_KEYS)
+    ):
+        return False
+
+    version = str(manifest.get("version", ""))
+    build_id = str(manifest.get("buildId", ""))
+    commit = str(manifest.get("commit", ""))
+    return bool(
+        SEMVER_PATTERN.fullmatch(version)
+        and re.fullmatch(r"[0-9A-Za-z._-]{1,256}", build_id)
+        and re.fullmatch(r"[0-9a-fA-F]{7,64}", commit)
+        and query["transition"][0] == "dev-to-internal"
+        and query["targetVersion"][0] == version
+        and query["targetBuildId"][0] == build_id
+        and query["targetCommit"][0] == commit
+    )
 
 
 def valid_telemetry_event(event):
