@@ -1,4 +1,5 @@
 import { releaseTrackForBuildInfo } from "../build-info.mjs";
+import { normalizeDevelopmentHandoffReceipt } from "./development-handoff.mjs";
 
 export const DEFAULT_UPDATE_BASE_URL = "https://updates.mangofuture.com/git-leaf";
 export const DEFAULT_UPDATE_CHANNEL = "stable";
@@ -87,14 +88,30 @@ export function macAutoUpdaterFeedUrl({
   channel = DEFAULT_UPDATE_CHANNEL,
   platformKey = appUpdatePlatformKey({ platform: "darwin" }),
   currentVersion,
+  handoff,
 } = {}) {
-  return [
+  const feedUrl = [
     normalizeBaseUrl(baseUrl),
     encodeURIComponent(channel),
     encodeURIComponent(platformKey),
     "releases",
     encodeURIComponent(versionCore(currentVersion)),
   ].join("/");
+  const receipt = normalizeDevelopmentHandoffReceipt(handoff);
+  if (
+    !receipt
+    || receipt.channel !== channel
+    || receipt.platform !== platformKey
+  ) {
+    return feedUrl;
+  }
+  const query = new URLSearchParams({
+    transition: receipt.kind,
+    targetVersion: receipt.version,
+    targetBuildId: receipt.buildId,
+    targetCommit: receipt.commit,
+  });
+  return `${feedUrl}?${query}`;
 }
 
 function normalizeBaseUrl(value) {

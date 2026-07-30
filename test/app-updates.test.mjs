@@ -101,3 +101,28 @@ test("macAutoUpdaterFeedUrl includes the current app version for Squirrel.Mac", 
     "https://updates.mangofuture.com/git-leaf/stable/darwin-universal/releases/0.1.1",
   );
 });
+
+test("macAutoUpdaterFeedUrl binds a development handoff to the target build", () => {
+  assert.equal(
+    macAutoUpdaterFeedUrl({
+      baseUrl: "https://updates.mangofuture.com/git-leaf",
+      channel: "internal-stable",
+      platformKey: "darwin-universal",
+      currentVersion: "1.16.0",
+      handoff: {
+        kind: "dev-to-internal",
+        version: "1.16.0",
+        buildId: "2c3e9d8cfcfb.20260728T235326Z.internal",
+        commit: "2c3e9d8cfcfb",
+        releaseTrack: "internal",
+        channel: "internal-stable",
+        platform: "darwin-universal",
+      },
+    }),
+    "https://updates.mangofuture.com/git-leaf/internal-stable/darwin-universal/releases/1.16.0"
+      + "?transition=dev-to-internal"
+      + "&targetVersion=1.16.0"
+      + "&targetBuildId=2c3e9d8cfcfb.20260728T235326Z.internal"
+      + "&targetCommit=2c3e9d8cfcfb",
+  );
+});
