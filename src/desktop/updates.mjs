@@ -18,6 +18,7 @@ import {
   developmentHandoffReceiptForManifest,
   developmentHandoffTarget,
   normalizeDevelopmentHandoffReceipt,
+  sameDevelopmentHandoffReceipt,
 } from "./development-handoff.mjs";
 
 const DEFAULT_UPDATE_TRANSLATE = createDesktopTranslator({ language: "en" });
@@ -43,6 +44,9 @@ export function createDesktopUpdateController({
   getDevelopmentHandoff = () => null,
   saveDevelopmentHandoff = async () => {
     throw new Error("Development handoff persistence is unavailable.");
+  },
+  prepareDevelopmentHandoffInstallation = async () => {
+    throw new Error("Development handoff installation preparation is unavailable.");
   },
   recordUpdateState = () => {},
   prepareWindowsUpdate = async () => {
@@ -594,7 +598,7 @@ export function createDesktopUpdateController({
 
     if (
       pending.handoff
-      && sameDevelopmentHandoff(
+      && sameDevelopmentHandoffReceipt(
         getDevelopmentHandoff(),
         pending.handoff,
       )
@@ -751,6 +755,14 @@ export function createDesktopUpdateController({
     if (!update?.version || installStartedForVersion === update.version) {
       return false;
     }
+    if (update.handoff) {
+      const prepared = await prepareDevelopmentHandoffInstallation(
+        update.handoff,
+      );
+      if (prepared !== true) {
+        throw new Error("Development handoff installation was not prepared.");
+      }
+    }
     installStartedForVersion = update.version;
     await notifyUpdateTelemetryAsync(recordUpdateState, {
       state: "install_started",
@@ -903,24 +915,6 @@ function sameDevelopmentHandoffTarget(receipt, target) {
     && receipt.releaseTrack === target.releaseTrack
     && receipt.channel === target.channel
     && receipt.platform === target.platform
-  );
-}
-
-function sameDevelopmentHandoff(left, right) {
-  const normalizedLeft = normalizeDevelopmentHandoffReceipt(left);
-  const normalizedRight = normalizeDevelopmentHandoffReceipt(right);
-  return Boolean(
-    normalizedLeft
-    && normalizedRight
-    && [
-      "kind",
-      "version",
-      "buildId",
-      "commit",
-      "releaseTrack",
-      "channel",
-      "platform",
-    ].every((field) => normalizedLeft[field] === normalizedRight[field])
   );
 }
 

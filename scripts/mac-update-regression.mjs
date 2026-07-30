@@ -138,7 +138,7 @@ export function launchctlJobExists({
   }).status === 0;
 }
 
-function launchctlJobDetails({
+export function launchctlJobDetails({
   domain,
   label = SHIPIT_JOB_LABEL,
   uid = typeof process.getuid === "function" ? process.getuid() : 0,
@@ -175,7 +175,7 @@ function hostPaths({ homeDir = homedir() } = {}) {
   };
 }
 
-function assertCurrentHostSafe() {
+export function assertCurrentHostSafe() {
   const paths = hostPaths();
   const processes = spawnSync("ps", ["-axo", "command="], {
     encoding: "utf8",
@@ -345,7 +345,7 @@ export async function downloadUpdateRegressionArtifact(
   return actual;
 }
 
-async function fileContract(filePath) {
+export async function fileContract(filePath) {
   const hash = createHash("sha256");
   for await (const chunk of createReadStream(filePath)) {
     hash.update(chunk);
@@ -356,7 +356,7 @@ async function fileContract(filePath) {
   };
 }
 
-function runChecked(command, args, options = {}) {
+export function runChecked(command, args, options = {}) {
   const result = spawnSync(command, args, {
     encoding: "utf8",
     ...options,
@@ -374,14 +374,14 @@ function runChecked(command, args, options = {}) {
   return result.stdout.trim();
 }
 
-function readAppVersion(appPath) {
+export function readAppVersion(appPath) {
   return runChecked(
     "/usr/libexec/PlistBuddy",
     ["-c", "Print:CFBundleShortVersionString", path.join(appPath, "Contents", "Info.plist")],
   );
 }
 
-function extractSingleApp(zipPath, destinationDir) {
+export function extractSingleApp(zipPath, destinationDir) {
   mkdirSync(destinationDir, { recursive: true });
   runChecked("ditto", ["-x", "-k", zipPath, destinationDir]);
   const apps = readdirSync(destinationDir)
@@ -396,7 +396,7 @@ function extractSingleApp(zipPath, destinationDir) {
   return apps[0];
 }
 
-function verifyAppSignature(appPath) {
+export function verifyAppSignature(appPath) {
   runChecked("codesign", ["--verify", "--deep", "--strict", "--verbose=2", appPath]);
 }
 
@@ -416,7 +416,7 @@ function writeDesktopConfig(userDataDir, { repoRoot, targetVersion }) {
   );
 }
 
-function startUpdateServer({ serverRoot, telemetryRoot, logPath }) {
+export function startUpdateServer({ serverRoot, telemetryRoot, logPath }) {
   const child = spawn(
     "python3",
     [
@@ -459,7 +459,7 @@ function startUpdateServer({ serverRoot, telemetryRoot, logPath }) {
   });
 }
 
-function rewriteCandidateForLocalStable({
+export function rewriteCandidateForLocalStable({
   manifest,
   channel,
   serverRoot,
@@ -514,11 +514,11 @@ function writeIsolatedSquirrelDefault(env) {
   }
 }
 
-function delay(milliseconds) {
+export function delay(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
-async function waitFor(check, {
+export async function waitFor(check, {
   timeoutMs,
   label,
   intervalMs = 500,
@@ -561,7 +561,7 @@ export function updateRegressionInstallExpression() {
   })()`;
 }
 
-async function evaluateInRenderer({ userDataDir, expression }) {
+export async function evaluateInRenderer({ userDataDir, expression }) {
   const portFile = path.join(userDataDir, "DevToolsActivePort");
   const port = Number(readFileSync(portFile, "utf8").split(/\r?\n/, 1)[0]);
   const targets = await fetch(`http://127.0.0.1:${port}/json`).then((response) => response.json());
@@ -606,7 +606,7 @@ async function evaluateInRenderer({ userDataDir, expression }) {
   });
 }
 
-function terminateProcessesInside(temporaryRoot, signal = "SIGTERM") {
+export function terminateProcessesInside(temporaryRoot, signal = "SIGTERM") {
   const result = spawnSync("ps", ["-axo", "pid=,command="], { encoding: "utf8" });
   const pids = String(result.stdout || "")
     .split("\n")
@@ -622,8 +622,11 @@ function terminateProcessesInside(temporaryRoot, signal = "SIGTERM") {
   return pids;
 }
 
-function bootoutUserShipItJob(temporaryRoot) {
-  const job = launchctlJobDetails({ domain: "user" });
+export function bootoutUserShipItJob(
+  temporaryRoot,
+  { label = SHIPIT_JOB_LABEL } = {},
+) {
+  const job = launchctlJobDetails({ domain: "user", label });
   if (!job.exists) return false;
   if (!job.output.includes(temporaryRoot)) {
     throw new Error(
@@ -632,10 +635,13 @@ function bootoutUserShipItJob(temporaryRoot) {
   }
   const result = spawnSync(
     "launchctl",
-    ["bootout", `gui/${process.getuid()}/${SHIPIT_JOB_LABEL}`],
+    ["bootout", `gui/${process.getuid()}/${label}`],
     { encoding: "utf8" },
   );
-  if (result.status !== 0 && launchctlJobExists({ domain: "user" })) {
+  if (
+    result.status !== 0
+    && launchctlJobExists({ domain: "user", label })
+  ) {
     throw new Error(
       result.stderr?.trim() || "Could not remove the per-user ShipIt launchd job",
     );

@@ -204,23 +204,24 @@ Before installation, the development App persists a one-time transition receipt 
 target identity. It does not change `usageAnalyticsEnabled` at that point and still cannot emit
 telemetry.
 
-On the first official App launch, before the telemetry client is initialized:
+The already-published internal `1.16.0` package predates this handoff and therefore cannot consume a new
+receipt on launch. The compatibility boundary must use the analytics initialization behavior that is
+already embedded in that package. Immediately before `quitAndInstall`, the development App:
 
-1. Read and validate the transition receipt.
-2. Require the running build to be `dev=false, distribution=official, releaseTrack=internal`.
-3. Require version, build ID, commit, channel, and platform to match the receipt.
-4. Apply the running package's `usageAnalyticsDefault` to `usageAnalyticsEnabled`.
-5. For the current internal contract, verify that the resulting value is `true`.
-6. Remove the transition receipt atomically.
-7. Initialize telemetry from the resulting enabled setting.
+1. Re-reads and validates the exact persisted target receipt.
+2. Atomically removes both the receipt and the development build's explicit
+   `usageAnalyticsEnabled=false`.
+3. Starts Squirrel installation only if that atomic mutation succeeds.
+4. Still emits no telemetry because the running development build remains ineligible.
 
-This handles Profiles in which the development build already persisted `false`. It also avoids changing
-analytics when the download or installation has not completed.
+The official internal package then sees an uninitialized analytics setting on its first launch, applies
+its embedded `usageAnalyticsDefault=true`, persists `usageAnalyticsEnabled=true`, and initializes
+telemetry from that value. This works with the existing signed `1.16.0` artifact and keeps the
+distribution attribute owned by the target package rather than hard-coding `true` in the updater.
 
-Receipt handling must be idempotent. If the target App exits after applying the setting but before all
-startup work completes, the next launch must still produce `usageAnalyticsEnabled=true` and a cleared
-receipt. A missing, malformed, stale, or mismatched receipt never enables analytics and never changes
-unrelated Profile data.
+If installation fails after preparation and the development App relaunches, its own packaged default
+restores `false`; the user may choose the handoff again. A missing, malformed, stale, or mismatched
+receipt never clears the analytics setting and blocks installation.
 
 Ordinary `internal -> internal` updates do not create this receipt and continue to preserve the existing
 analytics setting.
@@ -234,8 +235,8 @@ standalone untracked marker. Its schema must:
 - normalize or reject malformed objects;
 - survive unrelated configuration mutations;
 - be written atomically with the existing configuration writer;
-- be removed only after a matching target applies the transition or an explicit bounded cleanup rule
-  proves it can no longer match;
+- be removed only in the same atomic mutation that prepares an exact matching target for installation,
+  or when an explicit bounded cleanup rule proves it can no longer match;
 - never contain credentials, artifact bytes, local paths, repository data, or update-service secrets.
 
 All repository lists, sessions, favorites, appearance, typography, language, sidebar state, and
@@ -249,12 +250,10 @@ unrelated configuration fields remain unchanged.
 - Equal-version ordinary update without the development transition: return current.
 - Network or download failure: retain a retryable identity-bound request without changing analytics.
 - App shutdown failure: do not launch installation.
-- Installation or relaunch failure: preserve the development App or its updater rollback behavior and
-  retain enough bounded state to retry or diagnose.
-- Receipt missing or malformed in the official App: do not change analytics.
-- Receipt target does not match the running official build: do not change analytics.
-- Analytics-setting write failure: fail closed for telemetry, preserve unrelated Profile state, and
-  keep the transition recoverable.
+- Install-preparation receipt mismatch or configuration write failure: do not call Squirrel installation
+  and preserve the existing analytics value.
+- Installation or relaunch failure after successful preparation: preserve the updater rollback behavior;
+  a relaunched development App restores its own `false` default and requires a new user choice.
 - Cleanup failure: report it and preserve diagnostic state; never clean the real Profile broadly.
 
 ## Verification
@@ -274,16 +273,18 @@ Add behavior-level tests that prove:
 - The server returns an equal-version package only for the bounded internal development handoff.
 - Direct-`Contents` installation is enabled only for official packages and the eligible development
   handoff.
-- A matching receipt applies the packaged internal analytics default and is removed.
-- Missing, malformed, stale, or mismatched receipts do not change analytics.
+- Exact install preparation atomically removes the receipt and the development build's explicit
+  analytics value.
+- Missing, malformed, stale, or mismatched receipts block installation and do not change analytics.
+- The target package's existing first-run initializer applies its embedded internal analytics default.
 - Development builds remain telemetry-ineligible before installation.
 - Ordinary internal updates continue to preserve an existing analytics value.
 - Every configuration mutation preserves unrelated user state.
 
 ### Packaged macOS acceptance
 
-Add a deterministic isolated packaged-App regression that starts from a development build produced from
-the same version and commit as the internal target. It must use temporary HOME, userData, sessionData,
+Add a deterministic isolated packaged-App regression that starts from a development build with the same
+version as the internal target. It must use temporary HOME, userData, sessionData,
 App location, update cache, and launch state. It must not automate the installed human App or write the
 real Profile.
 
@@ -302,7 +303,8 @@ The regression must prove:
 - no administrator prompt or privileged ShipIt job appears;
 - the official App relaunches from the same path;
 - only the expected transition and analytics fields change in the isolated Profile;
-- the receipt is removed and `usageAnalyticsEnabled` is true before telemetry initialization;
+- the receipt and explicit dev analytics value are removed before installation;
+- the internal package persists `usageAnalyticsEnabled=true` and initializes telemetry;
 - repositories, workbench sessions, favorites, appearance, typography, language, and sidebar state are
   unchanged;
 - LaunchServices, the App display identity, and `git-leaf://` resolve the official App;

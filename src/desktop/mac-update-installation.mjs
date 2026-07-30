@@ -1,4 +1,4 @@
-import { isOfficialDistribution } from "../build-info.mjs";
+import { desktopUpdatesEnabled } from "./development-handoff.mjs";
 
 export const SQUIRREL_DIRECT_CONTENTS_WRITE_KEY =
   "SquirrelMacEnableDirectContentsWrite";
@@ -13,7 +13,11 @@ export function configureMacUpdateInstallation({
   if (
     platform !== "darwin"
     || !isPackaged
-    || !isOfficialDistribution(buildInfo)
+    || !desktopUpdatesEnabled({
+      buildInfo,
+      isPackaged,
+      platform,
+    })
   ) {
     return { configured: false, reason: "not-official-packaged-mac" };
   }

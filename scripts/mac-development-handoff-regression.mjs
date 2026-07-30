@@ -1,0 +1,770 @@
+#!/usr/bin/env node
+
+import { spawn, spawnSync } from "node:child_process";
+import {
+  chmodSync,
+  closeSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  openSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
+import { homedir, tmpdir } from "node:os";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+import { extractFile } from "@electron/asar";
+
+import {
+  normalizeDevelopmentHandoffReceipt,
+  sameDevelopmentHandoffReceipt,
+} from "../src/desktop/development-handoff.mjs";
+import {
+  applyMacBundleIcon,
+  DEFAULT_RELEASE_OPTIONS,
+  developmentProfileFingerprint,
+  electronPackagerArgs,
+} from "./release-mac.mjs";
+import {
+  COMMUNITY_PACKAGE_IDENTITY,
+  compactTimestamp,
+  electronPackagerCommand,
+  OFFICIAL_PACKAGE_IDENTITY,
+  releaseBuildInfoFromEnv,
+  withReleaseBuildInfoFile,
+} from "./release-shared.mjs";
+import {
+  SHIPIT_JOB_LABEL,
+  SQUIRREL_DIRECT_CONTENTS_WRITE_KEY,
+  assertCurrentHostSafe,
+  assertSafeMacUpdateRegressionHost,
+  bootoutUserShipItJob,
+  delay,
+  downloadUpdateRegressionArtifact,
+  evaluateInRenderer,
+  extractSingleApp,
+  fileContract,
+  launchctlJobExists,
+  readAppVersion,
+  rewriteCandidateForLocalStable,
+  runChecked,
+  startUpdateServer,
+  terminateProcessesInside,
+  updateRegressionInstallExpression,
+  validateUpdateRegressionManifest,
+  verifyAppSignature,
+  waitFor,
+} from "./mac-update-regression.mjs";
+import {
+  patchSquirrelMacPolicy,
+  verifySquirrelMacPolicy,
+} from "./squirrel-mac-policy.mjs";
+
+const SCRIPT_PATH = fileURLToPath(import.meta.url);
+const REPO_ROOT = path.dirname(path.dirname(SCRIPT_PATH));
+const PLATFORM_KEY = "darwin-universal";
+const INTERNAL_CHANNEL = "internal-stable";
+const DEFAULT_BASE_URL = "https://updates.mangofuture.com/git-leaf";
+const SOURCE_SHIPIT_JOB_LABEL =
+  `${COMMUNITY_PACKAGE_IDENTITY.macBundleId}.ShipIt`;
+export const OFFICIAL_MAC_TEAM_IDENTIFIER = "HN6X79BUSR";
+
+export function validateDevelopmentHandoffBuildPair({
+  sourceBuildInfo,
+  sourceBundleId,
+  targetBuildInfo,
+  targetBundleId,
+  receipt,
+} = {}) {
+  const normalizedReceipt = normalizeDevelopmentHandoffReceipt(receipt);
+  const targetReceipt = normalizeDevelopmentHandoffReceipt({
+    kind: "dev-to-internal",
+    version: targetBuildInfo?.version,
+    buildId: targetBuildInfo?.buildId,
+    commit: targetBuildInfo?.commit,
+    releaseTrack: targetBuildInfo?.releaseTrack,
+    channel: "internal-stable",
+    platform: "darwin-universal",
+  });
+  if (
+    sourceBuildInfo?.dev !== true
+    || sourceBuildInfo?.distribution !== "source"
+    || sourceBuildInfo?.releaseTrack !== "source"
+    || sourceBuildInfo?.usageAnalyticsDefault !== false
+    || sourceBundleId !== COMMUNITY_PACKAGE_IDENTITY.macBundleId
+    || targetBuildInfo?.dev === true
+    || targetBuildInfo?.distribution !== "official"
+    || targetBuildInfo?.releaseTrack !== "internal"
+    || targetBuildInfo?.usageAnalyticsDefault !== true
+    || targetBundleId !== OFFICIAL_PACKAGE_IDENTITY.macBundleId
+    || sourceBuildInfo?.version !== targetBuildInfo?.version
+    || !normalizedReceipt
+    || !targetReceipt
+    || !sameDevelopmentHandoffReceipt(normalizedReceipt, targetReceipt)
+  ) {
+    throw new Error(
+      "The packaged Apps do not satisfy the same-version development handoff contract.",
+    );
+  }
+  return {
+    version: sourceBuildInfo.version,
+    sourceBuildId: sourceBuildInfo.buildId,
+    targetBuildId: targetBuildInfo.buildId,
+  };
+}
+
+export function validateDevelopmentHandoffRegressionEvidence(evidence) {
+  const requiredCleanup = [
+    "processesTerminated",
+    "userShipItJobAbsent",
+    "systemShipItJobAbsent",
+    "isolatedCacheRemovedWithTemporaryRoot",
+    "realProfileUnchanged",
+    "realShipItCacheUnchanged",
+  ];
+  if (
+    evidence?.schemaVersion !== 1
+    || evidence?.source !== "git-leaf-macos-development-handoff-regression"
+    || evidence?.status !== "passed"
+    || evidence?.platform !== "darwin-universal"
+    || evidence?.sourceBundleId !== COMMUNITY_PACKAGE_IDENTITY.macBundleId
+    || evidence?.targetBundleId !== OFFICIAL_PACKAGE_IDENTITY.macBundleId
+    || evidence?.targetTeamIdentifier !== OFFICIAL_MAC_TEAM_IDENTIFIER
+    || evidence?.protocolScheme !== "git-leaf"
+    || evidence?.targetUsageAnalyticsDefault !== true
+    || evidence?.analyticsDefaultAdopted !== true
+    || evidence?.handoffReceiptConsumed !== true
+    || evidence?.telemetryInitialized !== true
+    || evidence?.directContentsWrite !== true
+    || evidence?.appDirectoryInodePreserved !== true
+    || evidence?.installParentWritable !== false
+    || evidence?.privilegedShipItJobObserved !== false
+    || !sameFingerprint(evidence?.realProfileBefore, evidence?.realProfileAfter)
+    || !sameFingerprint(
+      evidence?.realShipItCacheBefore,
+      evidence?.realShipItCacheAfter,
+    )
+    || requiredCleanup.some((key) => evidence?.cleanup?.[key] !== true)
+  ) {
+    throw new Error(
+      "Mandatory development handoff evidence is missing or inconsistent.",
+    );
+  }
+  return evidence;
+}
+
+function sameFingerprint(left, right) {
+  return Boolean(
+    left
+    && right
+    && typeof left.sha256 === "string"
+    && left.sha256 === right.sha256
+    && left.fileCount === right.fileCount
+  );
+}
+
+export async function runDevelopmentHandoffRegression({
+  outputPath,
+  logPath,
+  baseUrl = DEFAULT_BASE_URL,
+} = {}) {
+  if (!outputPath || !logPath) {
+    throw new TypeError("outputPath and logPath are required");
+  }
+  const host = assertDevelopmentHandoffHostSafe();
+  const realShipItCacheBefore = realShipItCacheFingerprint();
+  const temporaryRoot = mkdtempSync(
+    path.join(tmpdir(), "git-leaf-mac-development-handoff."),
+  );
+  const isolatedHome = path.join(temporaryRoot, "home");
+  const isolatedTmp = path.join(temporaryRoot, "tmp");
+  const userDataDir = path.join(temporaryRoot, "user-data");
+  const packageOutputDir = path.join(temporaryRoot, "package");
+  const candidateExtractDir = path.join(temporaryRoot, "candidate-app");
+  const downloadsDir = path.join(temporaryRoot, "downloads");
+  const serverRoot = path.join(temporaryRoot, "update-root");
+  const telemetryRoot = path.join(temporaryRoot, "telemetry");
+  let server;
+  let appProcess;
+  let appParentLocked = false;
+  let passedEvidence;
+  let primaryError;
+  const cleanupErrors = [];
+
+  mkdirSync(isolatedHome, { recursive: true });
+  mkdirSync(isolatedTmp, { recursive: true });
+  mkdirSync(downloadsDir, { recursive: true });
+  mkdirSync(path.dirname(logPath), { recursive: true });
+  writeFileSync(logPath, "", { flag: "w" });
+
+  try {
+    const sourceAppPath = packageSourceDevelopmentApp({
+      outputDir: packageOutputDir,
+    });
+    const sourceBuildInfo = readPackagedBuildInfo(sourceAppPath);
+    const sourceBundleId = readAppPlistValue(
+      sourceAppPath,
+      "CFBundleIdentifier",
+    );
+    if (readAppVersion(sourceAppPath) !== sourceBuildInfo.version) {
+      throw new Error("The development App version does not match its build identity");
+    }
+    const sourceSquirrelPolicy = verifySquirrelMacPolicy({
+      appDir: sourceAppPath,
+    });
+
+    const manifestUrl =
+      `${baseUrl.replace(/\/+$/, "")}/${INTERNAL_CHANNEL}/${PLATFORM_KEY}/latest.json`;
+    const targetManifest = validateUpdateRegressionManifest(
+      await fetchJson(manifestUrl),
+      {
+        channel: INTERNAL_CHANNEL,
+        track: "internal",
+        expectedVersion: sourceBuildInfo.version,
+      },
+    );
+    const targetZipPath = path.join(downloadsDir, targetManifest.files.zip.name);
+    const localArchivedZip = path.join(
+      REPO_ROOT,
+      "dist",
+      "releases",
+      `v${targetManifest.version}`,
+      targetManifest.files.zip.name,
+    );
+    let targetContract;
+    if (existsSync(localArchivedZip)) {
+      targetContract = await fileContract(localArchivedZip);
+      if (
+        targetContract.sha256 !== targetManifest.files.zip.sha256
+        || targetContract.size !== targetManifest.files.zip.size
+      ) {
+        throw new Error(
+          "The local archived internal ZIP does not match the stable manifest",
+        );
+      }
+      runChecked("ditto", [localArchivedZip, targetZipPath]);
+    } else {
+      targetContract = await downloadUpdateRegressionArtifact(
+        targetManifest.files.zip,
+        targetZipPath,
+      );
+    }
+
+    const targetAppPath = extractSingleApp(
+      targetZipPath,
+      candidateExtractDir,
+    );
+    verifyAppSignature(targetAppPath);
+    const targetTeamIdentifier = readAppTeamIdentifier(targetAppPath);
+    const targetBuildInfo = readPackagedBuildInfo(targetAppPath);
+    const targetBundleId = readAppPlistValue(
+      targetAppPath,
+      "CFBundleIdentifier",
+    );
+    const targetSquirrelPolicy = verifySquirrelMacPolicy({
+      appDir: targetAppPath,
+    });
+    const receipt = normalizeDevelopmentHandoffReceipt({
+      kind: "dev-to-internal",
+      version: targetManifest.version,
+      buildId: targetManifest.buildId,
+      commit: targetManifest.commit,
+      releaseTrack: targetManifest.releaseTrack,
+      channel: targetManifest.channel,
+      platform: targetManifest.platform,
+    });
+    const pair = validateDevelopmentHandoffBuildPair({
+      sourceBuildInfo,
+      sourceBundleId,
+      targetBuildInfo,
+      targetBundleId,
+      receipt,
+    });
+    if (targetTeamIdentifier !== OFFICIAL_MAC_TEAM_IDENTIFIER) {
+      throw new Error(
+        `The internal App is signed by unexpected team ${targetTeamIdentifier || "missing"}`,
+      );
+    }
+    if (readAppPlistValue(targetAppPath, "CFBundleURLTypes:0:CFBundleURLSchemes:0") !== "git-leaf") {
+      throw new Error("The internal App does not own the git-leaf URL scheme");
+    }
+
+    server = await startUpdateServer({ serverRoot, telemetryRoot, logPath });
+    rewriteCandidateForLocalStable({
+      manifest: targetManifest,
+      channel: INTERNAL_CHANNEL,
+      serverRoot,
+      port: server.port,
+      candidateZipPath: targetZipPath,
+    });
+    writeIsolatedDesktopConfig(userDataDir);
+
+    const appDirectoryInode = statSync(sourceAppPath).ino;
+    const appParent = path.dirname(sourceAppPath);
+    chmodSync(appParent, 0o555);
+    appParentLocked = true;
+    const appEnv = {
+      ...process.env,
+      HOME: isolatedHome,
+      CFFIXED_USER_HOME: isolatedHome,
+      TMPDIR: `${isolatedTmp}${path.sep}`,
+      GIT_LEAF_UPDATE_BASE_URL:
+        `http://127.0.0.1:${server.port}/git-leaf`,
+      GIT_LEAF_TELEMETRY_ENDPOINT:
+        `http://127.0.0.1:${server.port}/telemetry/v1/events`,
+      GIT_LEAF_DEV_USER_DATA_DIR: userDataDir,
+    };
+    const logDescriptor = openSync(logPath, "a");
+    appProcess = spawn(
+      path.join(sourceAppPath, "Contents", "MacOS", "Git Leaf"),
+      [
+        `--git-leaf-dev-user-data-dir=${userDataDir}`,
+        "--remote-debugging-port=0",
+        "--repo",
+        REPO_ROOT,
+      ],
+      {
+        env: appEnv,
+        detached: false,
+        stdio: ["ignore", logDescriptor, logDescriptor],
+      },
+    );
+    closeSync(logDescriptor);
+
+    await waitFor(() => (
+      existsSync(path.join(userDataDir, "DevToolsActivePort"))
+    ), {
+      timeoutMs: 120_000,
+      label: "the isolated development renderer",
+    });
+    await waitFor(() => {
+      try {
+        return runChecked(
+          "defaults",
+          [
+            "read",
+            COMMUNITY_PACKAGE_IDENTITY.macBundleId,
+            SQUIRREL_DIRECT_CONTENTS_WRITE_KEY,
+          ],
+          { env: appEnv },
+        ) === "1";
+      } catch {
+        return false;
+      }
+    }, {
+      timeoutMs: 30_000,
+      label: "the development App direct-Contents preference",
+    });
+
+    await waitFor(async () => {
+      await evaluateInRenderer({
+        userDataDir,
+        expression: updateRegressionInstallExpression(),
+      });
+      return sameDevelopmentHandoffReceipt(
+        readJsonIfPresent(path.join(userDataDir, "desktop-config.json"))
+          ?.developmentHandoff,
+        receipt,
+      );
+    }, {
+      timeoutMs: 240_000,
+      intervalMs: 1_000,
+      label: "the user-selected identity-bound handoff download",
+    });
+
+    const isolatedShipItCaches = [
+      path.join(isolatedHome, "Library", "Caches", SHIPIT_JOB_LABEL),
+      path.join(isolatedHome, "Library", "Caches", SOURCE_SHIPIT_JOB_LABEL),
+    ];
+    await waitFor(() => isolatedShipItCaches.some((cachePath) => (
+      existsSync(path.join(cachePath, "ShipItState.plist"))
+    )), {
+      timeoutMs: 240_000,
+      label: "Squirrel.Mac to prepare the internal package",
+    });
+    if (
+      launchctlJobExists({ domain: "system", label: SHIPIT_JOB_LABEL })
+      || launchctlJobExists({
+        domain: "system",
+        label: SOURCE_SHIPIT_JOB_LABEL,
+      })
+    ) {
+      throw new Error("The development handoff attempted to register a privileged ShipIt job");
+    }
+
+    await waitFor(async () => {
+      if (
+        readAppPlistValue(sourceAppPath, "CFBundleIdentifier")
+        === OFFICIAL_PACKAGE_IDENTITY.macBundleId
+      ) {
+        return true;
+      }
+      await evaluateInRenderer({
+        userDataDir,
+        expression: updateRegressionInstallExpression(),
+      });
+      return false;
+    }, {
+      timeoutMs: 240_000,
+      intervalMs: 2_000,
+      label: "the internal App to replace the development App",
+    });
+
+    await waitFor(() => {
+      const config = readJsonIfPresent(
+        path.join(userDataDir, "desktop-config.json"),
+      );
+      const telemetryState = readJsonIfPresent(
+        path.join(userDataDir, "telemetry-state.json"),
+      );
+      return config?.usageAnalyticsEnabled === true
+        && !Object.hasOwn(config, "developmentHandoff")
+        && telemetryState?.schemaVersion === 1;
+    }, {
+      timeoutMs: 120_000,
+      label: "the internal package analytics default before telemetry startup",
+    });
+
+    if (statSync(sourceAppPath).ino !== appDirectoryInode) {
+      throw new Error(
+        "The development handoff replaced the App directory instead of Contents",
+      );
+    }
+    verifyAppSignature(sourceAppPath);
+    const installedBuildInfo = readPackagedBuildInfo(sourceAppPath);
+    if (
+      installedBuildInfo.buildId !== targetBuildInfo.buildId
+      || installedBuildInfo.commit !== targetBuildInfo.commit
+      || readAppVersion(sourceAppPath) !== targetBuildInfo.version
+    ) {
+      throw new Error("The installed App does not match the requested internal target");
+    }
+    const installedSquirrelPolicy = verifySquirrelMacPolicy({
+      appDir: sourceAppPath,
+    });
+    const finalConfig = readJsonIfPresent(
+      path.join(userDataDir, "desktop-config.json"),
+    );
+    passedEvidence = {
+      schemaVersion: 1,
+      source: "git-leaf-macos-development-handoff-regression",
+      status: "passed",
+      platform: PLATFORM_KEY,
+      version: pair.version,
+      sourceBuildId: pair.sourceBuildId,
+      targetBuildId: pair.targetBuildId,
+      sourceBundleId,
+      targetBundleId,
+      targetTeamIdentifier,
+      targetUsageAnalyticsDefault: targetBuildInfo.usageAnalyticsDefault,
+      analyticsDefaultAdopted: finalConfig?.usageAnalyticsEnabled === true,
+      handoffReceiptConsumed:
+        !Object.hasOwn(finalConfig || {}, "developmentHandoff"),
+      telemetryInitialized: existsSync(
+        path.join(userDataDir, "telemetry-state.json"),
+      ),
+      protocolScheme: "git-leaf",
+      directContentsWrite: true,
+      appDirectoryInodePreserved: true,
+      installParentWritable: false,
+      privilegedShipItJobObserved: false,
+      sourceSquirrelPolicy,
+      targetSquirrelPolicy,
+      installedSquirrelPolicy,
+      target: targetContract,
+      realProfileBefore: host.productionFingerprint,
+      realShipItCacheBefore,
+      completedAt: new Date().toISOString(),
+    };
+  } catch (error) {
+    primaryError = error;
+  } finally {
+    try {
+      if (appParentLocked) {
+        const sourceAppPath = path.join(
+          packageOutputDir,
+          "Git Leaf-darwin-universal",
+          "Git Leaf.app",
+        );
+        chmodSync(path.dirname(sourceAppPath), 0o755);
+        appParentLocked = false;
+      }
+    } catch (error) {
+      cleanupErrors.push(error);
+    }
+    try {
+      terminateProcessesInside(temporaryRoot);
+      await delay(2_000);
+      terminateProcessesInside(temporaryRoot, "SIGKILL");
+      await delay(500);
+      const remaining = terminateProcessesInside(temporaryRoot, "SIGKILL");
+      if (remaining.length > 0) {
+        throw new Error(
+          `Processes remained inside the handoff root: ${remaining.join(", ")}`,
+        );
+      }
+    } catch (error) {
+      cleanupErrors.push(error);
+    }
+    try {
+      server?.child?.kill("SIGTERM");
+    } catch (error) {
+      cleanupErrors.push(error);
+    }
+    for (const label of [SHIPIT_JOB_LABEL, SOURCE_SHIPIT_JOB_LABEL]) {
+      try {
+        bootoutUserShipItJob(temporaryRoot, { label });
+      } catch (error) {
+        cleanupErrors.push(error);
+      }
+    }
+    try {
+      for (const label of [SHIPIT_JOB_LABEL, SOURCE_SHIPIT_JOB_LABEL]) {
+        if (launchctlJobExists({ domain: "user", label })) {
+          throw new Error(`The per-user ShipIt job remained: ${label}`);
+        }
+        if (launchctlJobExists({ domain: "system", label })) {
+          throw new Error(`A system ShipIt job remained: ${label}`);
+        }
+      }
+    } catch (error) {
+      cleanupErrors.push(error);
+    }
+    try {
+      const realProfileAfter = fingerprintRealProfile();
+      const realShipItCacheAfter = realShipItCacheFingerprint();
+      if (!sameFingerprint(host.productionFingerprint, realProfileAfter)) {
+        throw new Error("The real Git Leaf Profile changed during handoff regression");
+      }
+      if (!sameFingerprint(realShipItCacheBefore, realShipItCacheAfter)) {
+        throw new Error("The real ShipIt caches changed during handoff regression");
+      }
+      if (passedEvidence) {
+        passedEvidence.realProfileAfter = realProfileAfter;
+        passedEvidence.realShipItCacheAfter = realShipItCacheAfter;
+        passedEvidence.cleanup = {
+          processesTerminated: true,
+          userShipItJobAbsent: true,
+          systemShipItJobAbsent: true,
+          isolatedCacheRemovedWithTemporaryRoot: true,
+          realProfileUnchanged: true,
+          realShipItCacheUnchanged: true,
+        };
+      }
+    } catch (error) {
+      cleanupErrors.push(error);
+    }
+    try {
+      rmSync(temporaryRoot, { recursive: true, force: false });
+    } catch (error) {
+      cleanupErrors.push(error);
+    }
+  }
+
+  if (primaryError || cleanupErrors.length > 0) {
+    const errors = [primaryError, ...cleanupErrors].filter(Boolean);
+    throw errors.length === 1
+      ? errors[0]
+      : new AggregateError(
+        errors,
+        "development handoff regression and cleanup failed",
+      );
+  }
+  validateDevelopmentHandoffRegressionEvidence(passedEvidence);
+  mkdirSync(path.dirname(outputPath), { recursive: true });
+  writeFileSync(outputPath, `${JSON.stringify(passedEvidence, null, 2)}\n`, {
+    flag: "wx",
+  });
+  return passedEvidence;
+}
+
+function packageSourceDevelopmentApp({ outputDir } = {}) {
+  const buildInfo = {
+    ...releaseBuildInfoFromEnv({
+      rootDir: REPO_ROOT,
+      env: {
+        ...process.env,
+        GIT_LEAF_RELEASE_PROFILE: "",
+        GIT_LEAF_DISTRIBUTION: "source",
+        GIT_LEAF_USAGE_ANALYTICS_DEFAULT: "false",
+      },
+    }),
+    dev: true,
+  };
+  buildInfo.buildId = `${buildInfo.commit}.${compactTimestamp(buildInfo.builtAt)}.source`;
+  const options = {
+    ...DEFAULT_RELEASE_OPTIONS,
+    ...buildInfo,
+    bundleId: COMMUNITY_PACKAGE_IDENTITY.macBundleId,
+    outDir: outputDir,
+  };
+  const packager = electronPackagerCommand({ rootDir: REPO_ROOT });
+  withReleaseBuildInfoFile({ rootDir: REPO_ROOT, buildInfo: options }, () => {
+    runChecked(
+      packager.command,
+      [...packager.args, ...electronPackagerArgs(options)],
+      { cwd: REPO_ROOT },
+    );
+  });
+  const appPath = path.join(
+    outputDir,
+    "Git Leaf-darwin-universal",
+    "Git Leaf.app",
+  );
+  patchSquirrelMacPolicy({ appDir: appPath, rootDir: REPO_ROOT });
+  applyMacBundleIcon(options, { appDir: appPath });
+  verifySquirrelMacPolicy({ appDir: appPath });
+  return appPath;
+}
+
+function assertDevelopmentHandoffHostSafe() {
+  const host = assertCurrentHostSafe();
+  assertSafeMacUpdateRegressionHost({
+    platform: process.platform,
+    productionAppRunning: false,
+    userShipItJobExists: launchctlJobExists({
+      domain: "user",
+      label: SOURCE_SHIPIT_JOB_LABEL,
+    }),
+    systemShipItJobExists: launchctlJobExists({
+      domain: "system",
+      label: SOURCE_SHIPIT_JOB_LABEL,
+    }),
+  });
+  return host;
+}
+
+function fingerprintRealProfile() {
+  return assertCurrentHostSafe().productionFingerprint;
+}
+
+function realShipItCacheFingerprint() {
+  const cacheRoot = path.join(homedir(), "Library", "Caches");
+  return developmentFingerprint(cacheRoot, [
+    SHIPIT_JOB_LABEL,
+    SOURCE_SHIPIT_JOB_LABEL,
+  ]);
+}
+
+function developmentFingerprint(rootDir, entries) {
+  return developmentProfileFingerprint({
+    productionUserDataDir: rootDir,
+    entries,
+  });
+}
+
+function readPackagedBuildInfo(appPath) {
+  const asarPath = path.join(
+    appPath,
+    "Contents",
+    "Resources",
+    "app.asar",
+  );
+  return JSON.parse(
+    extractFile(asarPath, "git-leaf-build-info.json").toString("utf8"),
+  );
+}
+
+function readAppPlistValue(appPath, key) {
+  return runChecked("/usr/libexec/PlistBuddy", [
+    "-c",
+    `Print:${key}`,
+    path.join(appPath, "Contents", "Info.plist"),
+  ]);
+}
+
+function readAppTeamIdentifier(appPath) {
+  const result = spawnSync("codesign", ["-d", "--verbose=4", appPath], {
+    encoding: "utf8",
+  });
+  if (result.error) throw result.error;
+  if (result.status !== 0) {
+    throw new Error(result.stderr?.trim() || "Could not inspect App signature");
+  }
+  return `${result.stdout || ""}\n${result.stderr || ""}`
+    .match(/^TeamIdentifier=(.+)$/m)?.[1]?.trim() || "";
+}
+
+function writeIsolatedDesktopConfig(userDataDir) {
+  mkdirSync(userDataDir, { recursive: true });
+  writeFileSync(
+    path.join(userDataDir, "desktop-config.json"),
+    `${JSON.stringify({
+      repoRoot: REPO_ROOT,
+      openRepoRoots: [REPO_ROOT],
+      usageAnalyticsEnabled: false,
+      preferences: {
+        language: "en",
+        mode: "preview",
+      },
+    }, null, 2)}\n`,
+    { flag: "wx" },
+  );
+}
+
+function readJsonIfPresent(filePath) {
+  try {
+    return JSON.parse(readFileSync(filePath, "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+async function fetchJson(url) {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Could not fetch ${url}: HTTP ${response.status}`);
+  }
+  return response.json();
+}
+
+function optionValue(args, name, { required = false } = {}) {
+  const index = args.indexOf(name);
+  const value = index >= 0 ? String(args[index + 1] || "").trim() : "";
+  if (required && (!value || value.startsWith("--"))) {
+    throw new Error(`${name} requires a value`);
+  }
+  return value;
+}
+
+function printHelp() {
+  console.log(`Usage:
+  node scripts/mac-development-handoff-regression.mjs
+    --output FILE
+    [--log FILE]
+    [--base-url URL]
+
+This harness packages the current source dev build, switches it to the signed
+same-version internal-stable App, and keeps all automated state isolated.`);
+}
+
+async function main(args = process.argv.slice(2)) {
+  if (args.includes("--help") || args.includes("-h")) {
+    printHelp();
+    return;
+  }
+  const outputPath = path.resolve(
+    optionValue(args, "--output", { required: true }),
+  );
+  const logPath = path.resolve(
+    optionValue(args, "--log")
+    || `${outputPath.slice(0, -path.extname(outputPath).length)}.log`,
+  );
+  await runDevelopmentHandoffRegression({
+    outputPath,
+    logPath,
+    baseUrl: optionValue(args, "--base-url") || DEFAULT_BASE_URL,
+  });
+  console.log(`macOS development handoff regression passed: ${outputPath}`);
+}
+
+if (process.argv[1] && path.resolve(process.argv[1]) === SCRIPT_PATH) {
+  main().catch((error) => {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exitCode = 1;
+  });
+}

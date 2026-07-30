@@ -6,12 +6,12 @@ import test from "node:test";
 
 import {
   closeDesktopRepository,
-  completeDesktopDevelopmentHandoff,
   desktopConfigBackupPath,
   desktopConfigPath,
   mutateDesktopRepositoryFavorites,
   queueDesktopConfigMutation,
   readDesktopConfig,
+  prepareDesktopDevelopmentHandoffInstallation,
   saveDesktopDevelopmentHandoff,
   saveDesktopPreferences,
   saveDesktopRepository,
@@ -108,7 +108,7 @@ test("development handoff persistence preserves the shared human profile", async
   assert.deepEqual(saved.developmentHandoff, INTERNAL_HANDOFF);
 });
 
-test("matching internal launch atomically enables analytics and consumes the handoff", async () => {
+test("install preparation atomically clears the dev analytics value and consumes the handoff", async () => {
   const userDataDir = await mkdtemp(path.join(tmpdir(), "git-leaf-user-data-"));
   await saveDesktopUsageAnalyticsEnabled({ userDataDir, enabled: false });
   await saveDesktopDevelopmentHandoff({
@@ -116,29 +116,20 @@ test("matching internal launch atomically enables analytics and consumes the han
     handoff: INTERNAL_HANDOFF,
   });
 
-  const result = await completeDesktopDevelopmentHandoff({
+  const result = await prepareDesktopDevelopmentHandoffInstallation({
     userDataDir,
-    buildInfo: {
-      version: INTERNAL_HANDOFF.version,
-      buildId: INTERNAL_HANDOFF.buildId,
-      commit: INTERNAL_HANDOFF.commit,
-      dev: false,
-      distribution: "official",
-      releaseTrack: "internal",
-      usageAnalyticsDefault: true,
-    },
-    platformKey: "darwin-universal",
+    handoff: INTERNAL_HANDOFF,
   });
 
-  assert.equal(result.applied, true);
-  assert.equal(result.config.usageAnalyticsEnabled, true);
+  assert.equal(result.prepared, true);
+  assert.equal(Object.hasOwn(result.config, "usageAnalyticsEnabled"), false);
   assert.equal(Object.hasOwn(result.config, "developmentHandoff"), false);
   const persisted = JSON.parse(await readFile(desktopConfigPath(userDataDir), "utf8"));
-  assert.equal(persisted.usageAnalyticsEnabled, true);
+  assert.equal(Object.hasOwn(persisted, "usageAnalyticsEnabled"), false);
   assert.equal(Object.hasOwn(persisted, "developmentHandoff"), false);
 });
 
-test("mismatched or absent handoffs never change analytics", async () => {
+test("mismatched or absent install preparation never changes analytics", async () => {
   const userDataDir = await mkdtemp(path.join(tmpdir(), "git-leaf-user-data-"));
   await saveDesktopUsageAnalyticsEnabled({ userDataDir, enabled: false });
   await saveDesktopDevelopmentHandoff({
@@ -146,20 +137,14 @@ test("mismatched or absent handoffs never change analytics", async () => {
     handoff: INTERNAL_HANDOFF,
   });
 
-  const mismatch = await completeDesktopDevelopmentHandoff({
+  const mismatch = await prepareDesktopDevelopmentHandoffInstallation({
     userDataDir,
-    buildInfo: {
-      version: INTERNAL_HANDOFF.version,
+    handoff: {
+      ...INTERNAL_HANDOFF,
       buildId: "aaaaaaaaaaaa.20260730T010000Z.internal",
-      commit: INTERNAL_HANDOFF.commit,
-      dev: false,
-      distribution: "official",
-      releaseTrack: "internal",
-      usageAnalyticsDefault: true,
     },
-    platformKey: "darwin-universal",
   });
-  assert.equal(mismatch.applied, false);
+  assert.equal(mismatch.prepared, false);
   assert.equal(mismatch.config.usageAnalyticsEnabled, false);
   assert.deepEqual(mismatch.config.developmentHandoff, INTERNAL_HANDOFF);
 
@@ -168,48 +153,12 @@ test("mismatched or absent handoffs never change analytics", async () => {
     userDataDir: withoutReceiptDir,
     enabled: false,
   });
-  const ordinaryUpgrade = await completeDesktopDevelopmentHandoff({
+  const ordinaryUpgrade = await prepareDesktopDevelopmentHandoffInstallation({
     userDataDir: withoutReceiptDir,
-    buildInfo: {
-      version: "1.16.1",
-      buildId: "aaaaaaaaaaaa.20260730T010000Z.internal",
-      commit: "aaaaaaaaaaaa",
-      dev: false,
-      distribution: "official",
-      releaseTrack: "internal",
-      usageAnalyticsDefault: true,
-    },
-    platformKey: "darwin-universal",
-  });
-  assert.equal(ordinaryUpgrade.applied, false);
-  assert.equal(ordinaryUpgrade.config.usageAnalyticsEnabled, false);
-});
-
-test("handoff completion fails closed unless the target analytics default is enabled", async () => {
-  const userDataDir = await mkdtemp(path.join(tmpdir(), "git-leaf-user-data-"));
-  await saveDesktopUsageAnalyticsEnabled({ userDataDir, enabled: false });
-  await saveDesktopDevelopmentHandoff({
-    userDataDir,
     handoff: INTERNAL_HANDOFF,
   });
-
-  const result = await completeDesktopDevelopmentHandoff({
-    userDataDir,
-    buildInfo: {
-      version: INTERNAL_HANDOFF.version,
-      buildId: INTERNAL_HANDOFF.buildId,
-      commit: INTERNAL_HANDOFF.commit,
-      dev: false,
-      distribution: "official",
-      releaseTrack: "internal",
-      usageAnalyticsDefault: false,
-    },
-    platformKey: "darwin-universal",
-  });
-
-  assert.equal(result.applied, false);
-  assert.equal(result.config.usageAnalyticsEnabled, false);
-  assert.deepEqual(result.config.developmentHandoff, INTERNAL_HANDOFF);
+  assert.equal(ordinaryUpgrade.prepared, false);
+  assert.equal(ordinaryUpgrade.config.usageAnalyticsEnabled, false);
 });
 
 test("readDesktopConfig uses legacy-safe preferences for an existing config without new fields", async () => {

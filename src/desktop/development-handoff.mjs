@@ -78,6 +78,24 @@ export function normalizeDevelopmentHandoffReceipt(value) {
   return receipt;
 }
 
+export function sameDevelopmentHandoffReceipt(left, right) {
+  const normalizedLeft = normalizeDevelopmentHandoffReceipt(left);
+  const normalizedRight = normalizeDevelopmentHandoffReceipt(right);
+  return Boolean(
+    normalizedLeft
+    && normalizedRight
+    && [
+      "kind",
+      "version",
+      "buildId",
+      "commit",
+      "releaseTrack",
+      "channel",
+      "platform",
+    ].every((field) => normalizedLeft[field] === normalizedRight[field])
+  );
+}
+
 export function developmentHandoffReceiptMatchesBuild({
   receipt,
   buildInfo,

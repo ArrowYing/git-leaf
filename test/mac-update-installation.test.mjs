@@ -11,6 +11,11 @@ const OFFICIAL_BUILD = {
   releaseTrack: "internal",
   dev: false,
 };
+const SOURCE_DEV_BUILD = {
+  distribution: "source",
+  releaseTrack: "source",
+  dev: true,
+};
 
 test("official packaged mac builds persist Squirrel direct Contents updates", () => {
   const calls = [];
@@ -33,7 +38,28 @@ test("official packaged mac builds persist Squirrel direct Contents updates", ()
   ]]);
 });
 
-test("source, development, and non-mac builds do not change native defaults", () => {
+test("eligible packaged source dev builds persist Squirrel direct Contents updates", () => {
+  const calls = [];
+  const result = configureMacUpdateInstallation({
+    platform: "darwin",
+    isPackaged: true,
+    buildInfo: SOURCE_DEV_BUILD,
+    systemPreferences: {
+      setUserDefault: (...args) => calls.push(args),
+      getUserDefault: () => true,
+    },
+    log: () => {},
+  });
+
+  assert.deepEqual(result, { configured: true });
+  assert.deepEqual(calls, [[
+    SQUIRREL_DIRECT_CONTENTS_WRITE_KEY,
+    "boolean",
+    true,
+  ]]);
+});
+
+test("ineligible source, unpackaged, and non-mac builds do not change native defaults", () => {
   let calls = 0;
   const systemPreferences = {
     setUserDefault: () => {
@@ -50,12 +76,17 @@ test("source, development, and non-mac builds do not change native defaults", ()
     {
       platform: "darwin",
       isPackaged: true,
-      buildInfo: { ...OFFICIAL_BUILD, dev: true },
+      buildInfo: { distribution: "source", releaseTrack: "source", dev: false },
+    },
+    {
+      platform: "darwin",
+      isPackaged: false,
+      buildInfo: SOURCE_DEV_BUILD,
     },
     {
       platform: "darwin",
       isPackaged: true,
-      buildInfo: { distribution: "source", releaseTrack: "source", dev: false },
+      buildInfo: { ...SOURCE_DEV_BUILD, releaseTrack: "public" },
     },
   ];
 

@@ -355,6 +355,83 @@ test("a saved identity-bound development handoff resumes without another choice"
   assert.match(autoUpdater.feedUrls[0], /transition=dev-to-internal/);
 });
 
+test("development handoff clears the dev analytics initialization before install", async () => {
+  const autoUpdater = fakeAutoUpdater();
+  const operations = [];
+  autoUpdater.quitAndInstall = () => {
+    operations.push("install");
+    autoUpdater.installed = true;
+  };
+  const controller = createDesktopUpdateController({
+    autoUpdater,
+    buildInfo: {
+      version: "1.16.0",
+      buildId: "aaaaaaaaaaaa.20260730T010000Z.source",
+      commit: "aaaaaaaaaaaa",
+      dev: true,
+      distribution: "source",
+      releaseTrack: "source",
+    },
+    fetch: fakeMacManifestFetch({
+      version: "1.16.0",
+      buildId: "2c3e9d8cfcfb.20260728T235326Z.internal",
+      commit: "2c3e9d8cfcfb",
+      releaseTrack: "internal",
+    }),
+    isPackaged: true,
+    platform: "darwin",
+    arch: "arm64",
+    saveDevelopmentHandoff: async () => {},
+    prepareDevelopmentHandoffInstallation: async (handoff) => {
+      operations.push(`prepare:${handoff.buildId}`);
+      return true;
+    },
+  });
+
+  await controller.checkForUpdates({ manual: true });
+  await controller.handleUpdateAction();
+  autoUpdater.listeners.get("update-downloaded")();
+
+  assert.equal(await controller.installPendingUpdateOnQuit(), true);
+  assert.deepEqual(operations, [
+    "prepare:2c3e9d8cfcfb.20260728T235326Z.internal",
+    "install",
+  ]);
+});
+
+test("development handoff refuses installation when analytics initialization cannot be reset", async () => {
+  const autoUpdater = fakeAutoUpdater();
+  const controller = createDesktopUpdateController({
+    autoUpdater,
+    buildInfo: {
+      version: "1.16.0",
+      buildId: "aaaaaaaaaaaa.20260730T010000Z.source",
+      commit: "aaaaaaaaaaaa",
+      dev: true,
+      distribution: "source",
+      releaseTrack: "source",
+    },
+    fetch: fakeMacManifestFetch({
+      version: "1.16.0",
+      buildId: "2c3e9d8cfcfb.20260728T235326Z.internal",
+      commit: "2c3e9d8cfcfb",
+      releaseTrack: "internal",
+    }),
+    isPackaged: true,
+    platform: "darwin",
+    arch: "arm64",
+    saveDevelopmentHandoff: async () => {},
+    prepareDevelopmentHandoffInstallation: async () => false,
+  });
+
+  await controller.checkForUpdates({ manual: true });
+  await controller.handleUpdateAction();
+  autoUpdater.listeners.get("update-downloaded")();
+
+  assert.equal(await controller.installPendingUpdateOnQuit(), false);
+  assert.equal(autoUpdater.installed, false);
+});
+
 test("desktop updater never contacts the official feed for Community Builds", async () => {
   const autoUpdater = fakeAutoUpdater();
   const dialog = fakeDialog();

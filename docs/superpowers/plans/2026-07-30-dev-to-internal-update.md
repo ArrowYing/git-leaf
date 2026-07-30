@@ -4,7 +4,7 @@
 
 **Goal:** Let a packaged macOS `source` development build discover and install the latest `internal-stable` official build, including an equal-version build, while preserving the two existing Bundle IDs and enabling the installed internal build's packaged analytics default exactly once.
 
-**Architecture:** Add one explicit `dev-to-internal` transition contract shared by discovery, Squirrel.Mac feed requests, persisted receipts, and first official launch. The ordinary public/internal updater remains strictly newer-version-only. The Python update server may serve an equal-version macOS package only when the request carries a complete transition identity that matches the current `internal-stable` manifest. A receipt is saved before Squirrel starts, then consumed atomically before telemetry initialization by the matching official internal build.
+**Architecture:** Add one explicit `dev-to-internal` transition contract shared by discovery, Squirrel.Mac feed requests, and persisted receipts. The ordinary public/internal updater remains strictly newer-version-only. The Python update server may serve an equal-version macOS package only when the request carries a complete transition identity that matches the current `internal-stable` manifest. A receipt is saved before Squirrel starts; immediately before installation, an exact receipt match atomically removes the receipt and the dev build's explicit analytics value so even the already-published internal `1.16.0` package applies its embedded `usageAnalyticsDefault=true` on launch.
 
 **Tech Stack:** Node.js ESM, Electron `autoUpdater`, Squirrel.Mac, Python `ThreadingHTTPServer`, `node:test`.
 
@@ -103,7 +103,7 @@ git add src/desktop/development-handoff.mjs src/desktop/app-updates.mjs test/dev
 git commit -m "feat: define development handoff contract"
 ```
 
-### Task 2: Persist and consume the analytics handoff atomically
+### Task 2: Persist and prepare the analytics handoff atomically
 
 **Files:**
 
@@ -117,9 +117,9 @@ git commit -m "feat: define development handoff contract"
 Use temporary user-data directories to prove:
 
 1. `saveDesktopDevelopmentHandoff` persists the normalized receipt without changing repository, session, appearance, or analytics fields.
-2. `completeDesktopDevelopmentHandoff` matches only an official, non-dev internal build with the same version/build ID/commit/track/platform.
-3. A matching completion writes `usageAnalyticsEnabled: true` from `buildInfo.usageAnalyticsDefault`, removes the receipt in the same atomic config mutation, and returns `applied: true`.
-4. Missing/mismatched receipts leave both analytics and the receipt unchanged.
+2. `prepareDesktopDevelopmentHandoffInstallation` requires the exact version/build ID/commit/track/channel/platform receipt selected by the user.
+3. A matching preparation removes both `usageAnalyticsEnabled` and the receipt in the same atomic config mutation, allowing the existing internal package to apply its embedded default.
+4. Missing/mismatched receipts leave both analytics and the receipt unchanged and prevent installation.
 5. Ordinary internal upgrades without a receipt preserve a user's existing analytics choice.
 
 - [ ] **Step 2: Run the focused tests and verify failure**
@@ -132,7 +132,7 @@ node --test test/desktop-config.test.mjs test/usage-analytics-setting.test.mjs
 
 Expected: failure because receipt persistence/completion exports are absent.
 
-- [ ] **Step 3: Implement atomic persistence and startup ordering**
+- [ ] **Step 3: Implement atomic persistence and install ordering**
 
 Add top-level `developmentHandoff` normalization to desktop config without placing it in UI preferences. Export:
 
@@ -143,15 +143,14 @@ export async function saveDesktopDevelopmentHandoff({
   repoRoot,
 }) {}
 
-export async function completeDesktopDevelopmentHandoff({
+export async function prepareDesktopDevelopmentHandoffInstallation({
   userDataDir,
-  buildInfo,
-  platformKey,
+  handoff,
   repoRoot,
 }) {}
 ```
 
-Both functions must reuse the existing atomic config mutation path. In `src/desktop/main.mjs`, call completion after loading desktop state but before `initializeDesktopTelemetry()`, and replace the in-memory state with the returned config when applied.
+Both functions must reuse the existing atomic config mutation path. Wire preparation into the real install entry before `quitAndInstall`; replace the in-memory state only after the exact receipt is prepared.
 
 - [ ] **Step 4: Run focused tests**
 
@@ -230,6 +229,7 @@ Compute an optional `handoffTarget` once in `createDesktopUpdateController`. Whe
 - persist that receipt before any download call;
 - include the receipt query in the Squirrel feed URL;
 - restore only from a matching persisted receipt;
+- atomically prepare the matching receipt before the real install call;
 - use explicit handoff copy such as “Switch to the internal build” for equal-version availability.
 
 Keep all ordinary official builds on strict `target > current`. Add `getDevelopmentHandoff` and `saveDevelopmentHandoff` controller callbacks and wire them to config in `main.mjs`.
@@ -357,7 +357,7 @@ Add `npm run verify:dev-handoff:mac` / `make verify-dev-handoff-mac`. The harnes
 5. Rewrite that manifest into a temporary local update root served by the repository Python server.
 6. Launch the dev app with isolated `HOME`, `TMPDIR`, `userData`, and Squirrel defaults.
 7. Drive the real Settings update action through the renderer.
-8. Confirm the installed app switches Bundle ID, retains the directory inode, consumes the receipt, and has analytics enabled before telemetry startup.
+8. Confirm install preparation consumes the receipt and explicit dev analytics value, then the installed app switches Bundle ID, retains the directory inode, applies its packaged analytics default, and initializes telemetry.
 9. Remove only temporary state and prove the real Profile/cache fingerprints are unchanged.
 
 The harness output must be a JSON evidence file created with `wx`, not a committed artifact.
@@ -403,7 +403,7 @@ Document that:
 
 - [ ] **Step 2: Update release and architecture contracts**
 
-Document the identity-bound receipt, server exception, startup ordering, non-downgrade rule, and mandatory packaged regression. Keep `docs/release.md` as the release-policy source and do not duplicate the controller stages.
+Document the identity-bound receipt, server exception, install ordering, target-default initialization, non-downgrade rule, and mandatory packaged regression. Keep `docs/release.md` as the release-policy source and do not duplicate the controller stages.
 
 - [ ] **Step 3: Run documentation checks**
 

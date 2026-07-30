@@ -13,8 +13,8 @@ import {
 } from "../../public/sidebar-favorites.js";
 import { normalizeWorkbenchSessions } from "../../public/workbench-session.js";
 import {
-  developmentHandoffReceiptMatchesBuild,
   normalizeDevelopmentHandoffReceipt,
+  sameDevelopmentHandoffReceipt,
 } from "./development-handoff.mjs";
 
 const CONFIG_FILENAME = "desktop-config.json";
@@ -180,39 +180,38 @@ export async function saveDesktopDevelopmentHandoff({
   });
 }
 
-export async function completeDesktopDevelopmentHandoff({
+export async function prepareDesktopDevelopmentHandoffInstallation({
   userDataDir,
-  buildInfo,
-  platformKey,
+  handoff,
   repoRoot = "",
 }) {
+  const normalizedHandoff = normalizeDevelopmentHandoffReceipt(handoff);
+  if (!normalizedHandoff) {
+    throw new TypeError("developmentHandoff must contain a valid target identity");
+  }
   return queueDesktopConfigMutation({
     userDataDir,
     mutation: async () => {
       const current = await readDesktopConfig({ userDataDir });
-      if (
-        buildInfo?.usageAnalyticsDefault !== true
-        || !developmentHandoffReceiptMatchesBuild({
-          receipt: current.developmentHandoff,
-          buildInfo,
-          platformKey,
-        })
-      ) {
+      if (!sameDevelopmentHandoffReceipt(
+        current.developmentHandoff,
+        normalizedHandoff,
+      )) {
         return {
-          applied: false,
+          prepared: false,
           config: current,
         };
       }
 
       const nextPayload = {
         ...withRuntimeRepository(current, repoRoot),
-        usageAnalyticsEnabled: true,
       };
       delete nextPayload.developmentHandoff;
+      delete nextPayload.usageAnalyticsEnabled;
       const next = normalizeDesktopConfig(nextPayload);
       await writeDesktopConfig({ userDataDir, config: next });
       return {
-        applied: true,
+        prepared: true,
         config: next,
       };
     },

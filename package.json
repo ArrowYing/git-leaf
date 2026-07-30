@@ -29,6 +29,7 @@
     "release:prepare": "node scripts/release-worktree.mjs prepare",
     "release:status": "node scripts/release-worktree.mjs status --remote",
     "release:verify-update:mac": "node scripts/mac-update-regression.mjs",
+    "verify:dev-handoff:mac": "node scripts/mac-development-handoff-regression.mjs",
     "release:mac": "node scripts/release-mac.mjs release",
     "release:win": "node scripts/release-windows.mjs release",
     "start": "node src/cli.mjs",
