@@ -30,7 +30,9 @@ function readFixtureVersion(appPath) {
   return readFileSync(path.join(appPath, "Contents", "version.txt"), "utf8");
 }
 
-test("mac App process checks exclude the in-bundle update helper only", () => {
+test("mac App process checks exclude the in-bundle update helper only", {
+  skip: process.platform === "win32" && "process matching uses macOS path semantics",
+}, () => {
   const appPath = "/private/tmp/Git Leaf.app";
   const currentHelper = `${appPath}/Contents/MacOS/Git Leaf helper.mjs`;
   const lingeringRenderer =

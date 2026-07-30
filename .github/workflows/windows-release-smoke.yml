@@ -87,10 +87,15 @@ jobs:
         shell: pwsh
         run: |
           $smokeRepo = Join-Path $env:RUNNER_TEMP "git-leaf-smoke-repo"
-          if (Test-Path -LiteralPath $smokeRepo) {
-            Remove-Item -LiteralPath $smokeRepo -Recurse -Force
+          $smokeRemote = Join-Path $env:RUNNER_TEMP "git-leaf-smoke-remote.git"
+          foreach ($smokePath in @($smokeRepo, $smokeRemote)) {
+            if (Test-Path -LiteralPath $smokePath) {
+              Remove-Item -LiteralPath $smokePath -Recurse -Force
+            }
           }
-          New-Item -ItemType Directory -Path $smokeRepo | Out-Null
+
+          git init --bare --initial-branch=main $smokeRemote
+          git clone $smokeRemote $smokeRepo
           New-Item -ItemType Directory -Path (Join-Path $smokeRepo "docs") | Out-Null
 
           Set-Content -LiteralPath (Join-Path $smokeRepo "README.md") -Encoding utf8 -Value @"
@@ -111,11 +116,34 @@ jobs:
           A second document keeps navigation visible in the smoke screenshot.
           "@
 
-          git -C $smokeRepo init
           git -C $smokeRepo config user.name "Git Leaf Smoke"
           git -C $smokeRepo config user.email "git-leaf-smoke@example.invalid"
           git -C $smokeRepo add .
           git -C $smokeRepo commit -m "Create smoke repository"
+          git -C $smokeRepo push -u origin main
+
+          $hookPath = Join-Path $smokeRepo ".git\hooks\pre-commit"
+          $hookSource = @'
+          #!/bin/sh
+          node -e "require('node:fs').writeFileSync('.git/git-leaf-hook-ran', 'ok')"
+          '@
+          [IO.File]::WriteAllText(
+            $hookPath,
+            ($hookSource.Trim() + "`n").Replace("`r`n", "`n"),
+            [Text.UTF8Encoding]::new($false)
+          )
+          git -C $smokeRepo commit --allow-empty -m "Verify smoke hook runtime"
+          $hookMarker = Join-Path $smokeRepo ".git\git-leaf-hook-ran"
+          if (!(Test-Path -LiteralPath $hookMarker)) {
+            throw "Git for Windows did not execute the smoke pre-commit hook"
+          }
+          git -C $smokeRepo push origin main
+          Remove-Item -LiteralPath $hookMarker -Force
+
+          Add-Content `
+            -LiteralPath (Join-Path $smokeRepo "README.md") `
+            -Encoding utf8 `
+            -Value "`nThis unpublished edit must be synced through the packaged App."
           "GIT_LEAF_SMOKE_REPO=$smokeRepo" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Launch packaged app and capture UI

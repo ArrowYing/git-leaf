@@ -56,7 +56,8 @@ function Save-DesktopScreenshot {
 function Wait-GitLeafHealth {
   param(
     [int]$TimeoutSecondsValue,
-    [string]$ExpectedInitialFile = ""
+    [string]$ExpectedInitialFile = "",
+    [string]$ExpectedRepoRoot = ""
   )
 
   $deadline = (Get-Date).AddSeconds($TimeoutSecondsValue)
@@ -67,8 +68,16 @@ function Wait-GitLeafHealth {
       try {
         $response = Invoke-WebRequest -UseBasicParsing -Uri $url -TimeoutSec 10
         $payload = $response.Content | ConvertFrom-Json
+        $repoMatches = !$ExpectedRepoRoot
+        if ($ExpectedRepoRoot -and $payload.repoRoot) {
+          $repoMatches = (
+            [IO.Path]::GetFullPath([string]$payload.repoRoot) -ieq
+            [IO.Path]::GetFullPath($ExpectedRepoRoot)
+          )
+        }
         if (
           $response.StatusCode -eq 200 -and
+          $repoMatches -and
           (!$ExpectedInitialFile -or $payload.initialFile -eq $ExpectedInitialFile)
         ) {
           Write-SmokeLog "Health check passed at $url"
@@ -81,7 +90,67 @@ function Wait-GitLeafHealth {
     Start-Sleep -Seconds 1
   }
 
-  throw "Timed out waiting for Git Leaf health check. ExpectedInitialFile=$ExpectedInitialFile LastError=$lastError"
+  throw "Timed out waiting for Git Leaf health check. ExpectedRepoRoot=$ExpectedRepoRoot ExpectedInitialFile=$ExpectedInitialFile LastError=$lastError"
+}
+
+function Invoke-GitLeafSyncSmoke {
+  param(
+    [string]$HealthUrl,
+    [string]$RepoRoot
+  )
+
+  $serverUrl = $HealthUrl.Substring(
+    0,
+    $HealthUrl.Length - "/api/health".Length
+  )
+  $syncUrl = "$serverUrl/api/git-sync?locale=en"
+  $response = Invoke-WebRequest `
+    -UseBasicParsing `
+    -Uri $syncUrl `
+    -Method Post `
+    -ContentType "application/json" `
+    -Body '{"allChanges":true}' `
+    -TimeoutSec 30
+  $payload = $response.Content | ConvertFrom-Json
+  if ($response.StatusCode -ne 200 -or !$payload.ok) {
+    $detail = $payload | ConvertTo-Json -Compress -Depth 5
+    throw "Packaged App Sync failed. Status=$($response.StatusCode) Payload=$detail"
+  }
+  if ($payload.files -notcontains "README.md") {
+    throw "Packaged App Sync did not publish the expected README.md change"
+  }
+
+  $hookMarker = Join-Path $RepoRoot ".git\git-leaf-hook-ran"
+  if (!(Test-Path -LiteralPath $hookMarker)) {
+    throw "Packaged App Sync did not execute the Node pre-commit hook"
+  }
+  if ((Get-Content -LiteralPath $hookMarker -Raw).Trim() -ne "ok") {
+    throw "Packaged App Sync produced an invalid pre-commit hook marker"
+  }
+
+  $statusLines = @(git -C $RepoRoot status --porcelain)
+  if ($LASTEXITCODE -ne 0) {
+    throw "Could not read Git status after packaged App Sync"
+  }
+  if (($statusLines -join "`n").Trim()) {
+    throw "Packaged App Sync left unpublished local changes"
+  }
+
+  $localHead = (git -C $RepoRoot rev-parse HEAD).Trim()
+  if ($LASTEXITCODE -ne 0) {
+    throw "Could not read local HEAD after packaged App Sync"
+  }
+  $remoteLine = git -C $RepoRoot ls-remote origin refs/heads/main |
+    Select-Object -First 1
+  if ($LASTEXITCODE -ne 0 -or !$remoteLine) {
+    throw "Could not read remote main after packaged App Sync"
+  }
+  $remoteHead = ([string]$remoteLine -split "\s+")[0]
+  if ($localHead -ne $remoteHead -or $payload.publishedHead -ne $remoteHead) {
+    throw "Packaged App Sync did not publish its exact local commit"
+  }
+
+  Write-SmokeLog "Sync and publish completed with Node hook: $localHead"
 }
 
 function Wait-GitLeafActiveDocument {
@@ -138,7 +207,9 @@ try {
   $process = Start-Process -FilePath $exePath -ArgumentList @("--repo", "`"$repoRootPath`"") -PassThru
   Write-SmokeLog "Started Git Leaf process: $($process.Id)"
 
-  $healthUrl = Wait-GitLeafHealth -TimeoutSecondsValue $TimeoutSeconds
+  $healthUrl = Wait-GitLeafHealth `
+    -TimeoutSecondsValue $TimeoutSeconds `
+    -ExpectedRepoRoot $repoRootPath
   if (!(Test-Path -LiteralPath $installedExe)) {
     throw "Git Leaf did not bootstrap to the stable per-user path: $installedExe"
   }
@@ -159,6 +230,7 @@ try {
   Write-SmokeLog "Stable executable: $installedExe"
   Write-SmokeLog "Installed version: $installedVersion"
   Write-SmokeLog "Protocol command: $protocolCommand"
+  Invoke-GitLeafSyncSmoke -HealthUrl $healthUrl -RepoRoot $repoRootPath
 
   $stableHashBefore = (Get-FileHash -LiteralPath $installedExe -Algorithm SHA256).Hash
   @{ version = "0.0.0"; installedAt = (Get-Date -Format "o") } |
@@ -194,7 +266,8 @@ try {
   Start-Process -FilePath $deepLink
   $healthUrl = Wait-GitLeafHealth `
     -TimeoutSecondsValue $TimeoutSeconds `
-    -ExpectedInitialFile $deepLinkPath
+    -ExpectedInitialFile $deepLinkPath `
+    -ExpectedRepoRoot $repoRootPath
   Wait-GitLeafActiveDocument `
     -ConfigPath $desktopConfig `
     -ExpectedPath $deepLinkPath `

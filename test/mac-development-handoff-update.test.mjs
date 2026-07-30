@@ -88,7 +88,9 @@ test("mac development handoff extracts the signed App with native ditto", async 
   }
 });
 
-test("mac development handoff prepares only the exact signed internal target", async () => {
+test("mac development handoff prepares only the exact signed internal target", {
+  skip: process.platform === "win32" && "preparation uses macOS-native removal",
+}, async () => {
   const root = mkdtempSync(path.join(tmpdir(), "git-leaf-mac-handoff-test."));
   try {
     const userDataDir = path.join(root, "user-data");
@@ -122,7 +124,9 @@ test("mac development handoff prepares only the exact signed internal target", a
   }
 });
 
-test("mac development handoff shares one preparation for concurrent retries", async () => {
+test("mac development handoff shares one preparation for concurrent retries", {
+  skip: process.platform === "win32" && "preparation uses macOS-native removal",
+}, async () => {
   const root = mkdtempSync(path.join(tmpdir(), "git-leaf-mac-handoff-test."));
   let releaseExtraction;
   const extractionReleased = new Promise((resolve) => {
@@ -175,7 +179,9 @@ test("mac development handoff shares one preparation for concurrent retries", as
   }
 });
 
-test("mac development handoff rejects an extracted App with another build identity", async () => {
+test("mac development handoff rejects an extracted App with another build identity", {
+  skip: process.platform === "win32" && "preparation uses macOS-native removal",
+}, async () => {
   const root = mkdtempSync(path.join(tmpdir(), "git-leaf-mac-handoff-test."));
   try {
     mkdirSync(path.join(root, "installed", "Git Leaf.app"), {

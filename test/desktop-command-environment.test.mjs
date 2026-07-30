@@ -179,6 +179,65 @@ test(
   },
 );
 
+test(
+  "Windows preserves its inherited Path for real Sync Git hooks",
+  { skip: process.platform !== "win32" },
+  async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "git-leaf-windows-hook-path-"));
+    const bare = path.join(root, "remote.git");
+    const repoRoot = path.join(root, "repo");
+    const inheritedPath = process.env.PATH;
+
+    try {
+      await mkdir(bare, { recursive: true });
+      await git(bare, ["init", "--bare", "--initial-branch=main"]);
+      await git(root, ["clone", bare, repoRoot]);
+      await git(repoRoot, ["config", "user.name", "Git Leaf Tests"]);
+      await git(repoRoot, ["config", "user.email", "git-leaf@example.test"]);
+      await writeFile(path.join(repoRoot, "document.md"), "before\n");
+      await git(repoRoot, ["add", "-A"]);
+      await git(repoRoot, ["commit", "-m", "Initial"]);
+      await git(repoRoot, ["push", "-u", "origin", "main"]);
+
+      const hook = path.join(repoRoot, ".git", "hooks", "pre-commit");
+      await writeFile(
+        hook,
+        [
+          "#!/bin/sh",
+          'node -e "require(\'node:fs\').writeFileSync(\'.git/git-leaf-hook-ran\', \'ok\')"',
+          "",
+        ].join("\n"),
+      );
+      await chmod(hook, 0o755);
+      await writeFile(path.join(repoRoot, "document.md"), "after\n");
+
+      const initialized = await initializeDesktopCommandEnvironment({
+        environment: process.env,
+        platform: "win32",
+      });
+      const result = await syncSelectedFiles({
+        repo: { id: "fixture", root: repoRoot, branch: "main" },
+        allChanges: true,
+      });
+
+      assert.equal(initialized.status, "skipped");
+      assert.equal(process.env.PATH, inheritedPath);
+      assert.equal(result.ok, true, result.error);
+      assert.equal(
+        await readFile(path.join(repoRoot, ".git", "git-leaf-hook-ran"), "utf8"),
+        "ok",
+      );
+      assert.equal((await git(repoRoot, ["status", "--porcelain"])).stdout, "");
+      assert.equal(
+        (await git(repoRoot, ["rev-parse", "HEAD"])).stdout.trim(),
+        (await git(bare, ["rev-parse", "main"])).stdout.trim(),
+      );
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  },
+);
+
 function git(cwd, args) {
   return new Promise((resolve, reject) => {
     execFile("git", args, { cwd, encoding: "utf8" }, (error, stdout, stderr) => {

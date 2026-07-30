@@ -31,6 +31,10 @@ test("Windows release smoke workflow builds, launches, screenshots, and uploads 
   assert.doesNotMatch(workflow, /node scripts\/release-windows\.mjs verify/);
   assert.match(workflow, /Prepare smoke repository/);
   assert.match(workflow, /git-leaf-smoke-repo/);
+  assert.match(workflow, /git-leaf-smoke-remote\.git/);
+  assert.match(workflow, /\.git\\hooks\\pre-commit/);
+  assert.match(workflow, /git-leaf-hook-ran/);
+  assert.match(workflow, /node -e/);
   assert.match(workflow, /GIT_LEAF_SMOKE_REPO/);
   assert.match(workflow, /pwsh scripts\/windows-smoke\.ps1/);
   assert.match(workflow, /-RepoRoot "\$env:GIT_LEAF_SMOKE_REPO"/);
@@ -69,6 +73,11 @@ test("Windows smoke script starts the packaged app, checks health, captures UI, 
   assert.match(script, /Deep link opened requested document/);
   assert.match(script, /api\/health"/);
   assert.doesNotMatch(script, /api\/health\?check=1/);
+  assert.match(script, /api\/git-sync/);
+  assert.match(script, /allChanges/);
+  assert.match(script, /git-leaf-hook-ran/);
+  assert.match(script, /ls-remote origin refs\/heads\/main/);
+  assert.match(script, /Sync and publish completed/);
   assert.match(script, /Invoke-WebRequest/);
   assert.match(script, /Invoke-WebRequest[^\n]+-TimeoutSec 10/);
   const expectedVersionIndex = script.indexOf("$expectedVersion =");
