@@ -50,6 +50,14 @@ test("desktop and application translators localize menus, status, and dialogs", 
   assert.equal(chinese("menu.settings"), "设置…");
   assert.equal(english("menu.sidebarViews"), "Sidebar Views");
   assert.equal(chinese("menu.sidebarFavorites"), "收藏");
+  assert.match(
+    english("updates.handoffAvailableVersion", { version: "1.16.0" }),
+    /internal Git Leaf 1\.16\.0/,
+  );
+  assert.match(
+    chinese("updates.handoffAvailableVersion", { version: "1.16.0" }),
+    /1\.16\.0 内部正式版/,
+  );
   assert.equal(translatedFileCount(english, 1), "1 file");
   assert.equal(translatedFileCount(english, 3), "3 files");
   assert.equal(translatedFileCount(chinese, 3), "3 个");

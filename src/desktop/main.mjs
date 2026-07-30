@@ -42,7 +42,6 @@ import {
   appDisplayName,
   BUILD_INFO,
   buildDistributionLabel,
-  isOfficialDistribution,
   releaseDateLabel,
 } from "../build-info.mjs";
 import {
@@ -50,11 +49,13 @@ import {
   completeDesktopDevelopmentHandoff,
   mutateDesktopRepositoryFavorites,
   readDesktopConfig,
+  saveDesktopDevelopmentHandoff,
   saveDesktopPreferences,
   saveDesktopRepository,
   saveDesktopUsageAnalyticsEnabled,
   saveDesktopWindowState,
 } from "./config.mjs";
+import { desktopUpdatesEnabled } from "./development-handoff.mjs";
 import { sidebarFavoritesForScope } from "../../public/sidebar-favorites.js";
 import {
   desktopHomeHtml,
@@ -161,6 +162,12 @@ const DESKTOP_OPEN_REPOSITORY_ACTION = new URL(DESKTOP_OPEN_REPOSITORY_URL);
 const DESKTOP_OPEN_WORKTREE_ACTION = new URL(DESKTOP_OPEN_WORKTREE_URL);
 const DESKTOP_INSTALL_UPDATE_ACTION = new URL("git-leaf://install-update");
 const APP_DISPLAY_NAME = appDisplayName(BUILD_INFO);
+const DESKTOP_UPDATES_ENABLED = desktopUpdatesEnabled({
+  buildInfo: BUILD_INFO,
+  isPackaged: app.isPackaged,
+  platform: process.platform,
+  arch: process.arch,
+});
 const windowsBootstrap = prepareWindowsAppInstall();
 const manualWindowsBootstrapNeedsLock = windowsBootstrapNeedsExclusiveLock(windowsBootstrap);
 const hasSingleInstanceLock = windowsBootstrap.status === "current" || manualWindowsBootstrapNeedsLock
@@ -783,6 +790,17 @@ function installUpdateController() {
     showUpdateStatus: showDesktopUpdateStatus,
     getUpdatePreferences: () => desktopRepositoryState.preferences ?? {},
     saveUpdatePreferences: saveDesktopPreferenceValues,
+    getDevelopmentHandoff: () => (
+      desktopRepositoryState.developmentHandoff ?? null
+    ),
+    saveDevelopmentHandoff: async (handoff) => {
+      desktopRepositoryState = await saveDesktopDevelopmentHandoff({
+        userDataDir: userDataDir(),
+        handoff,
+        repoRoot: activeServer?.repoRoot ?? "",
+      });
+      return desktopRepositoryState.developmentHandoff;
+    },
     recordUpdateState: recordTelemetryUpdateState,
     translate: (key, values) => desktopText(key, values),
     prepareWindowsUpdate: (manifest) => prepareWindowsAppUpdate({
@@ -1215,7 +1233,7 @@ async function settingsCenterStatus(resolvedLanguage) {
   const translate = createDesktopTranslatorForLanguage(resolvedLanguage);
   const environment = await desktopEnvironmentChecks({ language: resolvedLanguage });
   return {
-    updatesEnabled: isOfficialDistribution(BUILD_INFO),
+    updatesEnabled: DESKTOP_UPDATES_ENABLED,
     app: {
       version: { label: translate("settings.version"), value: BUILD_INFO.version },
       build: {
@@ -1922,7 +1940,7 @@ function installMenu() {
               role: "about",
               label: translate("menu.about", { app: APP_DISPLAY_NAME }),
             },
-            ...(isOfficialDistribution(BUILD_INFO) ? [checkForUpdatesMenuItem()] : []),
+            ...(DESKTOP_UPDATES_ENABLED ? [checkForUpdatesMenuItem()] : []),
             {
               label: translate("menu.settings"),
               accelerator: "CmdOrCtrl+,",
@@ -2009,7 +2027,7 @@ function installMenu() {
                   void showSettingsAndHelpCenter("general");
                 },
               },
-              ...(isOfficialDistribution(BUILD_INFO) ? [checkForUpdatesMenuItem()] : []),
+              ...(DESKTOP_UPDATES_ENABLED ? [checkForUpdatesMenuItem()] : []),
               { role: "quit", label: translate("menu.quit", { app: APP_DISPLAY_NAME }) },
             ]
           : []),

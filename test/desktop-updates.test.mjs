@@ -28,6 +28,8 @@ function fakeDialog(result = { response: 0, checkboxChecked: false }) {
 function fakeMacManifestFetch({
   version = "1.2.1",
   releaseTrack = "public",
+  buildId = `0123456789ab.20260730T010000Z.${releaseTrack}`,
+  commit = "0123456789ab",
   channel = releaseTrack === "internal" ? "internal-stable" : "stable",
   platform = "darwin-universal",
 } = {}) {
@@ -41,6 +43,8 @@ function fakeMacManifestFetch({
         channel,
         platform,
         version,
+        buildId,
+        commit,
         autoUpdater: {
           name: `Git Leaf ${version}`,
         },
@@ -178,26 +182,177 @@ test("desktop updater rejects manifests from another track, channel, or platform
   }
 });
 
-test("desktop updater disables stable updates for packaged development builds", async () => {
+test("packaged source development builds can choose an equal-version internal handoff", async () => {
   const autoUpdater = fakeAutoUpdater();
-  const dialog = fakeDialog();
-  const fetch = fakeMacManifestFetch();
+  const fetch = fakeMacManifestFetch({
+    version: "1.16.0",
+    buildId: "2c3e9d8cfcfb.20260728T235326Z.internal",
+    commit: "2c3e9d8cfcfb",
+    releaseTrack: "internal",
+  });
+  const savedHandoffs = [];
+  const operations = [];
+  autoUpdater.setFeedURL = ({ url }) => {
+    operations.push("feed");
+    autoUpdater.feedUrls.push(url);
+  };
+  autoUpdater.checkForUpdates = () => {
+    operations.push("download");
+    autoUpdater.checked = true;
+  };
   const controller = createDesktopUpdateController({
     autoUpdater,
-    buildInfo: { version: "1.7.1", dev: true },
-    dialog,
+    buildInfo: {
+      version: "1.16.0",
+      buildId: "aaaaaaaaaaaa.20260730T010000Z.source",
+      commit: "aaaaaaaaaaaa",
+      dev: true,
+      distribution: "source",
+      releaseTrack: "source",
+    },
+    fetch,
+    isPackaged: true,
+    platform: "darwin",
+    arch: "arm64",
+    environment: {
+      GIT_LEAF_UPDATE_CHANNEL: "candidate",
+    },
+    saveDevelopmentHandoff: async (handoff) => {
+      operations.push("save");
+      savedHandoffs.push(handoff);
+    },
+  });
+
+  assert.equal(await controller.checkForUpdates({ manual: true }), "available");
+  assert.equal(autoUpdater.checked, false);
+  assert.deepEqual(fetch.urls, [
+    "https://updates.mangofuture.com/git-leaf/internal-stable/darwin-universal/latest.json",
+  ]);
+  assert.equal(await controller.handleUpdateAction(), "downloading");
+  assert.deepEqual(operations, ["save", "feed", "download"]);
+  assert.deepEqual(savedHandoffs, [{
+    kind: "dev-to-internal",
+    version: "1.16.0",
+    buildId: "2c3e9d8cfcfb.20260728T235326Z.internal",
+    commit: "2c3e9d8cfcfb",
+    releaseTrack: "internal",
+    channel: "internal-stable",
+    platform: "darwin-universal",
+  }]);
+  assert.deepEqual(autoUpdater.feedUrls, [
+    "https://updates.mangofuture.com/git-leaf/internal-stable/darwin-universal/releases/1.16.0"
+      + "?transition=dev-to-internal"
+      + "&targetVersion=1.16.0"
+      + "&targetBuildId=2c3e9d8cfcfb.20260728T235326Z.internal"
+      + "&targetCommit=2c3e9d8cfcfb",
+  ]);
+});
+
+test("development handoff never downgrades to an older internal build", async () => {
+  const autoUpdater = fakeAutoUpdater();
+  const fetch = fakeMacManifestFetch({
+    version: "1.15.0",
+    releaseTrack: "internal",
+  });
+  const controller = createDesktopUpdateController({
+    autoUpdater,
+    buildInfo: {
+      version: "1.16.0",
+      buildId: "aaaaaaaaaaaa.20260730T010000Z.source",
+      commit: "aaaaaaaaaaaa",
+      dev: true,
+      distribution: "source",
+      releaseTrack: "source",
+    },
     fetch,
     isPackaged: true,
     platform: "darwin",
     arch: "arm64",
   });
 
-  assert.equal(await controller.checkForUpdates({ manual: true }), "disabled");
+  assert.equal(await controller.checkForUpdates({ manual: false }), "current");
   assert.equal(autoUpdater.checked, false);
   assert.deepEqual(autoUpdater.feedUrls, []);
-  assert.deepEqual(fetch.urls, []);
-  assert.match(dialog.calls[0][0].message, /Git Leaf dev/);
-  assert.match(dialog.calls[0][0].message, /does not check for production updates/);
+});
+
+test("development handoff download is blocked when its receipt cannot be saved", async () => {
+  const autoUpdater = fakeAutoUpdater();
+  const dialog = fakeDialog();
+  const controller = createDesktopUpdateController({
+    autoUpdater,
+    buildInfo: {
+      version: "1.16.0",
+      buildId: "aaaaaaaaaaaa.20260730T010000Z.source",
+      commit: "aaaaaaaaaaaa",
+      dev: true,
+      distribution: "source",
+      releaseTrack: "source",
+    },
+    dialog,
+    fetch: fakeMacManifestFetch({
+      version: "1.16.0",
+      buildId: "2c3e9d8cfcfb.20260728T235326Z.internal",
+      commit: "2c3e9d8cfcfb",
+      releaseTrack: "internal",
+    }),
+    isPackaged: true,
+    platform: "darwin",
+    arch: "arm64",
+    saveDevelopmentHandoff: async () => {
+      throw new Error("config is read-only");
+    },
+  });
+
+  assert.equal(await controller.checkForUpdates({ manual: true }), "available");
+  assert.equal(await controller.handleUpdateAction(), "error");
+  assert.equal(autoUpdater.checked, false);
+  assert.deepEqual(autoUpdater.feedUrls, []);
+  assert.match(dialog.calls.at(-1)[0].message, /save the update choice/i);
+  assert.equal(dialog.calls.at(-1)[0].detail, "config is read-only");
+});
+
+test("a saved identity-bound development handoff resumes without another choice", async () => {
+  const autoUpdater = fakeAutoUpdater();
+  const handoff = {
+    kind: "dev-to-internal",
+    version: "1.16.0",
+    buildId: "2c3e9d8cfcfb.20260728T235326Z.internal",
+    commit: "2c3e9d8cfcfb",
+    releaseTrack: "internal",
+    channel: "internal-stable",
+    platform: "darwin-universal",
+  };
+  let saveCalls = 0;
+  const controller = createDesktopUpdateController({
+    autoUpdater,
+    buildInfo: {
+      version: "1.16.0",
+      buildId: "aaaaaaaaaaaa.20260730T010000Z.source",
+      commit: "aaaaaaaaaaaa",
+      dev: true,
+      distribution: "source",
+      releaseTrack: "source",
+    },
+    fetch: fakeMacManifestFetch({
+      version: handoff.version,
+      buildId: handoff.buildId,
+      commit: handoff.commit,
+      releaseTrack: "internal",
+    }),
+    isPackaged: true,
+    platform: "darwin",
+    arch: "arm64",
+    getDevelopmentHandoff: () => handoff,
+    saveDevelopmentHandoff: async () => {
+      saveCalls += 1;
+    },
+  });
+
+  assert.equal(await controller.restoreKnownUpdate(), true);
+  assert.equal(await controller.checkForUpdates({ manual: false }), "downloading");
+  assert.equal(saveCalls, 0);
+  assert.equal(autoUpdater.checked, true);
+  assert.match(autoUpdater.feedUrls[0], /transition=dev-to-internal/);
 });
 
 test("desktop updater never contacts the official feed for Community Builds", async () => {
@@ -225,9 +380,14 @@ test("desktop updater resolves its dynamic translator when feedback is shown", a
   let language = "en";
   const controller = createDesktopUpdateController({
     autoUpdater: fakeAutoUpdater(),
-    buildInfo: { version: "1.8.1", dev: true },
+    buildInfo: {
+      version: "1.8.1",
+      dev: true,
+      distribution: "source",
+      releaseTrack: "source",
+    },
     dialog,
-    isPackaged: true,
+    isPackaged: false,
     platform: "darwin",
     arch: "arm64",
     translate(key, values) {
@@ -237,7 +397,7 @@ test("desktop updater resolves its dynamic translator when feedback is shown", a
 
   language = "zh-CN";
   assert.equal(await controller.checkForUpdates({ manual: true }), "disabled");
-  assert.match(dialog.calls[0][0].message, /不会检查正式版本更新/);
+  assert.match(dialog.calls[0][0].message, /已打包安装/);
   assert.deepEqual(dialog.calls[0][0].buttons, ["好"]);
 });
 
@@ -247,10 +407,15 @@ test("desktop update actions cannot bypass development-build update guards", asy
   const fetch = fakeMacManifestFetch({ version: "1.9.0" });
   const controller = createDesktopUpdateController({
     autoUpdater,
-    buildInfo: { version: "1.8.1", dev: true },
+    buildInfo: {
+      version: "1.8.1",
+      dev: true,
+      distribution: "source",
+      releaseTrack: "source",
+    },
     dialog,
     fetch,
-    isPackaged: true,
+    isPackaged: false,
     platform: "darwin",
     arch: "arm64",
   });
@@ -261,11 +426,16 @@ test("desktop update actions cannot bypass development-build update guards", asy
   assert.match(dialog.calls[0][0].message, /Git Leaf dev/);
 });
 
-test("development builds do not restore stable update actions from shared preferences", async () => {
+test("development builds do not restore version-only update actions from shared preferences", async () => {
   const statuses = [];
   const controller = createDesktopUpdateController({
     autoUpdater: fakeAutoUpdater(),
-    buildInfo: { version: "1.8.1", dev: true },
+    buildInfo: {
+      version: "1.8.1",
+      dev: true,
+      distribution: "source",
+      releaseTrack: "source",
+    },
     dialog: fakeDialog(),
     isPackaged: true,
     platform: "darwin",

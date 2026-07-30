@@ -34,6 +34,11 @@ export function developmentHandoffTarget({
   };
 }
 
+export function desktopUpdatesEnabled(options = {}) {
+  return isOfficialDistribution(options.buildInfo)
+    || Boolean(developmentHandoffTarget(options));
+}
+
 export function developmentHandoffReceiptForManifest({ manifest } = {}) {
   return normalizeDevelopmentHandoffReceipt({
     kind: DEVELOPMENT_HANDOFF_KIND,

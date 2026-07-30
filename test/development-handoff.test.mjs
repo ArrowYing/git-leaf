@@ -5,6 +5,7 @@ import {
   developmentHandoffReceiptForManifest,
   developmentHandoffReceiptMatchesBuild,
   developmentHandoffTarget,
+  desktopUpdatesEnabled,
   normalizeDevelopmentHandoffReceipt,
 } from "../src/desktop/development-handoff.mjs";
 
@@ -55,6 +56,33 @@ test("only a packaged macOS source development build gets the fixed internal tar
       ...options,
     }), null);
   }
+});
+
+test("desktop update controls are available only for official or eligible dev builds", () => {
+  assert.equal(desktopUpdatesEnabled({
+    buildInfo: {
+      distribution: "official",
+      releaseTrack: "internal",
+      dev: false,
+    },
+    isPackaged: true,
+    platform: "darwin",
+  }), true);
+  assert.equal(desktopUpdatesEnabled({
+    buildInfo: SOURCE_BUILD,
+    isPackaged: true,
+    platform: "darwin",
+  }), true);
+  assert.equal(desktopUpdatesEnabled({
+    buildInfo: { ...SOURCE_BUILD, dev: false },
+    isPackaged: true,
+    platform: "darwin",
+  }), false);
+  assert.equal(desktopUpdatesEnabled({
+    buildInfo: SOURCE_BUILD,
+    isPackaged: false,
+    platform: "darwin",
+  }), false);
 });
 
 test("development handoff receipts bind every target identity field", () => {

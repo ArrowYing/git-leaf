@@ -122,8 +122,10 @@ export const DESKTOP_MESSAGES = Object.freeze({
       "The update package is temporarily unavailable. Choose Retry.",
     "updates.availableVersion":
       "Git Leaf {version} is available. Choose Update to start downloading.",
+    "updates.handoffAvailableVersion":
+      "Switch to the internal Git Leaf {version} release. Choose Update to start downloading.",
     "updates.disabledDevBuild":
-      "Git Leaf dev does not check for production updates. Rebuild and install the development version.",
+      "Only a packaged Git Leaf dev installation can switch to the internal release.",
     "updates.disabledSourceBuild":
       "Community Builds do not connect to the official Git Leaf update service. Install a signed official build to receive updates.",
     "updates.disabledNoTrack": "This build does not have an official update track.",
@@ -261,8 +263,10 @@ export const DESKTOP_MESSAGES = Object.freeze({
     "updates.error": "检查更新失败。",
     "updates.packageUnavailable": "更新包暂不可用，点击重试。",
     "updates.availableVersion": "Git Leaf {version} 可用，点击更新后开始下载。",
+    "updates.handoffAvailableVersion":
+      "可切换到 Git Leaf {version} 内部正式版，点击更新后开始下载。",
     "updates.disabledDevBuild":
-      "Git Leaf dev 不会检查正式版本更新。请重新构建并安装开发版本。",
+      "只有已打包安装的 Git Leaf dev 才能切换到内部正式版。",
     "updates.disabledSourceBuild":
       "社区构建不会连接 Git Leaf 官方更新服务。请从官方渠道安装签名版本以接收更新。",
     "updates.disabledNoTrack": "当前构建没有可用的正式更新轨道。",

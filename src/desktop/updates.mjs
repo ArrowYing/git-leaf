@@ -14,6 +14,11 @@ import {
   releaseTrackForBuildInfo,
 } from "../build-info.mjs";
 import { createDesktopTranslator } from "./localization.mjs";
+import {
+  developmentHandoffReceiptForManifest,
+  developmentHandoffTarget,
+  normalizeDevelopmentHandoffReceipt,
+} from "./development-handoff.mjs";
 
 const DEFAULT_UPDATE_TRANSLATE = createDesktopTranslator({ language: "en" });
 
@@ -35,6 +40,10 @@ export function createDesktopUpdateController({
   showUpdateStatus = async () => {},
   getUpdatePreferences = () => ({}),
   saveUpdatePreferences = async () => {},
+  getDevelopmentHandoff = () => null,
+  saveDevelopmentHandoff = async () => {
+    throw new Error("Development handoff persistence is unavailable.");
+  },
   recordUpdateState = () => {},
   prepareWindowsUpdate = async () => {
     throw new Error("Windows update preparation is unavailable.");
@@ -54,8 +63,16 @@ export function createDesktopUpdateController({
   let pendingWindowsUpdate = null;
   let installStartedForVersion = "";
   const platformKey = appUpdatePlatformKey({ platform, arch });
-  const releaseTrack = releaseTrackForBuildInfo(buildInfo);
-  const releaseTrackChannel = updateChannelForBuildInfo(buildInfo);
+  const handoffTarget = developmentHandoffTarget({
+    buildInfo,
+    isPackaged,
+    platform,
+    arch,
+  });
+  const releaseTrack = handoffTarget?.releaseTrack
+    || releaseTrackForBuildInfo(buildInfo);
+  const releaseTrackChannel = handoffTarget?.channel
+    || updateChannelForBuildInfo(buildInfo);
   const channel = isPackaged
     ? releaseTrackChannel
     : configuredChannel
@@ -140,6 +157,39 @@ export function createDesktopUpdateController({
     async restoreKnownUpdate() {
       if (await disabledUpdateResult({ manual: false })) {
         return false;
+      }
+      if (handoffTarget) {
+        const handoff = normalizeDevelopmentHandoffReceipt(
+          getDevelopmentHandoff(),
+        );
+        if (
+          !handoff
+          || !sameDevelopmentHandoffTarget(handoff, handoffTarget)
+          || compareAppVersions(handoff.version, buildInfo?.version) < 0
+        ) {
+          return false;
+        }
+        if (platform !== "darwin") {
+          return false;
+        }
+        pendingMacUpdate = {
+          version: handoff.version,
+          trigger: "automatic",
+          platform,
+          state: "available",
+          restored: true,
+          handoff,
+        };
+        await notifyUpdateStatus(showUpdateStatus, {
+          state: "available",
+          version: handoff.version,
+          message: availableUpdateMessage({
+            text,
+            version: handoff.version,
+            handoff: true,
+          }),
+        });
+        return true;
       }
       const preferences = normalizedUpdatePreferences(getUpdatePreferences());
       const version = newerVersion(
@@ -234,6 +284,9 @@ export function createDesktopUpdateController({
   }
 
   async function disabledUpdateResult({ manual = false } = {}) {
+    if (handoffTarget) {
+      return "";
+    }
     if (buildInfo?.dev === true) {
       if (manual) {
         await showUpdateInfo("updates.disabledDevBuild");
@@ -442,7 +495,33 @@ export function createDesktopUpdateController({
       return "error";
     }
 
-    if (!isAppVersionNewer(manifest.version, buildInfo?.version)) {
+    const handoff = handoffTarget
+      ? developmentHandoffReceiptForManifest({ manifest })
+      : null;
+    if (handoffTarget && !handoff) {
+      notifyUpdateTelemetry(recordUpdateState, {
+        state: "failed",
+        trigger: manual ? "manual" : "automatic",
+        from_version: buildInfo?.version,
+        error_code: "manifest",
+        stage: "check",
+      });
+      const message = text("updates.manifestInvalid");
+      if (manual) {
+        await notifyUpdateStatus(showUpdateStatus, {
+          state: "error",
+          manual: true,
+          message,
+        });
+        await showUpdateInfo("updates.manifestInvalid");
+      }
+      return "error";
+    }
+
+    const versionAvailable = handoffTarget
+      ? compareAppVersions(manifest.version, buildInfo?.version) >= 0
+      : isAppVersionNewer(manifest.version, buildInfo?.version);
+    if (!versionAvailable) {
       pendingMacUpdate = null;
       pendingWindowsUpdate = null;
       notifyUpdateTelemetry(recordUpdateState, {
@@ -486,6 +565,7 @@ export function createDesktopUpdateController({
       platform,
       state: "available",
       manifest,
+      ...(handoff ? { handoff } : {}),
     };
     if (platform === "darwin") {
       pendingMacUpdate = pending;
@@ -501,11 +581,29 @@ export function createDesktopUpdateController({
     await notifyUpdateStatus(showUpdateStatus, {
       state: "available",
       version: pending.version,
-      message: text("updates.availableVersion", { version: pending.version }),
+      message: availableUpdateMessage({
+        text,
+        version: pending.version,
+        handoff: Boolean(pending.handoff),
+      }),
     });
-    await persistAvailableUpdate(pending.version);
+    if (!pending.handoff) {
+      await persistAvailableUpdate(pending.version);
+    }
     await clearLegacyUpdatePreferences();
 
+    if (
+      pending.handoff
+      && sameDevelopmentHandoff(
+        getDevelopmentHandoff(),
+        pending.handoff,
+      )
+    ) {
+      return startPendingDownload({
+        trigger: "automatic",
+        persistIntent: false,
+      });
+    }
     const preferences = normalizedUpdatePreferences(getUpdatePreferences());
     if (sameVersion(preferences.updateRequestedVersion, pending.version)) {
       return startPendingDownload({ trigger: "automatic", persistIntent: false });
@@ -520,7 +618,25 @@ export function createDesktopUpdateController({
     }
     pending.trigger = trigger;
     pending.state = "downloading";
-    if (persistIntent && pending.version) {
+    if (persistIntent && pending.handoff) {
+      try {
+        await saveDevelopmentHandoff(pending.handoff);
+      } catch (error) {
+        pending.state = "error";
+        const message = text("updates.saveChoiceFailedRetry");
+        await notifyUpdateStatus(showUpdateStatus, {
+          state: "error",
+          version: pending.version,
+          manual: true,
+          message,
+          detail: errorDetail(error),
+        });
+        await showUpdateInfo("updates.saveChoiceFailed", {
+          detail: errorDetail(error),
+        });
+        return "error";
+      }
+    } else if (persistIntent && pending.version) {
       try {
         await saveUpdatePreferences({ updateRequestedVersion: pending.version });
       } catch (error) {
@@ -553,6 +669,7 @@ export function createDesktopUpdateController({
             channel,
             platformKey,
             currentVersion: buildInfo?.version,
+            handoff: pending.handoff,
           }),
         });
         await autoUpdater.checkForUpdates();
@@ -770,6 +887,41 @@ function updateManifestIdentityMessageKey(manifest, {
     return "updates.manifestPlatformMismatch";
   }
   return "updates.manifestInvalid";
+}
+
+function availableUpdateMessage({ text, version, handoff = false } = {}) {
+  return handoff
+    ? text("updates.handoffAvailableVersion", { version })
+    : text("updates.availableVersion", { version });
+}
+
+function sameDevelopmentHandoffTarget(receipt, target) {
+  return Boolean(
+    receipt
+    && target
+    && receipt.kind === target.kind
+    && receipt.releaseTrack === target.releaseTrack
+    && receipt.channel === target.channel
+    && receipt.platform === target.platform
+  );
+}
+
+function sameDevelopmentHandoff(left, right) {
+  const normalizedLeft = normalizeDevelopmentHandoffReceipt(left);
+  const normalizedRight = normalizeDevelopmentHandoffReceipt(right);
+  return Boolean(
+    normalizedLeft
+    && normalizedRight
+    && [
+      "kind",
+      "version",
+      "buildId",
+      "commit",
+      "releaseTrack",
+      "channel",
+      "platform",
+    ].every((field) => normalizedLeft[field] === normalizedRight[field])
+  );
 }
 
 function normalizedUpdatePreferences(value) {
