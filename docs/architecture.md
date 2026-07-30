@@ -110,6 +110,11 @@ check: remote operations use Git's configured credentials and remain available w
 Operating-system launch helpers are action-specific dependencies rather than prerequisites for opening a
 repository. Every external-command caller classifies both process execution and output:
 
+Before macOS desktop environment checks or repository services start, Git Leaf augments the inherited
+GUI `PATH` with entries missing from the user's login shell. Existing entry precedence is retained, and
+only `PATH` is imported. A missing shell, timeout, or malformed output leaves the inherited environment
+unchanged rather than blocking startup.
+
 | State | Meaning | Required response |
 | --- | --- | --- |
 | `ok` | The command succeeded and its output satisfies the caller's contract | Continue |

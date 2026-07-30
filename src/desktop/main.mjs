@@ -82,6 +82,7 @@ import {
   reportGitLeafShareHandoffState,
   writeDesktopDeepLinkLog,
 } from "./handoff.mjs";
+import { initializeDesktopCommandEnvironment } from "./command-environment.mjs";
 import { desktopEnvironmentChecks } from "./git-environment.mjs";
 import { applyDevelopmentUserDataOverride } from "./user-data.mjs";
 import {
@@ -2820,6 +2821,7 @@ if (manualWindowsBootstrapBlocked) {
   });
 
   app.whenReady().then(async () => {
+    await initializeDesktopCommandEnvironment();
     await loadDesktopRepositoryState();
     installAboutPanelOptions();
     await initializeDesktopTelemetry();
