@@ -39,6 +39,10 @@ export function renderMarkdown(markdown, options = {}) {
 }
 
 export function extractTitle(markdown, fallbackPath) {
+  return extractDocumentTitle(markdown) || posixBasename(fallbackPath);
+}
+
+export function extractDocumentTitle(markdown) {
   const frontmatterTitle = extractFrontmatterScalar(markdown, "title");
   if (frontmatterTitle) {
     return frontmatterTitle;
@@ -49,7 +53,7 @@ export function extractTitle(markdown, fallbackPath) {
     return plainText(heading[1]);
   }
 
-  return posixBasename(fallbackPath);
+  return "";
 }
 
 export function extractFrontmatterScalar(markdown, key) {

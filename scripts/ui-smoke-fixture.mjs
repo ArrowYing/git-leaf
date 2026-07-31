@@ -20,11 +20,14 @@ export const DOCUMENT_OUTLINE_SMOKE_HEADING =
 
 export const TREE_TOOLTIP_SMOKE_SEARCH_TERM = "boundary";
 
+export const TREE_TOOLTIP_SMOKE_DOCUMENT_TITLE =
+  "AI 学习未来：研究边界卡片与验证记录";
+
 export const TREE_TOOLTIP_SMOKE_AI_SNIPPET =
   "AI search context boundary evidence that is intentionally longer than the narrow sidebar";
 
 export const TREE_TOOLTIP_SMOKE_ACCEPTANCE =
-  `目录树和文档导航中的截断项都应在悬停后快速显示同款浮层；搜索 ${TREE_TOOLTIP_SMOKE_SEARCH_TERM} 后，截断文件名浮层应展示完整高亮名称，从 README 文件名进入整行也应及时展示完整高亮 AI snippet，浮层从文件名起点展开，鼠标在文件名与 snippet 之间移动时不得消失或重新计时；文档导航分隔线可向右拖宽但不能小于初始宽度；浮层出现后保持鼠标静止至少 10 秒，期间不得消失、闪动或重建。`;
+  `目录树中的目标英文文件名必须保留在第一行，中文 title ${TREE_TOOLTIP_SMOKE_DOCUMENT_TITLE} 默认显示在第二行而不是只放进浮层；目录树和文档导航中的截断项都应在悬停后快速显示同款浮层；文件名浮层不设宽度上限，完整文件名始终保持单行，不能因换行改变浮层高度；搜索 ${TREE_TOOLTIP_SMOKE_SEARCH_TERM} 后，截断文件名浮层应展示完整高亮名称，从 README 文件名进入整行也应及时展示完整高亮 AI snippet，浮层从文件名起点展开，鼠标在文件名、title 与 snippet 之间移动时不得消失或重新计时；文档导航分隔线可向右拖宽但不能小于初始宽度；浮层出现后保持鼠标静止至少 10 秒，期间不得消失、闪动或重建。`;
 
 const SIBLING_FILE_NAMES = [
   "2026-07-12-market-research-interview-evidence-card-with-a-long-title-v01.md",
@@ -66,6 +69,10 @@ export function createTreeTooltipSmokeFixture({
     writeFileSync(
       documentPath,
       [
+        "---",
+        `title: ${TREE_TOOLTIP_SMOKE_DOCUMENT_TITLE}`,
+        "---",
+        "",
         "# Long filename tooltip smoke",
         "",
         "This repository exists only for the isolated Git Leaf UI smoke scenario.",

@@ -9,6 +9,7 @@ import test from "node:test";
 import {
   DOCUMENT_OUTLINE_SMOKE_HEADING,
   TREE_TOOLTIP_SMOKE_AI_SNIPPET,
+  TREE_TOOLTIP_SMOKE_DOCUMENT_TITLE,
   TREE_TOOLTIP_SMOKE_RELATIVE_FILE,
   TREE_TOOLTIP_SMOKE_SEARCH_TERM,
   cleanupTreeTooltipSmokeFixture,
@@ -31,10 +32,10 @@ test("tree tooltip smoke fixture creates and cleans a deterministic long filenam
       }).trim(),
       "true",
     );
-    assert.match(
-      readFileSync(path.join(fixture.repoRoot, fixture.file), "utf8"),
-      new RegExp(DOCUMENT_OUTLINE_SMOKE_HEADING),
-    );
+    const smokeDocument = readFileSync(path.join(fixture.repoRoot, fixture.file), "utf8");
+    assert.match(smokeDocument, new RegExp(DOCUMENT_OUTLINE_SMOKE_HEADING));
+    assert.match(smokeDocument, new RegExp(`^title: ${TREE_TOOLTIP_SMOKE_DOCUMENT_TITLE}$`, "m"));
+    assert.match(fixture.acceptance, new RegExp(TREE_TOOLTIP_SMOKE_DOCUMENT_TITLE));
     assert.match(
       readFileSync(path.join(fixture.repoRoot, "README.md"), "utf8"),
       new RegExp(TREE_TOOLTIP_SMOKE_AI_SNIPPET),

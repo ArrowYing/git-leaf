@@ -92,6 +92,7 @@ test("AI snippet matches use the whole file row, normal delay, and file-name anc
   assert.equal(timers[0].delay, 250);
   timers[0].callback();
   assert.equal(tooltip.hidden, false);
+  assert.equal(tooltip.dataset.source, "file-tree");
   assert.equal(
     tooltip.children[0].children.find(
       (child) => child.className === "ui-tooltip-search-match",
@@ -114,6 +115,49 @@ test("AI snippet matches use the whole file row, normal delay, and file-name anc
   assert.equal(timers.length, 1);
 
   controller.destroy();
+});
+
+test("a truncated default document title expands together with its source filename", () => {
+  const root = createEventTarget();
+  const label = createElement({
+    className: "tree-file-label",
+    scrollWidth: 180,
+    clientWidth: 180,
+  });
+  label.textContent = "2026-07-31-weekly-report.md";
+  const title = createElement({
+    className: "tree-file-document-title",
+    scrollWidth: 260,
+    clientWidth: 180,
+  });
+  title.textContent = "本周工作报告与下一阶段计划";
+  const item = createElement({
+    dataset: {
+      treeItem: "file",
+      treePath: "reports/2026-07-31-weekly-report.md",
+    },
+  });
+  item.querySelector = (selector) => (
+    selector === ".tree-file-label"
+      ? label
+      : selector === ".tree-file-document-title"
+        ? title
+        : null
+  );
+  item.contains = (candidate) => candidate === item || candidate === label || candidate === title;
+  label.closest = () => item;
+  title.closest = () => item;
+  root.contains = (candidate) => item.contains(candidate);
+
+  const source = createTreeItemTooltipSource({ container: root });
+
+  assert.equal(source.anchorElement(item), label);
+  assert.equal(source.shouldShow(item), true);
+  assert.deepEqual(source.details(item), {
+    name: "2026-07-31-weekly-report.md",
+    nameRanges: [],
+    path: "本周工作报告与下一阶段计划",
+  });
 });
 
 function createEventTarget() {

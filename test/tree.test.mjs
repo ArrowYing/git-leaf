@@ -45,6 +45,55 @@ test("buildMarkdownTree returns nested markdown and mdx files only", async () =>
   ]);
 });
 
+test("buildFileTree indexes titles only for Markdown filenames without Chinese characters", async () => {
+  const repoRoot = await mkdtemp(path.join(tmpdir(), "git-leaf-"));
+  await initializeRepository(repoRoot);
+  await writeFile(
+    path.join(repoRoot, "weekly-report.md"),
+    "---\ntitle: 本周工作报告\n---\n\n# Ignored fallback\n",
+  );
+  await writeFile(path.join(repoRoot, "roadmap.mdx"), "# 产品路线图\n");
+  await writeFile(path.join(repoRoot, "产品说明.md"), "# 更完整的产品说明\n");
+
+  const initialTree = await buildFileTree(repoRoot);
+
+  assert.deepEqual(
+    initialTree.filter((node) => node.kind === "markdown"),
+    [
+      {
+        type: "file",
+        name: "产品说明.md",
+        path: "产品说明.md",
+        kind: "markdown",
+      },
+      {
+        type: "file",
+        name: "roadmap.mdx",
+        path: "roadmap.mdx",
+        kind: "markdown",
+        title: "产品路线图",
+      },
+      {
+        type: "file",
+        name: "weekly-report.md",
+        path: "weekly-report.md",
+        kind: "markdown",
+        title: "本周工作报告",
+      },
+    ],
+  );
+
+  await writeFile(
+    path.join(repoRoot, "weekly-report.md"),
+    "---\ntitle: 下周工作报告与计划\n---\n\n# Ignored fallback\n",
+  );
+  const refreshedTree = await buildFileTree(repoRoot);
+  assert.equal(
+    refreshedTree.find((node) => node.name === "weekly-report.md")?.title,
+    "下周工作报告与计划",
+  );
+});
+
 test("buildFileTree includes every tracked or unignored repository file", async () => {
   const repoRoot = await mkdtemp(path.join(tmpdir(), "git-leaf-"));
   await mkdir(path.join(repoRoot, "docs"), { recursive: true });
@@ -64,7 +113,13 @@ test("buildFileTree includes every tracked or unignored repository file", async 
 
   assert.deepEqual(tree, [
     { type: "file", name: ".gitignore", path: ".gitignore", kind: "code" },
-    { type: "file", name: "README.md", path: "README.md", kind: "markdown" },
+    {
+      type: "file",
+      name: "README.md",
+      path: "README.md",
+      kind: "markdown",
+      title: "Root",
+    },
     {
       type: "directory",
       name: "docs",

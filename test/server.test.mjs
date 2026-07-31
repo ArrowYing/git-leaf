@@ -555,8 +555,10 @@ test("tree API always returns every repository file", async () => {
   try {
     const payload = await getJson(`${baseUrl}/api/tree`);
     const docs = payload.tree.find((node) => node.name === "docs");
+    const sample = payload.tree.find((node) => node.name === "sample.md");
 
     assert.equal(Object.hasOwn(payload, "view"), false);
+    assert.equal(sample?.title, "Sample");
     assert.ok(docs);
     assert.deepEqual(
       docs.children.map(({ name, kind }) => ({ name, kind })),
@@ -1913,6 +1915,7 @@ test("public module assets are served for the browser", async () => {
       "layout.js",
       "ui-tooltip.js",
       "tree-item-tooltip.js",
+      "tree-file-title.js",
       "pointer-resize.js",
       "outline.js",
       "tree-refresh.js",

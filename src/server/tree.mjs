@@ -1,9 +1,16 @@
-import { lstat, readdir } from "node:fs/promises";
+import { lstat, open, readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 
+import { treeFileCanShowDocumentTitle } from "../../public/tree-file-title.js";
+import { extractDocumentTitle } from "../content/markdown.mjs";
 import { fileTypeForPath, isMarkdownPath } from "./file-types.mjs";
 import { externalCommandState, runExternalCommand } from "./external-command.mjs";
 import { toPosixPath } from "./paths.mjs";
+
+const TREE_TITLE_READ_CONCURRENCY = 24;
+const TREE_TITLE_FULL_READ_MAX_BYTES = 2 * 1024 * 1024;
+const TREE_TITLE_PREFIX_BYTES = 256 * 1024;
+const treeTitleCacheByRepo = new Map();
 
 export async function buildMarkdownTree(repoRoot) {
   const files = await listRepositoryFiles(repoRoot);
@@ -11,7 +18,9 @@ export async function buildMarkdownTree(repoRoot) {
 }
 
 export async function buildFileTree(repoRoot) {
-  return treeFromFiles(await listRepositoryFiles(repoRoot));
+  const files = await listRepositoryFiles(repoRoot);
+  await attachDocumentTitles(repoRoot, files);
+  return treeFromFiles(files);
 }
 
 export async function listRepositoryFiles(repoRoot) {
@@ -58,7 +67,11 @@ async function listGitWorktreeFiles(repoRoot) {
       continue;
     }
     if (fileStat.isFile()) {
-      files.push(fileRecord(relativePath, "", { size: fileStat.size }));
+      files.push(fileRecord(relativePath, "", {
+        size: fileStat.size,
+        mtimeMs: fileStat.mtimeMs,
+        ctimeMs: fileStat.ctimeMs,
+      }));
     }
   }
   return files;
@@ -83,15 +96,25 @@ async function scanFilesystemDirectory(repoRoot, directory, files) {
     } else if (entry.isSymbolicLink()) {
       files.push(fileRecord(relativePath, "symlink"));
     } else if (entry.isFile()) {
-      const options = entry.name === ".gitkeep"
-        ? { size: (await lstat(absolutePath)).size }
+      const needsStat = entry.name === ".gitkeep" || isMarkdownPath(relativePath);
+      const fileStat = needsStat ? await lstat(absolutePath) : null;
+      const options = fileStat
+        ? {
+            size: fileStat.size,
+            mtimeMs: fileStat.mtimeMs,
+            ctimeMs: fileStat.ctimeMs,
+          }
         : {};
       files.push(fileRecord(relativePath, "", options));
     }
   }
 }
 
-function fileRecord(relativePath, forcedKind = "", { size = null } = {}) {
+function fileRecord(
+  relativePath,
+  forcedKind = "",
+  { size = null, mtimeMs = null, ctimeMs = null } = {},
+) {
   const normalizedPath = toPosixPath(relativePath);
   const placeholder = !forcedKind &&
     size === 0 &&
@@ -100,8 +123,69 @@ function fileRecord(relativePath, forcedKind = "", { size = null } = {}) {
   return {
     path: normalizedPath,
     kind: forcedKind || (placeholder ? "placeholder" : fileType?.kind) || "unknown",
+    size,
+    mtimeMs,
+    ctimeMs,
     ...(placeholder ? { placeholder: true } : {}),
   };
+}
+
+async function attachDocumentTitles(repoRoot, files) {
+  const cache = treeTitleCacheByRepo.get(repoRoot) ?? new Map();
+  treeTitleCacheByRepo.set(repoRoot, cache);
+  const candidates = files.filter(treeFileCanShowDocumentTitle);
+  const currentPaths = new Set(candidates.map((file) => file.path));
+
+  let cursor = 0;
+  const workers = Array.from(
+    { length: Math.min(TREE_TITLE_READ_CONCURRENCY, candidates.length) },
+    async () => {
+      while (cursor < candidates.length) {
+        const file = candidates[cursor];
+        cursor += 1;
+        const signature = `${file.size}:${file.mtimeMs}:${file.ctimeMs}`;
+        const cached = cache.get(file.path);
+        let title = cached?.signature === signature ? cached.title : null;
+        if (title === null) {
+          try {
+            const source = await readTreeDocumentTitleSource(
+              path.join(repoRoot, ...file.path.split("/")),
+              file.size,
+            );
+            title = extractDocumentTitle(source);
+          } catch {
+            title = "";
+          }
+          cache.set(file.path, { signature, title });
+        }
+        if (title) {
+          file.title = title;
+        }
+      }
+    },
+  );
+  await Promise.all(workers);
+
+  for (const cachedPath of cache.keys()) {
+    if (!currentPaths.has(cachedPath)) {
+      cache.delete(cachedPath);
+    }
+  }
+}
+
+async function readTreeDocumentTitleSource(absolutePath, size) {
+  if (!Number.isFinite(size) || size <= TREE_TITLE_FULL_READ_MAX_BYTES) {
+    return readFile(absolutePath, "utf8");
+  }
+
+  const handle = await open(absolutePath, "r");
+  try {
+    const buffer = Buffer.allocUnsafe(TREE_TITLE_PREFIX_BYTES);
+    const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0);
+    return buffer.subarray(0, bytesRead).toString("utf8");
+  } finally {
+    await handle.close();
+  }
 }
 
 function treeFromFiles(files) {
@@ -124,6 +208,7 @@ function treeFromFiles(files) {
       name,
       path: file.path,
       kind: file.kind,
+      ...(file.title ? { title: file.title } : {}),
       ...(file.placeholder ? { placeholder: true } : {}),
     });
   }

@@ -36,6 +36,7 @@ import {
   outlineItemsFromHeadings,
 } from "./outline.js";
 import { createTreeItemTooltipSource } from "./tree-item-tooltip.js";
+import { treeFilePresentation } from "./tree-file-title.js";
 import { hasTreeChanged } from "./tree-refresh.js";
 import { shouldReplaceDocumentHtml } from "./document-refresh.js";
 import { attachChartTooltips } from "./chart-tooltip.js";
@@ -4571,6 +4572,7 @@ function renderNode(node, parentPath) {
   if (node.type === "file") {
     const button = document.createElement("button");
     const capability = treeFileCapability(node.kind, { missing: node.missing === true });
+    const presentation = treeFilePresentation(node);
     const textMatchDetails = isTreeTextSearchActive()
       ? fileTextFilterMatchDetails(node, state.frontmatterFiles[node.path], state.filter)
       : null;
@@ -4581,6 +4583,7 @@ function renderNode(node, parentPath) {
       "has-search-evidence",
       Boolean(textMatchDetails?.snippetExcerpt),
     );
+    button.classList.toggle("has-document-title", Boolean(presentation.title));
     button.dataset.treeItem = "file";
     button.dataset.treePath = node.path;
     button.dataset.treeKind = node.kind || "unknown";
@@ -4589,13 +4592,22 @@ function renderNode(node, parentPath) {
       button.setAttribute("aria-disabled", "true");
     }
     button.dataset.fileCapability = capability.name;
-    button.setAttribute("aria-label", `${node.path}，${capability.label}`);
+    button.setAttribute(
+      "aria-label",
+      [node.path, presentation.title, capability.label].filter(Boolean).join("，"),
+    );
     const copy = document.createElement("span");
     copy.className = "tree-file-copy";
     const label = document.createElement("span");
     label.className = "tree-file-label";
-    appendTreeSearchLabel(label, node.name);
+    appendTreeSearchLabel(label, presentation.filename);
     copy.append(label);
+    if (presentation.title) {
+      const title = document.createElement("span");
+      title.className = "tree-file-document-title";
+      appendTreeSearchLabel(title, presentation.title);
+      copy.append(title);
+    }
     if (textMatchDetails?.snippetExcerpt && textMatchDetails.snippetMatch) {
       button.dataset.searchMatchSource = "ai-snippet";
       button.setAttribute(

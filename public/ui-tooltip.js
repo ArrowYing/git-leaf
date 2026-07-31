@@ -248,6 +248,7 @@ export function createUiTooltip({
       : placement.startsWith("bottom") || placement.startsWith("top")
         ? (resolved.source.variant ?? "action")
         : (resolved.source.variant ?? "content");
+    tooltip.dataset.source = String(resolved.source.name ?? "");
     applyExpansionTypography({
       tooltip,
       titleElement,

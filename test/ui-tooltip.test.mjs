@@ -126,6 +126,7 @@ test("expansion tooltips preserve source typography without changing action prom
 
   root.emit("focusin", { target: expansionItem });
   assert.equal(tooltip.dataset.variant, "expansion");
+  assert.equal(tooltip.dataset.source, "expansion");
   assert.equal(tooltip.style.fontFamily, "Inter, system-ui, sans-serif");
   assert.equal(tooltip.style.fontSize, "13px");
   assert.equal(tooltip.style.lineHeight, "16.25px");
@@ -134,6 +135,7 @@ test("expansion tooltips preserve source typography without changing action prom
   root.emit("focusout", { target: expansionItem, relatedTarget: null });
   root.emit("focusin", { target: actionItem });
   assert.equal(tooltip.dataset.variant, "action");
+  assert.equal(tooltip.dataset.source, "action");
   assert.equal(tooltip.style.fontFamily, "");
   assert.equal(tooltip.style.fontSize, "");
   assert.equal(tooltip.children[0].style.fontWeight, undefined);

@@ -130,6 +130,44 @@ test("file text search requires every term in the file name or searchable metada
   );
 });
 
+test("file text search matches the displayed title below an English Markdown filename", () => {
+  const node = {
+    type: "file",
+    kind: "markdown",
+    name: "2026-07-31-weekly-report.md",
+    path: "reports/2026-07-31-weekly-report.md",
+    title: "本周工作报告",
+  };
+
+  assert.equal(fileMatchesTextFilter(node, {}, "工作报告"), true);
+  assert.equal(fileMatchesTextFilter(node, {}, "weekly 工作"), true);
+  assert.equal(fileMatchesTextFilter(node, {}, "monthly 工作"), false);
+  assert.deepEqual(filterTextTree([node], {}, "工作报告"), [node]);
+
+  const details = fileTextFilterMatchDetails(node, {
+    ai_snippet: "This metadata is not needed to explain the visible result.",
+  }, "weekly 工作");
+  assert.equal(details.matches, true);
+  assert.equal(details.nameMatchesAllTokens, false);
+  assert.deepEqual(details.nameRanges, [{ from: 11, to: 17 }]);
+  assert.equal(details.snippetExcerpt, null);
+  assert.deepEqual(textFilterMatchRanges(node.title, "weekly 工作"), [
+    { from: 2, to: 4 },
+  ]);
+});
+
+test("titles do not become hidden search fields for Chinese filenames", () => {
+  const node = {
+    type: "file",
+    kind: "markdown",
+    name: "本周报告.md",
+    path: "reports/本周报告.md",
+    title: "Private English Alias",
+  };
+  assert.equal(fileMatchesTextFilter(node, {}, "private alias"), false);
+  assert.deepEqual(filterTextTree([node], {}, "private alias"), []);
+});
+
 test("file text search explains an ai_snippet-only match with highlighted evidence", () => {
   const details = fileTextFilterMatchDetails(
     {

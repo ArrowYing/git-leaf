@@ -21,6 +21,12 @@ export function createTreeItemTooltipSource({
     return item;
   }
 
+  function titleElement(item) {
+    return item?.dataset.treeItem === "file"
+      ? item.querySelector?.(".tree-file-document-title")
+      : null;
+  }
+
   function details(item) {
     const searchDetails = searchDetailsForItem(item);
     if (String(searchDetails?.name ?? "").trim()) {
@@ -31,7 +37,7 @@ export function createTreeItemTooltipSource({
     return {
       name,
       nameRanges: nameRangesForItem(item, name),
-      path: "",
+      path: titleElement(item)?.textContent?.trim() || "",
     };
   }
 
@@ -51,6 +57,7 @@ export function createTreeItemTooltipSource({
     shouldShow: (item) => (
       Boolean(String(searchDetailsForItem(item)?.name ?? "").trim())
       || elementIsOverflowing(labelElement(item))
+      || elementIsOverflowing(titleElement(item))
     ),
     placement: "expansion",
     variant: "expansion",

@@ -90,7 +90,8 @@ JSX, JavaScript, imports, or scripts.
 
 ## Built for readable context
 
-- All, Favorites, and Sync views, with a content-focused tree or the complete repository tree.
+- All, Favorites, and Sync views, with a content-focused tree or the complete repository tree. Markdown
+  and MDX files with non-Chinese source names can show their document title below the unchanged filename.
 - Repository and worktree switching with restored tabs, navigation history, scroll positions, and focus.
 - Read-only previews for images, PDFs, CSV, JSON, YAML, HTML, code, and other repository attachments.
 - Source line references that preserve where selected text came from.

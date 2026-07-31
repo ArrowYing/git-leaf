@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { extractFrontmatterScalar, extractTitle, renderMarkdown } from "../src/content/markdown.mjs";
+import {
+  extractDocumentTitle,
+  extractFrontmatterScalar,
+  extractTitle,
+  renderMarkdown,
+} from "../src/content/markdown.mjs";
 
 test("renderMarkdown removes frontmatter and renders basic markdown", () => {
   const html = renderMarkdown(`---
@@ -43,6 +48,16 @@ test("extractTitle prefers frontmatter title before headings", () => {
     extractTitle("---\ntitle: \"Quoted Doc\"\n---\n\n# Fallback\n", "docs/peer.md"),
     "Quoted Doc",
   );
+});
+
+test("extractDocumentTitle omits the filename fallback used by opened documents", () => {
+  assert.equal(extractDocumentTitle("Plain paragraph without a document title.\n"), "");
+  assert.equal(
+    extractTitle("Plain paragraph without a document title.\n", "docs/plain.md"),
+    "plain.md",
+  );
+  assert.equal(extractDocumentTitle("## Section only\n"), "");
+  assert.equal(extractDocumentTitle("# Human-readable title\n"), "Human-readable title");
 });
 
 test("extractFrontmatterScalar reads one-line share preview metadata", () => {

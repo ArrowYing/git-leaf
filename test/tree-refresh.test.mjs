@@ -14,3 +14,19 @@ test("hasTreeChanged detects repository markdown tree changes", () => {
   assert.equal(hasTreeChanged(previous, same), false);
   assert.equal(hasTreeChanged(previous, next), true);
 });
+
+test("hasTreeChanged refreshes a visible document title without changing its path", () => {
+  const previous = [{
+    type: "file",
+    name: "weekly-report.md",
+    path: "weekly-report.md",
+    kind: "markdown",
+    title: "本周报告",
+  }];
+  const next = [{
+    ...previous[0],
+    title: "本周报告与下周计划",
+  }];
+
+  assert.equal(hasTreeChanged(previous, next), true);
+});

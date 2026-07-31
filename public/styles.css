@@ -1653,6 +1653,7 @@ summary:focus-visible {
   white-space: nowrap;
 }
 
+.tree-file.has-document-title,
 .tree-file.has-search-evidence {
   align-items: flex-start;
   white-space: normal;
@@ -1667,6 +1668,18 @@ summary:focus-visible {
 .tree-file-label {
   display: block;
   min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tree-file-document-title {
+  display: block;
+  min-width: 0;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.35;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1802,6 +1815,17 @@ summary.has-operation-feedback {
 .ui-tooltip[data-variant="expansion"] {
   padding-block: 5px;
   pointer-events: none;
+}
+
+.ui-tooltip[data-source="file-tree"] {
+  max-width: none;
+  white-space: nowrap;
+}
+
+.ui-tooltip[data-source="file-tree"] .ui-tooltip-title,
+.ui-tooltip[data-source="file-tree"] .ui-tooltip-detail {
+  overflow-wrap: normal;
+  white-space: nowrap;
 }
 
 .ui-tooltip-title {

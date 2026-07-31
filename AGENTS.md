@@ -1,5 +1,5 @@
 ---
-last_updated: 2026-07-28
+last_updated: 2026-07-31
 ---
 
 # AGENTS.md - Git Leaf
@@ -113,6 +113,14 @@ snapshot created by `make smoke-dev-mac`; the snapshot is derived read-only from
 both `userData` and `sessionData` only inside its temporary directory, verifies the real Profile
 fingerprint after the run, and then removes only that temporary directory.
 
+This isolated smoke is a routine, reversible validation step. When the task requires it, run it without
+asking the user for a separate visible-App acknowledgement; a development window appearing on the
+desktop is not by itself an approval boundary. A command flag such as `--allow-visible-app` records the
+automation's intentional isolated launch and must be supplied by the Agent when required, rather than
+turned into another confirmation request. Stop only if the flow would leave the isolated boundary,
+touch the real Profile or user data, require an irreversible operation, or encounter a documented
+credential or release decision that cannot be resolved safely.
+
 `make release-mac` and `make release-win` are component commands, not formal release entry points.
 Release packages must exclude development directories such as `test/`, `dist/`, and `.git/`. After
 changing Windows packaging, the portable ZIP, or release gates, run `npm run test:ci:win`.
@@ -162,6 +170,8 @@ test fixture.
 - Agent-driven automation, UI smoke, screenshots, and scripted clicks must never use production
   userData. On macOS, always run `make smoke-dev-mac`. Do not substitute an unisolated
   `npm run desktop`, `open /Applications/Git\ Leaf.app`, or `make install-dev-mac` for smoke.
+- Run required isolated smoke and test-release verification non-interactively through completion. Do
+  not pause for user confirmation merely because the temporary development App is visible.
 - Isolated launch logs must show the temporary userData path for that run. Without this evidence, stop
   the smoke; do not try the production application as a fallback.
 - Human use of either the formal or development build reads and writes the same real Profile. Do not

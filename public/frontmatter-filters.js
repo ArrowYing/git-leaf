@@ -1,3 +1,5 @@
+import { displayedTreeFileTitle } from "./tree-file-title.js";
+
 export function normalizeFrontmatterFilters(filters, allowedKeys = []) {
   const allowedKeySet = new Set(normalizeAllowedFrontmatterKeys(allowedKeys));
   const byKey = new Map();
@@ -70,6 +72,7 @@ export function fileTextFilterMatchDetails(
 ) {
   const tokens = searchTokens(filter);
   const name = String(node?.name ?? "");
+  const title = displayedTreeFileTitle(node);
   const snippet = String(metadata?.ai_snippet ?? "");
   if (tokens.length === 0) {
     return {
@@ -81,13 +84,17 @@ export function fileTextFilterMatchDetails(
     };
   }
 
-  const searchableText = [name, snippet]
+  const visibleText = [name, title]
+    .filter(Boolean)
+    .join(" ");
+  const searchableText = [visibleText, snippet]
     .filter(Boolean)
     .join(" ");
   const matches = textIncludesAllTokens(searchableText, tokens);
   const nameMatchesAllTokens = textIncludesAllTokens(name, tokens);
+  const visibleTextMatchesAllTokens = textIncludesAllTokens(visibleText, tokens);
   const snippetMatch =
-    matches && !nameMatchesAllTokens
+    matches && !visibleTextMatchesAllTokens
       ? {
           text: snippet,
           ranges: textMatchRangesForTokens(snippet, tokens),
@@ -100,7 +107,7 @@ export function fileTextFilterMatchDetails(
     nameRanges: matches ? textMatchRangesForTokens(name, tokens) : [],
     snippetMatch,
     snippetExcerpt:
-      matches && !nameMatchesAllTokens
+      matches && !visibleTextMatchesAllTokens
         ? textFilterExcerpt(snippet, tokens, maxSnippetLength)
         : null,
   };
@@ -239,6 +246,7 @@ function filterTextTreeWithTokens(
     if (node.type === "file") {
       const searchableText = [
         node?.name,
+        displayedTreeFileTitle(node),
         metadataByPath?.[node.path]?.ai_snippet,
       ]
         .filter(Boolean)

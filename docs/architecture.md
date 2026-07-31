@@ -168,11 +168,15 @@ presentation:
 
 - Content Files shows Markdown, MDX, HTML, images, and PDF by default;
 - All Repository Files shows the complete discovered tree;
+- Markdown and MDX files whose source filename contains no Han characters keep that filename on the
+  first row and show a distinct frontmatter `title` or first level-one heading on a second row;
+  filenames containing Han characters and documents without a distinct title remain single-row;
 - search, the current document, favorites, and Sync may reveal otherwise hidden paths;
 - Git Leaf-created empty folders contain a zero-byte `.gitkeep`; All and Content Files preserve the
   folder while hiding the placeholder, and Sync exposes the placeholder whenever Git reports its change;
 - text search combines whitespace-separated terms with AND, matches each folder or file on its own
-  searchable fields, and initially keeps only matches plus the ancestor folders needed to reach them;
+  searchable fields, including displayed document titles, and initially keeps only matches plus the
+  ancestor folders needed to reach them;
   every automatically revealed result provides visible matching evidence, including files matched only
   through `ai_snippet` and matches truncated by the available row width;
   search has transient directory expansion state independent from the saved file tree, so explicitly
@@ -180,7 +184,8 @@ presentation:
 - frontmatter filtering narrows Markdown and MDX documents only.
 
 All, Favorites, Sync, and file-tree preferences must never alter Git discovery, status, staging, commit,
-or sync scope.
+or sync scope. Displayed document titles never replace the repository-relative path used for sorting,
+opening, favorites, sessions, file operations, Git status, or synchronization.
 
 | File class | Capability |
 | --- | --- |

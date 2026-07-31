@@ -108,6 +108,9 @@ Agent-driven automated UI verification, when run as a separate development task,
 that selects another Profile. It creates a one-time snapshot of the real Profile, passes its temporary
 path explicitly as both `userData` and `sessionData`, verifies the real Profile after the App exits, and
 then deletes only the snapshot. This automated UI verification remains outside the formal release gates.
+It is a routine reversible verification step and does not require a separate maintainer confirmation
+merely because the isolated development App is visible. When a harness requires an
+`--allow-visible-app` intent flag, the automation supplies it as part of the already-authorized flow.
 
 The historical persistent `git-leaf-dev` Profile can be merged once, with the App closed, using:
 
@@ -384,8 +387,10 @@ It packages the current source dev App, uses the exact signed `internal-stable` 
 user-visible update action, and proves the Bundle ID transition, target signature, preserved App
 directory inode, nonprivileged `Contents` bridge, absence of Squirrel/ShipIt use, target analytics
 default, telemetry initialization, receipt consumption, cleanup, and unchanged real Profile/cache
-fingerprints. The acknowledgement flag is mandatory because the temporary App opens and restarts on
-the current desktop even though its data is isolated. Each transition action is clicked at most once;
+fingerprints. The intent flag is mandatory to prevent accidental direct invocation because the
+temporary App opens and restarts on the current desktop, but the Agent supplies it without asking the
+maintainer for another confirmation once the development or release workflow is authorized. Each
+transition action is clicked at most once;
 a failed helper may not create an automated restart loop. The harness refuses to run while the
 installed human App or either official/community ShipIt job is active.
 
