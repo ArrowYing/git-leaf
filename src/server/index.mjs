@@ -1257,6 +1257,7 @@ async function datasetQueryPayload(repo, documentFile, body, { locale = "en" } =
     attributes: body.attributes,
     query: body.query,
     granularity: body.granularity,
+    granularityOptions: body.granularityOptions,
   });
   return {
     component: body.component,
@@ -1270,7 +1271,14 @@ async function datasetQueryPayload(repo, documentFile, body, { locale = "en" } =
 }
 
 function validateDatasetQueryRequest(body) {
-  if (!exactObjectKeys(body, ["component", "dataset", "attributes", "query", "granularity"])) {
+  if (!exactObjectKeys(body, [
+    "component",
+    "dataset",
+    "attributes",
+    "query",
+    "granularity",
+    "granularityOptions",
+  ])) {
     throw invalidDatasetRequest("Dataset query request has an invalid shape.");
   }
   if (body.component !== "Chart" && body.component !== "DataTable") {
@@ -1279,8 +1287,21 @@ function validateDatasetQueryRequest(body) {
   if (typeof body.dataset !== "string" || !body.dataset.trim() || body.dataset.length > 512) {
     throw invalidDatasetRequest("Dataset query requires a manifest path.");
   }
-  if (!["day", "week", "month", "quarter"].includes(body.granularity)) {
-    throw invalidDatasetRequest("Dataset granularity must be day, week, month, or quarter.");
+  if (!["auto", "day", "week", "month", "quarter"].includes(body.granularity)) {
+    throw invalidDatasetRequest("Dataset granularity must be auto, day, week, month, or quarter.");
+  }
+  if (
+    !Array.isArray(body.granularityOptions)
+    || body.granularityOptions.length < 1
+    || body.granularityOptions.length > 4
+    || new Set(body.granularityOptions).size !== body.granularityOptions.length
+    || body.granularityOptions.some((value) => (
+      !["day", "week", "month", "quarter"].includes(value)
+    ))
+  ) {
+    throw invalidDatasetRequest(
+      "Dataset granularityOptions must contain unique day, week, month, or quarter values.",
+    );
   }
   if (!body.attributes || typeof body.attributes !== "object" || Array.isArray(body.attributes)) {
     throw invalidDatasetRequest("Dataset component attributes must be an object.");

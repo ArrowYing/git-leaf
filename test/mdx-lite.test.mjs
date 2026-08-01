@@ -95,6 +95,7 @@ test("renderMarkdown extends Chart with an external dataset view placeholder", (
 
   assert.match(html, /data-mdx-dataset-view="true"/);
   assert.match(html, /data-dataset-default-granularity="quarter"/);
+  assert.match(html, /class="mdx-dataset-controls"[^>]* hidden/);
   assert.match(html, /data-dataset-granularity="day"/);
   assert.match(html, /data-dataset-granularity="week"/);
   assert.match(html, /data-dataset-granularity="month"/);
@@ -102,6 +103,18 @@ test("renderMarkdown extends Chart with an external dataset view placeholder", (
   assert.match(html, />季度<\/button>/);
   assert.match(html, /正在加载数据集/);
   assert.doesNotMatch(html, /mdx-component-error/);
+  const encodedRequest = html.match(/data-dataset-request="([^"]+)"/)?.[1];
+  const request = JSON.parse(decodeURIComponent(encodedRequest));
+  assert.deepEqual(request.granularityOptions, ["day", "week", "month", "quarter"]);
+});
+
+test("dataset components defer their default interval to the manifest", () => {
+  const html = renderMarkdown(
+    '<Chart dataset="./company-weekly.dataset.json" x="period" series="revenue" />',
+  );
+
+  assert.match(html, /data-dataset-default-granularity="auto"/);
+  assert.match(html, /class="mdx-dataset-controls"[^>]* hidden/);
 });
 
 test("renderMarkdown accepts one dataset component attribute per line", () => {
@@ -252,9 +265,10 @@ test("renderMarkdown renders the MDX-lite demo without component errors", async 
   const html = renderMarkdown(demo);
 
   assert.doesNotMatch(html, /mdx-component-error/);
-  assert.equal((html.match(/data-mdx-component="Chart"/g) ?? []).length, 4);
+  assert.equal((html.match(/data-mdx-component="Chart"/g) ?? []).length, 5);
   assert.match(html, /New and completed items/);
   assert.match(html, /Volume and completion rate/);
+  assert.ok(datasetReferencesFromMarkdown(demo).includes("./data/company-weekly.dataset.json"));
 });
 
 test("renderMarkdown groups chart tooltip data by x-axis value", () => {

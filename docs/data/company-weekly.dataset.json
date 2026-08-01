@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "id": "company_weekly_demo",
+  "title": "Company weekly demo",
+  "description": "Synthetic weekly data used to verify source-granularity controls.",
+  "data": "./company-weekly.csv",
+  "format": "csv",
+  "grain": ["week_start"],
+  "primaryKey": ["week_start"],
+  "time": {
+    "field": "week_start",
+    "type": "date",
+    "timezone": "Asia/Shanghai",
+    "weekStartsOn": "monday",
+    "calendar": "calendar",
+    "sourceGranularity": "week"
+  },
+  "fields": [
+    {
+      "name": "week_start",
+      "type": "date",
+      "required": true,
+      "description": "Monday starting the complete reporting week"
+    },
+    {
+      "name": "revenue",
+      "type": "decimal",
+      "required": true,
+      "unit": "CNY",
+      "rollup": "sum"
+    },
+    {
+      "name": "expense",
+      "type": "decimal",
+      "required": true,
+      "unit": "CNY",
+      "rollup": "sum"
+    }
+  ]
+}

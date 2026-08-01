@@ -34481,6 +34481,19 @@ function parseDelimitedRecords(content2, delimiter2 = ",") {
   return rows.filter((record) => record.some((value) => String(value).length > 0));
 }
 
+// src/content/dataset-granularity.mjs
+var DATASET_GRANULARITIES = Object.freeze(["day", "week", "month", "quarter"]);
+var DATASET_GRANULARITY_SET = new Set(DATASET_GRANULARITIES);
+var SAFE_VIEW_GRANULARITIES = Object.freeze({
+  day: Object.freeze(["day", "week", "month", "quarter"]),
+  week: Object.freeze(["week"]),
+  month: Object.freeze(["month", "quarter"]),
+  quarter: Object.freeze(["quarter"])
+});
+function isDatasetGranularity(value) {
+  return DATASET_GRANULARITY_SET.has(String(value || "").trim().toLowerCase());
+}
+
 // src/content/mdx-lite-syntax.mjs
 var MDX_LITE_COMPONENT_NAMES = Object.freeze([
   "DataTable",
@@ -34594,7 +34607,6 @@ function unquotedTagEnd(source) {
 var COMPONENT_NAMES = new Set(MDX_LITE_COMPONENT_NAMES);
 var CHART_COLORS = ["#2563eb", "#dc2626", "#16a34a", "#d97706", "#7c3aed", "#0891b2"];
 var DATASET_COMPONENT_NAMES = /* @__PURE__ */ new Set(["Chart", "DataTable"]);
-var DATASET_GRANULARITIES = /* @__PURE__ */ new Set(["day", "week", "month", "quarter"]);
 var MDX_MESSAGES = Object.freeze({
   en: Object.freeze({
     "component.error": "Failed to render MDX component: {message}",
@@ -34699,12 +34711,14 @@ function renderDatasetView(token, attributes, translate) {
     throw new Error("dataset must point to a .dataset.json manifest.");
   }
   const query = datasetQueryFromContent(token.content);
-  const granularities = uniqueStrings(listAttribute(attributes.granularityOptions || "day,week,month,quarter")).map((value) => value.toLowerCase());
-  if (granularities.length === 0 || granularities.some((value) => !DATASET_GRANULARITIES.has(value))) {
+  const granularities = uniqueStrings(listAttribute(
+    attributes.granularityOptions || DATASET_GRANULARITIES.join(",")
+  )).map((value) => value.toLowerCase());
+  if (granularities.length === 0 || granularities.some((value) => !isDatasetGranularity(value))) {
     throw new Error("granularityOptions supports day, week, month, and quarter.");
   }
-  const defaultGranularity = String(attributes.granularity || "day").trim().toLowerCase();
-  if (!granularities.includes(defaultGranularity)) {
+  const defaultGranularity = String(attributes.granularity || "auto").trim().toLowerCase();
+  if (defaultGranularity !== "auto" && !granularities.includes(defaultGranularity)) {
     throw new Error("granularity must be included in granularityOptions.");
   }
   const requestAttributes = { ...attributes };
@@ -34715,11 +34729,12 @@ function renderDatasetView(token, attributes, translate) {
     component: name2,
     dataset,
     attributes: requestAttributes,
-    query
+    query,
+    granularityOptions: granularities
   }));
   return [
     `<section class="mdx-component mdx-dataset-view" data-mdx-component="${name2}" data-mdx-dataset-view="true" data-dataset-request="${request}" data-dataset-default-granularity="${defaultGranularity}">`,
-    `<div class="mdx-dataset-controls" role="group" aria-label="${escapeHtml3(translate("dataset.controls"))}">`,
+    `<div class="mdx-dataset-controls" role="group" aria-label="${escapeHtml3(translate("dataset.controls"))}" hidden>`,
     granularities.map((granularity) => [
       `<button type="button" class="mdx-dataset-granularity${granularity === defaultGranularity ? " is-active" : ""}" data-dataset-granularity="${granularity}" aria-pressed="${granularity === defaultGranularity}">`,
       escapeHtml3(translate(`dataset.${granularity}`)),

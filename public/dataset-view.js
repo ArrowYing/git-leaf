@@ -6,7 +6,7 @@ const DATASET_MESSAGES = Object.freeze({
     rows: "{matched} of {total} source rows",
     through: "data through {date}",
     range: "{from} to {to}",
-    missing: "{count} expected dates are missing; missing dates were not filled with zero.",
+    missing: "{count} expected source periods are missing; missing periods were not filled with zero.",
     partial: "{count} displayed periods are partial.",
   }),
   "zh-CN": Object.freeze({
@@ -15,7 +15,7 @@ const DATASET_MESSAGES = Object.freeze({
     rows: "命中 {matched}／{total} 条源数据",
     through: "数据更新至 {date}",
     range: "{from} 至 {to}",
-    missing: "缺少 {count} 个预期日期；缺失日期未按 0 填充。",
+    missing: "缺少 {count} 个预期源数据周期；缺失周期未按 0 填充。",
     partial: "当前有 {count} 个不完整周期。",
   }),
 });
@@ -44,18 +44,15 @@ export function attachDatasetViews(
         continue;
       }
       const key = datasetSelectionKey(view, context);
-      const available = [...view.querySelectorAll("[data-dataset-granularity]")]
-        .map((button) => button.dataset.datasetGranularity);
       const remembered = selections.get(key);
-      const granularity = available.includes(remembered)
-        ? remembered
-        : view.dataset.datasetDefaultGranularity || available[0] || "day";
+      const granularity = view.dataset.datasetDefaultGranularity || "auto";
       void runDatasetQuery(view, request, granularity, {
         context,
         key,
         selections,
         requests,
         onRendered,
+        desiredGranularity: remembered,
       });
     }
   };
@@ -122,11 +119,17 @@ async function runDatasetQuery(
   view,
   request,
   granularity,
-  { context, key, selections, requests, onRendered },
+  {
+    context,
+    key,
+    selections,
+    requests,
+    onRendered,
+    desiredGranularity = "",
+  },
 ) {
   const requestId = (requests.get(view)?.requestId ?? 0) + 1;
   requests.set(view, { requestId });
-  selections.set(key, granularity);
   setLoading(view, granularity, localized(context.locale, "loading"));
 
   try {
@@ -140,13 +143,36 @@ async function runDatasetQuery(
       throw new Error(payload.error || localized(context.locale, "error"));
     }
     if (requests.get(view)?.requestId !== requestId || !view.isConnected) return;
+    const availableGranularities = normalizedAvailableGranularities(payload.meta);
+    const resolvedGranularity = String(payload.meta?.granularity || "");
+    if (!availableGranularities.includes(resolvedGranularity)) {
+      throw new Error(localized(context.locale, "error"));
+    }
+    constrainGranularityButtons(view, availableGranularities);
+    if (
+      desiredGranularity
+      && desiredGranularity !== resolvedGranularity
+      && availableGranularities.includes(desiredGranularity)
+    ) {
+      void runDatasetQuery(view, request, desiredGranularity, {
+        context,
+        key,
+        selections,
+        requests,
+        onRendered,
+      });
+      return;
+    }
     const result = view.querySelector("[data-dataset-result]");
     if (!result) return;
     result.innerHTML = payload.html || "";
     result.append(renderMeta(payload.meta ?? {}, context.locale));
     view.classList.remove("is-loading");
     view.setAttribute("aria-busy", "false");
-    setButtons(view, granularity, false);
+    selections.set(key, resolvedGranularity);
+    setButtons(view, resolvedGranularity, false);
+    const controls = view.querySelector(".mdx-dataset-controls");
+    if (controls) controls.hidden = false;
     onRendered(result, payload);
   } catch (error) {
     if (requests.get(view)?.requestId !== requestId || !view.isConnected) return;
@@ -154,6 +180,21 @@ async function runDatasetQuery(
       view,
       error instanceof Error && error.message ? error.message : localized(context.locale, "error"),
     );
+  }
+}
+
+function normalizedAvailableGranularities(meta) {
+  const supported = new Set(["day", "week", "month", "quarter"]);
+  if (!Array.isArray(meta?.availableGranularities)) return [];
+  return [...new Set(meta.availableGranularities)].filter((value) => supported.has(value));
+}
+
+export function constrainGranularityButtons(view, availableGranularities) {
+  const available = new Set(availableGranularities);
+  for (const button of view.querySelectorAll("[data-dataset-granularity]")) {
+    if (!available.has(button.dataset.datasetGranularity)) {
+      button.remove();
+    }
   }
 }
 
@@ -221,8 +262,11 @@ function renderMeta(meta, locale) {
   container.append(details);
 
   const warnings = [];
-  if (meta.missingDateCount > 0) {
-    warnings.push(localized(locale, "missing", { count: meta.missingDateCount }));
+  const missingPeriodCount = Number.isFinite(meta.missingPeriodCount)
+    ? meta.missingPeriodCount
+    : meta.missingDateCount;
+  if (missingPeriodCount > 0) {
+    warnings.push(localized(locale, "missing", { count: missingPeriodCount }));
   }
   if (meta.partialPeriodCount > 0) {
     warnings.push(localized(locale, "partial", { count: meta.partialPeriodCount }));

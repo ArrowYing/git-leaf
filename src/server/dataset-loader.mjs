@@ -3,6 +3,10 @@ import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 
 import { parseDelimitedRecords } from "../content/delimited-data.mjs";
+import {
+  isDatasetGranularity,
+  isDatasetPeriodStart,
+} from "../content/dataset-granularity.mjs";
 import { resolveInsideRepo, toPosixPath } from "./paths.mjs";
 
 const MANIFEST_MAX_BYTES = 256 * 1024;
@@ -22,7 +26,14 @@ const MANIFEST_KEYS = new Set([
   "time",
   "fields",
 ]);
-const TIME_KEYS = new Set(["field", "type", "timezone", "weekStartsOn", "calendar"]);
+const TIME_KEYS = new Set([
+  "field",
+  "type",
+  "timezone",
+  "weekStartsOn",
+  "calendar",
+  "sourceGranularity",
+]);
 const FIELD_KEYS = new Set([
   "name",
   "label",
@@ -275,12 +286,19 @@ function validateTime(value, fieldMap) {
   if (calendar !== "calendar" && calendar !== "weekdays") {
     throw datasetError("Dataset time calendar must be calendar or weekdays.");
   }
+  const sourceGranularity = String(value.sourceGranularity || "").trim().toLowerCase();
+  if (!isDatasetGranularity(sourceGranularity)) {
+    throw datasetError(
+      "Dataset time sourceGranularity must be day, week, month, or quarter.",
+    );
+  }
   return {
     field,
     type: "date",
     timezone: optionalText(value.timezone, "Dataset time timezone", 128) || "UTC",
     weekStartsOn,
     calendar,
+    sourceGranularity,
   };
 }
 
@@ -354,6 +372,16 @@ function validateRows(rawRows, manifest) {
     for (const field of manifest.fields) {
       row[field.name] = typedValue(rawRow[field.name], field, index + 1);
     }
+    const period = row[manifest.time.field];
+    if (!isDatasetPeriodStart(
+      period,
+      manifest.time.sourceGranularity,
+      manifest.time.weekStartsOn,
+    )) {
+      throw datasetError(
+        `Dataset row ${index + 1} time field "${manifest.time.field}" must be ${sourcePeriodDescription(manifest.time)}.`,
+      );
+    }
     const primaryKey = JSON.stringify(manifest.primaryKey.map((name) => row[name]));
     if (primaryKeys.has(primaryKey)) {
       throw datasetError(`Dataset primaryKey is duplicated at row ${index + 1}.`);
@@ -361,6 +389,19 @@ function validateRows(rawRows, manifest) {
     primaryKeys.add(primaryKey);
     return row;
   });
+}
+
+function sourcePeriodDescription(time) {
+  if (time.sourceGranularity === "week") {
+    return `a ${time.weekStartsOn} week start`;
+  }
+  if (time.sourceGranularity === "month") {
+    return "the first day of a month";
+  }
+  if (time.sourceGranularity === "quarter") {
+    return "the first day of a natural quarter";
+  }
+  return "a valid calendar date";
 }
 
 function typedValue(value, field, rowNumber) {

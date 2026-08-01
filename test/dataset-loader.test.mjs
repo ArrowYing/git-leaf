@@ -110,7 +110,70 @@ test("loadDataset rejects source columns that the manifest does not define", asy
   }
 });
 
-function datasetManifest() {
+test("loadDataset accepts aligned weekly periods and rejects non-week-start rows", async () => {
+  const repoRoot = await mkdtemp(path.join(tmpdir(), "git-leaf-weekly-dataset-"));
+  await writeFile(path.join(repoRoot, "report.mdx"), "# Report\n");
+  await writeFile(
+    path.join(repoRoot, "company.dataset.json"),
+    JSON.stringify(datasetManifest({ sourceGranularity: "week" })),
+  );
+  const dataPath = path.join(repoRoot, "company.csv");
+  await writeFile(
+    dataPath,
+    "date,company_id,revenue,cash,orders,visits\n2026-01-05,001,10,20,1,2\n2026-01-12,001,12,25,2,4\n",
+  );
+
+  try {
+    const loaded = await loadDataset({
+      repoRoot,
+      documentPath: "report.mdx",
+      datasetPath: "company.dataset.json",
+    });
+    assert.equal(loaded.manifest.time.sourceGranularity, "week");
+
+    await writeFile(
+      dataPath,
+      "date,company_id,revenue,cash,orders,visits\n2026-01-06,001,10,20,1,2\n",
+    );
+    await assert.rejects(
+      loadDataset({
+        repoRoot,
+        documentPath: "report.mdx",
+        datasetPath: "company.dataset.json",
+      }),
+      /must be a monday week start/,
+    );
+  } finally {
+    await rm(repoRoot, { recursive: true, force: true });
+  }
+});
+
+test("loadDataset requires an explicit source granularity", async () => {
+  const repoRoot = await mkdtemp(path.join(tmpdir(), "git-leaf-dataset-granularity-"));
+  const manifest = datasetManifest();
+  delete manifest.time.sourceGranularity;
+  await writeFile(path.join(repoRoot, "report.mdx"), "# Report\n");
+  await writeFile(path.join(repoRoot, "company.dataset.json"), JSON.stringify(manifest));
+  await writeFile(
+    path.join(repoRoot, "company.csv"),
+    "date,company_id,revenue,cash,orders,visits\n2026-01-01,001,10,20,1,2\n",
+  );
+
+  try {
+    await assert.rejects(
+      loadDataset({
+        repoRoot,
+        documentPath: "report.mdx",
+        datasetPath: "company.dataset.json",
+      }),
+      /sourceGranularity must be day, week, month, or quarter/,
+    );
+  } finally {
+    await rm(repoRoot, { recursive: true, force: true });
+  }
+});
+
+function datasetManifest({ sourceGranularity = "day" } = {}) {
   return {
     schemaVersion: 1,
     id: "company_daily",
@@ -125,6 +188,7 @@ function datasetManifest() {
       timezone: "Asia/Shanghai",
       weekStartsOn: "monday",
       calendar: "calendar",
+      sourceGranularity,
     },
     fields: [
       { name: "date", type: "date", required: true },

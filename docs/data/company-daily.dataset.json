@@ -12,7 +12,8 @@
     "type": "date",
     "timezone": "Asia/Shanghai",
     "weekStartsOn": "monday",
-    "calendar": "calendar"
+    "calendar": "calendar",
+    "sourceGranularity": "day"
   },
   "fields": [
     {

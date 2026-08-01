@@ -12,6 +12,7 @@ const manifest = {
     field: "date",
     weekStartsOn: "monday",
     calendar: "calendar",
+    sourceGranularity: "day",
   },
   fields: [
     { name: "date", type: "date", required: true, rollup: null },
@@ -156,6 +157,70 @@ test("queryDataset refuses an ambiguous last snapshot across multiple rows on on
     }),
     /multiple rows share a date/,
   );
+});
+
+test("weekly source data exposes only weekly view and checks missing weeks", () => {
+  const weeklyManifest = {
+    ...manifest,
+    id: "company_weekly",
+    time: { ...manifest.time, sourceGranularity: "week" },
+  };
+  const rows = ["2026-01-05", "2026-01-12", "2026-01-26"].map((date, index) => ({
+    ...dailyRows(date, date)[0],
+    date,
+    revenue: index + 1,
+  }));
+  const result = queryDataset({
+    manifest: weeklyManifest,
+    rows,
+    component: "Chart",
+    attributes: { x: "period", series: "revenue" },
+    granularity: "auto",
+    granularityOptions: ["day", "week", "month", "quarter"],
+  });
+
+  assert.equal(result.meta.sourceGranularity, "week");
+  assert.equal(result.meta.granularity, "week");
+  assert.deepEqual(result.meta.availableGranularities, ["week"]);
+  assert.equal(result.meta.missingPeriodCount, 1);
+  assert.deepEqual(result.meta.missingPeriods, ["2026-01-19"]);
+  assert.equal(result.meta.partialPeriodCount, 0);
+  assert.throws(
+    () => queryDataset({
+      manifest: weeklyManifest,
+      rows,
+      component: "Chart",
+      attributes: { x: "period", series: "revenue" },
+      granularity: "month",
+    }),
+    /month view is unavailable for week source data/,
+  );
+});
+
+test("monthly source data can aggregate into natural quarters without exposing day or week", () => {
+  const monthlyManifest = {
+    ...manifest,
+    id: "company_monthly",
+    time: { ...manifest.time, sourceGranularity: "month" },
+  };
+  const rows = ["2026-01-01", "2026-02-01", "2026-03-01"].map((date, index) => ({
+    ...dailyRows(date, date)[0],
+    date,
+    revenue: index + 1,
+  }));
+  const result = queryDataset({
+    manifest: monthlyManifest,
+    rows,
+    component: "Chart",
+    attributes: { x: "period", series: "revenue" },
+    granularity: "quarter",
+    granularityOptions: ["day", "week", "month", "quarter"],
+  });
+
+  assert.deepEqual(result.meta.availableGranularities, ["month", "quarter"]);
+  assert.deepEqual(result.rows, [{ period: "2026-Q1", revenue: 6 }]);
+  assert.equal(result.meta.missingPeriodCount, 0);
+  assert.equal(result.meta.partialPeriodCount, 0);
 });
 
 function dailyRows(from, to) {

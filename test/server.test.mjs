@@ -677,6 +677,7 @@ test("dataset query API aggregates external daily data and refreshes its depende
       type: "date",
       weekStartsOn: "monday",
       calendar: "calendar",
+      sourceGranularity: "day",
     },
     fields: [
       { name: "date", type: "date", required: true },
@@ -703,6 +704,7 @@ test("dataset query API aggregates external daily data and refreshes its depende
         attributes: { title: "收入趋势", x: "period", series: "revenue" },
         query: {},
         granularity: "quarter",
+        granularityOptions: ["day", "week", "month", "quarter"],
       }),
     });
     const payload = await response.json();
@@ -711,9 +713,69 @@ test("dataset query API aggregates external daily data and refreshes its depende
     assert.match(payload.html, /2026-Q1/);
     assert.match(payload.html, />30<\/text>/);
     assert.equal(payload.meta.granularity, "quarter");
+    assert.equal(payload.meta.sourceGranularity, "day");
+    assert.deepEqual(payload.meta.availableGranularities, ["day", "week", "month", "quarter"]);
     assert.equal(payload.meta.sourceRows, 2);
     assert.equal(payload.meta.partialPeriodCount, 1);
     assert.equal(payload.meta.sourcePath, "company.csv");
+
+    await writeFile(path.join(repoRoot, "weekly.csv"), "date,revenue\n2026-01-05,10\n2026-01-12,20\n");
+    await writeFile(path.join(repoRoot, "weekly.dataset.json"), JSON.stringify({
+      schemaVersion: 1,
+      id: "company_weekly",
+      title: "Company weekly report",
+      data: "./weekly.csv",
+      format: "csv",
+      grain: ["date"],
+      primaryKey: ["date"],
+      time: {
+        field: "date",
+        type: "date",
+        weekStartsOn: "monday",
+        calendar: "calendar",
+        sourceGranularity: "week",
+      },
+      fields: [
+        { name: "date", type: "date", required: true },
+        { name: "revenue", type: "decimal", required: true, rollup: "sum" },
+      ],
+    }));
+    const weeklyResponse = await fetch(
+      `${baseUrl}/api/dataset-query?file=report.mdx&locale=zh-CN`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          component: "Chart",
+          dataset: "./weekly.dataset.json",
+          attributes: { title: "周收入", x: "period", series: "revenue" },
+          query: {},
+          granularity: "auto",
+          granularityOptions: ["day", "week", "month", "quarter"],
+        }),
+      },
+    );
+    const weeklyPayload = await weeklyResponse.json();
+    assert.equal(weeklyResponse.status, 200);
+    assert.equal(weeklyPayload.meta.granularity, "week");
+    assert.deepEqual(weeklyPayload.meta.availableGranularities, ["week"]);
+
+    const invalidMonthlyResponse = await fetch(
+      `${baseUrl}/api/dataset-query?file=report.mdx&locale=zh-CN`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          component: "Chart",
+          dataset: "./weekly.dataset.json",
+          attributes: { title: "周收入", x: "period", series: "revenue" },
+          query: {},
+          granularity: "month",
+          granularityOptions: ["day", "week", "month", "quarter"],
+        }),
+      },
+    );
+    assert.equal(invalidMonthlyResponse.status, 400);
 
     const statusBefore = await getJson(`${baseUrl}/api/document-status?file=report.mdx`);
     await new Promise((resolve) => setTimeout(resolve, 8));

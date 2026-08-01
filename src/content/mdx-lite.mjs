@@ -10,6 +10,10 @@ import {
 } from "./table-layout.mjs";
 import { parseDelimitedRecords } from "./delimited-data.mjs";
 import {
+  DATASET_GRANULARITIES,
+  isDatasetGranularity,
+} from "./dataset-granularity.mjs";
+import {
   MDX_LITE_COMPONENT_NAMES,
   mdxLiteComponentBlockAtLines,
   mdxLiteComponentOpeningAtLines,
@@ -19,7 +23,6 @@ import { createTranslator } from "../../public/i18n.js";
 const COMPONENT_NAMES = new Set(MDX_LITE_COMPONENT_NAMES);
 const CHART_COLORS = ["#2563eb", "#dc2626", "#16a34a", "#d97706", "#7c3aed", "#0891b2"];
 const DATASET_COMPONENT_NAMES = new Set(["Chart", "DataTable"]);
-const DATASET_GRANULARITIES = new Set(["day", "week", "month", "quarter"]);
 const MDX_MESSAGES = Object.freeze({
   en: Object.freeze({
     "component.error": "Failed to render MDX component: {message}",
@@ -178,13 +181,15 @@ function renderDatasetView(token, attributes, translate) {
     throw new Error("dataset must point to a .dataset.json manifest.");
   }
   const query = datasetQueryFromContent(token.content);
-  const granularities = uniqueStrings(listAttribute(attributes.granularityOptions || "day,week,month,quarter"))
+  const granularities = uniqueStrings(listAttribute(
+    attributes.granularityOptions || DATASET_GRANULARITIES.join(","),
+  ))
     .map((value) => value.toLowerCase());
-  if (granularities.length === 0 || granularities.some((value) => !DATASET_GRANULARITIES.has(value))) {
+  if (granularities.length === 0 || granularities.some((value) => !isDatasetGranularity(value))) {
     throw new Error("granularityOptions supports day, week, month, and quarter.");
   }
-  const defaultGranularity = String(attributes.granularity || "day").trim().toLowerCase();
-  if (!granularities.includes(defaultGranularity)) {
+  const defaultGranularity = String(attributes.granularity || "auto").trim().toLowerCase();
+  if (defaultGranularity !== "auto" && !granularities.includes(defaultGranularity)) {
     throw new Error("granularity must be included in granularityOptions.");
   }
   const requestAttributes = { ...attributes };
@@ -196,11 +201,12 @@ function renderDatasetView(token, attributes, translate) {
     dataset,
     attributes: requestAttributes,
     query,
+    granularityOptions: granularities,
   }));
 
   return [
     `<section class="mdx-component mdx-dataset-view" data-mdx-component="${name}" data-mdx-dataset-view="true" data-dataset-request="${request}" data-dataset-default-granularity="${defaultGranularity}">`,
-    `<div class="mdx-dataset-controls" role="group" aria-label="${escapeHtml(translate("dataset.controls"))}">`,
+    `<div class="mdx-dataset-controls" role="group" aria-label="${escapeHtml(translate("dataset.controls"))}" hidden>`,
     granularities.map((granularity) => [
       `<button type="button" class="mdx-dataset-granularity${granularity === defaultGranularity ? " is-active" : ""}" data-dataset-granularity="${granularity}" aria-pressed="${granularity === defaultGranularity}">`,
       escapeHtml(translate(`dataset.${granularity}`)),

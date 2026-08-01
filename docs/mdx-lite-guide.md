@@ -18,7 +18,7 @@ opened by Git Leaf can be any local Git repository; the implementation in Git Le
 syntax and security boundary.
 
 The design goal is one source for two consumers. Small component data stays as readable CSV, TSV, JSON,
-or Markdown inside the `.mdx` file. A long-lived daily report may instead keep its complete data in a
+or Markdown inside the `.mdx` file. A long-lived report may instead keep its complete time-series data in a
 repository-local CSV, TSV, or JSON file described by a `.dataset.json` manifest. AI agents can inspect
 and update either source as repository text. Preview renders the same facts for people, while Source and
 Live continue to edit the original MDX view definition. Rendered output is never a second data source.
@@ -48,7 +48,7 @@ Use `.mdx` when the document benefits from a readable data table, timeline, comp
 decision summary, metric grid, or small process diagram while keeping facts in a readable text file.
 
 Do not force zooming, drill-down, maps, dense relationship graphs, linked filters, multi-page reporting,
-or complex interaction into MDX-lite. A bounded view over a long daily dataset is supported; a full BI
+or complex interaction into MDX-lite. A bounded view over a long external dataset is supported; a full BI
 workflow still belongs in a spreadsheet, BI tool, or purpose-built visualization.
 
 | Need | Preferred format |
@@ -159,7 +159,7 @@ metric data normally uses an array; FlowDiagram normally uses an object with `no
 
 ## External dataset views
 
-Use an external dataset when a report maintains complete daily history over months or years and several
+Use an external dataset when a report maintains complete time-series history over months or years and several
 documents need bounded human views of the same data. This capability extends the existing `Chart` and
 `DataTable` components; it does not add a general `Dataset`, `DataView`, SQL, or script component.
 
@@ -177,8 +177,9 @@ documents need bounded human views of the same data. This capability extends the
 />
 ```
 
-The toolbar changes only transient view state. Clicking Day, Week, Month, or Quarter sends a finite
-request to Git Leaf's localhost service. The service reads and validates repository files, applies the
+The toolbar changes only transient view state and exposes only intervals supported by the manifest's
+source granularity. Clicking an available interval sends a finite request to Git Leaf's localhost service.
+The service reads and validates repository files, applies the
 manifest rollups, sorts periods ascending, and returns normal `Chart` or `DataTable` markup. It does not
 write the MDX or data files. Quarter means a natural calendar quarter and is labelled like `2026-Q1`.
 
@@ -230,7 +231,8 @@ semantics in a sidecar manifest whose filename ends in `.dataset.json`:
     "type": "date",
     "timezone": "Asia/Shanghai",
     "weekStartsOn": "monday",
-    "calendar": "calendar"
+    "calendar": "calendar",
+    "sourceGranularity": "day"
   },
   "fields": [
     {"name": "date", "type": "date", "required": true, "description": "Natural date"},
@@ -257,17 +259,33 @@ semantics in a sidecar manifest whose filename ends in `.dataset.json`:
 
 Schema version 1 supports `string`, `integer`, `decimal`, `number`, `boolean`, and `date`. Its time field
 must be a required `date`; `calendar` is `calendar` or `weekdays`, and `weekStartsOn` is `monday` or
-`sunday`. Source data is standard CSV, TSV, or either a JSON array or `{ "rows": [...] }`. Headers and
-JSON keys must be declared fields. String fields remain strings, so an identifier such as `001` keeps
-its leading zeros. Primary keys must be required and unique.
+`sunday`. `sourceGranularity` is required and is `day`, `week`, `month`, or `quarter`. Week rows use the
+declared week-start date; month rows use the first day of the month; quarter rows use the first day of a
+natural quarter. `from` and `to` name inclusive source-period starts, so they follow the same alignment.
+Source data is standard CSV, TSV, or either a JSON array or `{ "rows": [...] }`. Headers and JSON keys
+must be declared fields. String fields remain strings, so an identifier such as `001` keeps its leading
+zeros. Primary keys must be required and unique.
+
+Available views follow a safe compatibility matrix:
+
+| Source granularity | Available views |
+| --- | --- |
+| `day` | `day`, `week`, `month`, `quarter` |
+| `week` | `week` |
+| `month` | `month`, `quarter` |
+| `quarter` | `quarter` |
+
+A calendar week can cross month and quarter boundaries, so Git Leaf does not assign weekly totals to a
+natural month or quarter by start date, end date, or proportional spreading. Reports that need reliable
+monthly values must maintain a monthly source instead.
 
 Rollups are `sum`, `avg`, `min`, `max`, `count`, `first`, or `last`. `ratioOfSums` is the one derived
 rollup and divides the sum of a numeric numerator by the sum of a numeric denominator. If a requested
 field has no rollup and multiple source rows enter a period, Git Leaf reports an error instead of
-guessing. `first` and `last` also require at most one filtered row per date, so a snapshot is never chosen
-arbitrarily among companies or other dimensions. The engine never fills a missing date with zero. It
-reports missing expected dates and any day, week, month, or quarter that is incomplete within the
-selected range.
+guessing. `first` and `last` also require at most one filtered row per source period, so a snapshot is
+never chosen arbitrarily among companies or other dimensions. The engine never fills a missing source
+period with zero. It reports missing expected source periods and any displayed period that is incomplete
+within the selected range.
 
 Dataset and source paths resolve relative to the owning document or manifest and must stay inside the
 same real repository/worktree. URLs, absolute paths, symlinks outside the repository, and cross-repo
@@ -278,8 +296,9 @@ source itself is unchanged.
 
 For `Chart`, use `x="period"` or the manifest time-field name and name numeric series explicitly. For
 `DataTable`, `columns` controls order; without it, Git Leaf shows the time field plus fields that declare
-rollups. `granularity` defaults to `day`. `granularityOptions` defaults to
-`day,week,month,quarter`; omit a value there when readers should not select that view.
+rollups. `granularity` defaults to the manifest's source granularity. `granularityOptions` can only narrow
+the safe views above; it cannot add a view that the source granularity does not support. Controls stay
+hidden until the manifest has been validated, so readers never see unavailable finer-grained buttons.
 
 ## DataTable
 

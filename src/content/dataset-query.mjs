@@ -1,4 +1,11 @@
-const GRANULARITIES = new Set(["day", "week", "month", "quarter"]);
+import {
+  DATASET_GRANULARITIES,
+  datasetGranularitiesForSource,
+  datasetPeriodStartsBetween,
+  isDatasetGranularity,
+  isDatasetPeriodStart,
+} from "./dataset-granularity.mjs";
+
 const QUERY_KEYS = new Set(["from", "to", "where"]);
 const FILTER_OPERATORS = new Set(["eq", "notEq", "in", "notIn"]);
 const MAX_OUTPUT_ROWS = 5_000;
@@ -10,12 +17,35 @@ export function queryDataset({
   component,
   attributes = {},
   query = {},
-  granularity = "day",
+  granularity = "auto",
+  granularityOptions = DATASET_GRANULARITIES,
 } = {}) {
   assertQueryShape(query);
-  const selectedGranularity = String(granularity || "day").trim().toLowerCase();
-  if (!GRANULARITIES.has(selectedGranularity)) {
+  const sourceGranularity = String(manifest?.time?.sourceGranularity || "").trim().toLowerCase();
+  if (!isDatasetGranularity(sourceGranularity)) {
+    throw datasetQueryError("Dataset manifest has an invalid sourceGranularity.");
+  }
+  const requestedGranularities = normalizeGranularityOptions(granularityOptions);
+  const availableGranularities = datasetGranularitiesForSource(
+    sourceGranularity,
+    requestedGranularities,
+  );
+  if (availableGranularities.length === 0) {
+    throw datasetQueryError(
+      `granularityOptions does not include a view supported by ${sourceGranularity} source data.`,
+    );
+  }
+  const requestedGranularity = String(granularity || "auto").trim().toLowerCase();
+  if (requestedGranularity !== "auto" && !isDatasetGranularity(requestedGranularity)) {
     throw datasetQueryError(`Unsupported granularity: ${granularity}.`);
+  }
+  const selectedGranularity = requestedGranularity === "auto"
+    ? availableGranularities[0]
+    : requestedGranularity;
+  if (!availableGranularities.includes(selectedGranularity)) {
+    throw datasetQueryError(
+      `${selectedGranularity} view is unavailable for ${sourceGranularity} source data. Available: ${availableGranularities.join(", ")}.`,
+    );
   }
 
   const fieldMap = new Map(manifest.fields.map((field) => [field.name, field]));
@@ -37,6 +67,13 @@ export function queryDataset({
   const to = normalizeRangeDate(query.to ?? attributes.to, "to");
   if (from && to && from > to) {
     throw datasetQueryError("Dataset query from must not be after to.");
+  }
+  for (const [name, value] of [["from", from], ["to", to]]) {
+    if (value && !isDatasetPeriodStart(value, sourceGranularity, manifest.time.weekStartsOn)) {
+      throw datasetQueryError(
+        `Dataset query ${name} must identify a ${sourceGranularity} source period start.`,
+      );
+    }
   }
 
   const filters = normalizeFilters(query.where, fieldMap);
@@ -83,6 +120,7 @@ export function queryDataset({
       }
       result[name] = aggregateField(field, bucketRows, {
         granularity: selectedGranularity,
+        sourceGranularity,
         timeField,
       });
     }
@@ -92,18 +130,26 @@ export function queryDataset({
     return result;
   });
 
-  const observedDates = new Set(sortedRows.map((row) => row[timeField]));
-  const expectedDates = datesBetween(effectiveFrom, effectiveTo, manifest.time.calendar);
-  const missingDates = expectedDates.filter((date) => !observedDates.has(date));
+  const observedPeriods = new Set(sortedRows.map((row) => row[timeField]));
+  const expectedPeriods = datasetPeriodStartsBetween(
+    effectiveFrom,
+    effectiveTo,
+    sourceGranularity,
+    manifest.time,
+  );
+  const missingPeriods = expectedPeriods.filter((period) => !observedPeriods.has(period));
+  const coverageFrom = sortedRows[0][timeField];
+  const coverageTo = sortedRows.at(-1)[timeField];
   const partialPeriods = [...buckets.entries()]
     .filter(([period, bucketRows]) => periodIsPartial({
       period,
       rows: bucketRows,
       granularity: selectedGranularity,
+      sourceGranularity,
       weekStartsOn: manifest.time.weekStartsOn,
       calendar: manifest.time.calendar,
-      effectiveFrom,
-      effectiveTo,
+      coverageFrom,
+      coverageTo,
       timeField,
     }))
     .map(([period]) => periodLabel(period, selectedGranularity));
@@ -118,6 +164,8 @@ export function queryDataset({
     meta: {
       datasetId: manifest.id,
       datasetTitle: manifest.title || manifest.id,
+      sourceGranularity,
+      availableGranularities,
       granularity: selectedGranularity,
       from: effectiveFrom,
       to: effectiveTo,
@@ -125,8 +173,10 @@ export function queryDataset({
       sourceRows: filteredRows.length,
       totalRows: rows.length,
       outputRows: outputRows.length,
-      missingDateCount: missingDates.length,
-      missingDates: missingDates.slice(0, 20),
+      missingPeriodCount: missingPeriods.length,
+      missingPeriods: missingPeriods.slice(0, 20),
+      missingDateCount: missingPeriods.length,
+      missingDates: missingPeriods.slice(0, 20),
       partialPeriodCount: partialPeriods.length,
       partialPeriods: partialPeriods.slice(0, 20),
     },
@@ -169,10 +219,10 @@ function componentFields({ component, attributes, manifest, xKey }) {
   throw datasetQueryError(`External datasets are not supported by ${component}.`);
 }
 
-function aggregateField(field, rows, { granularity, timeField }) {
+function aggregateField(field, rows, { granularity, sourceGranularity, timeField }) {
   const rollup = field.rollup;
   if (!rollup) {
-    if (granularity === "day" && rows.length === 1) {
+    if (granularity === sourceGranularity && rows.length === 1) {
       return rows[0][field.name];
     }
     throw datasetQueryError(
@@ -237,6 +287,20 @@ function assertQueryShape(query) {
   if (unsupported.length > 0) {
     throw datasetQueryError(`Unsupported dataset query key: ${unsupported[0]}.`);
   }
+}
+
+function normalizeGranularityOptions(value) {
+  const entries = value === undefined
+    ? DATASET_GRANULARITIES
+    : value;
+  if (!Array.isArray(entries) || entries.length < 1) {
+    throw datasetQueryError("granularityOptions must contain at least one time view.");
+  }
+  const normalized = uniqueStrings(entries.map((entry) => String(entry || "").trim().toLowerCase()));
+  if (normalized.some((entry) => !isDatasetGranularity(entry))) {
+    throw datasetQueryError("granularityOptions supports day, week, month, and quarter.");
+  }
+  return normalized;
 }
 
 function normalizeFilters(where, fieldMap) {
@@ -312,18 +376,27 @@ function periodIsPartial({
   period,
   rows,
   granularity,
+  sourceGranularity,
   weekStartsOn,
   calendar,
-  effectiveFrom,
-  effectiveTo,
+  coverageFrom,
+  coverageTo,
   timeField,
 }) {
   const naturalEnd = bucketEnd(period, granularity, weekStartsOn);
-  if (period < effectiveFrom || naturalEnd > effectiveTo) {
+  const expectedPeriods = datasetPeriodStartsBetween(period, naturalEnd, sourceGranularity, {
+    weekStartsOn,
+    calendar,
+  });
+  if (
+    expectedPeriods.length === 0
+    || expectedPeriods[0] < coverageFrom
+    || expectedPeriods.at(-1) > coverageTo
+  ) {
     return true;
   }
   const observed = new Set(rows.map((row) => row[timeField]));
-  return datesBetween(period, naturalEnd, calendar).some((date) => !observed.has(date));
+  return expectedPeriods.some((sourcePeriod) => !observed.has(sourcePeriod));
 }
 
 function bucketStart(value, granularity, weekStartsOn = "monday") {
@@ -369,20 +442,6 @@ function periodLabel(period, granularity) {
     return `${period.slice(0, 4)}-Q${Math.floor((Number(period.slice(5, 7)) - 1) / 3) + 1}`;
   }
   return period;
-}
-
-function datesBetween(from, to, calendar = "calendar") {
-  const dates = [];
-  const cursor = isoDateToUtc(from);
-  const end = isoDateToUtc(to);
-  while (cursor <= end) {
-    const day = cursor.getUTCDay();
-    if (calendar !== "weekdays" || (day !== 0 && day !== 6)) {
-      dates.push(utcToIsoDate(cursor));
-    }
-    cursor.setUTCDate(cursor.getUTCDate() + 1);
-  }
-  return dates;
 }
 
 function dateDistance(from, to) {
