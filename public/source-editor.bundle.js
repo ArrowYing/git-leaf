@@ -35052,12 +35052,13 @@ function chartValueLabelsEnabled(model) {
 }
 function renderLineSvg(model) {
   const values2 = model.series.flatMap((item) => item.values).filter(Number.isFinite);
-  const { min, max } = valueRange(values2, { allowNegative: values2.some((value) => value < 0) });
+  const { min, max, step } = valueRange(values2, { allowNegative: values2.some((value) => value < 0) });
   const x = (index) => model.pad.left + (model.labels.length === 1 ? model.plotW / 2 : model.plotW * index / (model.labels.length - 1));
   const y = (value) => model.pad.top + (max - value) * model.plotH / (max - min || 1);
   return chartSvg(model, {
     min,
     max,
+    tickStep: step,
     x,
     y,
     body: renderLineSeries(model, model.series, x, () => y)
@@ -35093,7 +35094,7 @@ function chartValueLabel({ x, y, value, color, className = "" }) {
 function renderBarSvg(model) {
   const item = model.series[0];
   const values2 = item.values.filter(Number.isFinite);
-  const { min, max } = valueRange(values2, { allowNegative: values2.some((value) => value < 0) });
+  const { min, max, step } = valueRange(values2, { allowNegative: values2.some((value) => value < 0) });
   const groupW = model.plotW / model.labels.length;
   const barW = Math.max(12, Math.min(36, groupW * 0.42));
   const x = (index) => model.pad.left + groupW * index + groupW / 2;
@@ -35111,11 +35112,11 @@ function renderBarSvg(model) {
     const labelY = value >= 0 ? Math.max(model.pad.top + 14, y(value) - 8) : Math.min(model.height - model.pad.bottom - 6, y(value) + 16);
     return chartValueLabel({ x: x(index), y: labelY, value, color: item.color });
   }).join("") : "";
-  return chartSvg(model, { min, max, x, y, body: bars + labels });
+  return chartSvg(model, { min, max, tickStep: step, x, y, body: bars + labels });
 }
 function renderGroupedBarSvg(model) {
   const values2 = model.series.flatMap((item) => item.values).filter(Number.isFinite);
-  const { min, max } = valueRange(values2, { allowNegative: values2.some((value) => value < 0) });
+  const { min, max, step } = valueRange(values2, { allowNegative: values2.some((value) => value < 0) });
   const groupW = model.plotW / model.labels.length;
   const barW = Math.max(6, Math.min(18, groupW * 0.62 / model.series.length));
   const x = (index) => model.pad.left + groupW * index + groupW / 2;
@@ -35136,13 +35137,13 @@ function renderGroupedBarSvg(model) {
     const labelY = value >= 0 ? Math.max(model.pad.top + 14, y(value) - 8) : Math.min(model.height - model.pad.bottom - 6, y(value) + 16);
     return chartValueLabel({ x: bx + Math.max(1, barW - 2) / 2, y: labelY, value, color: item.color });
   }).join("")).join("") : "";
-  return chartSvg(model, { min, max, x, y, body: bars + labels });
+  return chartSvg(model, { min, max, tickStep: step, x, y, body: bars + labels });
 }
 function renderStackedBarSvg(model) {
   const totals = model.labels.map(
     (_, index) => model.series.reduce((sum, item) => sum + Math.max(0, toNumber(item.values[index]) ?? 0), 0)
   );
-  const { min, max } = valueRange(totals, { allowNegative: false });
+  const { min, max, step } = valueRange(totals, { allowNegative: false });
   const groupW = model.plotW / model.labels.length;
   const barW = Math.max(18, Math.min(48, groupW * 0.46));
   const x = (index) => model.pad.left + groupW * index + groupW / 2;
@@ -35175,7 +35176,7 @@ function renderStackedBarSvg(model) {
       });
     }).join("");
   }).join("") : "";
-  return chartSvg(model, { min, max, x, y, body: bars + labels });
+  return chartSvg(model, { min, max, tickStep: step, x, y, body: bars + labels });
 }
 function renderComboSvg(model, { dualAxis = false } = {}) {
   const barSeries = model.series.filter((item) => item.role === "bar");
@@ -35223,18 +35224,19 @@ function renderComboSvg(model, { dualAxis = false } = {}) {
   return chartSvg(model, {
     min: leftRange.min,
     max: leftRange.max,
+    tickStep: leftRange.step,
     x,
     y: leftY,
     body: bars + barLabels + lines,
-    rightAxis: rightRange ? { min: rightRange.min, max: rightRange.max, y: rightY } : null
+    rightAxis: rightRange ? { min: rightRange.min, max: rightRange.max, step: rightRange.step, y: rightY } : null
   });
 }
-function chartSvg(model, { min, max, x, y, body, rightAxis = null }) {
+function chartSvg(model, { min, max, tickStep, x, y, body, rightAxis = null }) {
   const axisY = axisBaselineY(model, { min, max }, y);
   return [
     `<svg viewBox="0 0 ${model.width} ${model.height}" role="img" aria-label="${escapeHtml3(model.title)}">`,
     renderLegend(model),
-    renderGrid(model, min, max, y),
+    renderGrid(model, min, max, tickStep, y),
     rightAxis ? renderRightAxis(model, rightAxis) : "",
     renderChartActiveGuide(model),
     `<line class="mdx-chart-axis-line" x1="${model.pad.left}" y1="${axisY.toFixed(1)}" x2="${model.width - model.pad.right}" y2="${axisY.toFixed(1)}"></line>`,
@@ -35259,17 +35261,17 @@ function renderLegend(model) {
     return out;
   }).join("");
 }
-function renderGrid(model, min, max, y) {
-  return ticks(min, max, 5).map((tick) => [
+function renderGrid(model, min, max, step, y) {
+  return ticks(min, max, step).map((tick) => [
     `<line class="mdx-chart-grid-line" x1="${model.pad.left}" y1="${y(tick).toFixed(1)}" x2="${model.width - model.pad.right}" y2="${y(tick).toFixed(1)}"></line>`,
-    `<text class="mdx-chart-y-label" x="${model.pad.left - 8}" y="${(y(tick) + 4).toFixed(1)}" text-anchor="end" font-size="11">${formatNumber2(tick)}</text>`
+    `<text class="mdx-chart-y-label" x="${model.pad.left - 8}" y="${(y(tick) + 4).toFixed(1)}" text-anchor="end" font-size="11">${formatAxisTick(tick, step)}</text>`
   ].join("")).join("");
 }
-function renderRightAxis(model, { min, max, y }) {
+function renderRightAxis(model, { min, max, step, y }) {
   return [
     `<line class="mdx-chart-axis-line" x1="${model.width - model.pad.right}" y1="${model.pad.top}" x2="${model.width - model.pad.right}" y2="${model.pad.top + model.plotH}"></line>`,
-    ticks(min, max, 5).map(
-      (tick) => `<text class="mdx-chart-y-label mdx-chart-right-y-label" x="${model.width - model.pad.right + 8}" y="${(y(tick) + 4).toFixed(1)}" text-anchor="start" font-size="11">${formatNumber2(tick)}</text>`
+    ticks(min, max, step).map(
+      (tick) => `<text class="mdx-chart-y-label mdx-chart-right-y-label" x="${model.width - model.pad.right + 8}" y="${(y(tick) + 4).toFixed(1)}" text-anchor="start" font-size="11">${formatAxisTick(tick, step)}</text>`
     ).join("")
   ].join("");
 }
@@ -35612,16 +35614,36 @@ function toNumber(value) {
 }
 function valueRange(values2, { allowNegative }) {
   const fallback = values2.length ? values2 : [0, 1];
-  const minVal = Math.min(...fallback, allowNegative ? 0 : 0);
-  const maxVal = Math.max(...fallback, 1);
-  const padding = (maxVal - minVal || 1) * 0.08;
+  const minVal = Math.min(...fallback, 0);
+  const maxVal = Math.max(...fallback, 0);
+  const span = maxVal - minVal;
+  if (span === 0) {
+    return { min: 0, max: 1, step: 0.2 };
+  }
+  const padding = span * 0.08;
+  const paddedMin = allowNegative && minVal < 0 ? minVal - padding : 0;
+  const paddedMax = maxVal > 0 ? maxVal + padding : 0;
+  const step = niceTickStep((paddedMax - paddedMin) / 5);
   return {
-    min: allowNegative ? minVal - padding : 0,
-    max: maxVal + padding
+    min: roundTick(Math.floor(paddedMin / step) * step),
+    max: roundTick(Math.ceil(paddedMax / step) * step),
+    step
   };
 }
-function ticks(min, max, count2) {
-  return Array.from({ length: count2 + 1 }, (_, index) => min + (max - min) * index / count2);
+function niceTickStep(roughStep) {
+  if (!Number.isFinite(roughStep) || roughStep <= 0) return 1;
+  const magnitude = 10 ** Math.floor(Math.log10(roughStep));
+  const normalized = roughStep / magnitude;
+  const factor = [1, 2, 2.5, 5, 10].reduce((closest, candidate) => Math.abs(candidate - normalized) < Math.abs(closest - normalized) ? candidate : closest);
+  return factor * magnitude;
+}
+function ticks(min, max, step) {
+  const count2 = Math.max(0, Math.round((max - min) / step));
+  return Array.from({ length: count2 + 1 }, (_, index) => roundTick(min + step * index));
+}
+function roundTick(value) {
+  const rounded = Number(value.toPrecision(12));
+  return Object.is(rounded, -0) ? 0 : rounded;
 }
 function visibleXLabelIndices(model, x) {
   const lastIndex = model.labels.length - 1;
@@ -35660,6 +35682,14 @@ function estimatedXLabelWidth(value) {
 function formatNumber2(value) {
   if (!Number.isFinite(value)) return "";
   const rounded = Math.abs(value) >= 100 ? Math.round(value) : Math.round(value * 10) / 10;
+  return String(Object.is(rounded, -0) ? 0 : rounded);
+}
+function formatAxisTick(value, step) {
+  if (!Number.isFinite(value) || !Number.isFinite(step) || step <= 0) return "";
+  const magnitudeExponent = Math.floor(Math.log10(step));
+  const normalizedStep = step / 10 ** magnitudeExponent;
+  const decimals = Math.max(0, -magnitudeExponent + (Math.abs(normalizedStep - 2.5) < 1e-9 ? 1 : 0));
+  const rounded = Number(value.toFixed(Math.min(12, decimals)));
   return String(Object.is(rounded, -0) ? 0 : rounded);
 }
 function formatTooltipNumber(value) {

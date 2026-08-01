@@ -91,6 +91,35 @@ month,revenue,expense
   assert.doesNotMatch(html, /stroke="#edf0f5"|stroke="#d9dee8"|stroke="#98a2b3"/);
 });
 
+test("renderMarkdown rounds chart y-axis ticks outward to readable values", () => {
+  const html = renderMarkdown(`<Chart title="日活趋势" type="line" x="month" series="dailyActive" labels="none">
+\`\`\`csv
+month,dailyActive
+2025-01,22100
+2025-02,29400
+2025-03,25300
+\`\`\`
+</Chart>`);
+  const labels = [
+    ...html.matchAll(/<text class="mdx-chart-y-label"[^>]*>([^<]+)<\/text>/g),
+  ].map((match) => match[1]);
+
+  assert.deepEqual(labels, ["0", "5000", "10000", "15000", "20000", "25000", "30000", "35000"]);
+
+  const decimalHtml = renderMarkdown(`<Chart title="比例趋势" type="line" x="month" series="ratio" labels="none">
+\`\`\`csv
+month,ratio
+2025-01,0.85
+2025-02,1.1
+\`\`\`
+</Chart>`);
+  const decimalLabels = [
+    ...decimalHtml.matchAll(/<text class="mdx-chart-y-label"[^>]*>([^<]+)<\/text>/g),
+  ].map((match) => match[1]);
+
+  assert.deepEqual(decimalLabels, ["0", "0.25", "0.5", "0.75", "1", "1.25"]);
+});
+
 test("renderMarkdown extends Chart with an external dataset view placeholder", () => {
   const html = renderMarkdown(`<Chart title="收入趋势" dataset="./data/company.dataset.json" type="line" x="period" series="revenue" from="2025-01-01" to="2026-12-31" granularity="quarter" />`, {
     locale: "zh-CN",
