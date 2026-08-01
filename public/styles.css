@@ -4363,6 +4363,42 @@ tr:last-child td {
   fill: var(--chart-point-fill);
 }
 
+.mdx-chart-active-guide {
+  stroke: var(--chart-tick);
+  stroke-width: 1.5;
+  stroke-dasharray: 4 4;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 80ms ease;
+}
+
+.mdx-chart-active-guide.is-active {
+  opacity: 0.9;
+}
+
+.mdx-chart [data-chart-mark] {
+  transition: opacity 80ms ease, filter 80ms ease, stroke-width 80ms ease;
+}
+
+.mdx-chart.has-active-column [data-chart-mark] {
+  opacity: 0.32;
+}
+
+.mdx-chart.has-active-column [data-chart-mark].is-active {
+  opacity: 1;
+  filter: drop-shadow(0 0 3px var(--chart-label));
+}
+
+.mdx-chart-point.is-active {
+  r: 6px;
+  stroke-width: 3.5;
+}
+
+.mdx-chart rect[data-chart-mark].is-active {
+  stroke: var(--chart-label);
+  stroke-width: 2;
+}
+
 .mdx-chart-highlight-bg {
   fill: var(--chart-highlight-bg);
 }

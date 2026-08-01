@@ -35072,10 +35072,9 @@ function renderLineSeries(model, series, x, yForItem) {
   const markers = series.map((item) => item.values.map((value, index) => {
     if (!Number.isFinite(value)) return "";
     const y = yForItem(item);
-    const tooltip = chartTooltipAttributes(model, index);
     return [
-      `<circle class="mdx-chart-point" cx="${x(index).toFixed(1)}" cy="${y(value).toFixed(1)}" r="3" stroke="${item.color}" stroke-width="2"${tooltip}></circle>`,
-      `<circle class="mdx-chart-hit-target" cx="${x(index).toFixed(1)}" cy="${y(value).toFixed(1)}" r="9" fill="transparent" stroke="transparent"${tooltip}></circle>`
+      `<circle class="mdx-chart-point" cx="${x(index).toFixed(1)}" cy="${y(value).toFixed(1)}" r="3" stroke="${item.color}" stroke-width="2"${chartTooltipAttributes(model, index, { mark: true })}></circle>`,
+      `<circle class="mdx-chart-hit-target" cx="${x(index).toFixed(1)}" cy="${y(value).toFixed(1)}" r="9" fill="transparent" stroke="transparent"${chartTooltipAttributes(model, index)}></circle>`
     ].join("");
   }).join("")).join("");
   const labels = chartValueLabelsEnabled(model) ? series.map((item, seriesIndex) => item.values.map((value, index) => {
@@ -35105,7 +35104,7 @@ function renderBarSvg(model) {
     const cx = x(index);
     const by = value >= 0 ? y(value) : axisY;
     const bh = Math.max(1, Math.abs(y(value) - axisY));
-    return `<rect x="${(cx - barW / 2).toFixed(1)}" y="${by.toFixed(1)}" width="${barW.toFixed(1)}" height="${bh.toFixed(1)}" rx="3" fill="${item.color}"${chartTooltipAttributes(model, index)}></rect>`;
+    return `<rect x="${(cx - barW / 2).toFixed(1)}" y="${by.toFixed(1)}" width="${barW.toFixed(1)}" height="${bh.toFixed(1)}" rx="3" fill="${item.color}"${chartTooltipAttributes(model, index, { mark: true })}></rect>`;
   }).join("");
   const labels = chartValueLabelsEnabled(model) ? item.values.map((value, index) => {
     if (!Number.isFinite(value)) return "";
@@ -35128,7 +35127,7 @@ function renderGroupedBarSvg(model) {
     const bx = x(index) - clusterW / 2 + seriesIndex * barW;
     const by = value >= 0 ? y(value) : axisY;
     const bh = Math.max(1, Math.abs(y(value) - axisY));
-    return `<rect x="${bx.toFixed(1)}" y="${by.toFixed(1)}" width="${Math.max(1, barW - 2).toFixed(1)}" height="${bh.toFixed(1)}" fill="${item.color}"${chartTooltipAttributes(model, index)}></rect>`;
+    return `<rect x="${bx.toFixed(1)}" y="${by.toFixed(1)}" width="${Math.max(1, barW - 2).toFixed(1)}" height="${bh.toFixed(1)}" fill="${item.color}"${chartTooltipAttributes(model, index, { mark: true })}></rect>`;
   }).join("")).join("");
   const labels = chartValueLabelsEnabled(model) ? model.series.map((item, seriesIndex) => item.values.map((value, index) => {
     if (!Number.isFinite(value)) return "";
@@ -35156,7 +35155,7 @@ function renderStackedBarSvg(model) {
       const y1 = y(acc + value);
       const y0 = y(acc);
       acc += value;
-      return `<rect x="${(x(index) - barW / 2).toFixed(1)}" y="${y1.toFixed(1)}" width="${barW.toFixed(1)}" height="${Math.max(1, y0 - y1).toFixed(1)}" fill="${item.color}"${chartTooltipAttributes(model, index)}></rect>`;
+      return `<rect x="${(x(index) - barW / 2).toFixed(1)}" y="${y1.toFixed(1)}" width="${barW.toFixed(1)}" height="${Math.max(1, y0 - y1).toFixed(1)}" fill="${item.color}"${chartTooltipAttributes(model, index, { mark: true })}></rect>`;
     }).join("");
   }).join("");
   const labels = chartValueLabelsEnabled(model) ? model.labels.map((_, index) => {
@@ -35202,7 +35201,7 @@ function renderComboSvg(model, { dualAxis = false } = {}) {
       const bx = x(index) - clusterW / 2 + seriesIndex * barW;
       const by = value >= 0 ? itemY(value) : axisY;
       const bh = Math.max(1, Math.abs(itemY(value) - axisY));
-      return `<rect x="${bx.toFixed(1)}" y="${by.toFixed(1)}" width="${Math.max(1, barW - 2).toFixed(1)}" height="${bh.toFixed(1)}" rx="3" fill="${item.color}"${chartTooltipAttributes(model, index)}></rect>`;
+      return `<rect x="${bx.toFixed(1)}" y="${by.toFixed(1)}" width="${Math.max(1, barW - 2).toFixed(1)}" height="${bh.toFixed(1)}" rx="3" fill="${item.color}"${chartTooltipAttributes(model, index, { mark: true })}></rect>`;
     }).join("");
   }).join("");
   const barLabels = chartValueLabelsEnabled(model) ? barSeries.map((item, seriesIndex) => {
@@ -35237,6 +35236,7 @@ function chartSvg(model, { min, max, x, y, body, rightAxis = null }) {
     renderLegend(model),
     renderGrid(model, min, max, y),
     rightAxis ? renderRightAxis(model, rightAxis) : "",
+    renderChartActiveGuide(model),
     `<line class="mdx-chart-axis-line" x1="${model.pad.left}" y1="${axisY.toFixed(1)}" x2="${model.width - model.pad.right}" y2="${axisY.toFixed(1)}"></line>`,
     model.unit ? `<text class="mdx-chart-unit-label" x="18" y="${model.pad.top + model.plotH / 2}" transform="rotate(-90 18 ${model.pad.top + model.plotH / 2})" text-anchor="middle" font-size="12" font-weight="700">${escapeHtml3(model.translate("chart.unit", { unit: model.unit }))}</text>` : "",
     rightAxis && model.rightUnit ? `<text class="mdx-chart-unit-label mdx-chart-right-unit-label" x="${model.width - 18}" y="${model.pad.top + model.plotH / 2}" transform="rotate(90 ${model.width - 18} ${model.pad.top + model.plotH / 2})" text-anchor="middle" font-size="12" font-weight="700">${escapeHtml3(model.translate("chart.unit", { unit: model.rightUnit }))}</text>` : "",
@@ -35285,6 +35285,9 @@ function renderXAxis(model, x, axisY) {
     ].join("");
   }).join("");
 }
+function renderChartActiveGuide(model) {
+  return `<line class="mdx-chart-active-guide" x1="${model.pad.left}" y1="${model.pad.top}" x2="${model.pad.left}" y2="${model.pad.top + model.plotH}" aria-hidden="true"></line>`;
+}
 function renderChartTooltipRegions(model, x) {
   const lastIndex = model.labels.length - 1;
   const plotRight = model.width - model.pad.right;
@@ -35292,10 +35295,10 @@ function renderChartTooltipRegions(model, x) {
     const center = x(index);
     const left = index === 0 ? model.pad.left : (x(index - 1) + center) / 2;
     const right = index === lastIndex ? plotRight : (center + x(index + 1)) / 2;
-    return `<rect class="mdx-chart-x-hit-target" x="${left.toFixed(1)}" y="${model.pad.top.toFixed(1)}" width="${Math.max(0, right - left).toFixed(1)}" height="${model.plotH.toFixed(1)}" fill="transparent" pointer-events="all"${chartTooltipAttributes(model, index)} aria-hidden="true"></rect>`;
+    return `<rect class="mdx-chart-x-hit-target" x="${left.toFixed(1)}" y="${model.pad.top.toFixed(1)}" width="${Math.max(0, right - left).toFixed(1)}" height="${model.plotH.toFixed(1)}" fill="transparent" pointer-events="all" data-chart-x-position="${center.toFixed(1)}"${chartTooltipAttributes(model, index)} aria-hidden="true"></rect>`;
   }).join("");
 }
-function chartTooltipAttributes(model, index) {
+function chartTooltipAttributes(model, index, { mark = false } = {}) {
   const label = model.labels[index] || "";
   const seriesLines = model.series.map((item) => {
     const value = item.values[index];
@@ -35306,7 +35309,11 @@ function chartTooltipAttributes(model, index) {
     ...seriesLines
   ].filter(Boolean).join("\\n");
   const ariaLabel = tooltip.replaceAll("\\n", ", ");
-  return ` data-chart-tooltip="${escapeHtml3(tooltip)}" aria-label="${escapeHtml3(ariaLabel)}"`;
+  return [
+    ` data-chart-x-index="${index}"`,
+    mark ? ' data-chart-mark="true"' : "",
+    ` data-chart-tooltip="${escapeHtml3(tooltip)}" aria-label="${escapeHtml3(ariaLabel)}"`
+  ].join("");
 }
 function formatTooltipValue(value, unit) {
   const number2 = formatTooltipNumber(value);

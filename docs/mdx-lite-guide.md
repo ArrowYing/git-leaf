@@ -401,8 +401,9 @@ Field aliases:
 ## Chart
 
 `Chart` produces a static SVG for reading. It does not load ECharts. Moving anywhere inside the plot
-shows the nearest x value and combines its series into one tooltip. X-axis labels use the available
-width more actively while still skipping labels that would overlap.
+shows the nearest x value and combines its series into one tooltip. The active x column gets a vertical
+guide, all of its visible marks are emphasized, and the remaining marks are muted. X-axis labels use the
+available width more actively while still skipping labels that would overlap.
 
 ````mdx
 <Chart

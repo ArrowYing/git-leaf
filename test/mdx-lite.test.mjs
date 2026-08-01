@@ -318,9 +318,18 @@ month,revenue,expense
 \`\`\`
 </Chart>`);
   const regions = html.match(/<rect class="mdx-chart-x-hit-target"[^>]*>/g) ?? [];
+  const marks = html.match(/<(?:circle|rect)[^>]*data-chart-mark="true"[^>]*>/g) ?? [];
 
   assert.equal(regions.length, 3);
+  assert.equal(marks.length, 6);
   assert.ok(regions.every((region) => /data-chart-tooltip="[^"]+"/.test(region)));
+  assert.deepEqual(
+    regions.map((region) => region.match(/data-chart-x-index="([^"]+)"/)?.[1]),
+    ["0", "1", "2"],
+  );
+  assert.ok(regions.every((region) => /data-chart-x-position="[^"]+"/.test(region)));
+  assert.ok(marks.every((mark) => /data-chart-x-index="[0-2]"/.test(mark)));
+  assert.match(html, /<line class="mdx-chart-active-guide"[^>]*aria-hidden="true"><\/line>/);
   assert.ok(regions.every((region) => /y="46\.0"/.test(region)));
   assert.ok(regions.every((region) => /height="250\.0"/.test(region)));
 
