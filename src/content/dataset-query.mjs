@@ -154,13 +154,30 @@ export function queryDataset({
     }))
     .map(([period]) => periodLabel(period, selectedGranularity));
 
+  const renderAttributes = {
+    ...attributes,
+    ...(component === "Chart" ? { x: xKey } : {}),
+    ...(component === "DataTable" ? {
+      columns: outputFields.join(","),
+      columnLabels: Object.fromEntries(outputFields.map((name) => [
+        name,
+        fieldMap.get(name)?.label || name,
+      ])),
+    } : {}),
+  };
+  if (component === "Chart") {
+    for (const name of outputFields) {
+      const label = fieldMap.get(name)?.label;
+      const labelAttribute = `${name}Label`;
+      if (label && !Object.hasOwn(renderAttributes, labelAttribute)) {
+        renderAttributes[labelAttribute] = label;
+      }
+    }
+  }
+
   return {
     rows: outputRows,
-    attributes: {
-      ...attributes,
-      ...(component === "Chart" ? { x: xKey } : {}),
-      ...(component === "DataTable" ? { columns: outputFields.join(",") } : {}),
-    },
+    attributes: renderAttributes,
     meta: {
       datasetId: manifest.id,
       datasetTitle: manifest.title || manifest.id,

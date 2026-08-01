@@ -223,6 +223,41 @@ test("monthly source data can aggregate into natural quarters without exposing d
   assert.equal(result.meta.partialPeriodCount, 0);
 });
 
+test("dataset field labels become chart legends and table headers", () => {
+  const labelledManifest = {
+    ...manifest,
+    fields: manifest.fields.map((field) => ({
+      ...field,
+      label: field.name === "date"
+        ? "日期"
+        : field.name === "users"
+          ? "平均活跃用户"
+          : "",
+    })),
+  };
+  const rows = dailyRows("2026-01-01", "2026-01-02");
+  const chart = queryDataset({
+    manifest: labelledManifest,
+    rows,
+    component: "Chart",
+    attributes: { x: "period", series: "users" },
+    granularity: "day",
+  });
+  const table = queryDataset({
+    manifest: labelledManifest,
+    rows,
+    component: "DataTable",
+    attributes: { columns: "date,users" },
+    granularity: "day",
+  });
+
+  assert.equal(chart.attributes.usersLabel, "平均活跃用户");
+  assert.deepEqual(table.attributes.columnLabels, {
+    date: "日期",
+    users: "平均活跃用户",
+  });
+});
+
 function dailyRows(from, to) {
   const rows = [];
   const cursor = new Date(`${from}T00:00:00.000Z`);

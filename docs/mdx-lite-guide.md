@@ -266,6 +266,36 @@ Source data is standard CSV, TSV, or either a JSON array or `{ "rows": [...] }`.
 must be declared fields. String fields remain strings, so an identifier such as `001` keeps its leading
 zeros. Primary keys must be required and unique.
 
+Some spreadsheet and BI exports are valid CSV but use duplicate, blank, or multiline display headers,
+retain unrelated presentation columns, format numbers with comma grouping, or include empty historical
+and future placeholders. The manifest can adapt those files without guessing or rewriting the source:
+
+```json
+{
+  "skipBlankRows": true,
+  "fields": [
+    {"name": "date", "type": "date", "required": true, "sourceColumn": 2},
+    {
+      "name": "daily_active_users",
+      "type": "integer",
+      "rollup": "avg",
+      "sourceColumn": 3,
+      "numberFormat": "comma-grouped"
+    }
+  ]
+}
+```
+
+`sourceColumn` is the one-based physical column number in CSV or TSV. If one field uses it, every field
+must use it, mapped columns must be unique, and undeclared source columns are ignored. JSON datasets keep
+using field names and do not support physical column mapping. `numberFormat="comma-grouped"` accepts
+values such as `12,345.67` for numeric fields. `skipBlankRows` removes a source row only when every
+declared non-time field is blank; it never converts a blank into zero. These options are explicit source
+adapters: field names, types, meanings, keys, time rules, and rollups still belong in the manifest.
+When a field declares `label`, external charts use it as the default legend text and external tables use
+it as the column heading. An explicit component label such as `revenueLabel` still takes precedence for
+that chart.
+
 Available views follow a safe compatibility matrix:
 
 | Source granularity | Available views |

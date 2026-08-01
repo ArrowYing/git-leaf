@@ -3,7 +3,10 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import { renderMarkdown } from "../src/content/markdown.mjs";
-import { datasetReferencesFromMarkdown } from "../src/content/mdx-lite.mjs";
+import {
+  datasetReferencesFromMarkdown,
+  renderMdxLiteRows,
+} from "../src/content/mdx-lite.mjs";
 
 test("renderMarkdown renders a small whitelisted MDX DataTable without table tools", () => {
   const html = renderMarkdown(`<DataTable title="费用明细">
@@ -243,6 +246,21 @@ date,revenue
   assert.doesNotMatch(valid, /mdx-component-error/);
   assert.match(invalid, /mdx-component-error/);
   assert.match(invalid, /fenced query JSON object/);
+});
+
+test("renderMdxLiteRows uses manifest-provided DataTable column labels", () => {
+  const html = renderMdxLiteRows(
+    "DataTable",
+    [{ date: "2026-01-01", users: 123 }],
+    {
+      columns: "date,users",
+      columnLabels: { date: "日期", users: "活跃用户" },
+    },
+    { locale: "zh-CN" },
+  );
+
+  assert.match(html, /<th>日期<\/th><th>活跃用户<\/th>/);
+  assert.doesNotMatch(html, /<th>users<\/th>/);
 });
 
 test("datasetReferencesFromMarkdown ignores examples inside fenced code", () => {

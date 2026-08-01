@@ -251,6 +251,12 @@ function renderDataTableRows(rows, attributes, translate) {
       translate,
     );
   }
+  const columnLabels = attributes.columnLabels
+    && typeof attributes.columnLabels === "object"
+    && !Array.isArray(attributes.columnLabels)
+    ? attributes.columnLabels
+    : {};
+  const displayColumn = (column) => String(columnLabels[column] || column);
   const tableAttributes = tableComplexityAttributes({
     rows,
     columns,
@@ -258,8 +264,8 @@ function renderDataTableRows(rows, attributes, translate) {
     overrides: attributes,
   });
   const tableLayout = tableLayoutAttributes({
-    columnNames: columns,
-    cellsByColumn: columns.map((column) => [column, ...rows.map((row) => row[column] ?? "")]),
+    columnNames: columns.map(displayColumn),
+    cellsByColumn: columns.map((column) => [displayColumn(column), ...rows.map((row) => row[column] ?? "")]),
   });
 
   return [
@@ -270,7 +276,7 @@ function renderDataTableRows(rows, attributes, translate) {
     renderTableColgroup(tableLayout),
     attributes.title ? `<caption>${escapeHtml(attributes.title)}</caption>` : "",
     "<thead><tr>",
-    columns.map((column) => `<th>${escapeHtml(column)}</th>`).join(""),
+    columns.map((column) => `<th>${escapeHtml(displayColumn(column))}</th>`).join(""),
     "</tr></thead><tbody>",
     rows.map((row) => `<tr>${columns.map((column) => `<td>${escapeHtml(row[column] ?? "")}</td>`).join("")}</tr>`).join(""),
     "</tbody></table></div></div></div>",

@@ -146,6 +146,8 @@ then use the buttons above it to select only views supported by the declared sou
 sources offer day, week, month, and quarter; weekly sources offer only week. The buttons change only the
 view and never rewrite the report or source data. Git Leaf calls out missing source periods and incomplete
 display periods.
+When a spreadsheet or BI export has presentation-only, duplicate, or multiline headers, its sidecar can
+select the intended physical columns explicitly; the source file stays unchanged.
 
 ![Git Leaf rendering a chart from structured data stored directly in an MDX document](assets/user-guide/mdx-visuals.png)
 

@@ -88,6 +88,8 @@ bounded range and offer only the time views supported by the declared source gra
 can switch among day, week, month, and natural-quarter views; weekly sources remain weekly. Aggregation is
 explicit per field, missing source periods are not converted to zero, and documents still cannot run scripts or
 query another repository.
+For common spreadsheet or BI exports, the sidecar can explicitly select physical columns and grouped-number
+formatting while leaving the original data file intact.
 
 Preview renders the document, while Source and Live edit the original file. There is no second visual
 data model to keep in sync. Only allowlisted components are rendered; documents cannot run arbitrary

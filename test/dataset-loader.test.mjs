@@ -173,6 +173,83 @@ test("loadDataset requires an explicit source granularity", async () => {
   }
 });
 
+test("loadDataset explicitly maps common spreadsheet-export columns", async () => {
+  const repoRoot = await mkdtemp(path.join(tmpdir(), "git-leaf-spreadsheet-dataset-"));
+  await writeFile(path.join(repoRoot, "report.mdx"), "# Report\n");
+  const manifest = datasetManifest({ sourceGranularity: "week" });
+  manifest.skipBlankRows = true;
+  manifest.fields = [
+    { name: "date", type: "date", required: true, sourceColumn: 2 },
+    {
+      name: "users",
+      type: "integer",
+      rollup: "avg",
+      sourceColumn: 3,
+      numberFormat: "comma-grouped",
+    },
+  ];
+  manifest.grain = ["date"];
+  manifest.primaryKey = ["date"];
+  await writeFile(path.join(repoRoot, "company.dataset.json"), JSON.stringify(manifest));
+  await writeFile(
+    path.join(repoRoot, "company.csv"),
+    [
+      'Date,Date,"活跃用户\nDB + 火山",Date,,',
+      '2026-01,2026-01-05,"12,345",ignored,,',
+      '2025-12,2025-12-28,,ignored,,',
+    ].join("\n"),
+  );
+
+  try {
+    const loaded = await loadDataset({
+      repoRoot,
+      documentPath: "report.mdx",
+      datasetPath: "company.dataset.json",
+    });
+    assert.deepEqual(loaded.rows, [{ date: "2026-01-05", users: 12345 }]);
+    assert.equal(loaded.manifest.fields[0].sourceColumn, 2);
+    assert.equal(loaded.manifest.fields[1].numberFormat, "comma-grouped");
+  } finally {
+    await rm(repoRoot, { recursive: true, force: true });
+  }
+});
+
+test("loadDataset keeps column mapping explicit and bounded", async () => {
+  const repoRoot = await mkdtemp(path.join(tmpdir(), "git-leaf-column-map-contract-"));
+  await writeFile(path.join(repoRoot, "report.mdx"), "# Report\n");
+  await writeFile(path.join(repoRoot, "company.csv"), "Date,users\n2026-01-01,1\n");
+
+  try {
+    const partial = datasetManifest();
+    partial.fields[0].sourceColumn = 1;
+    await writeFile(path.join(repoRoot, "company.dataset.json"), JSON.stringify(partial));
+    await assert.rejects(
+      loadDataset({
+        repoRoot,
+        documentPath: "report.mdx",
+        datasetPath: "company.dataset.json",
+      }),
+      /Every dataset field must set sourceColumn/,
+    );
+
+    const duplicate = datasetManifest();
+    duplicate.fields.forEach((field) => {
+      field.sourceColumn = 1;
+    });
+    await writeFile(path.join(repoRoot, "company.dataset.json"), JSON.stringify(duplicate));
+    await assert.rejects(
+      loadDataset({
+        repoRoot,
+        documentPath: "report.mdx",
+        datasetPath: "company.dataset.json",
+      }),
+      /sourceColumn values must be unique/,
+    );
+  } finally {
+    await rm(repoRoot, { recursive: true, force: true });
+  }
+});
+
 function datasetManifest({ sourceGranularity = "day" } = {}) {
   return {
     schemaVersion: 1,
