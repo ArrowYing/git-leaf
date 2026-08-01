@@ -87,7 +87,8 @@ Statuses provide visual cues; prose remains authoritative.
 
 ## 3. Chart
 
-Hovering a chart combines all series for one x value in a shared tooltip.
+Moving anywhere inside a chart's plot selects the nearest x value: all visible marks in that column are
+emphasized, a vertical guide identifies the column, and one shared tooltip combines its series.
 
 <Chart
   title="Knowledge workbench usage"
@@ -271,7 +272,7 @@ Desktop shell,Electron,,Open any local Git repository,good
 ## Acceptance
 
 - All six components render without an MDX component error.
-- Chart hover shows the combined tooltip for one x value.
+- Chart hover selects the nearest x value, emphasizes its visible marks, and shows its guide and combined tooltip.
 - Daily dataset controls switch among day, week, month, and quarter in Preview and Live.
 - The weekly-source chart exposes only Week and never invents Day, Month, or Quarter values.
 - The external DataTable and Chart read `data/company-daily.dataset.json`; the CSV remains standard CSV.
