@@ -14,6 +14,7 @@ import {
   livePreviewHtmlForBlock,
   liveBlockPreviewIgnoresEvent,
   liveInlineRangesForLine,
+  isLiveBlankClick,
   liveMarkdownLinkAtPosition,
   liveMarkdownLinksForLine,
   liveFrontmatterFieldAtPosition,
@@ -22,6 +23,7 @@ import {
   liveReadableReplacementsForLine,
   liveVisualRangesForLine,
   liveMdxComponentForLine,
+  liveMdxTargetIsEmbeddedViewControl,
   minimalDocumentChange,
   nextLiveEditingSuppression,
   listItemIndentChange,
@@ -665,7 +667,7 @@ test("livePreviewHtmlForBlock renders block preview without source line wrappers
   assert.doesNotMatch(chartHtml, /source-line-gutter/);
 });
 
-test("Live keeps dataset interval buttons interactive without making the whole MDX block inert", () => {
+test("Live routes every MDX preview event through the component interaction", () => {
   const intervalButton = {
     closest: (selector) => selector === "[data-dataset-granularity]" ? intervalButton : null,
   };
@@ -673,7 +675,32 @@ test("Live keeps dataset interval buttons interactive without making the whole M
 
   assert.equal(liveBlockPreviewIgnoresEvent({ type: "table" }, chartSurface), true);
   assert.equal(liveBlockPreviewIgnoresEvent({ type: "mdx" }, intervalButton), true);
-  assert.equal(liveBlockPreviewIgnoresEvent({ type: "mdx" }, chartSurface), false);
+  assert.equal(liveBlockPreviewIgnoresEvent({ type: "mdx" }, chartSurface), true);
+  assert.equal(liveBlockPreviewIgnoresEvent({ type: "image" }, chartSurface), false);
+  assert.equal(liveMdxTargetIsEmbeddedViewControl(intervalButton), true);
+  assert.equal(liveMdxTargetIsEmbeddedViewControl(chartSurface), false);
+});
+
+test("Live toolbar clicks are not treated as blank-editor clicks", () => {
+  const toolbar = {};
+  const target = {
+    closest(selector) {
+      if (selector === ".live-edit-toolbar") {
+        return toolbar;
+      }
+      if (selector === ".cm-content") {
+        return {};
+      }
+      return null;
+    },
+  };
+
+  assert.equal(isLiveBlankClick({ target }), false);
+  assert.equal(isLiveBlankClick({
+    target: {
+      closest: (selector) => selector === ".cm-content" ? {} : null,
+    },
+  }), true);
 });
 
 test("livePreviewHtmlForBlock renders an external dataset shell with quarter control", () => {
@@ -704,6 +731,15 @@ test("Live recognises dataset components whose attributes use separate lines", (
   assert.deepEqual(blocks, [{
     type: "mdx",
     component: "Chart",
+    attributes: {
+      title: "收入趋势",
+      dataset: "./company.dataset.json",
+      x: "period",
+      series: "revenue",
+      granularity: "quarter",
+    },
+    openingEndIndex: 6,
+    selfClosing: true,
     startLine: 2,
     endLine: 8,
     source: source.split("\n").slice(1, 8).join("\n"),

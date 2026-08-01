@@ -87,6 +87,11 @@ const liveTableInteractionFacet = Facet.define({
     return values[0] ?? null;
   },
 });
+const liveMdxComponentInteractionFacet = Facet.define({
+  combine(values) {
+    return values[0] ?? null;
+  },
+});
 const cursorPlaceholder = "{{cursor}}";
 const imageWidthSteps = [320, 480, 640, 760, 960, 1200];
 
@@ -219,6 +224,89 @@ const SOURCE_EDITOR_TABLE_MESSAGES = {
     "column.drag": "拖动调整选中列的顺序",
   },
 };
+
+const SOURCE_EDITOR_COMPONENT_MESSAGES = {
+  en: {
+    "toolbar.label": "Component tools",
+    "toolbar.source": "Edit component source",
+    "toolbar.close": "Close component tools",
+    "datatable.search": "Search",
+    "datatable.freeze": "Freeze first column",
+    "datatable.sticky": "Sticky header",
+    "datatable.copy": "Copy CSV",
+    "datatable.data": "Edit data",
+    "datatable.view": "Edit view",
+    "timeline.data": "Edit events",
+    "chart.type": "Chart type",
+    "chart.type.auto": "Auto type",
+    "chart.type.line": "Line",
+    "chart.type.bar": "Bar",
+    "chart.type.grouped-bar": "Grouped bar",
+    "chart.type.stacked-bar": "Stacked bar",
+    "chart.type.combo": "Combo",
+    "chart.type.combo-dual-axis": "Dual axis",
+    "chart.labels": "Value labels",
+    "chart.data": "Edit data",
+    "chart.view": "Edit view",
+    "decision.status": "Decision status",
+    "decision.status.none": "No status",
+    "decision.status.accepted": "Accepted",
+    "decision.status.proposed": "Proposed",
+    "decision.status.rejected": "Rejected",
+    "decision.status.superseded": "Superseded",
+    "decision.data": "Edit decision",
+    "metrics.data": "Edit metrics",
+    "flow.data": "Edit flow",
+  },
+  "zh-CN": {
+    "toolbar.label": "组件工具栏",
+    "toolbar.source": "编辑组件源码",
+    "toolbar.close": "关闭组件工具栏",
+    "datatable.search": "搜索",
+    "datatable.freeze": "冻结首列",
+    "datatable.sticky": "固定表头",
+    "datatable.copy": "复制 CSV",
+    "datatable.data": "编辑数据",
+    "datatable.view": "编辑视图",
+    "timeline.data": "编辑事件",
+    "chart.type": "图表类型",
+    "chart.type.auto": "自动类型",
+    "chart.type.line": "折线图",
+    "chart.type.bar": "柱状图",
+    "chart.type.grouped-bar": "分组柱状图",
+    "chart.type.stacked-bar": "堆叠柱状图",
+    "chart.type.combo": "组合图",
+    "chart.type.combo-dual-axis": "双轴组合图",
+    "chart.labels": "数值标签",
+    "chart.data": "编辑数据",
+    "chart.view": "编辑视图",
+    "decision.status": "决策状态",
+    "decision.status.none": "无状态",
+    "decision.status.accepted": "已采纳",
+    "decision.status.proposed": "提议中",
+    "decision.status.rejected": "已拒绝",
+    "decision.status.superseded": "已取代",
+    "decision.data": "编辑决策",
+    "metrics.data": "编辑指标",
+    "flow.data": "编辑流程",
+  },
+};
+
+const LIVE_MDX_CHART_TYPES = [
+  "line",
+  "bar",
+  "grouped-bar",
+  "stacked-bar",
+  "combo",
+  "combo-dual-axis",
+];
+
+const LIVE_MDX_DECISION_STATUSES = [
+  "accepted",
+  "proposed",
+  "rejected",
+  "superseded",
+];
 
 const slashCommandDefinitions = [
   {
@@ -844,6 +932,7 @@ export function createSourceEditor({
   onImageClick,
   onLinkClick,
   onFrontmatterClick,
+  onContextToolbarSelect = () => {},
   onPasteImage,
   onPasteText,
   onSlashCommand,
@@ -862,18 +951,35 @@ export function createSourceEditor({
   const themeCompartment = new Compartment();
   const liveModeCompartment = new Compartment();
   const editableCompartment = new Compartment();
+  let componentInteraction = null;
   const tableInteraction = createLiveTableInteraction({
     getView: () => view,
     getMode: () => currentMode,
     isEditable: () => currentEditable,
     locale: locale ?? language,
     documentRoot: editorDocument,
+    onSelect: () => {
+      componentInteraction?.clearSelection();
+      onContextToolbarSelect();
+    },
+  });
+  componentInteraction = createLiveMdxComponentInteraction({
+    getView: () => view,
+    getMode: () => currentMode,
+    isEditable: () => currentEditable,
+    locale: locale ?? language,
+    documentRoot: editorDocument,
+    onSelect: () => {
+      tableInteraction.clearSelection();
+      onContextToolbarSelect();
+    },
   });
   function liveModeExtensions() {
     return currentMode === "live"
       ? [
           liveRenderOptionsFacet.of(getRenderOptions()),
           liveTableInteractionFacet.of(tableInteraction),
+          liveMdxComponentInteractionFacet.of(componentInteraction),
           liveEditingSuppression,
           liveMarkdownDecorations,
           liveMarkdownThemeForTheme(currentTheme),
@@ -945,6 +1051,12 @@ export function createSourceEditor({
           if (tableInteraction.hasSelection()) {
             event.preventDefault();
             tableInteraction.clearSelection();
+            return true;
+          }
+
+          if (componentInteraction.hasSelection()) {
+            event.preventDefault();
+            componentInteraction.clearSelection();
             return true;
           }
 
@@ -1038,6 +1150,7 @@ export function createSourceEditor({
 
     if (isLiveBlankClick(event)) {
       tableInteraction.clearSelection();
+      componentInteraction.clearSelection();
       onBlankClick?.(event);
     }
   };
@@ -1051,6 +1164,7 @@ export function createSourceEditor({
   };
   const handleScroll = () => {
     tableInteraction.refreshPositions();
+    componentInteraction.refreshPositions();
     const line = visibleLine();
     onScroll?.({
       scrollTop: view.scrollDOM.scrollTop,
@@ -1059,6 +1173,7 @@ export function createSourceEditor({
       visibleLine: line,
     });
   };
+  view.dom.addEventListener("pointerdown", componentInteraction.handlePointerDown, true);
   view.dom.addEventListener("pointerdown", tableInteraction.handlePointerDown, true);
   view.dom.addEventListener("pointermove", tableInteraction.handlePointerMove, true);
   view.dom.addEventListener("pointerup", tableInteraction.handlePointerUp, true);
@@ -1073,10 +1188,21 @@ export function createSourceEditor({
     tableInteraction.handleDocumentPointerCancel,
     true,
   );
+  editorDocument?.addEventListener?.(
+    "pointerdown",
+    componentInteraction.handleDocumentPointerDown,
+    true,
+  );
+  editorDocument?.addEventListener?.(
+    "keydown",
+    componentInteraction.handleKeyDown,
+    true,
+  );
   view.dom.addEventListener("keydown", tableInteraction.handleKeyDown, true);
   view.dom.addEventListener("mousedown", handleMouseDown, true);
   view.scrollDOM.addEventListener("scroll", handleScroll);
   globalThis.addEventListener?.("resize", tableInteraction.refreshPositions);
+  globalThis.addEventListener?.("resize", componentInteraction.refreshPositions);
 
   return {
     getValue() {
@@ -1090,6 +1216,7 @@ export function createSourceEditor({
       }
       tableInteraction.cancelEditor();
       tableInteraction.clearSelection({ commit: false });
+      componentInteraction.clearSelection();
       const changes = preserveSelection
         ? minimalDocumentChange(currentValue, nextValue)
         : {
@@ -1156,6 +1283,7 @@ export function createSourceEditor({
       if (currentMode === "live" && mode !== "live") {
         tableInteraction.commitEditor();
         tableInteraction.clearSelection({ commit: false });
+        componentInteraction.clearSelection();
       }
       currentMode = mode;
       view.dispatch({
@@ -1169,6 +1297,7 @@ export function createSourceEditor({
       }
       if (!nextEditable) {
         tableInteraction.commitEditor();
+        componentInteraction.clearSelection();
       }
       currentEditable = nextEditable;
       view.dispatch({
@@ -1207,6 +1336,10 @@ export function createSourceEditor({
       view.dispatch({
         effects: selectedLinesEffect.of([...new Set(lines)].filter(Number.isInteger)),
       });
+    },
+    clearLiveContextSelection() {
+      tableInteraction.clearSelection();
+      componentInteraction.clearSelection();
     },
     replaceLine(lineNumber, text, { preserveSelection = false } = {}) {
       if (!Number.isInteger(lineNumber) || lineNumber < 1 || lineNumber > view.state.doc.lines) {
@@ -1316,6 +1449,8 @@ export function createSourceEditor({
       globalThis.clearTimeout(remoteMergeHighlightTimer);
       tableInteraction.commitEditor();
       tableInteraction.destroy();
+      componentInteraction.destroy();
+      view.dom.removeEventListener("pointerdown", componentInteraction.handlePointerDown, true);
       view.dom.removeEventListener("pointerdown", tableInteraction.handlePointerDown, true);
       view.dom.removeEventListener("pointermove", tableInteraction.handlePointerMove, true);
       view.dom.removeEventListener("pointerup", tableInteraction.handlePointerUp, true);
@@ -1330,10 +1465,21 @@ export function createSourceEditor({
         tableInteraction.handleDocumentPointerCancel,
         true,
       );
+      editorDocument?.removeEventListener?.(
+        "pointerdown",
+        componentInteraction.handleDocumentPointerDown,
+        true,
+      );
+      editorDocument?.removeEventListener?.(
+        "keydown",
+        componentInteraction.handleKeyDown,
+        true,
+      );
       view.dom.removeEventListener("keydown", tableInteraction.handleKeyDown, true);
       view.dom.removeEventListener("mousedown", handleMouseDown, true);
       view.scrollDOM.removeEventListener("scroll", handleScroll);
       globalThis.removeEventListener?.("resize", tableInteraction.refreshPositions);
+      globalThis.removeEventListener?.("resize", componentInteraction.refreshPositions);
       view.destroy();
     },
   };
@@ -1347,12 +1493,636 @@ export function isVerticalTableColumnSelection(selection) {
   );
 }
 
+export function liveMdxToolbarControlDefinitions(component, attributes = {}) {
+  const datasetView = Boolean(String(attributes.dataset ?? "").trim());
+  if (component === "DataTable") {
+    return [
+      liveMdxToggleControl("search", "search", "datatable.search", attributes.search),
+      liveMdxToggleControl(
+        "freeze",
+        "freezeFirstColumn",
+        "datatable.freeze",
+        attributes.freezeFirstColumn ?? attributes.freeze,
+      ),
+      liveMdxToggleControl(
+        "sticky",
+        "stickyHeader",
+        "datatable.sticky",
+        attributes.stickyHeader ?? attributes.sticky,
+      ),
+      liveMdxToggleControl(
+        "copy",
+        "copyCsv",
+        "datatable.copy",
+        attributes.copyCsv ?? attributes.copy,
+      ),
+      {
+        kind: "action",
+        id: "edit-body",
+        action: "edit-body",
+        labelKey: datasetView ? "datatable.view" : "datatable.data",
+      },
+    ];
+  }
+
+  if (component === "Timeline") {
+    return [{
+      kind: "action",
+      id: "edit-body",
+      action: "edit-body",
+      labelKey: "timeline.data",
+    }];
+  }
+
+  if (component === "Chart") {
+    const configuredType = String(attributes.type ?? "").trim().toLowerCase();
+    return [
+      {
+        kind: "select",
+        id: "type",
+        attribute: "type",
+        labelKey: "chart.type",
+        value: LIVE_MDX_CHART_TYPES.includes(configuredType) ? configuredType : "",
+        options: ["", ...LIVE_MDX_CHART_TYPES].map((value) => ({
+          value,
+          labelKey: `chart.type.${value || "auto"}`,
+        })),
+      },
+      {
+        kind: "toggle",
+        id: "labels",
+        attribute: "labels",
+        labelKey: "chart.labels",
+        pressed: String(attributes.labels ?? "").trim().toLowerCase() !== "none",
+        enabledValue: null,
+        disabledValue: "none",
+      },
+      {
+        kind: "action",
+        id: "edit-body",
+        action: "edit-body",
+        labelKey: datasetView ? "chart.view" : "chart.data",
+      },
+    ];
+  }
+
+  if (component === "DecisionBox") {
+    const configuredStatus = String(
+      attributes.status ?? attributes.decisionStatus ?? "",
+    ).trim().toLowerCase();
+    return [
+      {
+        kind: "select",
+        id: "status",
+        attribute: "status",
+        aliases: ["decisionStatus"],
+        labelKey: "decision.status",
+        value: LIVE_MDX_DECISION_STATUSES.includes(configuredStatus)
+          ? configuredStatus
+          : "",
+        options: ["", ...LIVE_MDX_DECISION_STATUSES].map((value) => ({
+          value,
+          labelKey: `decision.status.${value || "none"}`,
+        })),
+      },
+      {
+        kind: "action",
+        id: "edit-body",
+        action: "edit-body",
+        labelKey: "decision.data",
+      },
+    ];
+  }
+
+  if (component === "MetricGrid") {
+    return [{
+      kind: "action",
+      id: "edit-body",
+      action: "edit-body",
+      labelKey: "metrics.data",
+    }];
+  }
+
+  if (component === "FlowDiagram") {
+    return [{
+      kind: "action",
+      id: "edit-body",
+      action: "edit-body",
+      labelKey: "flow.data",
+    }];
+  }
+
+  return [];
+}
+
+function liveMdxToggleControl(id, attribute, labelKey, currentValue) {
+  return {
+    kind: "toggle",
+    id,
+    attribute,
+    labelKey,
+    pressed: liveMdxBooleanValue(currentValue),
+    enabledValue: "true",
+    disabledValue: "false",
+  };
+}
+
+function liveMdxBooleanValue(value) {
+  return ["true", "1", "yes", "on"].includes(
+    String(value ?? "").trim().toLowerCase(),
+  );
+}
+
+export function updateMdxLiteComponentAttributes(source, updates = {}) {
+  let nextSource = String(source ?? "");
+  for (const [name, value] of Object.entries(updates)) {
+    nextSource = updateMdxLiteComponentAttribute(nextSource, name, value);
+  }
+  return nextSource;
+}
+
+function updateMdxLiteComponentAttribute(source, name, value) {
+  if (!/^[A-Za-z_][A-Za-z0-9_-]*$/.test(name)) {
+    return source;
+  }
+  if (value !== null && (String(value).includes('"') || /[\r\n]/.test(String(value)))) {
+    return source;
+  }
+
+  const lines = String(source ?? "").split(/\r?\n/);
+  const opening = mdxLiteComponentOpeningAtLines(lines, 0);
+  if (!opening) {
+    return source;
+  }
+
+  const openingLines = lines.slice(0, opening.endIndex + 1);
+  const attributePattern = new RegExp(
+    `(^|\\s+)(${escapeRegularExpression(name)}\\s*=\\s*(?:"[^"]*"|'[^']*'|[^\\s>]+))`,
+  );
+  for (let index = 0; index < openingLines.length; index += 1) {
+    const line = openingLines[index];
+    const match = attributePattern.exec(line);
+    if (!match) {
+      continue;
+    }
+
+    const replacement = value === null
+      ? ""
+      : `${match[1]}${name}="${String(value)}"`;
+    const updatedLine = [
+      line.slice(0, match.index),
+      replacement,
+      line.slice(match.index + match[0].length),
+    ].join("");
+    if (!updatedLine.trim()) {
+      openingLines.splice(index, 1);
+    } else {
+      openingLines[index] = updatedLine;
+    }
+    return [...openingLines, ...lines.slice(opening.endIndex + 1)].join("\n");
+  }
+
+  if (value === null) {
+    return source;
+  }
+
+  const serialized = `${name}="${String(value)}"`;
+  const closingIndex = openingLines.length - 1;
+  const closingLine = openingLines[closingIndex];
+  if (/^\s*\/?>\s*$/.test(closingLine)) {
+    const attributeIndent = openingLines
+      .slice(1, -1)
+      .map((line) => line.match(/^(\s+)\S/)?.[1])
+      .find(Boolean) ?? closingLine.match(/^(\s+)/)?.[1] ?? "  ";
+    openingLines.splice(closingIndex, 0, `${attributeIndent}${serialized}`);
+  } else {
+    openingLines[closingIndex] = closingLine.replace(
+      /(\s*\/?>\s*)$/,
+      ` ${serialized}$1`,
+    );
+  }
+  return [...openingLines, ...lines.slice(opening.endIndex + 1)].join("\n");
+}
+
+function escapeRegularExpression(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+export function liveMdxBodyEditLine(source) {
+  const lines = String(source ?? "").split(/\r?\n/);
+  const block = mdxLiteComponentBlockAtLines(lines, 0);
+  if (!block || block.selfClosing) {
+    return block?.openingEndIndex ?? 0;
+  }
+
+  let lineIndex = block.openingEndIndex + 1;
+  while (lineIndex < block.endIndex && !lines[lineIndex].trim()) {
+    lineIndex += 1;
+  }
+  if (/^(`{3,}|~{3,})/.test(String(lines[lineIndex] ?? "").trim())) {
+    lineIndex += 1;
+  }
+  return lineIndex < block.endIndex ? lineIndex : block.openingEndIndex;
+}
+
+export function createLiveMdxComponentInteraction({
+  getView,
+  getMode,
+  isEditable,
+  locale,
+  documentRoot = globalThis.document,
+  onSelect = () => {},
+}) {
+  const translate = createTranslator(SOURCE_EDITOR_COMPONENT_MESSAGES, locale);
+  let selection = null;
+  let refreshHandle = null;
+
+  const selectionContainer = () => {
+    const view = getView();
+    if (!view || !selection) {
+      return null;
+    }
+    return view.dom.querySelector(
+      `.cm-live-block-preview-mdx[data-live-block-start="${selection.startLine}"]`,
+    );
+  };
+
+  const refreshNow = () => {
+    const view = getView();
+    if (!view) {
+      return;
+    }
+    for (const container of view.dom.querySelectorAll(".cm-live-block-preview-mdx")) {
+      const selected = Boolean(
+        selection &&
+        Number(container.dataset.liveBlockStart) === selection.startLine,
+      );
+      container.classList.toggle("is-selected", selected);
+      const toolbar = container.querySelector(".cm-live-component-toolbar");
+      if (toolbar) {
+        toolbar.hidden = !selected || !isEditable();
+      }
+    }
+
+    const container = selectionContainer();
+    const toolbar = container?.querySelector(".cm-live-component-toolbar");
+    if (!container || !toolbar || toolbar.hidden) {
+      return;
+    }
+    const card = container.querySelector(".cm-live-block-preview-card");
+    positionFloatingControl(toolbar, card?.getBoundingClientRect(), {
+      placement: "table-top",
+      offset: 10,
+      documentRoot,
+    });
+  };
+
+  const scheduleRefresh = () => {
+    if (refreshHandle !== null) {
+      return;
+    }
+    const schedule = globalThis.requestAnimationFrame ??
+      ((callback) => globalThis.setTimeout(callback, 0));
+    refreshHandle = schedule(() => {
+      refreshHandle = null;
+      refreshNow();
+    });
+  };
+
+  const clearSelection = () => {
+    if (!selection) {
+      return;
+    }
+    selection = null;
+    refreshNow();
+  };
+
+  const editSource = (container = selectionContainer(), { body = false } = {}) => {
+    const view = getView();
+    const startLine = Number(container?.dataset.liveBlockStart);
+    const endLine = Number(container?.dataset.liveBlockEnd);
+    if (
+      !view ||
+      getMode() !== "live" ||
+      !isEditable() ||
+      !Number.isInteger(startLine) ||
+      !Number.isInteger(endLine) ||
+      startLine < 1 ||
+      endLine > view.state.doc.lines
+    ) {
+      return false;
+    }
+
+    const start = view.state.doc.line(startLine);
+    const end = view.state.doc.line(endLine);
+    const source = view.state.sliceDoc(start.from, end.to);
+    const relativeLine = body ? liveMdxBodyEditLine(source) : 0;
+    const targetLineNumber = Math.min(endLine, startLine + relativeLine);
+    const targetLine = view.state.doc.line(targetLineNumber);
+    selection = null;
+    refreshNow();
+    view.dispatch({
+      selection: { anchor: targetLine.to },
+      effects: livePreviewEnterEffect.of(true),
+      scrollIntoView: true,
+    });
+    view.focus();
+    return true;
+  };
+
+  const applyAttributes = (container, updates) => {
+    const view = getView();
+    const startLine = Number(container?.dataset.liveBlockStart);
+    const endLine = Number(container?.dataset.liveBlockEnd);
+    if (
+      !view ||
+      getMode() !== "live" ||
+      !isEditable() ||
+      !Number.isInteger(startLine) ||
+      !Number.isInteger(endLine) ||
+      startLine < 1 ||
+      endLine > view.state.doc.lines
+    ) {
+      return false;
+    }
+
+    const start = view.state.doc.line(startLine);
+    const end = view.state.doc.line(endLine);
+    const source = view.state.sliceDoc(start.from, end.to);
+    const nextSource = updateMdxLiteComponentAttributes(source, updates);
+    if (nextSource === source) {
+      return false;
+    }
+    view.dispatch({
+      changes: { from: start.from, to: end.to, insert: nextSource },
+    });
+    scheduleRefresh();
+    return true;
+  };
+
+  const handlePointerDown = (event) => {
+    if (getMode() !== "live") {
+      return false;
+    }
+
+    const container = closestElement(event.target, ".cm-live-block-preview-mdx");
+    if (!container) {
+      clearSelection();
+      return false;
+    }
+    const startLine = Number(container.dataset.liveBlockStart);
+    if (liveMdxTargetIsEmbeddedViewControl(event.target)) {
+      if (selection && selection.startLine !== startLine) {
+        clearSelection();
+      }
+      return true;
+    }
+    if (closestElement(event.target, ".cm-live-component-toolbar")) {
+      return true;
+    }
+
+    if (!Number.isInteger(startLine) || !isEditable()) {
+      return false;
+    }
+    const changed = !selection || selection.startLine !== startLine;
+    selection = {
+      startLine,
+      component: container.dataset.liveMdxComponent || "",
+    };
+    if (changed) {
+      onSelect(selection);
+    }
+    if (!isLiveMdxNativeControl(event.target)) {
+      event.preventDefault();
+    }
+    refreshNow();
+    return true;
+  };
+
+  const handleKeyDown = (event) => {
+    if (getMode() !== "live" || event.key !== "Escape" || !selection) {
+      return false;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    clearSelection();
+    return true;
+  };
+
+  const handleDocumentPointerDown = (event) => {
+    if (!selection) {
+      return false;
+    }
+    const view = getView();
+    if (view?.dom?.contains?.(event.target)) {
+      return false;
+    }
+    clearSelection();
+    return true;
+  };
+
+  const mount = (container, block) => {
+    if (block.type !== "mdx") {
+      return;
+    }
+    container.dataset.liveMdxComponent = block.component || "";
+    prepareLiveMdxComponentToolbar({
+      container,
+      block,
+      translate,
+      documentRoot,
+      applyAttributes,
+      editSource,
+      clearSelection,
+    });
+    scheduleRefresh();
+  };
+
+  const destroy = () => {
+    if (refreshHandle !== null) {
+      const cancel = globalThis.cancelAnimationFrame ?? globalThis.clearTimeout;
+      cancel?.(refreshHandle);
+      refreshHandle = null;
+    }
+    selection = null;
+  };
+
+  return {
+    mount,
+    handlePointerDown,
+    handleDocumentPointerDown,
+    handleKeyDown,
+    refreshPositions: scheduleRefresh,
+    hasSelection: () => Boolean(selection),
+    clearSelection,
+    editSource,
+    applyAttributes,
+    destroy,
+  };
+}
+
+function prepareLiveMdxComponentToolbar({
+  container,
+  block,
+  translate,
+  documentRoot,
+  applyAttributes,
+  editSource,
+  clearSelection,
+}) {
+  if (container.querySelector(".cm-live-component-toolbar")) {
+    return;
+  }
+
+  const toolbar = documentRoot.createElement("div");
+  toolbar.className = "live-edit-toolbar cm-live-component-toolbar";
+  toolbar.setAttribute("role", "toolbar");
+  toolbar.setAttribute("aria-label", translate("toolbar.label"));
+  toolbar.hidden = true;
+  toolbar.addEventListener("pointerdown", (event) => event.stopPropagation());
+
+  const label = documentRoot.createElement("span");
+  label.className = "live-edit-toolbar-label cm-live-component-toolbar-label";
+  label.textContent = block.component || "MDX";
+  toolbar.append(label, createLiveMdxToolbarSeparator(documentRoot));
+
+  for (const control of liveMdxToolbarControlDefinitions(
+    block.component,
+    block.attributes,
+  )) {
+    if (control.kind === "toggle") {
+      const button = createLiveMdxToolbarButton(
+        documentRoot,
+        translate(control.labelKey),
+        translate(control.labelKey),
+      );
+      button.dataset.liveComponentControl = control.id;
+      button.setAttribute("aria-pressed", String(control.pressed));
+      button.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        applyAttributes(container, {
+          [control.attribute]: control.pressed
+            ? control.disabledValue
+            : control.enabledValue,
+        });
+      });
+      toolbar.append(button);
+      continue;
+    }
+
+    if (control.kind === "select") {
+      const select = documentRoot.createElement("select");
+      select.className = "live-edit-toolbar-control cm-live-component-toolbar-select";
+      select.dataset.liveComponentControl = control.id;
+      select.setAttribute("aria-label", translate(control.labelKey));
+      select.title = translate(control.labelKey);
+      for (const optionDefinition of control.options) {
+        const option = documentRoot.createElement("option");
+        option.value = optionDefinition.value;
+        option.textContent = translate(optionDefinition.labelKey);
+        select.append(option);
+      }
+      select.value = control.value;
+      select.addEventListener("change", (event) => {
+        event.stopPropagation();
+        const updates = {
+          [control.attribute]: select.value || null,
+        };
+        for (const alias of control.aliases ?? []) {
+          updates[alias] = null;
+        }
+        applyAttributes(container, updates);
+      });
+      toolbar.append(select);
+      continue;
+    }
+
+    const button = createLiveMdxToolbarButton(
+      documentRoot,
+      translate(control.labelKey),
+      translate(control.labelKey),
+    );
+    button.dataset.liveComponentAction = control.action;
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (control.action === "edit-body") {
+        editSource(container, { body: true });
+      }
+    });
+    toolbar.append(button);
+  }
+
+  toolbar.append(createLiveMdxToolbarSeparator(documentRoot));
+  const sourceButton = createLiveMdxToolbarButton(
+    documentRoot,
+    translate("toolbar.source"),
+    "</>",
+  );
+  sourceButton.dataset.liveComponentAction = "edit-source";
+  sourceButton.classList.add("is-source");
+  sourceButton.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    editSource(container);
+  });
+  toolbar.append(sourceButton);
+
+  const closeButton = createLiveMdxToolbarButton(
+    documentRoot,
+    translate("toolbar.close"),
+    "×",
+  );
+  closeButton.dataset.liveComponentAction = "close";
+  closeButton.classList.add("live-edit-toolbar-close", "is-close");
+  closeButton.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    clearSelection();
+  });
+  toolbar.append(closeButton);
+  container.append(toolbar);
+}
+
+function createLiveMdxToolbarButton(documentRoot, label, text) {
+  const button = documentRoot.createElement("button");
+  button.type = "button";
+  button.className = "live-edit-toolbar-button cm-live-component-toolbar-button";
+  button.setAttribute("aria-label", label);
+  button.title = label;
+  button.textContent = text;
+  return button;
+}
+
+function createLiveMdxToolbarSeparator(documentRoot) {
+  const separator = documentRoot.createElement("span");
+  separator.className = "live-edit-toolbar-separator cm-live-component-toolbar-separator";
+  separator.setAttribute("aria-hidden", "true");
+  return separator;
+}
+
+function isLiveMdxNativeControl(target) {
+  return ["button", "a", "input", "select", "textarea", '[role="button"]']
+    .some((selector) => Boolean(closestElement(target, selector)));
+}
+
+export function liveMdxTargetIsEmbeddedViewControl(target) {
+  return [
+    "[data-dataset-granularity]",
+    "[data-table-search]",
+    "[data-table-freeze]",
+    "[data-table-copy]",
+  ].some((selector) => Boolean(closestElement(target, selector)));
+}
+
 export function createLiveTableInteraction({
   getView,
   getMode,
   isEditable,
   locale,
   documentRoot = globalThis.document,
+  onSelect = () => {},
 }) {
   const translate = createTranslator(SOURCE_EDITOR_TABLE_MESSAGES, locale);
   let selection = null;
@@ -1938,6 +2708,9 @@ export function createLiveTableInteraction({
 
     const info = cellInfo(event.target);
     if (!info || event.button !== 0) {
+      if (!info && event.button === 0 && selection) {
+        clearSelection();
+      }
       return;
     }
 
@@ -1962,6 +2735,7 @@ export function createLiveTableInteraction({
       focusRow: info.row,
       focusColumn: info.column,
     };
+    onSelect(selection);
     pointerSelection = {
       pointerId: event.pointerId,
       startLine: info.startLine,
@@ -2298,7 +3072,7 @@ function prepareLiveTablePreview(container, block, translate) {
 
   const toolbar = document.createElement("div");
   toolbar.className =
-    "cm-live-table-format-toolbar cm-live-table-color-toolbar";
+    "live-edit-toolbar cm-live-table-format-toolbar cm-live-table-color-toolbar";
   toolbar.setAttribute("role", "toolbar");
   toolbar.setAttribute("aria-label", translate("toolbar.label"));
   toolbar.hidden = true;
@@ -2359,6 +3133,7 @@ function prepareLiveTablePreview(container, block, translate) {
     "cm-live-table-toolbar-close",
   );
   closeButton.dataset.liveTableToolbarClose = "true";
+  closeButton.classList.add("live-edit-toolbar-close");
   toolbar.append(closeButton);
 
   const columnHandle = document.createElement("button");
@@ -2377,7 +3152,7 @@ function prepareLiveTablePreview(container, block, translate) {
 function createLiveTableToolbarButton(label, text = "", modifier = "") {
   const button = document.createElement("button");
   button.type = "button";
-  button.className = "cm-live-table-format-button";
+  button.className = "live-edit-toolbar-button cm-live-table-format-button";
   if (modifier) {
     button.classList.add(modifier);
   }
@@ -2395,7 +3170,7 @@ function createLiveTableToolbarButton(label, text = "", modifier = "") {
 
 function createLiveTableToolbarSeparator() {
   const separator = document.createElement("span");
-  separator.className = "cm-live-table-format-separator";
+  separator.className = "live-edit-toolbar-separator cm-live-table-format-separator";
   separator.setAttribute("aria-hidden", "true");
   return separator;
 }
@@ -3095,9 +3870,13 @@ function lineNumberFromGutterEvent(event, view) {
   return Number.isInteger(pos) ? view.state.doc.lineAt(pos).number : null;
 }
 
-function isLiveBlankClick(event) {
+export function isLiveBlankClick(event) {
   const target = event.target?.closest ? event.target : event.target?.parentElement;
   if (!target) {
+    return false;
+  }
+
+  if (target.closest?.(".live-edit-toolbar")) {
     return false;
   }
 
@@ -3183,6 +3962,7 @@ function buildLiveMarkdownDecorations(state, { suppressActiveLine = false } = {}
   const builder = new RangeSetBuilder();
   const renderOptions = state.facet(liveRenderOptionsFacet);
   const tableInteraction = state.facet(liveTableInteractionFacet);
+  const componentInteraction = state.facet(liveMdxComponentInteractionFacet);
   let inFrontmatter = false;
   let inCodeBlock = false;
   let mdxComponentName = null;
@@ -3208,6 +3988,7 @@ function buildLiveMarkdownDecorations(state, { suppressActiveLine = false } = {}
             previewBlock,
             renderOptions,
             tableInteraction,
+            componentInteraction,
           ),
         }),
       );
@@ -3679,6 +4460,9 @@ export function livePreviewBlocksForSource(source, { activeLineNumber = null } =
         blocks.push({
           type: "mdx",
           component: mdxBlock.component,
+          attributes: mdxBlock.attributes,
+          openingEndIndex: mdxBlock.openingEndIndex - index,
+          selfClosing: mdxBlock.selfClosing,
           startLine,
           endLine,
           source: lines.slice(index, mdxBlock.endIndex + 1).join("\n"),
@@ -3710,9 +4494,7 @@ export function livePreviewHtmlForBlock(source, renderOptions = {}) {
 }
 
 export function liveBlockPreviewIgnoresEvent(block, eventTarget) {
-  return block?.type === "table" || Boolean(
-    eventTarget?.closest?.("[data-dataset-granularity]"),
-  );
+  return block?.type === "table" || block?.type === "mdx";
 }
 
 function liveImagePreviewBlockAt(lines, index) {
@@ -3734,9 +4516,7 @@ function isSafeHtmlImageLine(line) {
 
 function liveMdxPreviewBlockAt(lines, index) {
   const block = mdxLiteComponentBlockAtLines(lines, index);
-  return block
-    ? { component: block.component, endIndex: block.endIndex }
-    : null;
+  return block;
 }
 
 function liveMarkdownTableBlockAt(lines, index) {
@@ -3870,11 +4650,17 @@ function addDelimitedRanges({
 }
 
 class LiveBlockPreviewWidget extends WidgetType {
-  constructor(block, renderOptions = {}, tableInteraction = null) {
+  constructor(
+    block,
+    renderOptions = {},
+    tableInteraction = null,
+    componentInteraction = null,
+  ) {
     super();
     this.block = block;
     this.renderOptions = renderOptions;
     this.tableInteraction = tableInteraction;
+    this.componentInteraction = componentInteraction;
   }
 
   eq(other) {
@@ -3902,6 +4688,7 @@ class LiveBlockPreviewWidget extends WidgetType {
     enhanceImageLoadStates(card);
     container.append(card);
     this.tableInteraction?.mount?.(container, this.block);
+    this.componentInteraction?.mount?.(container, this.block);
     return container;
   }
 

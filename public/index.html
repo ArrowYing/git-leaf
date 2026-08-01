@@ -457,21 +457,38 @@
             <button id="copy-selection-popover" type="button" data-i18n="action.copyContent">复制内容</button>
             <button id="add-selection-agent-context" type="button" data-i18n="action.addToContext">加入上下文</button>
           </div>
-          <div id="image-popover" class="image-popover" hidden>
+          <div
+            id="image-popover"
+            class="image-popover live-edit-toolbar"
+            role="toolbar"
+            aria-label="图片操作"
+            data-i18n-aria-label="aria.imageActions"
+            hidden
+          >
             <button type="button" data-image-action="align-left" data-i18n="action.alignLeft">左对齐</button>
             <button type="button" data-image-action="align-center" data-i18n="action.alignCenter">居中</button>
             <button type="button" data-image-action="shrink" data-i18n="action.shrink">缩小</button>
             <button type="button" data-image-action="grow" data-i18n="action.grow">放大</button>
             <button type="button" data-image-action="caption" data-i18n="action.caption">说明</button>
+            <button class="live-edit-toolbar-close" type="button" data-image-action="close" aria-label="关闭" data-i18n-aria-label="action.close">×</button>
           </div>
-          <div id="link-popover" class="link-popover" hidden>
+          <div
+            id="link-popover"
+            class="link-popover live-edit-toolbar"
+            role="toolbar"
+            aria-label="链接操作"
+            data-i18n-aria-label="aria.linkActions"
+            hidden
+          >
             <button type="button" data-link-action="edit" data-i18n="action.editLink">修改链接</button>
             <button type="button" data-link-action="open" data-i18n="action.openLink">打开链接</button>
             <button type="button" data-link-action="open-tab" data-i18n="action.openInNewTab">新标签页</button>
+            <button class="live-edit-toolbar-close" type="button" data-link-action="close" aria-label="关闭" data-i18n-aria-label="action.close">×</button>
           </div>
           <div
             id="frontmatter-field-popover"
-            class="frontmatter-field-popover"
+            class="frontmatter-field-popover live-edit-toolbar"
+            role="toolbar"
             aria-label="Frontmatter 字段操作"
             data-i18n-aria-label="aria.frontmatterFieldActions"
             hidden

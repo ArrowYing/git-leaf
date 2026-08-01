@@ -157,6 +157,33 @@ metric data normally uses an array; FlowDiagram normally uses an object with `no
 - Controlled images may appear in Markdown table cells, same-line image groups, or an image-only
   `<p>...</p>` without enabling arbitrary HTML.
 
+## Live editing controls
+
+Clicking an MDX-lite component in Live selects the rendered block and keeps it visual. A compact toolbar
+appears above the component; clicking the rendered surface no longer opens the whole block as source.
+The toolbar has the same surface, close button, Escape behavior, and single-active-target rule as the
+existing Live controls for native tables, controlled images, links, and frontmatter fields. Preview
+remains read-only.
+
+The first toolbar version deliberately exposes only bounded, common operations:
+
+| Component | Live toolbar controls |
+| --- | --- |
+| `DataTable` | Search, freeze-first-column, sticky-header, and Copy CSV settings; edit inline data or the external view definition |
+| `Timeline` | Edit event data |
+| `Chart` | Chart type, value-label visibility, and edit inline data or the external view definition |
+| `DecisionBox` | Decision status and edit decision data |
+| `MetricGrid` | Edit metric data |
+| `FlowDiagram` | Edit flow data |
+
+An **Edit data**, **Edit events**, **Edit decision**, **Edit metrics**, or **Edit flow** action reveals the
+component body at its fenced data. The `</>` action reveals the complete component source. Fixed toolbar
+settings write the original MDX in one editor transaction; there is no separate visual component model.
+Unsupported or uncommon settings continue to use Source.
+
+External-dataset day, week, month, and quarter buttons are not editing toolbar controls. They remain
+inside the rendered `Chart` or `DataTable`, change transient reading state only, and never write MDX.
+
 ## External dataset views
 
 Use an external dataset when a report maintains complete time-series history over months or years and several
@@ -177,7 +204,7 @@ documents need bounded human views of the same data. This capability extends the
 />
 ```
 
-The toolbar changes only transient view state and exposes only intervals supported by the manifest's
+The interval controls change only transient view state and expose only intervals supported by the manifest's
 source granularity. A chart also omits an interval when the current query range would produce more than
 120 plotted periods. If the configured or remembered interval is too dense, Git Leaf selects the finest
 remaining readable interval. This density rule applies only to charts; a `DataTable` keeps its explicitly

@@ -2646,40 +2646,84 @@ summary.has-operation-feedback {
   color: var(--accent-text);
 }
 
+.live-edit-toolbar {
+  display: inline-flex;
+  gap: 3px;
+  align-items: center;
+  min-height: 36px;
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  background: var(--panel);
+  padding: 4px;
+  box-shadow: var(--shadow-lg);
+  white-space: nowrap;
+  user-select: none;
+}
+
+.live-edit-toolbar[hidden] {
+  display: none;
+}
+
+.live-edit-toolbar button,
+.live-edit-toolbar-button,
+.live-edit-toolbar-control {
+  min-height: 28px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 0 8px;
+  white-space: nowrap;
+}
+
+.live-edit-toolbar button:hover,
+.live-edit-toolbar button:focus-visible,
+.live-edit-toolbar-button:hover,
+.live-edit-toolbar-button:focus-visible,
+.live-edit-toolbar-control:hover,
+.live-edit-toolbar-control:focus-visible {
+  background: var(--panel-weak);
+  outline: none;
+}
+
+.live-edit-toolbar button[aria-pressed="true"],
+.live-edit-toolbar-button[aria-pressed="true"] {
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+.live-edit-toolbar-label {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.live-edit-toolbar-separator {
+  flex: 0 0 1px;
+  width: 1px;
+  height: 20px;
+  margin: 0 1px;
+  background: var(--panel-border);
+}
+
+.live-edit-toolbar .live-edit-toolbar-close {
+  min-width: 28px;
+  margin-left: 1px;
+  padding: 0 6px;
+  box-shadow: inset 1px 0 0 var(--panel-border);
+  font-size: 18px;
+  font-weight: 350;
+}
+
 .image-popover,
 .link-popover,
 .frontmatter-field-popover {
   position: absolute;
   z-index: 6;
-  display: flex;
-  gap: 4px;
-  align-items: center;
-  border: 1px solid var(--panel-border);
-  border-radius: 6px;
-  background: var(--panel);
-  padding: 4px;
-  box-shadow: var(--shadow-md);
-}
-
-.image-popover[hidden],
-.link-popover[hidden],
-.frontmatter-field-popover[hidden] {
-  display: none;
-}
-
-.image-popover button,
-.link-popover button,
-.frontmatter-field-popover button {
-  min-height: 28px;
-  border: 0;
-  border-radius: 4px;
-  background: transparent;
-  color: var(--text);
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 700;
-  padding: 0 8px;
-  white-space: nowrap;
 }
 
 .frontmatter-field-popover input,
@@ -2687,19 +2731,12 @@ summary.has-operation-feedback {
   max-width: 180px;
   min-height: 28px;
   border: 1px solid var(--panel-border);
-  border-radius: 4px;
+  border-radius: 6px;
   background: var(--input-bg);
   color: var(--text);
   font-size: 12px;
   font-weight: 650;
   padding: 0 24px 0 8px;
-}
-
-.image-popover button:hover,
-.link-popover button:hover,
-.frontmatter-field-popover button:hover {
-  background: var(--accent-soft);
-  color: var(--accent-text);
 }
 
 .cm-live-link-text.is-selected {
@@ -3449,7 +3486,7 @@ summary.has-operation-feedback {
 }
 
 .git-leaf-image-frame.is-selected img {
-  outline: 3px solid #facc15;
+  outline: 2px solid var(--accent);
   outline-offset: 3px;
 }
 
@@ -3925,19 +3962,43 @@ tr:last-child td {
   padding: 0;
 }
 
+.cm-live-block-preview-mdx .cm-live-block-preview-card {
+  border-radius: 10px;
+  transition: box-shadow 100ms ease;
+}
+
+.cm-live-block-preview-mdx.is-selected .cm-live-block-preview-card {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.cm-live-component-toolbar {
+  position: fixed;
+  z-index: 46;
+  max-width: calc(100vw - 16px);
+  overflow-x: auto;
+}
+
+.cm-live-component-toolbar-label {
+  padding: 0 7px;
+}
+
+.cm-live-component-toolbar-button {
+  padding: 0 8px;
+}
+
+.cm-live-component-toolbar-select {
+  max-width: 128px;
+  padding: 0 24px 0 8px;
+}
+
+.cm-live-component-toolbar-button.is-source {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
 .cm-live-table-format-toolbar {
   position: fixed;
   z-index: 45;
-  display: inline-flex;
-  gap: 2px;
-  align-items: center;
-  min-height: 36px;
   max-width: calc(100vw - 16px);
-  border: 1px solid var(--panel-border);
-  border-radius: 10px;
-  background: var(--panel);
-  box-shadow: var(--shadow-lg);
-  padding: 4px;
 }
 
 .cm-live-table-format-toolbar[hidden],

@@ -230,6 +230,19 @@ remains source-editable; inactive Markdown syntax and allowlisted blocks may sho
 editing controls. Every change still writes the original Markdown or MDX file. Live must never introduce
 a second rich-text data model.
 
+Within Live, contextual editing controls form one interaction family across native tables, controlled images,
+links, frontmatter fields, and MDX-lite components. Only one editing target is active at a time. Its
+toolbar is anchored above the target, uses the same control sizing and selected-state treatment, and
+closes from its close button, Escape, or a different target. The MDX-lite editing toolbar is Live-only.
+The controls remain object-specific: a table exposes formatting, an image exposes image actions, and an
+MDX-lite component exposes only a few safe component settings plus explicit body-source and whole-source
+actions. Clicking a rendered MDX-lite surface selects it without moving CodeMirror into the component
+source.
+
+Controls rendered inside a component for reading are not contextual editing toolbars. In particular,
+external-dataset interval buttons remain part of `Chart` or `DataTable`, change only transient view state,
+and neither select the component nor write MDX.
+
 Native Markdown tables remain rendered in Live while the user works with them. Clicking a cell edits
 that cell's source without replacing the whole table with raw pipe syntax. Pointer dragging, including
 a gesture that starts in the active cell editor and crosses into another cell, selects the contiguous
@@ -288,7 +301,7 @@ typed rows, and runs the shared bounded query engine. The engine supports inclus
 equality filters, ascending natural periods, and manifest-declared day, week, month, or quarter rollups.
 The browser receives ordinary component HTML plus provenance and completeness metadata.
 
-The interval toolbar is transient UI state shared by the Preview and Live views for the current document
+The interval controls are transient UI state shared by the Preview and Live views for the current document
 session. Switching an interval never writes source. No dataset request executes user code, imports,
 network access, SQL, joins, or arbitrary formulas. Missing dates remain absent and are reported; partial
 periods are labelled rather than silently treated as complete. A dependency fingerprint covers each

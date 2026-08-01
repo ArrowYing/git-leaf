@@ -2673,6 +2673,7 @@ function ensureSourceEditor() {
     onImageClick: selectImageBlock,
     onLinkClick: selectLiveLink,
     onFrontmatterClick: selectLiveFrontmatterField,
+    onContextToolbarSelect: clearWorkbenchLiveEditToolbar,
     onPasteImage: pasteImageAsset,
     onPasteText: pasteTextLink,
     onSlashCommand: runSlashCommand,
@@ -7150,6 +7151,11 @@ function handleDocumentKeydown(event) {
     frontmatterFilterToggle.focus();
     return;
   }
+  if (event.key === "Escape" && closeActiveLiveEditToolbar()) {
+    event.preventDefault();
+    event.stopPropagation();
+    return;
+  }
   if (event.key !== "Escape" || state.selectedLines.size === 0) {
     return;
   }
@@ -7160,6 +7166,20 @@ function handleDocumentKeydown(event) {
 
   event.preventDefault();
   clearLineSelection();
+}
+
+function closeActiveLiveEditToolbar() {
+  const wasActive = !frontmatterFieldPopover.hidden ||
+    !linkPopover.hidden ||
+    !imagePopover.hidden;
+  clearWorkbenchLiveEditToolbar();
+  return wasActive;
+}
+
+function clearWorkbenchLiveEditToolbar() {
+  clearActiveFrontmatterField();
+  clearActiveLink();
+  clearActiveImage();
 }
 
 function handleDocumentChromeClick(event) {
@@ -8499,6 +8519,8 @@ function selectImageBlock({ line, image }) {
 
   clearLineSelection();
   clearActiveLink();
+  clearActiveFrontmatterField();
+  state.sourceEditor.clearLiveContextSelection?.();
   state.activeImage = {
     line,
     element: image,
@@ -8537,11 +8559,7 @@ function positionImagePopover() {
 
   imagePopover.hidden = false;
   const imageRect = image.getBoundingClientRect();
-  const paneRect = previewPane.getBoundingClientRect();
-  const left = Math.max(12, imageRect.left - paneRect.left);
-  const top = Math.max(12, imageRect.top - paneRect.top - imagePopover.offsetHeight - 8);
-  imagePopover.style.left = `${left}px`;
-  imagePopover.style.top = `${top}px`;
+  positionLiveEditToolbar(imagePopover, imageRect);
 }
 
 function activeImageElement() {
@@ -8565,6 +8583,8 @@ function selectLiveLink({ line, from, to, text, href, element }) {
 
   clearLineSelection();
   clearActiveImage();
+  clearActiveFrontmatterField();
+  state.sourceEditor.clearLiveContextSelection?.();
   state.activeLink = {
     line,
     from,
@@ -8606,11 +8626,7 @@ function positionLinkPopover() {
 
   linkPopover.hidden = false;
   const linkRect = link.getBoundingClientRect();
-  const paneRect = previewPane.getBoundingClientRect();
-  const left = Math.max(12, linkRect.left - paneRect.left);
-  const top = Math.max(12, linkRect.top - paneRect.top - linkPopover.offsetHeight - 8);
-  linkPopover.style.left = `${left}px`;
-  linkPopover.style.top = `${top}px`;
+  positionLiveEditToolbar(linkPopover, linkRect);
 }
 
 function activeLinkElement() {
@@ -8639,6 +8655,7 @@ function selectLiveFrontmatterField({ line, key, value, element }) {
   clearLineSelection();
   clearActiveImage();
   clearActiveLink();
+  state.sourceEditor.clearLiveContextSelection?.();
   state.activeFrontmatterField = {
     line,
     key,
@@ -8684,6 +8701,7 @@ function renderFrontmatterFieldPopover() {
   actions.push(
     `<button type="button" data-frontmatter-field-action="add">${escapeHtml(t("action.addField"))}</button>`,
     `<button type="button" data-frontmatter-field-action="delete">${escapeHtml(t("action.delete"))}</button>`,
+    `<button class="live-edit-toolbar-close" type="button" data-frontmatter-field-action="close" aria-label="${escapeHtml(t("action.close"))}">×</button>`,
   );
   frontmatterFieldPopover.innerHTML = actions.join("");
 }
@@ -8748,11 +8766,22 @@ function positionFrontmatterFieldPopover() {
 
   frontmatterFieldPopover.hidden = false;
   const fieldRect = field.getBoundingClientRect();
+  positionLiveEditToolbar(frontmatterFieldPopover, fieldRect);
+}
+
+function positionLiveEditToolbar(toolbar, anchorRect) {
   const paneRect = previewPane.getBoundingClientRect();
-  const left = Math.max(12, fieldRect.left - paneRect.left);
-  const top = Math.max(12, fieldRect.top - paneRect.top - frontmatterFieldPopover.offsetHeight - 8);
-  frontmatterFieldPopover.style.left = `${left}px`;
-  frontmatterFieldPopover.style.top = `${top}px`;
+  const maxLeft = Math.max(12, paneRect.width - toolbar.offsetWidth - 12);
+  const left = Math.min(
+    maxLeft,
+    Math.max(12, anchorRect.left - paneRect.left),
+  );
+  const top = Math.max(
+    12,
+    anchorRect.top - paneRect.top - toolbar.offsetHeight - 8,
+  );
+  toolbar.style.left = `${Math.round(left)}px`;
+  toolbar.style.top = `${Math.round(top)}px`;
 }
 
 function activeFrontmatterFieldElement() {
@@ -8776,6 +8805,10 @@ async function handleFrontmatterFieldPopoverClick(event) {
   }
 
   const action = button.dataset.frontmatterFieldAction;
+  if (action === "close") {
+    clearActiveFrontmatterField();
+    return;
+  }
   if (action === "edit") {
     await editActiveFrontmatterField();
     return;
@@ -8989,6 +9022,10 @@ async function handleLinkPopoverClick(event) {
   }
 
   const action = button.dataset.linkAction;
+  if (action === "close") {
+    clearActiveLink();
+    return;
+  }
   if (action === "edit") {
     await editActiveLiveLink();
     return;
@@ -9188,6 +9225,10 @@ async function handleImagePopoverClick(event) {
   const lines = source.split(/\r?\n/);
   const currentLine = lines[line - 1] ?? "";
   const action = button.dataset.imageAction;
+  if (action === "close") {
+    clearActiveImage();
+    return;
+  }
   const options = {};
   if (action === "caption") {
     const currentCaption = imageLineAttributes(currentLine)?.["data-caption"] ?? "";

@@ -254,6 +254,34 @@ test("the table-top toolbar closes through its close button and Escape", async (
   assert.equal(cell.querySelector(".cm-live-table-cell-editor"), null);
 });
 
+test("selecting another Live object closes the table toolbar", async () => {
+  const fixture = liveTableFixture();
+  const cell = fixture.cell(1, 1);
+  fixture.interaction.handlePointerDown(pointerEvent(cell, {
+    pointerId: 20,
+    clientX: 280,
+    clientY: 260,
+  }));
+  fixture.interaction.handlePointerUp(pointerEvent(cell, {
+    pointerId: 20,
+    clientX: 280,
+    clientY: 260,
+  }));
+  assert.equal(fixture.toolbar.hidden, false);
+
+  const image = fixture.document.createElement("img");
+  fixture.root.append(image);
+  fixture.interaction.handlePointerDown(pointerEvent(image, {
+    pointerId: 21,
+    clientX: 500,
+    clientY: 420,
+  }));
+  await nextTask();
+
+  assert.deepEqual(fixture.selectedCoordinates(), []);
+  assert.equal(fixture.toolbar.hidden, true);
+});
+
 test("the Live table toolbar formats a rectangular range and aligns its columns", async () => {
   const fixture = liveTableFixture();
   const first = fixture.cell(1, 1);

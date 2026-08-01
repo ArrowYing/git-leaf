@@ -114,6 +114,12 @@ same source:
 Live is the normal choice for a small correction. It is not a second rich-text document: the text still
 belongs to the repository and remains readable to agents and other tools.
 
+Live uses one contextual editing pattern for controlled images, links, frontmatter fields, native
+tables, and MDX-lite components. Only one object is active at a time, its compact toolbar stays above
+the object, and the toolbar closes with its close button, Escape, or selection of another object.
+Clicking an MDX-lite component keeps it rendered; use the toolbar's data action for its fenced body or
+`</>` for the complete component source. Preview does not show the MDX-lite editing toolbar.
+
 In a native Markdown table, click a cell to edit only that cell's source. You can start a drag while that
 cell is still being edited; crossing into neighboring cells selects the rectangle between the start and
 end cells in any direction. The formatting toolbar stays above the table and applies bold, italic,
@@ -145,7 +151,8 @@ For a long-running report, the complete CSV, TSV, or JSON may live beside the do
 then use the buttons above it to select only views supported by the declared source granularity. Daily
 sources offer day, week, month, and quarter; weekly sources offer only week. The buttons change only the
 view and never rewrite the report or source data. Git Leaf calls out missing source periods and incomplete
-display periods.
+display periods. These interval controls belong to the rendered component; they are not Live editing
+toolbars and do not select the component.
 When a spreadsheet or BI export has presentation-only, duplicate, or multiline headers, its sidecar can
 select the intended physical columns explicitly; the source file stays unchanged.
 
