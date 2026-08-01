@@ -10,6 +10,8 @@ const QUERY_KEYS = new Set(["from", "to", "where"]);
 const FILTER_OPERATORS = new Set(["eq", "notEq", "in", "notIn"]);
 const MAX_OUTPUT_ROWS = 5_000;
 const MAX_RANGE_DAYS = 10_000;
+// The 796 px chart plot keeps roughly one marker-width per period at this limit.
+const MAX_READABLE_CHART_PERIODS = 120;
 
 export function queryDataset({
   manifest,
@@ -26,11 +28,11 @@ export function queryDataset({
     throw datasetQueryError("Dataset manifest has an invalid sourceGranularity.");
   }
   const requestedGranularities = normalizeGranularityOptions(granularityOptions);
-  const availableGranularities = datasetGranularitiesForSource(
+  const sourceCompatibleGranularities = datasetGranularitiesForSource(
     sourceGranularity,
     requestedGranularities,
   );
-  if (availableGranularities.length === 0) {
+  if (sourceCompatibleGranularities.length === 0) {
     throw datasetQueryError(
       `granularityOptions does not include a view supported by ${sourceGranularity} source data.`,
     );
@@ -39,12 +41,12 @@ export function queryDataset({
   if (requestedGranularity !== "auto" && !isDatasetGranularity(requestedGranularity)) {
     throw datasetQueryError(`Unsupported granularity: ${granularity}.`);
   }
-  const selectedGranularity = requestedGranularity === "auto"
-    ? availableGranularities[0]
-    : requestedGranularity;
-  if (!availableGranularities.includes(selectedGranularity)) {
+  if (
+    requestedGranularity !== "auto"
+    && !sourceCompatibleGranularities.includes(requestedGranularity)
+  ) {
     throw datasetQueryError(
-      `${selectedGranularity} view is unavailable for ${sourceGranularity} source data. Available: ${availableGranularities.join(", ")}.`,
+      `${requestedGranularity} view is unavailable for ${sourceGranularity} source data. Available: ${sourceCompatibleGranularities.join(", ")}.`,
     );
   }
 
@@ -94,6 +96,27 @@ export function queryDataset({
   if (dateDistance(effectiveFrom, effectiveTo) + 1 > MAX_RANGE_DAYS) {
     throw datasetQueryError(`Dataset query range must not exceed ${MAX_RANGE_DAYS} days.`);
   }
+  const chartPeriodCounts = component === "Chart"
+    ? Object.fromEntries(sourceCompatibleGranularities.map((candidate) => [
+        candidate,
+        bucketCount(sortedRows, timeField, candidate, manifest.time.weekStartsOn),
+      ]))
+    : {};
+  const readableGranularities = component === "Chart"
+    ? sourceCompatibleGranularities.filter(
+        (candidate) => chartPeriodCounts[candidate] <= MAX_READABLE_CHART_PERIODS,
+      )
+    : sourceCompatibleGranularities;
+  const availableGranularities = readableGranularities.length > 0
+    ? readableGranularities
+    : [sourceCompatibleGranularities.at(-1)];
+  const densityLimitedGranularities = sourceCompatibleGranularities.filter(
+    (candidate) => !availableGranularities.includes(candidate),
+  );
+  const selectedGranularity = requestedGranularity === "auto"
+    || !availableGranularities.includes(requestedGranularity)
+    ? availableGranularities[0]
+    : requestedGranularity;
   const buckets = new Map();
   for (const row of sortedRows) {
     const key = bucketStart(row[timeField], selectedGranularity, manifest.time.weekStartsOn);
@@ -183,6 +206,7 @@ export function queryDataset({
       datasetTitle: manifest.title || manifest.id,
       sourceGranularity,
       availableGranularities,
+      densityLimitedGranularities,
       granularity: selectedGranularity,
       from: effectiveFrom,
       to: effectiveTo,
@@ -198,6 +222,12 @@ export function queryDataset({
       partialPeriods: partialPeriods.slice(0, 20),
     },
   };
+}
+
+function bucketCount(rows, timeField, granularity, weekStartsOn) {
+  return new Set(
+    rows.map((row) => bucketStart(row[timeField], granularity, weekStartsOn)),
+  ).size;
 }
 
 function componentFields({ component, attributes, manifest, xKey }) {

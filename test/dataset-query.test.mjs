@@ -65,6 +65,57 @@ test("queryDataset aggregates two years of daily rows into natural quarters", ()
   assert.equal(result.meta.partialPeriodCount, 0);
 });
 
+test("long-running charts hide time views that would render too many points", () => {
+  const rows = dailyRows("2024-08-01", "2026-07-31");
+  const result = queryDataset({
+    manifest,
+    rows,
+    component: "Chart",
+    attributes: {
+      x: "period",
+      series: "revenue,users",
+      from: "2024-08-01",
+      to: "2026-07-31",
+    },
+    granularity: "month",
+    granularityOptions: ["day", "week", "month", "quarter"],
+  });
+
+  assert.deepEqual(result.meta.availableGranularities, ["week", "month", "quarter"]);
+  assert.deepEqual(result.meta.densityLimitedGranularities, ["day"]);
+  assert.equal(result.meta.granularity, "month");
+  assert.equal(result.rows.length, 24);
+});
+
+test("long-running charts replace an overly dense requested view with the finest readable view", () => {
+  const result = queryDataset({
+    manifest,
+    rows: dailyRows("2024-08-01", "2026-07-31"),
+    component: "Chart",
+    attributes: { x: "period", series: "revenue" },
+    granularity: "day",
+    granularityOptions: ["day", "week", "month", "quarter"],
+  });
+
+  assert.equal(result.meta.granularity, "week");
+  assert.equal(result.rows.length, 105);
+});
+
+test("long-running data tables keep explicitly requested daily rows", () => {
+  const result = queryDataset({
+    manifest,
+    rows: dailyRows("2024-08-01", "2026-07-31"),
+    component: "DataTable",
+    attributes: { columns: "date,revenue" },
+    granularity: "day",
+    granularityOptions: ["day", "week", "month", "quarter"],
+  });
+
+  assert.deepEqual(result.meta.availableGranularities, ["day", "week", "month", "quarter"]);
+  assert.deepEqual(result.meta.densityLimitedGranularities, []);
+  assert.equal(result.rows.length, 730);
+});
+
 test("queryDataset sorts daily source rows and keeps missing dates visible as metadata", () => {
   const rows = dailyRows("2026-01-01", "2026-01-10")
     .filter((row) => row.date !== "2026-01-04")

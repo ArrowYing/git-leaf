@@ -178,8 +178,11 @@ documents need bounded human views of the same data. This capability extends the
 ```
 
 The toolbar changes only transient view state and exposes only intervals supported by the manifest's
-source granularity. Clicking an available interval sends a finite request to Git Leaf's localhost service.
-The service reads and validates repository files, applies the
+source granularity. A chart also omits an interval when the current query range would produce more than
+120 plotted periods. If the configured or remembered interval is too dense, Git Leaf selects the finest
+remaining readable interval. This density rule applies only to charts; a `DataTable` keeps its explicitly
+requested source-compatible intervals. Clicking an available interval sends a finite request to Git
+Leaf's localhost service. The service reads and validates repository files, applies the
 manifest rollups, sorts periods ascending, and returns normal `Chart` or `DataTable` markup. It does not
 write the MDX or data files. Quarter means a natural calendar quarter and is labelled like `2026-Q1`.
 

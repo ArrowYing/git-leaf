@@ -156,8 +156,9 @@ month,volume,completionRate
 
 ### External daily dataset
 
-The source CSV remains a full daily dataset. The same component can switch among day, week, month, and
-natural-quarter views without rewriting this MDX file.
+The source CSV remains a full daily dataset. For this bounded range, the same component can switch among
+day, week, month, and natural-quarter views without rewriting this MDX file. On longer ranges, Git Leaf
+automatically omits intervals that would put more than 120 periods into one chart.
 
 <Chart
   title="Daily company revenue and expense"
