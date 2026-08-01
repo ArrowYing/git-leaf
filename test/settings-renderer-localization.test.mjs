@@ -20,8 +20,12 @@ test("settings page exposes bounded language and Git check choices and stays hid
   const remoteCheckValues = [
     ...html.matchAll(/<option value="([^"]+)" data-i18n="gitRemoteCheckEvery/g),
   ].map((match) => Number(match[1]));
+  const documentTitleValues = [
+    ...html.matchAll(/name="showDocumentTitles"\s+value="([^"]+)"/g),
+  ].map((match) => match[1]);
   assert.deepEqual(languageValues, ["system", "en", "zh-CN"]);
   assert.deepEqual(remoteCheckValues, [1, 2, 5, 10, 30, 60, 120]);
+  assert.deepEqual(documentTitleValues, ["true", "false"]);
   assert.match(html, /<html lang="en" data-settings-ready="false">/);
   assert.equal(
     [...html.matchAll(/class="section-kicker"\s+data-i18n="([^"]+)"/g)].length,
@@ -65,6 +69,39 @@ test("settings renderer persists a selected Git remote check interval as minutes
 
   assert.equal(harness.savedPatches.length, 1);
   assert.equal(harness.savedPatches[0].gitRemoteCheckIntervalMinutes, 30);
+});
+
+test("settings renderer persists the document-title toggle as a boolean", async () => {
+  const source = await readFile(SETTINGS_RENDERER_PATH, "utf8");
+  const initialModel = settingsModel({
+    language: "en",
+    resolvedLanguage: "en",
+    helpTitle: "Repository files",
+  });
+  const harness = createRendererHarness({
+    initialModel,
+    saveResponse: {
+      ok: true,
+      preferences: {
+        ...initialModel.preferences,
+        showDocumentTitles: false,
+      },
+    },
+  });
+
+  vm.runInNewContext(source, harness.context, {
+    filename: SETTINGS_RENDERER_PATH,
+  });
+  await settle();
+
+  assert.equal(harness.radio("showDocumentTitles", "true").checked, true);
+  const hiddenInput = harness.radio("showDocumentTitles", "false");
+  hiddenInput.checked = true;
+  harness.document.dispatch("change", { target: hiddenInput });
+  await settle();
+
+  assert.equal(harness.savedPatches.length, 1);
+  assert.equal(harness.savedPatches[0].showDocumentTitles, false);
 });
 
 test("settings renderer applies resolved language and rehydrates a full model after saving", async () => {
@@ -252,6 +289,7 @@ function settingsModel({ language, resolvedLanguage, helpTitle }) {
       documentFont: "system-sans",
       documentFontSize: 16,
       fileTreeMode: "content",
+      showDocumentTitles: true,
       gitRemoteCheckIntervalMinutes: 10,
     },
     resolvedLanguage,
@@ -312,6 +350,7 @@ function createRendererHarness({
     colorMode: ["system", "light", "dark"],
     documentFont: ["system-sans", "reading-serif"],
     fileTreeMode: ["content", "all"],
+    showDocumentTitles: ["true", "false"],
   })) {
     for (const value of values) {
       radios.set(`${name}:${value}`, new FakeInputElement({

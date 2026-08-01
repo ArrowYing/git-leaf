@@ -36,6 +36,7 @@ const NEW_INSTALL_PREFERENCES = {
   documentFont: "system-sans",
   documentFontSize: 16,
   fileTreeMode: "content",
+  showDocumentTitles: true,
   gitRemoteCheckIntervalMinutes: 10,
 };
 
@@ -45,6 +46,7 @@ const LEGACY_PREFERENCES = {
   documentFont: "system-sans",
   documentFontSize: 16,
   fileTreeMode: "all",
+  showDocumentTitles: true,
   gitRemoteCheckIntervalMinutes: 10,
 };
 
@@ -330,6 +332,7 @@ test("readDesktopConfig normalizes an invalid document font size", async () => {
       documentFont: "reading-serif",
       documentFontSize: 16,
       fileTreeMode: "content",
+      showDocumentTitles: true,
       gitRemoteCheckIntervalMinutes: 10,
     },
   });
@@ -513,6 +516,7 @@ test("saveDesktopPreferences persists normalized app preferences across reposito
       documentFont: "reading-serif",
       documentFontSize: 18,
       fileTreeMode: "content",
+      showDocumentTitles: false,
       gitRemoteCheckIntervalMinutes: 60,
       treeDirectories: {
         "docs-repo:all": {
@@ -568,6 +572,7 @@ test("saveDesktopPreferences persists normalized app preferences across reposito
       documentFont: "reading-serif",
       documentFontSize: 18,
       fileTreeMode: "content",
+      showDocumentTitles: false,
       gitRemoteCheckIntervalMinutes: 60,
       mode: "live",
       treeDirectories: {
@@ -695,6 +700,7 @@ test("concurrent preference patches merge without dropping independent fields", 
       documentFont: "reading-serif",
       documentFontSize: 20,
       fileTreeMode: "all",
+      showDocumentTitles: true,
       gitRemoteCheckIntervalMinutes: 30,
       mode: "live",
       sidebarWidth: 344,

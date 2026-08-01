@@ -38,6 +38,7 @@ test("settings center normalizes sections and reuses the shared fresh preference
         documentFont: "reading-serif",
         documentFontSize: 20,
         fileTreeMode: "all",
+        showDocumentTitles: false,
         gitRemoteCheckIntervalMinutes: 30,
       },
     }),
@@ -47,6 +48,7 @@ test("settings center normalizes sections and reuses the shared fresh preference
       documentFont: "reading-serif",
       documentFontSize: 20,
       fileTreeMode: "all",
+      showDocumentTitles: false,
       gitRemoteCheckIntervalMinutes: 30,
     },
   );
@@ -60,6 +62,7 @@ test("settings preference patches and actions expose only approved values", () =
       documentFont: "reading-serif",
       documentFontSize: 22,
       fileTreeMode: "all",
+      showDocumentTitles: false,
       gitRemoteCheckIntervalMinutes: 60,
       documentTextSize: 18,
       fileVisibility: "content",
@@ -71,6 +74,7 @@ test("settings preference patches and actions expose only approved values", () =
       documentFont: "reading-serif",
       documentFontSize: 22,
       fileTreeMode: "all",
+      showDocumentTitles: false,
       gitRemoteCheckIntervalMinutes: 60,
     },
   );

@@ -33,6 +33,7 @@ const USER_PREFERENCE_KEYS = new Set([
   "documentFont",
   "documentFontSize",
   "fileTreeMode",
+  "showDocumentTitles",
   "gitRemoteCheckIntervalMinutes",
 ]);
 const EXTERNAL_PROTOCOLS = new Set(["https:", "http:", "mailto:"]);

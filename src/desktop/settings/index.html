@@ -195,7 +195,7 @@
             <header class="section-header">
               <p class="section-kicker" data-i18n="filesKicker">Files</p>
               <h1 id="files-title" data-i18n="filesTitle">Files &amp; Folders</h1>
-              <p data-i18n="filesDescription">Choose how much repository content appears in the file tree.</p>
+              <p data-i18n="filesDescription">Choose the file tree scope and document-title density.</p>
             </header>
 
             <div class="setting-group">
@@ -226,6 +226,33 @@
               <p class="boundary-note" data-i18n="fileTreeBoundary">
                 This setting changes only the file tree display, not Git change discovery, sync, or commit scope.
               </p>
+            </div>
+
+            <div class="setting-group">
+              <div class="setting-copy">
+                <h2 data-i18n="documentTitlesTitle">Document titles in the file tree</h2>
+                <p data-i18n="documentTitlesDescription">Markdown / MDX files with names written without Chinese characters can show their document title on a second line.</p>
+              </div>
+              <fieldset
+                class="stacked-choices"
+                aria-label="Document titles in the file tree"
+                data-i18n-aria-label="documentTitlesAria"
+              >
+                <label class="stacked-choice">
+                  <input type="radio" name="showDocumentTitles" value="true">
+                  <span>
+                    <strong data-i18n="documentTitlesShow">Show document titles (default)</strong>
+                    <small data-i18n="documentTitlesShowDescription">Keep the filename on the first line and show the title beneath it with equal visual weight.</small>
+                  </span>
+                </label>
+                <label class="stacked-choice">
+                  <input type="radio" name="showDocumentTitles" value="false">
+                  <span>
+                    <strong data-i18n="documentTitlesHide">Show filenames only</strong>
+                    <small data-i18n="documentTitlesHideDescription">Use a more compact, single-line file tree.</small>
+                  </span>
+                </label>
+              </fieldset>
             </div>
           </section>
 

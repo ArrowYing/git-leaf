@@ -168,15 +168,17 @@ presentation:
 
 - Content Files shows Markdown, MDX, HTML, images, and PDF by default;
 - All Repository Files shows the complete discovered tree;
-- Markdown and MDX files whose source filename contains no Han characters keep that filename on the
-  first row and show a distinct frontmatter `title` or first level-one heading on a second row;
-  filenames containing Han characters and documents without a distinct title remain single-row;
+- when the default-on `showDocumentTitles` preference is enabled, Markdown and MDX files whose source
+  filename contains no Han characters keep that filename on the first row and show a distinct
+  frontmatter `title` or first level-one heading on an equally weighted second row; disabling the
+  preference, filenames containing Han characters, and documents without a distinct title remain
+  single-row;
 - search, the current document, favorites, and Sync may reveal otherwise hidden paths;
 - Git Leaf-created empty folders contain a zero-byte `.gitkeep`; All and Content Files preserve the
   folder while hiding the placeholder, and Sync exposes the placeholder whenever Git reports its change;
 - text search combines whitespace-separated terms with AND, matches each folder or file on its own
-  searchable fields, including displayed document titles, and initially keeps only matches plus the
-  ancestor folders needed to reach them;
+  searchable fields, including document titles only while they are displayed, and initially keeps only
+  matches plus the ancestor folders needed to reach them;
   every automatically revealed result provides visible matching evidence, including files matched only
   through `ai_snippet` and matches truncated by the available row width;
   search has transient directory expansion state independent from the saved file tree, so explicitly
@@ -456,10 +458,10 @@ snapshot, passes explicit isolated `userData` and `sessionData`, verifies the pr
 fingerprint after the run, and deletes only the temporary snapshot. Failure to create or verify the
 snapshot must stop automation; it may not fall back to the real Profile.
 
-Six preferences are user configurable: `language`, `colorMode`, `documentFont`, `documentFontSize`,
-`fileTreeMode`, and `gitRemoteCheckIntervalMinutes`. Tabs, tree expansion, scroll, focus, sidebar state,
-outline state, and split ratios are restored workbench state, not settings. Frontmatter rules are
-repository-owned data. Version and environment information are read-only status.
+Seven preferences are user configurable: `language`, `colorMode`, `documentFont`, `documentFontSize`,
+`fileTreeMode`, `showDocumentTitles`, and `gitRemoteCheckIntervalMinutes`. Tabs, tree expansion, scroll,
+focus, sidebar state, outline state, and split ratios are restored workbench state, not settings.
+Frontmatter rules are repository-owned data. Version and environment information are read-only status.
 
 Preference propagation is directional:
 
@@ -467,7 +469,7 @@ Preference propagation is directional:
   does not receive an echo;
 - Settings or Desktop Home may broadcast a persisted normalized result to the workbench;
 - color, font, and size changes must not rebuild the file tree;
-- a real `fileTreeMode` change may rebuild it once;
+- a real `fileTreeMode` or `showDocumentTitles` change may rebuild it once;
 - a language change flushes editing and workbench state before a safe reload;
 - restoring focus or viewport after rendering must not save unchanged state again.
 

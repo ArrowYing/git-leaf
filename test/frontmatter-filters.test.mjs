@@ -143,6 +143,14 @@ test("file text search matches the displayed title below an English Markdown fil
   assert.equal(fileMatchesTextFilter(node, {}, "weekly 工作"), true);
   assert.equal(fileMatchesTextFilter(node, {}, "monthly 工作"), false);
   assert.deepEqual(filterTextTree([node], {}, "工作报告"), [node]);
+  assert.equal(
+    fileMatchesTextFilter(node, {}, "工作报告", { showDocumentTitles: false }),
+    false,
+  );
+  assert.deepEqual(
+    filterTextTree([node], {}, "工作报告", { showDocumentTitles: false }),
+    [],
+  );
 
   const details = fileTextFilterMatchDetails(node, {
     ai_snippet: "This metadata is not needed to explain the visible result.",

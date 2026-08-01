@@ -295,6 +295,7 @@ const state = {
   documentFont: initialUserPreferences.documentFont,
   documentFontSize: initialUserPreferences.documentFontSize,
   fileTreeMode: initialUserPreferences.fileTreeMode,
+  showDocumentTitles: initialUserPreferences.showDocumentTitles,
   gitRemoteCheckIntervalMinutes: initialUserPreferences.gitRemoteCheckIntervalMinutes,
   sidebarTab: "all",
   sidebarFavorites: [],
@@ -2672,6 +2673,7 @@ function applyAppearancePreferences(preferences) {
   state.documentFont = normalized.documentFont;
   state.documentFontSize = normalized.documentFontSize;
   state.fileTreeMode = normalized.fileTreeMode;
+  state.showDocumentTitles = normalized.showDocumentTitles;
   state.theme = effectiveColorScheme(state.colorMode, {
     systemDark: systemColorSchemeQuery?.matches === true,
   });
@@ -2693,6 +2695,7 @@ function toggleWebTheme() {
     documentFont: state.documentFont,
     documentFontSize: state.documentFontSize,
     fileTreeMode: state.fileTreeMode,
+    showDocumentTitles: state.showDocumentTitles,
   });
 }
 
@@ -2780,6 +2783,7 @@ function handleSystemColorSchemeChange() {
     documentFont: state.documentFont,
     documentFontSize: state.documentFontSize,
     fileTreeMode: state.fileTreeMode,
+    showDocumentTitles: state.showDocumentTitles,
   });
 }
 
@@ -3403,6 +3407,7 @@ function renderTree() {
       state.filter,
       {
         expandedDirectoryPaths: state.searchExpandedTreeDirectories,
+        showDocumentTitles: state.showDocumentTitles,
       },
     );
   }
@@ -3485,7 +3490,12 @@ function treeSearchMatchedPaths() {
 function collectTreeSearchMatchedPaths(nodes, parentPath, matched) {
   for (const node of nodes) {
     if (node.type === "file") {
-      if (fileMatchesTextFilter(node, state.frontmatterFiles[node.path], state.filter)) {
+      if (fileMatchesTextFilter(
+        node,
+        state.frontmatterFiles[node.path],
+        state.filter,
+        { showDocumentTitles: state.showDocumentTitles },
+      )) {
         matched.push(node.path);
       }
       continue;
@@ -4572,9 +4582,16 @@ function renderNode(node, parentPath) {
   if (node.type === "file") {
     const button = document.createElement("button");
     const capability = treeFileCapability(node.kind, { missing: node.missing === true });
-    const presentation = treeFilePresentation(node);
+    const presentation = treeFilePresentation(node, {
+      showDocumentTitles: state.showDocumentTitles,
+    });
     const textMatchDetails = isTreeTextSearchActive()
-      ? fileTextFilterMatchDetails(node, state.frontmatterFiles[node.path], state.filter)
+      ? fileTextFilterMatchDetails(
+          node,
+          state.frontmatterFiles[node.path],
+          state.filter,
+          { showDocumentTitles: state.showDocumentTitles },
+        )
       : null;
     button.type = "button";
     button.className = node.path === state.currentFile ? "tree-file is-active" : "tree-file";

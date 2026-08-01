@@ -60,19 +60,19 @@ export function filterFrontmatterTree(nodes, metadataByPath, filters, allowedKey
   return filtered;
 }
 
-export function fileMatchesTextFilter(node, metadata, filter) {
-  return fileTextFilterMatchDetails(node, metadata, filter).matches;
+export function fileMatchesTextFilter(node, metadata, filter, options) {
+  return fileTextFilterMatchDetails(node, metadata, filter, options).matches;
 }
 
 export function fileTextFilterMatchDetails(
   node,
   metadata,
   filter,
-  { maxSnippetLength = 120 } = {},
+  { maxSnippetLength = 120, showDocumentTitles = true } = {},
 ) {
   const tokens = searchTokens(filter);
   const name = String(node?.name ?? "");
-  const title = displayedTreeFileTitle(node);
+  const title = displayedTreeFileTitle(node, { showDocumentTitles });
   const snippet = String(metadata?.ai_snippet ?? "");
   if (tokens.length === 0) {
     return {
@@ -125,7 +125,7 @@ export function filterTextTree(
   nodes,
   metadataByPath,
   filter,
-  { expandedDirectoryPaths = new Set() } = {},
+  { expandedDirectoryPaths = new Set(), showDocumentTitles = true } = {},
 ) {
   const tokens = searchTokens(filter);
   if (tokens.length === 0) {
@@ -137,6 +137,7 @@ export function filterTextTree(
     tokens,
     {
       expandedDirectoryPaths: normalizePathSet(expandedDirectoryPaths),
+      showDocumentTitles,
       parentPath: "",
     },
   );
@@ -239,14 +240,14 @@ function filterTextTreeWithTokens(
   nodes,
   metadataByPath,
   tokens,
-  { expandedDirectoryPaths, parentPath },
+  { expandedDirectoryPaths, showDocumentTitles, parentPath },
 ) {
   const filtered = [];
   for (const node of nodes) {
     if (node.type === "file") {
       const searchableText = [
         node?.name,
-        displayedTreeFileTitle(node),
+        displayedTreeFileTitle(node, { showDocumentTitles }),
         metadataByPath?.[node.path]?.ai_snippet,
       ]
         .filter(Boolean)
@@ -267,6 +268,7 @@ function filterTextTreeWithTokens(
           tokens,
           {
             expandedDirectoryPaths,
+            showDocumentTitles,
             parentPath: directoryPath,
           },
         );

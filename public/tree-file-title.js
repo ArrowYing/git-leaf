@@ -1,8 +1,8 @@
 const HAN_CHARACTER_RE = /\p{Script=Han}/u;
 
-export function treeFilePresentation(node) {
+export function treeFilePresentation(node, { showDocumentTitles = true } = {}) {
   const filename = String(node?.name ?? "");
-  const title = displayedTreeFileTitle(node);
+  const title = displayedTreeFileTitle(node, { showDocumentTitles });
   return {
     filename,
     title,
@@ -13,9 +13,13 @@ export function treeFilePresentation(node) {
   };
 }
 
-export function displayedTreeFileTitle(node) {
+export function displayedTreeFileTitle(node, { showDocumentTitles = true } = {}) {
   const filename = String(node?.name ?? "");
-  if (String(node?.kind ?? "") !== "markdown" || treeFilenameContainsHan(filename)) {
+  if (
+    showDocumentTitles === false
+    || String(node?.kind ?? "") !== "markdown"
+    || treeFilenameContainsHan(filename)
+  ) {
     return "";
   }
 

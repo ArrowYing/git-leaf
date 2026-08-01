@@ -43,6 +43,24 @@ test("Chinese filenames remain single-line even when the document has a title", 
   ]);
 });
 
+test("the document-title preference keeps English filenames single-line when disabled", () => {
+  const node = {
+    kind: "markdown",
+    name: "weekly-report.md",
+    title: "本周工作报告",
+  };
+
+  assert.equal(displayedTreeFileTitle(node, { showDocumentTitles: false }), "");
+  assert.deepEqual(
+    treeFilePresentation(node, { showDocumentTitles: false }).lines,
+    [{ kind: "filename", text: "weekly-report.md" }],
+  );
+  assert.equal(
+    treeFilePresentation(node, { showDocumentTitles: true }).title,
+    "本周工作报告",
+  );
+});
+
 test("Missing, identical, and non-Markdown titles do not add a second line", () => {
   assert.equal(displayedTreeFileTitle({ kind: "markdown", name: "notes.md" }), "");
   assert.equal(

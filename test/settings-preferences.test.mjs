@@ -91,6 +91,9 @@ test("Git remote checks accept only the seven persisted interval choices", () =>
 test("preference patches whitelist only the public settings", () => {
   assert.deepEqual(preferencePatch("language", "zh-cn"), { language: "zh-CN" });
   assert.deepEqual(preferencePatch("fileTreeMode", "all"), { fileTreeMode: "all" });
+  assert.deepEqual(preferencePatch("showDocumentTitles", false), {
+    showDocumentTitles: false,
+  });
   assert.deepEqual(preferencePatch("documentFontSize", "18"), { documentFontSize: 18 });
   assert.deepEqual(preferencePatch("gitRemoteCheckIntervalMinutes", "60"), {
     gitRemoteCheckIntervalMinutes: 60,
@@ -98,13 +101,14 @@ test("preference patches whitelist only the public settings", () => {
   assert.equal(preferencePatch("sidebarWidth", 800), null);
 });
 
-test("only file tree mode changes require rebuilding the file tree", () => {
+test("only file tree presentation changes require rebuilding the file tree", () => {
   const current = {
     language: "system",
     colorMode: "system",
     documentFont: "system-sans",
     documentFontSize: 16,
     fileTreeMode: "content",
+    showDocumentTitles: true,
     gitRemoteCheckIntervalMinutes: 10,
   };
 
@@ -122,6 +126,28 @@ test("only file tree mode changes require rebuilding the file tree", () => {
   }), true);
   assert.equal(shouldRebuildFileTreeForPreferences(current, {
     ...current,
+    showDocumentTitles: false,
+  }), true);
+  assert.equal(shouldRebuildFileTreeForPreferences(current, {
+    ...current,
     futurePreference: { enabled: true },
   }), false);
+});
+
+test("document titles default on and preserve an explicit off preference", () => {
+  assert.equal(DEFAULT_USER_PREFERENCES.showDocumentTitles, true);
+  assert.equal(LEGACY_USER_PREFERENCES.showDocumentTitles, true);
+  assert.equal(normalizeUserPreferences({}).showDocumentTitles, true);
+  assert.equal(
+    normalizeUserPreferences({ showDocumentTitles: false }).showDocumentTitles,
+    false,
+  );
+  assert.equal(
+    normalizeUserPreferences({ showDocumentTitles: "false" }).showDocumentTitles,
+    false,
+  );
+  assert.equal(
+    normalizeUserPreferences({ showDocumentTitles: "invalid" }).showDocumentTitles,
+    true,
+  );
 });

@@ -478,6 +478,7 @@ function normalizeDesktopPreferences(value, { newInstall = false } = {}) {
     "documentFont",
     "documentFontSize",
     "fileTreeMode",
+    "showDocumentTitles",
     "gitRemoteCheckIntervalMinutes",
     "legacyThemeMigrationPending",
     "mode",

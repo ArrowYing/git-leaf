@@ -42,7 +42,7 @@
       textSizeDescription: "Adjust body text, Live, Source, and line-number scale together.",
       filesKicker: "Files",
       filesTitle: "Files & Folders",
-      filesDescription: "Choose how much repository content appears in the file tree.",
+      filesDescription: "Choose the file tree scope and document-title density.",
       fileTreeTitle: "File tree scope",
       fileTreeDescription: "Hide development configuration noise while reading, or show the complete repository.",
       fileTreeAria: "File tree scope",
@@ -51,6 +51,13 @@
       fileTreeAll: "All repository files",
       fileTreeAllDescription: "Show every Git-tracked and non-ignored file.",
       fileTreeBoundary: "This setting changes only the file tree display, not Git change discovery, sync, or commit scope.",
+      documentTitlesTitle: "Document titles in the file tree",
+      documentTitlesDescription: "Markdown / MDX files with names written without Chinese characters can show their document title on a second line.",
+      documentTitlesAria: "Document titles in the file tree",
+      documentTitlesShow: "Show document titles (default)",
+      documentTitlesShowDescription: "Keep the filename on the first line and show the title beneath it with equal visual weight.",
+      documentTitlesHide: "Show filenames only",
+      documentTitlesHideDescription: "Use a more compact, single-line file tree.",
       gitRemoteCheckTitle: "Remote update checks",
       gitRemoteCheckDescription: "Choose how often Git Leaf fetches and checks the Git remote.",
       gitRemoteCheckEvery1: "Every minute",
@@ -142,7 +149,7 @@
       textSizeDescription: "统一调整文档正文、Live、Source 和行号的排版比例。",
       filesKicker: "文件",
       filesTitle: "文件与目录",
-      filesDescription: "决定左侧目录树呈现多少仓库内容。",
+      filesDescription: "设置左侧目录树的文件范围与文档标题密度。",
       fileTreeTitle: "目录树显示范围",
       fileTreeDescription: "面向阅读者时可以隐藏开发配置噪音，需要时仍可查看完整仓库。",
       fileTreeAria: "目录树显示范围",
@@ -151,6 +158,13 @@
       fileTreeAll: "全部仓库文件",
       fileTreeAllDescription: "显示 Git 已跟踪和未被忽略的所有文件。",
       fileTreeBoundary: "此设置只改变目录树显示，不改变 Git 改动发现、同步或提交范围。",
+      documentTitlesTitle: "目录树文档标题",
+      documentTitlesDescription: "Markdown／MDX 使用不含汉字的文件名时，可在第二行显示文档标题。",
+      documentTitlesAria: "目录树文档标题",
+      documentTitlesShow: "显示文档标题（默认）",
+      documentTitlesShowDescription: "第一行保留文件名，第二行以同等视觉层级显示文档标题。",
+      documentTitlesHide: "仅显示文件名",
+      documentTitlesHideDescription: "使用更紧凑的单行目录。",
       gitRemoteCheckTitle: "远端更新检查",
       gitRemoteCheckDescription: "设置 Git Leaf 获取并检查 Git 远端变化的频率。",
       gitRemoteCheckEvery1: "每 1 分钟",
@@ -280,6 +294,10 @@
       setRadioValue("colorMode", currentPreferences.colorMode || "system");
       setRadioValue("documentFont", currentPreferences.documentFont || "system-sans");
       setRadioValue("fileTreeMode", currentPreferences.fileTreeMode || "content");
+      setRadioValue(
+        "showDocumentTitles",
+        currentPreferences.showDocumentTitles === false ? "false" : "true",
+      );
       gitRemoteCheckInterval.value = String(
         remoteCheckInterval(currentPreferences.gitRemoteCheckIntervalMinutes),
       );
@@ -400,9 +418,17 @@
     if (
       input instanceof HTMLInputElement &&
       input.type === "radio"
-      && ["language", "colorMode", "documentFont", "fileTreeMode"].includes(input.name)
+      && [
+        "language",
+        "colorMode",
+        "documentFont",
+        "fileTreeMode",
+        "showDocumentTitles",
+      ].includes(input.name)
     ) {
-      patch = { [input.name]: input.value };
+      patch = input.name === "showDocumentTitles"
+        ? { showDocumentTitles: input.value !== "false" }
+        : { [input.name]: input.value };
     } else if (
       input instanceof HTMLInputElement
       && input.id === "document-font-size"
