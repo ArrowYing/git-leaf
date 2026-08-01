@@ -9,16 +9,14 @@ import {
   tableScrollAttributeString,
 } from "./table-layout.mjs";
 import { parseDelimitedRecords } from "./delimited-data.mjs";
+import {
+  MDX_LITE_COMPONENT_NAMES,
+  mdxLiteComponentBlockAtLines,
+  mdxLiteComponentOpeningAtLines,
+} from "./mdx-lite-syntax.mjs";
 import { createTranslator } from "../../public/i18n.js";
 
-const COMPONENT_NAMES = new Set([
-  "DataTable",
-  "Timeline",
-  "Chart",
-  "DecisionBox",
-  "MetricGrid",
-  "FlowDiagram",
-]);
+const COMPONENT_NAMES = new Set(MDX_LITE_COMPONENT_NAMES);
 const CHART_COLORS = ["#2563eb", "#dc2626", "#16a34a", "#d97706", "#7c3aed", "#0891b2"];
 const DATASET_COMPONENT_NAMES = new Set(["Chart", "DataTable"]);
 const DATASET_GRANULARITIES = new Set(["day", "week", "month", "quarter"]);
@@ -50,22 +48,31 @@ const MDX_MESSAGES = Object.freeze({
 });
 
 export function mdxLiteBlockRule(state, startLine, endLine, silent) {
-  const line = sourceLine(state, startLine).trim();
-  const open = line.match(/^<([A-Z][A-Za-z0-9]*)\b([^>]*)>\s*$/);
-  const selfClosing = line.match(/^<([A-Z][A-Za-z0-9]*)\b([^>]*)\/>\s*$/);
-  const match = selfClosing || open;
-  if (!match || !COMPONENT_NAMES.has(match[1])) {
+  const startMatch = sourceLine(state, startLine).trimStart()
+    .match(/^<([A-Z][A-Za-z0-9]*)\b/);
+  if (!startMatch || !COMPONENT_NAMES.has(startMatch[1])) {
     return false;
   }
 
-  const [, name, rawAttributes = ""] = match;
+  const openingLines = [];
+  let opening = null;
+  for (let lineIndex = startLine; lineIndex < endLine && openingLines.length < 100; lineIndex += 1) {
+    openingLines.push(sourceLine(state, lineIndex));
+    opening = mdxLiteComponentOpeningAtLines(openingLines);
+    if (opening) break;
+  }
+  if (!opening || !COMPONENT_NAMES.has(opening.name)) {
+    return false;
+  }
+
   if (silent) {
     return true;
   }
 
-  let closeLine = startLine;
-  if (!selfClosing) {
-    closeLine = findClosingLine(state, startLine + 1, endLine, name);
+  const openingEndLine = startLine + opening.endIndex;
+  let closeLine = openingEndLine;
+  if (!opening.selfClosing) {
+    closeLine = findClosingLine(state, openingEndLine + 1, endLine, opening.name);
     if (closeLine < 0) {
       return false;
     }
@@ -75,12 +82,12 @@ export function mdxLiteBlockRule(state, startLine, endLine, silent) {
   token.block = true;
   token.map = [startLine, closeLine + 1];
   token.meta = {
-    name,
-    attributes: parseAttributes(rawAttributes),
+    name: opening.name,
+    attributes: opening.attributes,
   };
-  token.content = selfClosing
+  token.content = opening.selfClosing
     ? ""
-    : state.getLines(startLine + 1, closeLine, state.blkIndent, false);
+    : state.getLines(openingEndLine + 1, closeLine, state.blkIndent, false);
 
   state.line = closeLine + 1;
   return true;
@@ -137,8 +144,10 @@ export function renderMdxLiteRows(name, rows, attributes = {}, { locale = "en" }
 
 export function datasetReferencesFromMarkdown(markdown) {
   const references = [];
+  const lines = String(markdown ?? "").split(/\r?\n/);
   let fence = "";
-  for (const line of String(markdown ?? "").split(/\r?\n/)) {
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
     const fenceMatch = line.match(/^\s*(`{3,}|~{3,})/);
     if (fenceMatch) {
       if (!fence) {
@@ -149,12 +158,12 @@ export function datasetReferencesFromMarkdown(markdown) {
       continue;
     }
     if (fence) continue;
-    const match = line.trim().match(/^<(Chart|DataTable)\b([^>]*)\/?>(?:\s*)$/);
-    if (!match) continue;
-    const attributes = parseAttributes(match[2] || "");
-    if (attributes.dataset) {
-      references.push(attributes.dataset);
+    const block = mdxLiteComponentBlockAtLines(lines, index);
+    if (!block) continue;
+    if (DATASET_COMPONENT_NAMES.has(block.component) && block.attributes.dataset) {
+      references.push(block.attributes.dataset);
     }
+    index = block.endIndex;
   }
   return [...new Set(references)];
 }
@@ -1166,15 +1175,6 @@ function rowsFromMarkdownTable(content) {
 
 function splitMarkdownRow(line) {
   return line.trim().replace(/^\||\|$/g, "").split("|").map((cell) => cell.trim());
-}
-
-function parseAttributes(rawAttributes) {
-  const attributes = {};
-  const attributeRe = /([A-Za-z_][A-Za-z0-9_-]*)=(?:"([^"]*)"|'([^']*)'|([^\s"'>/]+))/g;
-  for (const match of rawAttributes.matchAll(attributeRe)) {
-    attributes[match[1]] = match[2] ?? match[3] ?? match[4] ?? "";
-  }
-  return attributes;
 }
 
 function columnsForRows(rows, rawColumns) {

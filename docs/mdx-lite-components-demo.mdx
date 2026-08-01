@@ -30,7 +30,10 @@ are sample data for visual validation, not business facts. See the
 
 Git Leaf chooses search, frozen columns, sticky headers, and Copy CSV from table complexity.
 
-<DataTable title="Document governance fields" columns="field,purpose,required,example,note">
+<DataTable
+  title="Document governance fields"
+  columns="field,purpose,required,example,note"
+>
 ```csv
 field,purpose,required,example,note
 title,Document title,yes,Git Leaf system architecture,Used for the page title and search
@@ -49,7 +52,9 @@ change_log,Change history,conditional,,Required when repository policy says so
 
 Statuses provide visual cues; prose remains authoritative.
 
-<Timeline title="Git Leaf evolution">
+<Timeline
+  title="Git Leaf evolution"
+>
 ```json
 [
   {
@@ -84,7 +89,17 @@ Statuses provide visual cues; prose remains authoritative.
 
 Hovering a chart combines all series for one x value in a shared tooltip.
 
-<Chart title="Knowledge workbench usage" type="line" x="month" series="preview,source,live" unit="sessions" highlight="2026-07" previewLabel="Preview" sourceLabel="Source" liveLabel="Live">
+<Chart
+  title="Knowledge workbench usage"
+  type="line"
+  x="month"
+  series="preview,source,live"
+  unit="sessions"
+  highlight="2026-07"
+  previewLabel="Preview"
+  sourceLabel="Source"
+  liveLabel="Live"
+>
 ```csv
 month,preview,source,live
 2026-04,42,0,0
@@ -94,7 +109,18 @@ month,preview,source,live
 ```
 </Chart>
 
-<Chart title="New and completed items" type="combo" x="month" series="newItems,completedItems" bars="newItems" lines="completedItems" unit="items" newItemsLabel="New" completedItemsLabel="Completed" highlight="2026-07">
+<Chart
+  title="New and completed items"
+  type="combo"
+  x="month"
+  series="newItems,completedItems"
+  bars="newItems"
+  lines="completedItems"
+  unit="items"
+  newItemsLabel="New"
+  completedItemsLabel="Completed"
+  highlight="2026-07"
+>
 ```csv
 month,newItems,completedItems
 2026-04,152,23
@@ -104,7 +130,20 @@ month,newItems,completedItems
 ```
 </Chart>
 
-<Chart title="Volume and completion rate" type="combo-dual-axis" x="month" series="volume,completionRate" bars="volume" lines="completionRate" rightSeries="completionRate" leftUnit="items" rightUnit="%" volumeLabel="Volume" completionRateLabel="Completion rate" highlight="2026-07">
+<Chart
+  title="Volume and completion rate"
+  type="combo-dual-axis"
+  x="month"
+  series="volume,completionRate"
+  bars="volume"
+  lines="completionRate"
+  rightSeries="completionRate"
+  leftUnit="items"
+  rightUnit="%"
+  volumeLabel="Volume"
+  completionRateLabel="Completion rate"
+  highlight="2026-07"
+>
 ```csv
 month,volume,completionRate
 2026-04,152,15.1
@@ -119,11 +158,30 @@ month,volume,completionRate
 The source CSV remains a full daily dataset. The same component can switch among day, week, month, and
 natural-quarter views without rewriting this MDX file.
 
-<Chart title="Daily company revenue and expense" dataset="./data/company-daily.dataset.json" type="line" x="period" series="revenue,expense" unit="CNY" revenueLabel="Revenue" expenseLabel="Expense" from="2026-01-01" to="2026-03-31" granularity="month" />
+<Chart
+  title="Daily company revenue and expense"
+  dataset="./data/company-daily.dataset.json"
+  type="line"
+  x="period"
+  series="revenue,expense"
+  unit="CNY"
+  revenueLabel="Revenue"
+  expenseLabel="Expense"
+  from="2026-01-01"
+  to="2026-03-31"
+  granularity="month"
+/>
 
 The optional `query` block applies a finite equality filter before the manifest-defined rollups.
 
-<DataTable title="Weekly company summary" dataset="./data/company-daily.dataset.json" columns="date,revenue,expense,cash,conversion_rate" from="2026-01-01" to="2026-03-31" granularity="week">
+<DataTable
+  title="Weekly company summary"
+  dataset="./data/company-daily.dataset.json"
+  columns="date,revenue,expense,cash,conversion_rate"
+  from="2026-01-01"
+  to="2026-03-31"
+  granularity="week"
+>
 ```query
 {
   "where": [
@@ -135,7 +193,12 @@ The optional `query` block applies a finite equality filter before the manifest-
 
 ## 4. DecisionBox
 
-<DecisionBox title="Keep Git as the knowledge source of truth" status="accepted" owner="maintainer" source="docs/architecture.md">
+<DecisionBox
+  title="Keep Git as the knowledge source of truth"
+  status="accepted"
+  owner="maintainer"
+  source="docs/architecture.md"
+>
 ```csv
 label,value
 Decision,"Git Leaf is the human interface over a shared Git context repository, not a hosted documentation site."
@@ -147,7 +210,9 @@ Reconsider,"Evaluate a separate hosted surface only if a real use case requires 
 
 ## 5. MetricGrid
 
-<MetricGrid title="Git Leaf capability summary">
+<MetricGrid
+  title="Git Leaf capability summary"
+>
 ```csv
 label,value,delta,note,status
 Document modes,3,,Preview Source Live,good
@@ -161,7 +226,10 @@ Desktop shell,Electron,,Open any local Git repository,good
 
 ## 6. FlowDiagram
 
-<FlowDiagram title="Local Git knowledge workflow" note="Main path only; see docs/architecture.md for the complete contract.">
+<FlowDiagram
+  title="Local Git knowledge workflow"
+  note="Main path only; see docs/architecture.md for the complete contract."
+>
 ```json
 {
   "nodes": [

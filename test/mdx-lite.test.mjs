@@ -104,6 +104,115 @@ test("renderMarkdown extends Chart with an external dataset view placeholder", (
   assert.doesNotMatch(html, /mdx-component-error/);
 });
 
+test("renderMarkdown accepts one dataset component attribute per line", () => {
+  const chart = renderMarkdown([
+    "<Chart",
+    '  title="收入趋势"',
+    '  dataset="./data/company.dataset.json"',
+    '  type="line"',
+    '  x="period"',
+    '  series="revenue"',
+    '  granularity="quarter"',
+    "/>",
+  ].join("\n"), { locale: "zh-CN" });
+  const table = renderMarkdown([
+    "<DataTable",
+    '  title="收入明细"',
+    '  dataset="./data/company.dataset.json"',
+    '  columns="date,revenue"',
+    '  granularity="month"',
+    ">",
+    "```query",
+    '{"where":[{"field":"company_id","op":"eq","value":"001"}]}',
+    "```",
+    "</DataTable>",
+  ].join("\n"), { locale: "zh-CN" });
+
+  assert.match(chart, /data-mdx-dataset-view="true"/);
+  assert.match(chart, /data-dataset-default-granularity="quarter"/);
+  assert.match(chart, /data-source-start="1" data-source-end="8"/);
+  assert.doesNotMatch(chart, /&lt;Chart/);
+  assert.match(table, /data-mdx-dataset-view="true"/);
+  assert.match(table, /data-dataset-default-granularity="month"/);
+  assert.match(table, /data-source-start="1" data-source-end="10"/);
+  assert.doesNotMatch(table, /&lt;DataTable/);
+});
+
+test("every allowlisted MDX-lite component accepts HTML-like multiline attributes", () => {
+  const cases = [
+    ["DataTable", [
+      "<DataTable",
+      '  title="Detail"',
+      '  columns="name,value"',
+      ">",
+      "```csv",
+      "name,value",
+      "Revenue,10",
+      "```",
+      "</DataTable>",
+    ]],
+    ["Timeline", [
+      "<Timeline",
+      '  title="Milestones"',
+      ">",
+      "```json",
+      '[{"date":"2026-01-01","title":"Start","status":"done"}]',
+      "```",
+      "</Timeline>",
+    ]],
+    ["Chart", [
+      "<Chart",
+      '  title="Revenue"',
+      '  type="line"',
+      '  x="month"',
+      '  series="value"',
+      ">",
+      "```csv",
+      "month,value",
+      "2026-01,10",
+      "```",
+      "</Chart>",
+    ]],
+    ["DecisionBox", [
+      "<DecisionBox",
+      '  title="Decision"',
+      '  status="accepted"',
+      ">",
+      "```csv",
+      "label,value",
+      "Decision,Ship",
+      "```",
+      "</DecisionBox>",
+    ]],
+    ["MetricGrid", [
+      "<MetricGrid",
+      '  title="Metrics"',
+      ">",
+      "```csv",
+      "label,value",
+      "Revenue,10",
+      "```",
+      "</MetricGrid>",
+    ]],
+    ["FlowDiagram", [
+      "<FlowDiagram",
+      '  title="Flow"',
+      ">",
+      "```json",
+      '{"nodes":[{"id":"start","label":"Start","type":"start"}],"edges":[]}',
+      "```",
+      "</FlowDiagram>",
+    ]],
+  ];
+
+  for (const [name, lines] of cases) {
+    const html = renderMarkdown(lines.join("\n"));
+    assert.match(html, new RegExp(`data-mdx-component="${name}"`), name);
+    assert.doesNotMatch(html, /mdx-component-error/, name);
+    assert.doesNotMatch(html, new RegExp(`&lt;${name}`), name);
+  }
+});
+
 test("renderMarkdown accepts only a fenced finite query inside a dataset component", () => {
   const valid = renderMarkdown(`<DataTable dataset="./data/company.dataset.json" columns="date,revenue">
 \`\`\`query
@@ -126,12 +235,16 @@ date,revenue
 test("datasetReferencesFromMarkdown ignores examples inside fenced code", () => {
   const references = datasetReferencesFromMarkdown([
     '<Chart dataset="./real.dataset.json" />',
+    "<DataTable",
+    '  dataset="./multiline.dataset.json"',
+    '  columns="date,revenue"',
+    "/>",
     "```mdx",
     '<Chart dataset="./example.dataset.json" />',
     "```",
   ].join("\n"));
 
-  assert.deepEqual(references, ["./real.dataset.json"]);
+  assert.deepEqual(references, ["./real.dataset.json", "./multiline.dataset.json"]);
 });
 
 test("renderMarkdown renders the MDX-lite demo without component errors", async () => {

@@ -461,16 +461,23 @@ test("pastedTextLinkCandidate only handles URLs and Markdown document paths", ()
   assert.equal(pastedTextLinkCandidate("https://example.com\nsecond line"), "");
 });
 
-test("Slash menu templates keep frontmatter human-entered and mark MDX component commands", () => {
+test("Slash menu templates keep frontmatter human-entered and format MDX attributes on separate lines", () => {
   const frontmatter = slashCommandTemplate(
     SLASH_COMMANDS.find((command) => command.label === "frontmatter"),
     { today: "2026-07-04" },
   );
-  const chart = slashCommandTemplate(SLASH_COMMANDS.find((command) => command.label === "chart"));
+  const mdxTemplates = ["datatable", "timeline", "chart", "decision", "metrics", "flow"].map(
+    (label) => slashCommandTemplate(SLASH_COMMANDS.find((command) => command.label === label)),
+  );
+  const chart = mdxTemplates[2];
 
   assert.match(frontmatter.text, /last_updated: 2026-07-04/);
   assert.doesNotMatch(frontmatter.text, /ai_snippet/);
-  assert.match(chart.text, /<Chart\b/);
+  assert.match(chart.text, /^<Chart\n  title=""\n  type="line"\n  x="month"\n  series="value"\n  unit=""\n>/);
+  for (const template of mdxTemplates) {
+    assert.match(template.text, /^<[A-Z][A-Za-z]+\n  title=""\n/);
+    assert.doesNotMatch(livePreviewHtmlForBlock(template.text), /mdx-component-error/);
+  }
   assert.ok(SLASH_COMMANDS.find((command) => command.label === "chart")?.requiresMdx);
   assert.equal(isMarkdownDocumentPath("docs/report.md"), true);
   assert.equal(isMarkdownDocumentPath("docs/report.mdx"), false);
@@ -678,4 +685,31 @@ test("livePreviewHtmlForBlock renders an external dataset shell with quarter con
   assert.match(html, /data-mdx-dataset-view="true"/);
   assert.match(html, /data-dataset-granularity="quarter"/);
   assert.match(html, />季度<\/button>/);
+});
+
+test("Live recognises dataset components whose attributes use separate lines", () => {
+  const source = [
+    "before",
+    "<Chart",
+    '  title="收入趋势"',
+    '  dataset="./company.dataset.json"',
+    '  x="period"',
+    '  series="revenue"',
+    '  granularity="quarter"',
+    "/>",
+    "after",
+  ].join("\n");
+  const blocks = livePreviewBlocksForSource(source);
+
+  assert.deepEqual(blocks, [{
+    type: "mdx",
+    component: "Chart",
+    startLine: 2,
+    endLine: 8,
+    source: source.split("\n").slice(1, 8).join("\n"),
+  }]);
+  const html = livePreviewHtmlForBlock(blocks[0].source, { locale: "zh-CN" });
+  assert.match(html, /data-mdx-dataset-view="true"/);
+  assert.match(html, /data-dataset-granularity="quarter"/);
+  assert.doesNotMatch(html, /&lt;Chart/);
 });

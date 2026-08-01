@@ -654,7 +654,15 @@ test("dataset query API aggregates external daily data and refreshes its depende
   const dataPath = path.join(repoRoot, "company.csv");
   await writeFile(
     documentPath,
-    '<Chart title="收入趋势" dataset="./company.dataset.json" x="period" series="revenue" granularity="quarter" />\n',
+    [
+      "<Chart",
+      '  title="收入趋势"',
+      '  dataset="./company.dataset.json"',
+      '  x="period"',
+      '  series="revenue"',
+      '  granularity="quarter"',
+      "/>\n",
+    ].join("\n"),
   );
   await writeFile(path.join(repoRoot, "company.dataset.json"), JSON.stringify({
     schemaVersion: 1,

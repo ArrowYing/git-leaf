@@ -149,6 +149,9 @@ metric data normally uses an array; FlowDiagram normally uses an object with `no
 - Analysis samples and unconfirmed reports use `canonical: false` or omit `canonical: true`.
 - Paths are repository-relative and never contain a contributor's absolute machine path.
 - Images live in a nearby `_assets/` directory.
+- Allowlisted component attributes may stay on one line or span multiple lines like HTML attributes.
+  Git Leaf's insertion templates put one attribute on each line by default so longer components remain
+  readable and easy to review.
 - Standard Markdown images and controlled single-line HTML `<img>` are previewable. The controlled image
   form keeps only `src`, `alt`, `width`, `height`, `data-align`, and `data-caption`.
 - Controlled images may appear in Markdown table cells, same-line image groups, or an image-only
@@ -161,7 +164,17 @@ documents need bounded human views of the same data. This capability extends the
 `DataTable` components; it does not add a general `Dataset`, `DataView`, SQL, or script component.
 
 ```mdx
-<Chart title="Revenue trend" dataset="./data/company-daily.dataset.json" type="line" x="period" series="revenue,expense" from="2025-01-01" to="2026-12-31" granularity="month" granularityOptions="day,week,month,quarter" />
+<Chart
+  title="Revenue trend"
+  dataset="./data/company-daily.dataset.json"
+  type="line"
+  x="period"
+  series="revenue,expense"
+  from="2025-01-01"
+  to="2026-12-31"
+  granularity="month"
+  granularityOptions="day,week,month,quarter"
+/>
 ```
 
 The toolbar changes only transient view state. Clicking Day, Week, Month, or Quarter sends a finite
@@ -172,7 +185,11 @@ write the MDX or data files. Quarter means a natural calendar quarter and is lab
 An optional fenced `query` JSON object adds a bounded range or equality filter:
 
 ````mdx
-<DataTable dataset="./data/company-daily.dataset.json" columns="date,revenue,cash" granularity="week">
+<DataTable
+  dataset="./data/company-daily.dataset.json"
+  columns="date,revenue,cash"
+  granularity="week"
+>
 ```query
 {
   "from": "2026-01-01",
@@ -270,7 +287,9 @@ rollups. `granularity` defaults to `day`. `granularityOptions` defaults to
 TSV, JSON, or a simple Markdown table.
 
 ````mdx
-<DataTable title="Cost detail">
+<DataTable
+  title="Cost detail"
+>
 ```csv
 name,value,status
 Engineering,10,ok
@@ -307,7 +326,9 @@ tables horizontally, and wraps long text first.
 `Timeline` shows milestones, progress, or issue history. JSON is preferred; simple entries may use CSV.
 
 ````mdx
-<Timeline title="Project progress">
+<Timeline
+  title="Project progress"
+>
 ```json
 [
   {"date":"2026-06-01","title":"Confirm definitions","body":"Read revenue from the source table","status":"done"},
@@ -334,7 +355,16 @@ Field aliases:
 same x value into one tooltip.
 
 ````mdx
-<Chart title="Revenue and expense" type="line" x="month" series="revenue,expense" unit="$k" highlight="2026-06" revenueLabel="Revenue" expenseLabel="Expense">
+<Chart
+  title="Revenue and expense"
+  type="line"
+  x="month"
+  series="revenue,expense"
+  unit="$k"
+  highlight="2026-06"
+  revenueLabel="Revenue"
+  expenseLabel="Expense"
+>
 ```csv
 month,revenue,expense
 2026-05,127.3,127.6
@@ -365,7 +395,14 @@ Use `line` for trends, `bar` for one-series categories, `grouped-bar` for side-b
 are treated as zero.
 
 ````mdx
-<Chart title="New and completed" type="combo" x="month" bars="newItems" lines="completedItems" unit="items">
+<Chart
+  title="New and completed"
+  type="combo"
+  x="month"
+  bars="newItems"
+  lines="completedItems"
+  unit="items"
+>
 ```csv
 month,newItems,completedItems
 2026-05,120,18
@@ -375,7 +412,16 @@ month,newItems,completedItems
 ````
 
 ````mdx
-<Chart title="Volume and conversion" type="combo-dual-axis" x="month" bars="volume" lines="conversion" rightSeries="conversion" leftUnit="items" rightUnit="%">
+<Chart
+  title="Volume and conversion"
+  type="combo-dual-axis"
+  x="month"
+  bars="volume"
+  lines="conversion"
+  rightSeries="conversion"
+  leftUnit="items"
+  rightUnit="%"
+>
 ```csv
 month,volume,conversion
 2026-05,120,8.5
@@ -394,7 +440,12 @@ the contract above.
 supporting prose.
 
 ````mdx
-<DecisionBox title="Issue ownership contract" status="accepted" owner="maintainer" source="docs/decision.md">
+<DecisionBox
+  title="Issue ownership contract"
+  status="accepted"
+  owner="maintainer"
+  source="docs/decision.md"
+>
 ```csv
 label,value
 Decision,"Each issue has one assignee; watchers use @mentions."
@@ -416,7 +467,9 @@ Label fields may be `label`, `key`, `name`, or `item`. Value fields may be `valu
 `MetricGrid` presents a few headline metrics before a detailed table or analysis.
 
 ````mdx
-<MetricGrid title="May highlights">
+<MetricGrid
+  title="May highlights"
+>
 ```csv
 label,value,delta,note,status
 Monthly active,139k,,Active-installation definition,good
@@ -445,7 +498,10 @@ Use DataTable, CSV/spreadsheets, or BI for large detail sets, sorting, and filte
 does not load a Mermaid runtime.
 
 ````mdx
-<FlowDiagram title="Request flow" note="Main path only; prose is authoritative.">
+<FlowDiagram
+  title="Request flow"
+  note="Main path only; prose is authoritative."
+>
 ```json
 {
   "nodes": [
@@ -467,7 +523,9 @@ does not load a Mermaid runtime.
 A simple flow can use CSV:
 
 ````mdx
-<FlowDiagram title="Publishing flow">
+<FlowDiagram
+  title="Publishing flow"
+>
 ```csv
 id,label,type,next
 draft,Write draft,start,review

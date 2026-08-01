@@ -48,6 +48,10 @@ import {
   reorderMarkdownTableColumn,
   replaceMarkdownTableCell,
 } from "../content/markdown-table.mjs";
+import {
+  mdxLiteComponentBlockAtLines,
+  mdxLiteComponentOpeningAtLines,
+} from "../content/mdx-lite-syntax.mjs";
 import { findTextMatches } from "../../public/document-search.js";
 import { enhanceImageLoadStates } from "../../public/image-preview.js";
 import { createTranslator } from "../../public/i18n.js";
@@ -84,14 +88,6 @@ const liveTableInteractionFacet = Facet.define({
   },
 });
 const cursorPlaceholder = "{{cursor}}";
-const mdxLiteComponentNames = [
-  "DataTable",
-  "Timeline",
-  "Chart",
-  "DecisionBox",
-  "MetricGrid",
-  "FlowDiagram",
-];
 const imageWidthSteps = [320, 480, 640, 760, 960, 1200];
 
 const SOURCE_EDITOR_SLASH_MESSAGES = {
@@ -265,7 +261,9 @@ const slashCommandDefinitions = [
     detail: "MDX-lite",
     requiresMdx: true,
     template: ({ translate }) => [
-      '<DataTable title="{{cursor}}">',
+      "<DataTable",
+      '  title="{{cursor}}"',
+      ">",
       "```csv",
       "name,value,status",
       `${translate("datatable.example")},1,active`,
@@ -278,7 +276,9 @@ const slashCommandDefinitions = [
     detail: "MDX-lite",
     requiresMdx: true,
     template: ({ translate }) => [
-      '<Timeline title="{{cursor}}">',
+      "<Timeline",
+      '  title="{{cursor}}"',
+      ">",
       "```json",
       "[",
       `  {"date":"2026-07-04","title":"${translate("timeline.exampleTitle")}","body":"${translate("timeline.exampleBody")}","status":"active"}`,
@@ -292,7 +292,13 @@ const slashCommandDefinitions = [
     detail: "MDX-lite",
     requiresMdx: true,
     template: [
-      '<Chart title="{{cursor}}" type="line" x="month" series="value" unit="">',
+      "<Chart",
+      '  title="{{cursor}}"',
+      '  type="line"',
+      '  x="month"',
+      '  series="value"',
+      '  unit=""',
+      ">",
       "```csv",
       "month,value",
       "2026-06,100",
@@ -306,7 +312,11 @@ const slashCommandDefinitions = [
     detail: "MDX-lite",
     requiresMdx: true,
     template: ({ translate }) => [
-      '<DecisionBox title="{{cursor}}" status="proposed" owner="">',
+      "<DecisionBox",
+      '  title="{{cursor}}"',
+      '  status="proposed"',
+      '  owner=""',
+      ">",
       "```csv",
       "label,value",
       `${translate("decision.rowDecision")},`,
@@ -321,7 +331,9 @@ const slashCommandDefinitions = [
     detail: "MDX-lite",
     requiresMdx: true,
     template: ({ translate }) => [
-      '<MetricGrid title="{{cursor}}">',
+      "<MetricGrid",
+      '  title="{{cursor}}"',
+      ">",
       "```csv",
       "label,value,delta,note,status",
       `${translate("metrics.exampleLabel")},0,,${translate("metrics.exampleNote")},neutral`,
@@ -334,7 +346,9 @@ const slashCommandDefinitions = [
     detail: "MDX-lite",
     requiresMdx: true,
     template: ({ translate }) => [
-      '<FlowDiagram title="{{cursor}}">',
+      "<FlowDiagram",
+      '  title="{{cursor}}"',
+      ">",
       "```json",
       "{",
       '  "nodes": [',
@@ -3597,15 +3611,14 @@ export function liveMarkdownLinkAtPosition(text, position) {
 }
 
 export function liveMdxComponentForLine(text) {
-  const match = mdxLiteComponentOpeningRegex().exec(text.trim());
-  if (!match) {
+  const opening = mdxLiteComponentOpeningAtLines([text]);
+  if (!opening) {
     return null;
   }
 
-  const titleMatch = match[2].match(/\btitle=(["'])(.*?)\1/);
   return {
-    name: match[1],
-    title: titleMatch?.[2] || match[1],
+    name: opening.name,
+    title: opening.attributes.title || opening.name,
   };
 }
 
@@ -3720,37 +3733,10 @@ function isSafeHtmlImageLine(line) {
 }
 
 function liveMdxPreviewBlockAt(lines, index) {
-  const trimmed = lines[index].trim();
-  const selfClosing = mdxLiteComponentSelfClosingRegex().exec(trimmed);
-  if (selfClosing) {
-    return { component: selfClosing[1], endIndex: index };
-  }
-
-  const opening = mdxLiteComponentBlockOpeningRegex().exec(trimmed);
-  if (!opening) {
-    return null;
-  }
-
-  const component = opening[1];
-  for (let endIndex = index + 1; endIndex < lines.length; endIndex += 1) {
-    if (lines[endIndex].trim() === `</${component}>`) {
-      return { component, endIndex };
-    }
-  }
-
-  return null;
-}
-
-function mdxLiteComponentOpeningRegex() {
-  return new RegExp(`^<(${mdxLiteComponentNames.join("|")})\\b([^>]*)>`);
-}
-
-function mdxLiteComponentSelfClosingRegex() {
-  return new RegExp(`^<(${mdxLiteComponentNames.join("|")})\\b[^>]*\\/\\s*>$`);
-}
-
-function mdxLiteComponentBlockOpeningRegex() {
-  return new RegExp(`^<(${mdxLiteComponentNames.join("|")})\\b[^>]*>\\s*$`);
+  const block = mdxLiteComponentBlockAtLines(lines, index);
+  return block
+    ? { component: block.component, endIndex: block.endIndex }
+    : null;
 }
 
 function liveMarkdownTableBlockAt(lines, index) {

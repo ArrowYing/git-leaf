@@ -34481,8 +34481,8 @@ function parseDelimitedRecords(content2, delimiter2 = ",") {
   return rows.filter((record) => record.some((value) => String(value).length > 0));
 }
 
-// src/content/mdx-lite.mjs
-var COMPONENT_NAMES = /* @__PURE__ */ new Set([
+// src/content/mdx-lite-syntax.mjs
+var MDX_LITE_COMPONENT_NAMES = Object.freeze([
   "DataTable",
   "Timeline",
   "Chart",
@@ -34490,6 +34490,108 @@ var COMPONENT_NAMES = /* @__PURE__ */ new Set([
   "MetricGrid",
   "FlowDiagram"
 ]);
+var MDX_LITE_COMPONENT_NAME_SET = new Set(MDX_LITE_COMPONENT_NAMES);
+var MAX_OPENING_LINES = 100;
+var MAX_OPENING_CHARACTERS = 32 * 1024;
+function mdxLiteComponentOpeningAtLines(lines, startIndex = 0) {
+  if (!Array.isArray(lines) || !Number.isInteger(startIndex) || startIndex < 0) {
+    return null;
+  }
+  let source = "";
+  const lastIndex = Math.min(lines.length, startIndex + MAX_OPENING_LINES);
+  for (let lineIndex = startIndex; lineIndex < lastIndex; lineIndex += 1) {
+    source += `${lineIndex === startIndex ? "" : "\n"}${String(lines[lineIndex] ?? "")}`;
+    if (source.length > MAX_OPENING_CHARACTERS) {
+      return null;
+    }
+    const normalized = source.trimStart();
+    const nameMatch = normalized.match(/^<([A-Z][A-Za-z0-9]*)\b/);
+    if (!nameMatch || !MDX_LITE_COMPONENT_NAME_SET.has(nameMatch[1])) {
+      return null;
+    }
+    const tagEnd = unquotedTagEnd(normalized);
+    if (tagEnd < 0) {
+      continue;
+    }
+    if (normalized.slice(tagEnd + 1).trim()) {
+      return null;
+    }
+    const beforeEnd = normalized.slice(0, tagEnd).trimEnd();
+    const selfClosing = beforeEnd.endsWith("/");
+    const attributesEnd = selfClosing ? beforeEnd.length - 1 : beforeEnd.length;
+    const rawAttributes = beforeEnd.slice(nameMatch[0].length, attributesEnd).trim();
+    return {
+      name: nameMatch[1],
+      rawAttributes,
+      attributes: parseMdxLiteAttributes(rawAttributes),
+      selfClosing,
+      endIndex: lineIndex
+    };
+  }
+  return null;
+}
+function mdxLiteComponentBlockAtLines(lines, startIndex = 0) {
+  const opening = mdxLiteComponentOpeningAtLines(lines, startIndex);
+  if (!opening) {
+    return null;
+  }
+  if (opening.selfClosing) {
+    return {
+      component: opening.name,
+      openingEndIndex: opening.endIndex,
+      endIndex: opening.endIndex,
+      rawAttributes: opening.rawAttributes,
+      attributes: opening.attributes,
+      selfClosing: true
+    };
+  }
+  for (let lineIndex = opening.endIndex + 1; lineIndex < lines.length; lineIndex += 1) {
+    if (String(lines[lineIndex] ?? "").trim() === `</${opening.name}>`) {
+      return {
+        component: opening.name,
+        openingEndIndex: opening.endIndex,
+        endIndex: lineIndex,
+        rawAttributes: opening.rawAttributes,
+        attributes: opening.attributes,
+        selfClosing: false
+      };
+    }
+  }
+  return null;
+}
+function parseMdxLiteAttributes(rawAttributes) {
+  const attributes = {};
+  const attributeRe = /([A-Za-z_][A-Za-z0-9_-]*)=(?:"([^"]*)"|'([^']*)'|([^\s"'>/]+))/g;
+  for (const match2 of String(rawAttributes ?? "").matchAll(attributeRe)) {
+    attributes[match2[1]] = match2[2] ?? match2[3] ?? match2[4] ?? "";
+  }
+  return attributes;
+}
+function unquotedTagEnd(source) {
+  let quote = "";
+  for (let index = 0; index < source.length; index += 1) {
+    const character = source[index];
+    if (quote) {
+      if (character === "\\") {
+        index += 1;
+      } else if (character === quote) {
+        quote = "";
+      }
+      continue;
+    }
+    if (character === '"' || character === "'") {
+      quote = character;
+      continue;
+    }
+    if (character === ">") {
+      return index;
+    }
+  }
+  return -1;
+}
+
+// src/content/mdx-lite.mjs
+var COMPONENT_NAMES = new Set(MDX_LITE_COMPONENT_NAMES);
 var CHART_COLORS = ["#2563eb", "#dc2626", "#16a34a", "#d97706", "#7c3aed", "#0891b2"];
 var DATASET_COMPONENT_NAMES = /* @__PURE__ */ new Set(["Chart", "DataTable"]);
 var DATASET_GRANULARITIES = /* @__PURE__ */ new Set(["day", "week", "month", "quarter"]);
@@ -34520,20 +34622,27 @@ var MDX_MESSAGES = Object.freeze({
   })
 });
 function mdxLiteBlockRule(state, startLine, endLine, silent) {
-  const line = sourceLine(state, startLine).trim();
-  const open = line.match(/^<([A-Z][A-Za-z0-9]*)\b([^>]*)>\s*$/);
-  const selfClosing = line.match(/^<([A-Z][A-Za-z0-9]*)\b([^>]*)\/>\s*$/);
-  const match2 = selfClosing || open;
-  if (!match2 || !COMPONENT_NAMES.has(match2[1])) {
+  const startMatch = sourceLine(state, startLine).trimStart().match(/^<([A-Z][A-Za-z0-9]*)\b/);
+  if (!startMatch || !COMPONENT_NAMES.has(startMatch[1])) {
     return false;
   }
-  const [, name2, rawAttributes = ""] = match2;
+  const openingLines = [];
+  let opening = null;
+  for (let lineIndex = startLine; lineIndex < endLine && openingLines.length < 100; lineIndex += 1) {
+    openingLines.push(sourceLine(state, lineIndex));
+    opening = mdxLiteComponentOpeningAtLines(openingLines);
+    if (opening) break;
+  }
+  if (!opening || !COMPONENT_NAMES.has(opening.name)) {
+    return false;
+  }
   if (silent) {
     return true;
   }
-  let closeLine = startLine;
-  if (!selfClosing) {
-    closeLine = findClosingLine(state, startLine + 1, endLine, name2);
+  const openingEndLine = startLine + opening.endIndex;
+  let closeLine = openingEndLine;
+  if (!opening.selfClosing) {
+    closeLine = findClosingLine(state, openingEndLine + 1, endLine, opening.name);
     if (closeLine < 0) {
       return false;
     }
@@ -34542,10 +34651,10 @@ function mdxLiteBlockRule(state, startLine, endLine, silent) {
   token.block = true;
   token.map = [startLine, closeLine + 1];
   token.meta = {
-    name: name2,
-    attributes: parseAttributes(rawAttributes)
+    name: opening.name,
+    attributes: opening.attributes
   };
-  token.content = selfClosing ? "" : state.getLines(startLine + 1, closeLine, state.blkIndent, false);
+  token.content = opening.selfClosing ? "" : state.getLines(openingEndLine + 1, closeLine, state.blkIndent, false);
   state.line = closeLine + 1;
   return true;
 }
@@ -35436,14 +35545,6 @@ function rowsFromMarkdownTable(content2) {
 }
 function splitMarkdownRow(line) {
   return line.trim().replace(/^\||\|$/g, "").split("|").map((cell) => cell.trim());
-}
-function parseAttributes(rawAttributes) {
-  const attributes = {};
-  const attributeRe = /([A-Za-z_][A-Za-z0-9_-]*)=(?:"([^"]*)"|'([^']*)'|([^\s"'>/]+))/g;
-  for (const match2 of rawAttributes.matchAll(attributeRe)) {
-    attributes[match2[1]] = match2[2] ?? match2[3] ?? match2[4] ?? "";
-  }
-  return attributes;
 }
 function columnsForRows(rows, rawColumns) {
   const configured = listAttribute(rawColumns);
@@ -37263,14 +37364,6 @@ var liveTableInteractionFacet = Facet.define({
   }
 });
 var cursorPlaceholder = "{{cursor}}";
-var mdxLiteComponentNames = [
-  "DataTable",
-  "Timeline",
-  "Chart",
-  "DecisionBox",
-  "MetricGrid",
-  "FlowDiagram"
-];
 var imageWidthSteps = [320, 480, 640, 760, 960, 1200];
 var SOURCE_EDITOR_SLASH_MESSAGES = {
   en: {
@@ -37441,7 +37534,9 @@ var slashCommandDefinitions = [
     detail: "MDX-lite",
     requiresMdx: true,
     template: ({ translate }) => [
-      '<DataTable title="{{cursor}}">',
+      "<DataTable",
+      '  title="{{cursor}}"',
+      ">",
       "```csv",
       "name,value,status",
       `${translate("datatable.example")},1,active`,
@@ -37454,7 +37549,9 @@ var slashCommandDefinitions = [
     detail: "MDX-lite",
     requiresMdx: true,
     template: ({ translate }) => [
-      '<Timeline title="{{cursor}}">',
+      "<Timeline",
+      '  title="{{cursor}}"',
+      ">",
       "```json",
       "[",
       `  {"date":"2026-07-04","title":"${translate("timeline.exampleTitle")}","body":"${translate("timeline.exampleBody")}","status":"active"}`,
@@ -37468,7 +37565,13 @@ var slashCommandDefinitions = [
     detail: "MDX-lite",
     requiresMdx: true,
     template: [
-      '<Chart title="{{cursor}}" type="line" x="month" series="value" unit="">',
+      "<Chart",
+      '  title="{{cursor}}"',
+      '  type="line"',
+      '  x="month"',
+      '  series="value"',
+      '  unit=""',
+      ">",
       "```csv",
       "month,value",
       "2026-06,100",
@@ -37482,7 +37585,11 @@ var slashCommandDefinitions = [
     detail: "MDX-lite",
     requiresMdx: true,
     template: ({ translate }) => [
-      '<DecisionBox title="{{cursor}}" status="proposed" owner="">',
+      "<DecisionBox",
+      '  title="{{cursor}}"',
+      '  status="proposed"',
+      '  owner=""',
+      ">",
       "```csv",
       "label,value",
       `${translate("decision.rowDecision")},`,
@@ -37497,7 +37604,9 @@ var slashCommandDefinitions = [
     detail: "MDX-lite",
     requiresMdx: true,
     template: ({ translate }) => [
-      '<MetricGrid title="{{cursor}}">',
+      "<MetricGrid",
+      '  title="{{cursor}}"',
+      ">",
       "```csv",
       "label,value,delta,note,status",
       `${translate("metrics.exampleLabel")},0,,${translate("metrics.exampleNote")},neutral`,
@@ -37510,7 +37619,9 @@ var slashCommandDefinitions = [
     detail: "MDX-lite",
     requiresMdx: true,
     template: ({ translate }) => [
-      '<FlowDiagram title="{{cursor}}">',
+      "<FlowDiagram",
+      '  title="{{cursor}}"',
+      ">",
       "```json",
       "{",
       '  "nodes": [',
@@ -40329,14 +40440,13 @@ function liveMarkdownLinkAtPosition(text2, position) {
   return liveMarkdownLinksForLine(text2).find((link2) => position >= link2.from && position <= link2.to) ?? null;
 }
 function liveMdxComponentForLine(text2) {
-  const match2 = mdxLiteComponentOpeningRegex().exec(text2.trim());
-  if (!match2) {
+  const opening = mdxLiteComponentOpeningAtLines([text2]);
+  if (!opening) {
     return null;
   }
-  const titleMatch = match2[2].match(/\btitle=(["'])(.*?)\1/);
   return {
-    name: match2[1],
-    title: titleMatch?.[2] || match2[1]
+    name: opening.name,
+    title: opening.attributes.title || opening.name
   };
 }
 function cssEscape(value) {
@@ -40428,31 +40538,8 @@ function isSafeHtmlImageLine(line) {
   return /^(?:<img\b[^<>]*>\s*)+$/i.test(line) || /^<p>\s*(?:<img\b[^<>]*>\s*)+<\/p>\s*$/i.test(line);
 }
 function liveMdxPreviewBlockAt(lines, index) {
-  const trimmed = lines[index].trim();
-  const selfClosing = mdxLiteComponentSelfClosingRegex().exec(trimmed);
-  if (selfClosing) {
-    return { component: selfClosing[1], endIndex: index };
-  }
-  const opening = mdxLiteComponentBlockOpeningRegex().exec(trimmed);
-  if (!opening) {
-    return null;
-  }
-  const component = opening[1];
-  for (let endIndex = index + 1; endIndex < lines.length; endIndex += 1) {
-    if (lines[endIndex].trim() === `</${component}>`) {
-      return { component, endIndex };
-    }
-  }
-  return null;
-}
-function mdxLiteComponentOpeningRegex() {
-  return new RegExp(`^<(${mdxLiteComponentNames.join("|")})\\b([^>]*)>`);
-}
-function mdxLiteComponentSelfClosingRegex() {
-  return new RegExp(`^<(${mdxLiteComponentNames.join("|")})\\b[^>]*\\/\\s*>$`);
-}
-function mdxLiteComponentBlockOpeningRegex() {
-  return new RegExp(`^<(${mdxLiteComponentNames.join("|")})\\b[^>]*>\\s*$`);
+  const block2 = mdxLiteComponentBlockAtLines(lines, index);
+  return block2 ? { component: block2.component, endIndex: block2.endIndex } : null;
 }
 function liveMarkdownTableBlockAt(lines, index) {
   return markdownTableBlockAtLines(lines, index);
