@@ -308,6 +308,73 @@ month,app,mango
   assert.doesNotMatch(line, /data-chart-tooltip="收支趋势\\n/);
 });
 
+test("renderMarkdown gives every chart x value a full-height nearest-x pointer region", () => {
+  const html = renderMarkdown(`<Chart title="收支趋势" type="line" x="month" series="revenue,expense" unit="万元">
+\`\`\`csv
+month,revenue,expense
+2026-05,127.3,127.6
+2026-06,126.6,126.1
+2026-07,128.2,127.4
+\`\`\`
+</Chart>`);
+  const regions = html.match(/<rect class="mdx-chart-x-hit-target"[^>]*>/g) ?? [];
+
+  assert.equal(regions.length, 3);
+  assert.ok(regions.every((region) => /data-chart-tooltip="[^"]+"/.test(region)));
+  assert.ok(regions.every((region) => /y="46\.0"/.test(region)));
+  assert.ok(regions.every((region) => /height="250\.0"/.test(region)));
+
+  const bounds = regions.map((region) => ({
+    x: Number(region.match(/\sx="([^"]+)"/)?.[1]),
+    width: Number(region.match(/\swidth="([^"]+)"/)?.[1]),
+  }));
+  assert.equal(bounds[0].x, 58);
+  for (let index = 1; index < bounds.length; index += 1) {
+    assert.ok(Math.abs(bounds[index].x - (bounds[index - 1].x + bounds[index - 1].width)) < 0.11);
+  }
+  assert.ok(Math.abs(bounds.at(-1).x + bounds.at(-1).width - 854) < 0.11);
+});
+
+test("renderMarkdown uses available x-axis space without showing every dense label", () => {
+  const chartFor = (labels) => renderMarkdown(`<Chart title="趋势" type="line" x="period" series="value" labels="none">
+\`\`\`csv
+period,value
+${labels.map((label, index) => `${label},${index + 1}`).join("\n")}
+\`\`\`
+</Chart>`);
+  const labelTexts = (html) => [
+    ...html.matchAll(/<text class="mdx-chart-x-label"[^>]*>([^<]+)<\/text>/g),
+  ].map((match) => match[1]);
+  const months = Array.from({ length: 24 }, (_, index) =>
+    new Date(Date.UTC(2024, 7 + index, 1)).toISOString().slice(0, 7)
+  );
+  const quarters = [
+    "2024-Q3",
+    "2024-Q4",
+    "2025-Q1",
+    "2025-Q2",
+    "2025-Q3",
+    "2025-Q4",
+    "2026-Q1",
+    "2026-Q2",
+    "2026-Q3",
+  ];
+  const dense = Array.from({ length: 12 }, (_, index) => `非常长的业务分类名称-${index + 1}`);
+  const monthLabels = labelTexts(chartFor(months));
+  const quarterLabels = labelTexts(chartFor(quarters));
+  const denseLabels = labelTexts(chartFor(dense));
+
+  assert.ok(monthLabels.length > 7);
+  assert.ok(monthLabels.length < months.length);
+  assert.equal(monthLabels[0], months[0]);
+  assert.equal(monthLabels.at(-1), months.at(-1));
+  assert.deepEqual(quarterLabels, quarters);
+  assert.ok(denseLabels.length >= 2);
+  assert.ok(denseLabels.length < dense.length);
+  assert.equal(denseLabels[0], dense[0]);
+  assert.equal(denseLabels.at(-1), dense.at(-1));
+});
+
 test("renderMarkdown shows chart value labels by default and can hide them", () => {
   const visible = renderMarkdown(`<Chart title="收入趋势" type="bar" x="month" series="revenue">
 \`\`\`csv

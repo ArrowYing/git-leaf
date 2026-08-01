@@ -812,6 +812,7 @@ function chartSvg(model, { min, max, x, y, body, rightAxis = null }) {
     rightAxis && model.rightUnit ? `<text class="mdx-chart-unit-label mdx-chart-right-unit-label" x="${model.width - 18}" y="${model.pad.top + model.plotH / 2}" transform="rotate(90 ${model.width - 18} ${model.pad.top + model.plotH / 2})" text-anchor="middle" font-size="12" font-weight="700">${escapeHtml(model.translate("chart.unit", { unit: model.rightUnit }))}</text>` : "",
     body,
     renderXAxis(model, x, axisY),
+    renderChartTooltipRegions(model, x),
     "</svg>",
   ].join("");
 }
@@ -850,8 +851,9 @@ function renderRightAxis(model, { min, max, y }) {
 }
 
 function renderXAxis(model, x, axisY) {
+  const visibleLabels = visibleXLabelIndices(model, x);
   return model.labels.map((label, index) => {
-    const major = shouldShowXLabel(model.labels, index) || model.highlights.has(label);
+    const major = visibleLabels.has(index) || model.highlights.has(label);
     const labelClass = model.highlights.has(label)
       ? ' class="mdx-chart-x-label mdx-chart-highlight-label"'
       : ' class="mdx-chart-x-label"';
@@ -862,6 +864,21 @@ function renderXAxis(model, x, axisY) {
       `<line class="mdx-chart-x-tick${major ? " is-major" : " is-minor"}" x1="${x(index).toFixed(1)}" y1="${axisY.toFixed(1)}" x2="${x(index).toFixed(1)}" y2="${(axisY + (major ? 10 : 5)).toFixed(1)}"></line>`,
       major ? `${highlight}<text${labelClass} x="${x(index).toFixed(1)}" y="${model.height - 24}" text-anchor="middle" font-size="12" font-weight="${model.highlights.has(label) ? 760 : 560}">${escapeHtml(label)}</text>` : "",
     ].join("");
+  }).join("");
+}
+
+function renderChartTooltipRegions(model, x) {
+  const lastIndex = model.labels.length - 1;
+  const plotRight = model.width - model.pad.right;
+  return model.labels.map((_, index) => {
+    const center = x(index);
+    const left = index === 0
+      ? model.pad.left
+      : (x(index - 1) + center) / 2;
+    const right = index === lastIndex
+      ? plotRight
+      : (center + x(index + 1)) / 2;
+    return `<rect class="mdx-chart-x-hit-target" x="${left.toFixed(1)}" y="${model.pad.top.toFixed(1)}" width="${Math.max(0, right - left).toFixed(1)}" height="${model.plotH.toFixed(1)}" fill="transparent" pointer-events="all"${chartTooltipAttributes(model, index)} aria-hidden="true"></rect>`;
   }).join("");
 }
 
@@ -1237,9 +1254,44 @@ function ticks(min, max, count) {
   return Array.from({ length: count + 1 }, (_, index) => min + ((max - min) * index) / count);
 }
 
-function shouldShowXLabel(labels, index) {
-  if (labels.length <= 8) return true;
-  return index === 0 || index === labels.length - 1 || index % Math.ceil(labels.length / 6) === 0;
+function visibleXLabelIndices(model, x) {
+  const lastIndex = model.labels.length - 1;
+  if (lastIndex <= 0) {
+    return new Set([0]);
+  }
+
+  const widths = model.labels.map(estimatedXLabelWidth);
+  const hasSpace = (leftIndex, rightIndex) => (
+    x(rightIndex) - x(leftIndex)
+    >= widths[leftIndex] / 2 + widths[rightIndex] / 2 + 12
+  );
+  const visible = [0];
+  for (let index = 1; index < lastIndex; index += 1) {
+    if (hasSpace(visible.at(-1), index) && hasSpace(index, lastIndex)) {
+      visible.push(index);
+    }
+  }
+  visible.push(lastIndex);
+  return new Set(visible);
+}
+
+function estimatedXLabelWidth(value) {
+  let width = 0;
+  for (const character of String(value ?? "")) {
+    const codePoint = character.codePointAt(0) ?? 0;
+    if (/\s/.test(character)) {
+      width += 4;
+    } else if (codePoint > 0xff) {
+      width += 12;
+    } else if (/[ilI1.,:;|'!]/.test(character)) {
+      width += 4.5;
+    } else if (/[MW@#%&]/.test(character)) {
+      width += 9;
+    } else {
+      width += 7;
+    }
+  }
+  return Math.max(12, width);
 }
 
 function formatNumber(value) {

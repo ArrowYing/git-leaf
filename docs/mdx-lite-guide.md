@@ -400,8 +400,9 @@ Field aliases:
 
 ## Chart
 
-`Chart` produces a static SVG for reading. It does not load ECharts. Hovering combines series at the
-same x value into one tooltip.
+`Chart` produces a static SVG for reading. It does not load ECharts. Moving anywhere inside the plot
+shows the nearest x value and combines its series into one tooltip. X-axis labels use the available
+width more actively while still skipping labels that would overlap.
 
 ````mdx
 <Chart
