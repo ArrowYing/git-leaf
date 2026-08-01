@@ -297,7 +297,10 @@ external data changes even if the MDX file does not.
 
 Rendered blocks preserve source line ranges. Preview, Source, and Live use the same source-based
 selection and Agent Context semantics. Copying a reference includes the repository-relative path, line
-range, and original Markdown.
+range, and original Markdown. Each source line is emitted as a Markdown blockquote, followed by a
+plain source attribution outside that quote and one trailing empty paragraph. Direct references and
+Agent Context collections both leave the insertion point ready for a user's prompt without entering
+the quoted content.
 
 The component allowlist, attributes, input data formats, and rendering contracts live only in
 [MDX-lite reference](mdx-lite-guide.md).

@@ -1,4 +1,4 @@
-import { formatLineRange } from "./line-selection.js";
+import { formatLineRange, formatQuotedSourceLines } from "./line-selection.js";
 
 export const AGENT_CONTEXT_STORAGE_PREFIX = "git-leaf-agent-context-v1";
 
@@ -130,14 +130,14 @@ export function formatAgentContextMarkdown(items) {
     if (output.at(-1) !== "") {
       output.push("");
     }
-    output.push(`## ${lineReference(item)}`, "", "```markdown");
-    for (const line of item.sourceLines) {
-      output.push(`${line.number} | ${line.text}`);
-    }
-    output.push("```");
+    output.push(
+      formatQuotedSourceLines(item.sourceLines),
+      "",
+      `Source: ${lineReference(item)}`,
+    );
   }
 
-  return output.join("\n").trim();
+  return `${output.join("\n").trim()}\n\n`;
 }
 
 export function readAgentContextItems({ storage, scopeKey } = {}) {

@@ -148,16 +148,15 @@ Git Leaf 内只有 Markdown 和 MDX 可以编辑。其他仓库文件提供只�
 例如，选中 `demos/agent-context-and-sync.md` 的第 16–17 行，复制结果是：
 
 ````markdown
-demos/agent-context-and-sync.md:16-17
+> 16 | Git Leaf opens a local Git repository and presents it as a readable workspace. The repository remains
+> 17 | the shared source of truth. Git Leaf does not upload the content or create a separate hosted copy.
 
-```markdown
-16 | Git Leaf opens a local Git repository and presents it as a readable workspace. The repository remains
-17 | the shared source of truth. Git Leaf does not upload the content or create a separate hosted copy.
-```
+Source: demos/agent-context-and-sync.md:16-17
 ````
 
-其中已经包含仓库相对路径、选中行范围、原始行号和原始 Markdown，可以直接粘贴，不必先放进 Agent
-Context。
+其中已经包含仓库相对路径、选中行范围、原始行号和原始 Markdown。选中内容会成为引用，末尾的来源说明
+位于引用之外；复制结果还会在最后预留一个空白段落，粘贴后可以直接输入自己的提示词，也不必先放进
+Agent Context。
 
 ### 多个片段：整理成 Agent Context
 
@@ -181,23 +180,20 @@ Worktree: main checkout
 Branch: main
 Revision: 0123456789abcdef
 
-## demos/agent-context-and-sync.md:L16-L17
+> 16 | Git Leaf opens a local Git repository and presents it as a readable workspace. The repository remains
+> 17 | the shared source of truth. Git Leaf does not upload the content or create a separate hosted copy.
 
-```markdown
-16 | Git Leaf opens a local Git repository and presents it as a readable workspace. The repository remains
-17 | the shared source of truth. Git Leaf does not upload the content or create a separate hosted copy.
-```
+Source: demos/agent-context-and-sync.md:L16-L17
 
-## demos/agent-context-and-sync.md:L24-L25
+> 24 | People use Preview, Live, and Source to read, inspect, and make focused edits. Agents and developers
+> 25 | work directly with the same repository through Git and their normal tools.
 
-```markdown
-24 | People use Preview, Live, and Source to read, inspect, and make focused edits. Agents and developers
-25 | work directly with the same repository through Git and their normal tools.
-```
+Source: demos/agent-context-and-sync.md:L24-L25
 ````
 
-仓库、worktree、分支和 revision 只在顶部出现一次；之后每一段内容分别带有文件路径和行号范围。上面的
-元数据只是示例，Git Leaf 实际复制的是当前工作目录的真实信息。
+仓库、worktree、分支和 revision 只在顶部出现一次；之后每一段内容都是引用，并在引用外带有文件路径和
+行号范围。上面的元数据只是示例，Git Leaf 实际复制的是当前工作目录的真实信息。最后一个来源说明之后，
+同样会预留一个可以直接输入提示词的空白段落。
 
 Agent Context 是按仓库和 worktree 隔离的临时会话状态。它可以收集当前工作目录中的多个文件，但不能跨
 仓库，也不是长期内容数据库，更不会自动发送给任何 AI 服务商。

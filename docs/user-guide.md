@@ -175,16 +175,16 @@ For a quick question about the document in front of you:
 For example, selecting lines 16–17 in `demos/agent-context-and-sync.md` produces:
 
 ````markdown
-demos/agent-context-and-sync.md:16-17
+> 16 | Git Leaf opens a local Git repository and presents it as a readable workspace. The repository remains
+> 17 | the shared source of truth. Git Leaf does not upload the content or create a separate hosted copy.
 
-```markdown
-16 | Git Leaf opens a local Git repository and presents it as a readable workspace. The repository remains
-17 | the shared source of truth. Git Leaf does not upload the content or create a separate hosted copy.
-```
+Source: demos/agent-context-and-sync.md:16-17
 ````
 
 The copy includes the repository-relative path, selected line range, original line numbers, and original
-Markdown. It is ready to paste without first adding anything to the Agent Context basket.
+Markdown. The selected lines are a quote, while the trailing source attribution stays outside that quote.
+The copy ends with an empty paragraph, so after pasting it the user can type the prompt immediately. It is
+ready to paste without first adding anything to the Agent Context basket.
 
 ### Several passages: build an Agent Context collection
 
@@ -208,24 +208,21 @@ Worktree: main checkout
 Branch: main
 Revision: 0123456789abcdef
 
-## demos/agent-context-and-sync.md:L16-L17
+> 16 | Git Leaf opens a local Git repository and presents it as a readable workspace. The repository remains
+> 17 | the shared source of truth. Git Leaf does not upload the content or create a separate hosted copy.
 
-```markdown
-16 | Git Leaf opens a local Git repository and presents it as a readable workspace. The repository remains
-17 | the shared source of truth. Git Leaf does not upload the content or create a separate hosted copy.
-```
+Source: demos/agent-context-and-sync.md:L16-L17
 
-## demos/agent-context-and-sync.md:L24-L25
+> 24 | People use Preview, Live, and Source to read, inspect, and make focused edits. Agents and developers
+> 25 | work directly with the same repository through Git and their normal tools.
 
-```markdown
-24 | People use Preview, Live, and Source to read, inspect, and make focused edits. Agents and developers
-25 | work directly with the same repository through Git and their normal tools.
-```
+Source: demos/agent-context-and-sync.md:L24-L25
 ````
 
 The repository, worktree, branch, and revision appear once at the top; every selected passage then has
-its own path and line range. The values above are illustrative—Git Leaf copies the actual metadata from
-the current working directory.
+its own quoted lines and trailing source attribution. The values above are illustrative—Git Leaf copies
+the actual metadata from the current working directory. After the final source attribution, the copied
+collection ends with the same empty paragraph ready for the user's prompt.
 
 Agent Context is temporary session state and is isolated by repository and worktree. It can collect
 several files from the current working directory, but it is not a cross-repository or long-term

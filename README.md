@@ -105,7 +105,8 @@ JSX, JavaScript, imports, or scripts.
   off for a compact tree.
 - Repository and worktree switching with restored tabs, navigation history, scroll positions, and focus.
 - Read-only previews for images, PDFs, CSV, JSON, YAML, HTML, code, and other repository attachments.
-- Source line references that preserve where selected text came from.
+- Source line references that paste as quoted context, preserve where selected text came from, and leave
+  a blank paragraph ready for the user's prompt.
 - Conservative file operations that avoid turning Git Leaf into a general file manager or IDE.
 
 ## One repository does not require one app

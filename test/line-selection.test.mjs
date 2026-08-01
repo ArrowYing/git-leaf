@@ -29,7 +29,7 @@ test("line hash supports GitHub-style continuous source ranges", () => {
   assert.equal(hashFromLines([12, 14]), "");
 });
 
-test("formatLineReference copies path, line range, and original markdown", () => {
+test("formatLineReference keeps copied source quoted and leaves the prompt after its source", () => {
   const output = formatLineReference({
     path: "docs/example.md",
     selectedLines: [3, 1, 2],
@@ -40,13 +40,11 @@ test("formatLineReference copies path, line range, and original markdown", () =>
     ],
   });
 
-  assert.equal(output, `docs/example.md:1-3
+  assert.equal(output, `> 1 | # Title
+> 2 |
+> 3 | Body **text**
 
-\`\`\`markdown
-1 | # Title
-2 | 
-3 | Body **text**
-\`\`\``);
+Source: docs/example.md:1-3` + "\n\n");
 });
 
 test("sourceLinesFromMarkdown preserves blank lines but ignores trailing newline sentinel", () => {

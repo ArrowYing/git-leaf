@@ -69,8 +69,18 @@ test("agent context item labels prioritize the file name without exposing its pa
   assert.doesNotMatch(agentContextItemLabel(item), /research|projects|\.mdx/);
 });
 
-test("agent context markdown is product-neutral and includes Git location metadata", () => {
-  const output = formatAgentContextMarkdown([exampleItem()]);
+test("agent context markdown keeps source passages quoted with attribution outside", () => {
+  const output = formatAgentContextMarkdown([
+    exampleItem(),
+    exampleItem({
+      path: "README.md",
+      selectedLines: [9, 10],
+      sourceLines: [
+        { number: 9, text: "People read shared context." },
+        { number: 10, text: "Agents edit the same files." },
+      ],
+    }),
+  ]);
 
   assert.equal(output, `# Agent Context
 
@@ -79,13 +89,16 @@ Worktree: main checkout
 Branch: main
 Revision: 0123456789abcdef
 
-## architecture.md:L67-L69
+> 67 | Git Leaf is Git-native.
+> 68 |
+> 69 | Agents receive source context.
 
-\`\`\`markdown
-67 | Git Leaf is Git-native.
-68 | ${""}
-69 | Agents receive source context.
-\`\`\``);
+Source: architecture.md:L67-L69
+
+> 9 | People read shared context.
+> 10 | Agents edit the same files.
+
+Source: README.md:L9-L10` + "\n\n");
   assert.doesNotMatch(output, /Codex|Claude|Cursor/);
 });
 

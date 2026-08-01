@@ -187,16 +187,23 @@ export function formatLineReference({ path, selectedLines, sourceLines }) {
   }
 
   const lineText = new Map(sourceLines.map((line) => [line.number, line.text]));
-  const body = selected
-    .map((lineNumber) => {
-      const text = lineText.get(lineNumber) ?? "";
-      return `${lineNumber} | ${text}`;
+  const body = formatQuotedSourceLines(selected.map((lineNumber) => ({
+    number: lineNumber,
+    text: lineText.get(lineNumber) ?? "",
+  })));
+
+  return `${body}
+
+Source: ${path}:${formatLineRange(selected)}
+
+`;
+}
+
+export function formatQuotedSourceLines(sourceLines) {
+  return sourceLines
+    .map((line) => {
+      const text = String(line.text ?? "");
+      return `> ${line.number} |${text === "" ? "" : ` ${text}`}`;
     })
     .join("\n");
-
-  return `${path}:${formatLineRange(selected)}
-
-\`\`\`markdown
-${body}
-\`\`\``;
 }
