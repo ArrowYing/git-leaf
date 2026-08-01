@@ -27,3 +27,13 @@ test("shouldReplaceDocumentHtml replaces stale preview html after source sync wr
     true,
   );
 });
+
+test("shouldReplaceDocumentHtml replaces a report when only its dataset changes", () => {
+  assert.equal(
+    shouldReplaceDocumentHtml(
+      { path: "report.mdx", source: "<Chart />", html: "same", dependencyHash: "old" },
+      { path: "report.mdx", source: "<Chart />", html: "same", dependencyHash: "new" },
+    ),
+    true,
+  );
+});

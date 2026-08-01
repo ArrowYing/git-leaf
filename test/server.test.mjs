@@ -648,6 +648,77 @@ test("document status API updates when the file changes", async () => {
   }
 });
 
+test("dataset query API aggregates external daily data and refreshes its dependency hash", async () => {
+  const repoRoot = await mkdtemp(path.join(tmpdir(), "git-leaf-dataset-api-"));
+  const documentPath = path.join(repoRoot, "report.mdx");
+  const dataPath = path.join(repoRoot, "company.csv");
+  await writeFile(
+    documentPath,
+    '<Chart title="收入趋势" dataset="./company.dataset.json" x="period" series="revenue" granularity="quarter" />\n',
+  );
+  await writeFile(path.join(repoRoot, "company.dataset.json"), JSON.stringify({
+    schemaVersion: 1,
+    id: "company_daily",
+    title: "Company daily report",
+    data: "./company.csv",
+    format: "csv",
+    grain: ["date"],
+    primaryKey: ["date"],
+    time: {
+      field: "date",
+      type: "date",
+      weekStartsOn: "monday",
+      calendar: "calendar",
+    },
+    fields: [
+      { name: "date", type: "date", required: true },
+      { name: "revenue", type: "decimal", required: true, rollup: "sum" },
+    ],
+  }));
+  await writeFile(dataPath, "date,revenue\n2026-01-01,10\n2026-01-02,20\n");
+  const initialFile = await resolvePreviewPath(repoRoot, "report.mdx");
+  const server = createPreviewServer({ repoRoot, initialFile });
+  const baseUrl = await listen(server);
+
+  try {
+    const document = await getJson(`${baseUrl}/api/document?file=report.mdx&locale=zh-CN`);
+    assert.match(document.html, /data-mdx-dataset-view="true"/);
+    assert.equal(typeof document.dependencyHash, "string");
+    assert.equal(document.dependencyHash.length, 64);
+
+    const response = await fetch(`${baseUrl}/api/dataset-query?file=report.mdx&locale=zh-CN`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        component: "Chart",
+        dataset: "./company.dataset.json",
+        attributes: { title: "收入趋势", x: "period", series: "revenue" },
+        query: {},
+        granularity: "quarter",
+      }),
+    });
+    const payload = await response.json();
+    assert.equal(response.status, 200);
+    assert.match(payload.html, /data-mdx-component="Chart"/);
+    assert.match(payload.html, /2026-Q1/);
+    assert.match(payload.html, />30<\/text>/);
+    assert.equal(payload.meta.granularity, "quarter");
+    assert.equal(payload.meta.sourceRows, 2);
+    assert.equal(payload.meta.partialPeriodCount, 1);
+    assert.equal(payload.meta.sourcePath, "company.csv");
+
+    const statusBefore = await getJson(`${baseUrl}/api/document-status?file=report.mdx`);
+    await new Promise((resolve) => setTimeout(resolve, 8));
+    await writeFile(dataPath, "date,revenue\n2026-01-01,10\n2026-01-02,25\n");
+    const statusAfter = await getJson(`${baseUrl}/api/document-status?file=report.mdx`);
+    assert.equal(statusAfter.sourceHash, statusBefore.sourceHash);
+    assert.notEqual(statusAfter.dependencyHash, statusBefore.dependencyHash);
+  } finally {
+    await close(server);
+    await rm(repoRoot, { recursive: true, force: true });
+  }
+});
+
 test("document write API syncs source content to disk", async () => {
   const repoRoot = await mkdtemp(path.join(tmpdir(), "git-leaf-"));
   const filePath = path.join(repoRoot, "sample.md");

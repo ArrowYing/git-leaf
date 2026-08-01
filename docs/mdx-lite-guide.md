@@ -3,10 +3,10 @@ title: Git Leaf MDX-lite renderer reference
 domain: ai
 type: guide
 owner: maintainer
-last_updated: 2026-07-28
+last_updated: 2026-08-01
 source: git-leaf
 canonical: true
-ai_snippet: "[AI Reference] Git Leaf MDX-lite renderer | DataTable Timeline Chart DecisionBox MetricGrid FlowDiagram"
+ai_snippet: "[AI Reference] Git Leaf MDX-lite renderer | inline data and repository-local dataset views | DataTable Timeline Chart DecisionBox MetricGrid FlowDiagram"
 ---
 
 # Git Leaf MDX-lite renderer reference
@@ -17,11 +17,11 @@ This is the authoritative renderer and editor reference for Git Leaf's MDX-lite 
 opened by Git Leaf can be any local Git repository; the implementation in Git Leaf defines the supported
 syntax and security boundary.
 
-The design goal is one source for two consumers. Component data stays as readable CSV, TSV, JSON, or
-Markdown inside the `.mdx` file so AI agents can inspect and update the facts directly as repository
-text. Preview renders those same values as charts, tables, timelines, metrics, decisions, or flows for
-people, while Source and Live continue to edit the original file. The rendered view is never a second
-data source.
+The design goal is one source for two consumers. Small component data stays as readable CSV, TSV, JSON,
+or Markdown inside the `.mdx` file. A long-lived daily report may instead keep its complete data in a
+repository-local CSV, TSV, or JSON file described by a `.dataset.json` manifest. AI agents can inspect
+and update either source as repository text. Preview renders the same facts for people, while Source and
+Live continue to edit the original MDX view definition. Rendered output is never a second data source.
 
 MDX-lite is a local presentation layer. It is not Next.js, Docusaurus, or a general MDX runtime. It does
 not support imports, exports, JavaScript expressions, arbitrary JSX, custom components, or script
@@ -47,9 +47,9 @@ Use ordinary `.md` for prose, rules, decisions, meeting notes, short lists, and 
 Use `.mdx` when the document benefits from a readable data table, timeline, compact statistical chart,
 decision summary, metric grid, or small process diagram while keeping facts in a readable text file.
 
-Do not force zooming, drill-down, maps, dense relationship graphs, large filters, multi-page reporting,
-or complex interaction into MDX-lite. Use a standalone HTML artifact, a spreadsheet/BI tool, or a
-purpose-built visualization library.
+Do not force zooming, drill-down, maps, dense relationship graphs, linked filters, multi-page reporting,
+or complex interaction into MDX-lite. A bounded view over a long daily dataset is supported; a full BI
+workflow still belongs in a spreadsheet, BI tool, or purpose-built visualization.
 
 | Need | Preferred format |
 | --- | --- |
@@ -113,8 +113,8 @@ Rules:
 - Components cannot nest.
 - Do not use imports, exports, expressions, `<script>`, `style`, event attributes, or custom JSX.
 - YAML is not a component-body input format. It remains valid frontmatter or an ordinary fenced block.
-- Self-closing syntax parses, but the current components generally require body data and should not use
-  it in production documents.
+- Self-closing syntax is the normal form for an external `Chart` or `DataTable`; inline components
+  generally require body data.
 
 On error Git Leaf displays `MDX component failed to render: ...`; the source remains editable.
 
@@ -144,7 +144,8 @@ metric data normally uses an array; FlowDiagram normally uses an object with `no
 
 ## Shared content rules
 
-- The `.mdx` file remains the source of truth; rendered output is not another data source.
+- Inline component facts remain authoritative in the `.mdx` file. For an external dataset, the data
+  file is authoritative, the `.dataset.json` file is its contract, and MDX declares only the view.
 - Analysis samples and unconfirmed reports use `canonical: false` or omit `canonical: true`.
 - Paths are repository-relative and never contain a contributor's absolute machine path.
 - Images live in a nearby `_assets/` directory.
@@ -152,6 +153,116 @@ metric data normally uses an array; FlowDiagram normally uses an object with `no
   form keeps only `src`, `alt`, `width`, `height`, `data-align`, and `data-caption`.
 - Controlled images may appear in Markdown table cells, same-line image groups, or an image-only
   `<p>...</p>` without enabling arbitrary HTML.
+
+## External dataset views
+
+Use an external dataset when a report maintains complete daily history over months or years and several
+documents need bounded human views of the same data. This capability extends the existing `Chart` and
+`DataTable` components; it does not add a general `Dataset`, `DataView`, SQL, or script component.
+
+```mdx
+<Chart title="Revenue trend" dataset="./data/company-daily.dataset.json" type="line" x="period" series="revenue,expense" from="2025-01-01" to="2026-12-31" granularity="month" granularityOptions="day,week,month,quarter" />
+```
+
+The toolbar changes only transient view state. Clicking Day, Week, Month, or Quarter sends a finite
+request to Git Leaf's localhost service. The service reads and validates repository files, applies the
+manifest rollups, sorts periods ascending, and returns normal `Chart` or `DataTable` markup. It does not
+write the MDX or data files. Quarter means a natural calendar quarter and is labelled like `2026-Q1`.
+
+An optional fenced `query` JSON object adds a bounded range or equality filter:
+
+````mdx
+<DataTable dataset="./data/company-daily.dataset.json" columns="date,revenue,cash" granularity="week">
+```query
+{
+  "from": "2026-01-01",
+  "to": "2026-06-30",
+  "where": [
+    {"field": "company_id", "op": "eq", "value": "001"}
+  ]
+}
+```
+</DataTable>
+````
+
+`from` and `to` use inclusive `YYYY-MM-DD` dates. Attributes provide the same range when a separate
+query block is unnecessary. `where` accepts at most ten filters using `eq`, `notEq`, `in`, or `notIn`;
+`in` and `notIn` accept at most 100 values. No joins, formulas in MDX, arbitrary sorting, grouping,
+network requests, imports, JavaScript, or SQL are executed. A dataset component body may be empty or
+contain one fenced `query` object; inline CSV, TSV, JSON rows, or Markdown tables are an error when
+`dataset` is present.
+
+### Dataset manifest
+
+CSV intentionally has no frontmatter. Adding YAML-like lines above a CSV header would make it
+nonstandard and break ordinary CSV tools. Put types, meanings, units, keys, time rules, and aggregation
+semantics in a sidecar manifest whose filename ends in `.dataset.json`:
+
+```json
+{
+  "schemaVersion": 1,
+  "id": "company_daily",
+  "title": "Company daily report",
+  "description": "Complete daily operating data",
+  "data": "./company-daily.csv",
+  "format": "csv",
+  "grain": ["date", "company_id"],
+  "primaryKey": ["date", "company_id"],
+  "time": {
+    "field": "date",
+    "type": "date",
+    "timezone": "Asia/Shanghai",
+    "weekStartsOn": "monday",
+    "calendar": "calendar"
+  },
+  "fields": [
+    {"name": "date", "type": "date", "required": true, "description": "Natural date"},
+    {"name": "company_id", "type": "string", "required": true, "description": "Stable identifier"},
+    {"name": "revenue", "type": "decimal", "required": true, "unit": "CNY", "rollup": "sum"},
+    {"name": "daily_active_users", "type": "integer", "rollup": "avg"},
+    {"name": "cash_balance", "type": "decimal", "unit": "CNY", "rollup": "last"},
+    {"name": "orders", "type": "integer", "rollup": "sum"},
+    {"name": "visits", "type": "integer", "rollup": "sum"},
+    {
+      "name": "conversion_rate",
+      "type": "decimal",
+      "unit": "%",
+      "rollup": {
+        "op": "ratioOfSums",
+        "numerator": "orders",
+        "denominator": "visits",
+        "scale": 100
+      }
+    }
+  ]
+}
+```
+
+Schema version 1 supports `string`, `integer`, `decimal`, `number`, `boolean`, and `date`. Its time field
+must be a required `date`; `calendar` is `calendar` or `weekdays`, and `weekStartsOn` is `monday` or
+`sunday`. Source data is standard CSV, TSV, or either a JSON array or `{ "rows": [...] }`. Headers and
+JSON keys must be declared fields. String fields remain strings, so an identifier such as `001` keeps
+its leading zeros. Primary keys must be required and unique.
+
+Rollups are `sum`, `avg`, `min`, `max`, `count`, `first`, or `last`. `ratioOfSums` is the one derived
+rollup and divides the sum of a numeric numerator by the sum of a numeric denominator. If a requested
+field has no rollup and multiple source rows enter a period, Git Leaf reports an error instead of
+guessing. `first` and `last` also require at most one filtered row per date, so a snapshot is never chosen
+arbitrarily among companies or other dimensions. The engine never fills a missing date with zero. It
+reports missing expected dates and any day, week, month, or quarter that is incomplete within the
+selected range.
+
+Dataset and source paths resolve relative to the owning document or manifest and must stay inside the
+same real repository/worktree. URLs, absolute paths, symlinks outside the repository, and cross-repo
+access are rejected. Manifests are limited to 256 KiB, source files to 20 MiB, source rows to 250,000,
+fields to 100, query ranges to 10,000 days, and rendered period rows to 5,000. Parsed data is cached by
+file identity and change fingerprint. Dataset changes participate in document refresh even when the MDX
+source itself is unchanged.
+
+For `Chart`, use `x="period"` or the manifest time-field name and name numeric series explicitly. For
+`DataTable`, `columns` controls order; without it, Git Leaf shows the time field plus fields that declare
+rollups. `granularity` defaults to `day`. `granularityOptions` defaults to
+`day,week,month,quarter`; omit a value there when readers should not select that view.
 
 ## DataTable
 
@@ -273,8 +384,9 @@ month,volume,conversion
 </Chart>
 ````
 
-Zooming, drill-down, complex axes, maps, graphs, and large datasets belong in a standalone HTML or BI
-surface.
+Zooming, drill-down, complex axes, maps, graphs, linked analysis, and unbounded detail exploration
+belong in a standalone HTML or BI surface. A bounded time view may read a long external dataset through
+the contract above.
 
 ## DecisionBox
 
@@ -403,6 +515,8 @@ Do not embed multi-page dashboards, linked filters, drill-down, maps, or complex
 
 - Prefer Markdown unless the presentation benefit is clear.
 - Prefer CSV for tabular rules and metrics; use JSON for flows, timelines, and nested data.
+- Keep external CSV standard; describe long-lived datasets in a `.dataset.json` sidecar.
+- Declare every coarser-period rollup instead of asking the renderer to guess.
 - Keep short key-value content as Markdown lists.
 - Use only documented components, attributes, and data formats.
 - Never generate imports, exports, scripts, inline events, or unsupported custom components.

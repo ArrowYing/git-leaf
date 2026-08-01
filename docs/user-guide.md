@@ -1,5 +1,5 @@
 ---
-last_updated: 2026-07-28
+last_updated: 2026-08-01
 ---
 
 # Git Leaf user guide
@@ -137,6 +137,11 @@ open in a system application.
 An `.mdx` document can keep chart series, table rows, metrics, timelines, decisions, and flows as
 ordinary CSV, TSV, JSON, or Markdown text. AI agents can read and update that source directly. Git Leaf
 turns the same source into visual blocks for people.
+
+For a long-running report, the complete daily CSV, TSV, or JSON may live beside the document with a
+`.dataset.json` description. A report author can give a `Chart` or `DataTable` a fixed date range; readers
+then use the buttons above it to switch among day, week, month, and quarter. The buttons change only the
+view and never rewrite the report or source data. Git Leaf calls out missing dates and incomplete periods.
 
 ![Git Leaf rendering a chart from structured data stored directly in an MDX document](assets/user-guide/mdx-visuals.png)
 

@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 1,
+  "id": "company_daily_demo",
+  "title": "Company daily demo",
+  "description": "Synthetic daily data used only by the MDX-lite visual regression fixture.",
+  "data": "./company-daily.csv",
+  "format": "csv",
+  "grain": ["date", "company_id"],
+  "primaryKey": ["date", "company_id"],
+  "time": {
+    "field": "date",
+    "type": "date",
+    "timezone": "Asia/Shanghai",
+    "weekStartsOn": "monday",
+    "calendar": "calendar"
+  },
+  "fields": [
+    {
+      "name": "date",
+      "type": "date",
+      "required": true,
+      "description": "Natural calendar date"
+    },
+    {
+      "name": "company_id",
+      "type": "string",
+      "required": true,
+      "description": "Stable company identifier"
+    },
+    {
+      "name": "revenue",
+      "type": "decimal",
+      "required": true,
+      "unit": "CNY",
+      "rollup": "sum"
+    },
+    {
+      "name": "expense",
+      "type": "decimal",
+      "required": true,
+      "unit": "CNY",
+      "rollup": "sum"
+    },
+    {
+      "name": "cash",
+      "type": "decimal",
+      "required": true,
+      "unit": "CNY",
+      "rollup": "last"
+    },
+    {
+      "name": "orders",
+      "type": "integer",
+      "required": true,
+      "rollup": "sum"
+    },
+    {
+      "name": "visits",
+      "type": "integer",
+      "required": true,
+      "rollup": "sum"
+    },
+    {
+      "name": "conversion_rate",
+      "type": "decimal",
+      "unit": "%",
+      "rollup": {
+        "op": "ratioOfSums",
+        "numerator": "orders",
+        "denominator": "visits",
+        "scale": 100
+      }
+    }
+  ]
+}

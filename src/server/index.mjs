@@ -8,6 +8,15 @@ import { fileURLToPath } from "node:url";
 
 import { BUILD_INFO } from "../build-info.mjs";
 import { extractTitle, renderMarkdown } from "../content/markdown.mjs";
+import {
+  datasetReferencesFromMarkdown,
+  renderMdxLiteRows,
+} from "../content/mdx-lite.mjs";
+import { queryDataset } from "../content/dataset-query.mjs";
+import {
+  datasetDependencyFingerprint,
+  loadDataset,
+} from "./dataset-loader.mjs";
 import { isLocalRequestAddress } from "./network-address.mjs";
 import {
   resolveExistingRepoPath,
@@ -219,6 +228,7 @@ async function handleRequest(request, response, context) {
     requestUrl.pathname === "/tree-refresh.js" ||
     requestUrl.pathname === "/document-refresh.js" ||
     requestUrl.pathname === "/chart-tooltip.js" ||
+    requestUrl.pathname === "/dataset-view.js" ||
     requestUrl.pathname === "/source-sync.js" ||
     requestUrl.pathname === "/source-split.js" ||
     requestUrl.pathname === "/mode-preference.js" ||
@@ -637,6 +647,19 @@ async function handleRequest(request, response, context) {
         locale,
       }),
     );
+    return;
+  }
+
+  if (requestUrl.pathname === "/api/dataset-query") {
+    const repo = await localRequestRepository(request, requestUrl, context);
+    if (request.method !== "POST") {
+      sendText(response, 405, "Method Not Allowed");
+      return;
+    }
+    const file = documentFileFromRequest(requestUrl, repo);
+    const locale = previewLocaleFromRequest(requestUrl);
+    const body = await readJsonRequest(request);
+    sendJson(response, 200, await datasetQueryPayload(repo, file, body, { locale }));
     return;
   }
 
@@ -1159,6 +1182,11 @@ export async function documentPayload(
   }
 
   const source = await readFile(documentPath.absolutePath, "utf8");
+  const dependencyHash = await datasetDependencyFingerprint({
+    repoRoot: repo.root,
+    documentPath: documentPath.relativePath,
+    datasetPaths: datasetReferencesFromMarkdown(source),
+  });
   const html = renderMarkdown(source, {
     currentFile: documentPath.relativePath,
     currentRepo: repo.id,
@@ -1172,6 +1200,7 @@ export async function documentPayload(
     title: extractTitle(source, documentPath.relativePath),
     html,
     sourceHash: hashSource(source),
+    dependencyHash,
     sourceLines: sourceLinesFromMarkdown(source),
     mtimeMs: fileStat.mtimeMs,
     frontmatterProfile: await frontmatterDocumentProfile(repo.root, documentPath.relativePath, source),
@@ -1189,9 +1218,17 @@ export async function documentPayload(
 async function documentStatusPayload(repo, file, { canEdit = true } = {}) {
   const documentPath = await resolveOpenablePath(repo.root, file);
   const fileStat = documentPath.fileStat;
-  const sourceHash = documentPath.editable
-    ? hashSource(await readFile(documentPath.absolutePath, "utf8"))
-    : fileFingerprint(fileStat);
+  const source = documentPath.kind === "markdown"
+    ? await readFile(documentPath.absolutePath, "utf8")
+    : "";
+  const sourceHash = documentPath.editable ? hashSource(source) : fileFingerprint(fileStat);
+  const dependencyHash = documentPath.kind === "markdown"
+    ? await datasetDependencyFingerprint({
+        repoRoot: repo.root,
+        documentPath: documentPath.relativePath,
+        datasetPaths: datasetReferencesFromMarkdown(source),
+      })
+    : "";
   return {
     repo: repo.id,
     branch: repo.branch,
@@ -1201,7 +1238,77 @@ async function documentStatusPayload(repo, file, { canEdit = true } = {}) {
     path: documentPath.relativePath,
     mtimeMs: fileStat.mtimeMs,
     sourceHash,
+    dependencyHash,
   };
+}
+
+async function datasetQueryPayload(repo, documentFile, body, { locale = "en" } = {}) {
+  validateDatasetQueryRequest(body);
+  const documentPath = await resolvePreviewPath(repo.root, documentFile);
+  const dataset = await loadDataset({
+    repoRoot: repo.root,
+    documentPath: documentPath.relativePath,
+    datasetPath: body.dataset,
+  });
+  const result = queryDataset({
+    manifest: dataset.manifest,
+    rows: dataset.rows,
+    component: body.component,
+    attributes: body.attributes,
+    query: body.query,
+    granularity: body.granularity,
+  });
+  return {
+    component: body.component,
+    html: renderMdxLiteRows(body.component, result.rows, result.attributes, { locale }),
+    meta: {
+      ...result.meta,
+      manifestPath: dataset.manifestPath,
+      sourcePath: dataset.sourcePath,
+    },
+  };
+}
+
+function validateDatasetQueryRequest(body) {
+  if (!exactObjectKeys(body, ["component", "dataset", "attributes", "query", "granularity"])) {
+    throw invalidDatasetRequest("Dataset query request has an invalid shape.");
+  }
+  if (body.component !== "Chart" && body.component !== "DataTable") {
+    throw invalidDatasetRequest("External datasets support Chart and DataTable.");
+  }
+  if (typeof body.dataset !== "string" || !body.dataset.trim() || body.dataset.length > 512) {
+    throw invalidDatasetRequest("Dataset query requires a manifest path.");
+  }
+  if (!["day", "week", "month", "quarter"].includes(body.granularity)) {
+    throw invalidDatasetRequest("Dataset granularity must be day, week, month, or quarter.");
+  }
+  if (!body.attributes || typeof body.attributes !== "object" || Array.isArray(body.attributes)) {
+    throw invalidDatasetRequest("Dataset component attributes must be an object.");
+  }
+  const attributeEntries = Object.entries(body.attributes);
+  if (
+    attributeEntries.length > 40 ||
+    attributeEntries.some(([key, value]) => (
+      !/^[A-Za-z_][A-Za-z0-9_-]{0,63}$/.test(key) ||
+      typeof value !== "string" ||
+      value.length > 2_000
+    ))
+  ) {
+    throw invalidDatasetRequest("Dataset component attributes exceed the supported limits.");
+  }
+  if (!body.query || typeof body.query !== "object" || Array.isArray(body.query)) {
+    throw invalidDatasetRequest("Dataset query must be an object.");
+  }
+  if (JSON.stringify(body.query).length > 16_384) {
+    throw invalidDatasetRequest("Dataset query exceeds the supported size.");
+  }
+}
+
+function invalidDatasetRequest(message) {
+  const error = new Error(message);
+  error.statusCode = 400;
+  error.code = "dataset_request_invalid";
+  return error;
 }
 
 async function textPreviewPayload(documentPath, fileStat, { locale = "en" } = {}) {

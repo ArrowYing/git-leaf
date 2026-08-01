@@ -3,7 +3,7 @@ title: Git Leaf system architecture
 domain: ai
 type: architecture
 owner: maintainer
-last_updated: 2026-07-30
+last_updated: 2026-08-01
 source: git-leaf
 canonical: true
 ai_snippet: "[Architecture] Git Leaf | human desktop interface for shared context repositories | local HTTP service | Git worktrees | Preview Source Live | CodeMirror 6 | guarded Git sync"
@@ -266,13 +266,31 @@ expected to open as an interactive component in Obsidian.
 ## Rendering and MDX-lite
 
 MDX-lite keeps structured facts explicit in repository text for agents while presenting the same source
-as human-readable tables, timelines, metrics, decisions, flows, and charts. Component data remains in
-the `.mdx` file as readable CSV, TSV, JSON, or Markdown; rendering never creates a second authoritative
-data model. Preview renders the visual result, and Source and Live continue to edit the original file.
+as human-readable tables, timelines, metrics, decisions, flows, and charts. Small component data remains
+in the `.mdx` file as readable CSV, TSV, JSON, or Markdown. A long-lived report may instead reference a
+repository-local `.dataset.json` contract whose CSV, TSV, or JSON source remains the complete data
+authority. Rendering never creates a second authoritative data model. Preview renders the visual result,
+and Source and Live continue to edit the original MDX view definition.
 
 Markdown uses `markdown-it`. MDX-lite is parsed by Git Leaf before rendering and produces static HTML or
 SVG. It is not a general MDX runtime and cannot execute imports, exports, arbitrary JSX, scripts,
 expressions, or event handlers.
+
+An external dataset component remains the existing allowlisted `Chart` or `DataTable`. The synchronous
+browser-safe renderer emits an inert view shell containing a finite JSON request, not data or executable
+code. Preview and inactive Live widgets hydrate that shell through the localhost-only dataset endpoint.
+The server resolves the manifest relative to the current document, follows the manifest source relative
+to the manifest, verifies both real paths remain inside the current repository, validates schema and
+typed rows, and runs the shared bounded query engine. The engine supports inclusive date ranges, finite
+equality filters, ascending natural periods, and manifest-declared day, week, month, or quarter rollups.
+The browser receives ordinary component HTML plus provenance and completeness metadata.
+
+The interval toolbar is transient UI state shared by the Preview and Live views for the current document
+session. Switching an interval never writes source. No dataset request executes user code, imports,
+network access, SQL, joins, or arbitrary formulas. Missing dates remain absent and are reported; partial
+periods are labelled rather than silently treated as complete. A dependency fingerprint covers each
+referenced manifest and source file so normal document polling replaces and rehydrates a report when its
+external data changes even if the MDX file does not.
 
 Rendered blocks preserve source line ranges. Preview, Source, and Live use the same source-based
 selection and Agent Context semantics. Copying a reference includes the repository-relative path, line
@@ -556,7 +574,9 @@ The following files are key seams, not an exhaustive module inventory:
 | `src/server/hosted-links.mjs`, `src/server/git-leaf-open-link.mjs` | Hosted HTTPS link validation and generation |
 | `src/desktop/deep-link.mjs` | Local desktop protocol generation and parsing |
 | `src/server/git-share-publish.mjs`, `src/server/git-share-open.mjs` | Sender publication and receiver safety |
-| `src/content/markdown.mjs`, `src/content/mdx-lite.mjs` | Markdown and allowlisted MDX-lite rendering |
+| `src/content/markdown.mjs`, `src/content/mdx-lite.mjs` | Markdown, allowlisted MDX-lite rendering, and inert dataset view declarations |
+| `src/content/dataset-query.mjs`, `src/server/dataset-loader.mjs` | Bounded period aggregation and repository-contained typed dataset loading |
+| `public/dataset-view.js` | Preview and Live dataset hydration plus transient interval controls |
 | `src/client/source-editor.mjs` | Shared CodeMirror Source/Live editing model |
 | `src/server/git-sync.mjs` | Guarded repository-wide sync |
 | `src/server/git-remote-sync.mjs` | Periodic remote status and down-only merge transaction |
@@ -573,7 +593,7 @@ Git Leaf does not currently provide:
 - real-time multi-user editing;
 - cloud accounts, SSO, permissions, or a hosted repository or context service;
 - arbitrary MDX, JSX, document scripts, or event handlers;
-- a full BI, mapping, graph, or dashboard system;
+- a full BI, mapping, graph, linked-filter, or dashboard system; dataset views are deliberately bounded;
 - the Obsidian plugin ecosystem;
 - an embedded AI chat or agent runtime;
 - a context retrieval engine, semantic index, vector database, or MCP service;
@@ -586,6 +606,8 @@ Git Leaf does not currently provide:
 - The local editing service remains bound to localhost.
 - Live never introduces a second rich-text storage model.
 - MDX-lite remains allowlisted and non-executable.
+- External datasets remain inside the selected real repository and use explicit typed and rollup
+  contracts; the browser never reads them directly.
 - Display preferences never change Git scope.
 - No write bypasses detached-worktree branch protection.
 - Shared links never grant permissions or carry local absolute paths.

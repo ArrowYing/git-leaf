@@ -8,6 +8,7 @@ import {
   tableLayoutAttributes,
   tableScrollAttributeString,
 } from "./table-layout.mjs";
+import { parseDelimitedRecords } from "./delimited-data.mjs";
 import { createTranslator } from "../../public/i18n.js";
 
 const COMPONENT_NAMES = new Set([
@@ -19,18 +20,32 @@ const COMPONENT_NAMES = new Set([
   "FlowDiagram",
 ]);
 const CHART_COLORS = ["#2563eb", "#dc2626", "#16a34a", "#d97706", "#7c3aed", "#0891b2"];
+const DATASET_COMPONENT_NAMES = new Set(["Chart", "DataTable"]);
+const DATASET_GRANULARITIES = new Set(["day", "week", "month", "quarter"]);
 const MDX_MESSAGES = Object.freeze({
   en: Object.freeze({
     "component.error": "Failed to render MDX component: {message}",
     "decision.kicker": "Decision",
     "flow.ariaLabel": "Flow diagram",
     "chart.unit": "Unit: {unit}",
+    "dataset.controls": "Dataset time interval",
+    "dataset.loading": "Loading dataset…",
+    "dataset.day": "Day",
+    "dataset.week": "Week",
+    "dataset.month": "Month",
+    "dataset.quarter": "Quarter",
   }),
   "zh-CN": Object.freeze({
     "component.error": "MDX 组件渲染失败：{message}",
     "decision.kicker": "决策",
     "flow.ariaLabel": "流程图",
     "chart.unit": "单位：{unit}",
+    "dataset.controls": "数据集时间区间",
+    "dataset.loading": "正在加载数据集……",
+    "dataset.day": "日",
+    "dataset.week": "周",
+    "dataset.month": "月",
+    "dataset.quarter": "季度",
   }),
 });
 
@@ -77,6 +92,9 @@ export function renderMdxLiteComponent(token, { locale = "en" } = {}) {
   const translate = createTranslator(MDX_MESSAGES, locale);
 
   try {
+    if (Object.hasOwn(attributes, "dataset")) {
+      return renderDatasetView(token, attributes, translate);
+    }
     if (name === "DataTable") {
       return renderDataTable(token.content, attributes, translate);
     }
@@ -102,8 +120,114 @@ export function renderMdxLiteComponent(token, { locale = "en" } = {}) {
   return componentError(name, new Error("Unsupported MDX-lite component."), translate);
 }
 
+export function renderMdxLiteRows(name, rows, attributes = {}, { locale = "en" } = {}) {
+  const translate = createTranslator(MDX_MESSAGES, locale);
+  try {
+    if (name === "DataTable") {
+      return renderDataTableRows(rows, attributes, translate);
+    }
+    if (name === "Chart") {
+      return renderChartRows(rows, attributes, translate);
+    }
+  } catch (error) {
+    return componentError(name, error, translate);
+  }
+  return componentError(name, new Error("External datasets support Chart and DataTable."), translate);
+}
+
+export function datasetReferencesFromMarkdown(markdown) {
+  const references = [];
+  let fence = "";
+  for (const line of String(markdown ?? "").split(/\r?\n/)) {
+    const fenceMatch = line.match(/^\s*(`{3,}|~{3,})/);
+    if (fenceMatch) {
+      if (!fence) {
+        fence = fenceMatch[1][0];
+      } else if (fence === fenceMatch[1][0]) {
+        fence = "";
+      }
+      continue;
+    }
+    if (fence) continue;
+    const match = line.trim().match(/^<(Chart|DataTable)\b([^>]*)\/?>(?:\s*)$/);
+    if (!match) continue;
+    const attributes = parseAttributes(match[2] || "");
+    if (attributes.dataset) {
+      references.push(attributes.dataset);
+    }
+  }
+  return [...new Set(references)];
+}
+
+function renderDatasetView(token, attributes, translate) {
+  const name = token.meta?.name;
+  if (!DATASET_COMPONENT_NAMES.has(name)) {
+    throw new Error("External datasets support Chart and DataTable.");
+  }
+  const dataset = String(attributes.dataset || "").trim();
+  if (!dataset) {
+    throw new Error("dataset must point to a .dataset.json manifest.");
+  }
+  const query = datasetQueryFromContent(token.content);
+  const granularities = uniqueStrings(listAttribute(attributes.granularityOptions || "day,week,month,quarter"))
+    .map((value) => value.toLowerCase());
+  if (granularities.length === 0 || granularities.some((value) => !DATASET_GRANULARITIES.has(value))) {
+    throw new Error("granularityOptions supports day, week, month, and quarter.");
+  }
+  const defaultGranularity = String(attributes.granularity || "day").trim().toLowerCase();
+  if (!granularities.includes(defaultGranularity)) {
+    throw new Error("granularity must be included in granularityOptions.");
+  }
+  const requestAttributes = { ...attributes };
+  delete requestAttributes.dataset;
+  delete requestAttributes.granularity;
+  delete requestAttributes.granularityOptions;
+  const request = encodeURIComponent(JSON.stringify({
+    component: name,
+    dataset,
+    attributes: requestAttributes,
+    query,
+  }));
+
+  return [
+    `<section class="mdx-component mdx-dataset-view" data-mdx-component="${name}" data-mdx-dataset-view="true" data-dataset-request="${request}" data-dataset-default-granularity="${defaultGranularity}">`,
+    `<div class="mdx-dataset-controls" role="group" aria-label="${escapeHtml(translate("dataset.controls"))}">`,
+    granularities.map((granularity) => [
+      `<button type="button" class="mdx-dataset-granularity${granularity === defaultGranularity ? " is-active" : ""}" data-dataset-granularity="${granularity}" aria-pressed="${granularity === defaultGranularity}">`,
+      escapeHtml(translate(`dataset.${granularity}`)),
+      "</button>",
+    ].join("")).join(""),
+    "</div>",
+    `<div class="mdx-dataset-result" data-dataset-result aria-live="polite"><p class="mdx-dataset-loading">${escapeHtml(translate("dataset.loading"))}</p></div>`,
+    "</section>",
+  ].join("");
+}
+
+function datasetQueryFromContent(content) {
+  if (!String(content ?? "").trim()) {
+    return {};
+  }
+  const dataBlock = extractDataBlock(content);
+  if (!dataBlock || dataBlock.format !== "query") {
+    throw new Error("A dataset component body may contain only a fenced query JSON object.");
+  }
+  let query;
+  try {
+    query = JSON.parse(dataBlock.body);
+  } catch {
+    throw new Error("Dataset query must contain valid JSON.");
+  }
+  if (!query || typeof query !== "object" || Array.isArray(query)) {
+    throw new Error("Dataset query must be a JSON object.");
+  }
+  return query;
+}
+
 function renderDataTable(content, attributes, translate) {
-  const rows = extractRows(content);
+  return renderDataTableRows(extractRows(content), attributes, translate);
+}
+
+function renderDataTableRows(rows, attributes, translate) {
   const columns = columnsForRows(rows, attributes.columns);
   if (rows.length === 0 || columns.length === 0) {
     return componentError(
@@ -267,7 +391,10 @@ function renderFlowDiagram(content, attributes, translate) {
 }
 
 function renderChart(content, attributes, translate) {
-  const rows = extractRows(content);
+  return renderChartRows(extractRows(content), attributes, translate);
+}
+
+function renderChartRows(rows, attributes, translate) {
   if (rows.length === 0) {
     return componentError("Chart", new Error("Chart requires CSV or JSON rows."), translate);
   }
@@ -339,7 +466,7 @@ function buildChartModel({ rows, xKey, seriesKeys, attributes, type }) {
   const series = seriesKeys.map((key, index) => ({
     key,
     label: attributes[`${key}Label`] || key,
-    color: attributes[`${key}Color`] || CHART_COLORS[index % CHART_COLORS.length],
+    color: chartColor(attributes[`${key}Color`], CHART_COLORS[index % CHART_COLORS.length]),
     values: rows.map((row) => toNumber(row[key])),
   }));
   const highlights = new Set(listAttribute(attributes.highlight));
@@ -358,6 +485,13 @@ function buildChartModel({ rows, xKey, seriesKeys, attributes, type }) {
     unit: type === "combo-dual-axis" ? attributes.leftUnit || attributes.unit || "" : attributes.unit || "",
     rightUnit: attributes.rightUnit || "",
   };
+}
+
+function chartColor(value, fallback) {
+  const color = String(value || "").trim();
+  return /^#(?:[0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(color)
+    ? color
+    : fallback;
 }
 
 function configureChartSeries(model, type) {
@@ -1012,7 +1146,7 @@ function rowsFromJson(content) {
 }
 
 function rowsFromDelimited(content, delimiter) {
-  const records = parseDelimited(content.trim(), delimiter);
+  const records = parseDelimitedRecords(content.trim(), delimiter);
   if (records.length < 2) return [];
   const headers = records[0].map((header) => String(header).trim());
   return records.slice(1)
@@ -1028,44 +1162,6 @@ function rowsFromMarkdownTable(content) {
     const cells = splitMarkdownRow(line);
     return Object.fromEntries(headers.map((header, index) => [header, parseCell(cells[index] ?? "")]));
   });
-}
-
-function parseDelimited(content, delimiter) {
-  const rows = [];
-  let row = [];
-  let cell = "";
-  let quoted = false;
-
-  for (let index = 0; index < content.length; index += 1) {
-    const char = content[index];
-    const next = content[index + 1];
-    if (char === '"') {
-      if (quoted && next === '"') {
-        cell += '"';
-        index += 1;
-      } else {
-        quoted = !quoted;
-      }
-      continue;
-    }
-    if (!quoted && char === delimiter) {
-      row.push(cell);
-      cell = "";
-      continue;
-    }
-    if (!quoted && (char === "\n" || char === "\r")) {
-      if (char === "\r" && next === "\n") index += 1;
-      row.push(cell);
-      rows.push(row);
-      row = [];
-      cell = "";
-      continue;
-    }
-    cell += char;
-  }
-  row.push(cell);
-  rows.push(row);
-  return rows;
 }
 
 function splitMarkdownRow(line) {

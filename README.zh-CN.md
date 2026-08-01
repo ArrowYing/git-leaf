@@ -1,5 +1,5 @@
 ---
-last_updated: 2026-07-30
+last_updated: 2026-08-01
 ---
 
 # Git Leaf
@@ -71,6 +71,11 @@ Git Leaf 支持 Markdown 和受控的 MDX，让结构化数据直接保存在文
 图表序列、数据表、时间线、关键指标、决策和流程，可以用可读的 CSV、TSV、JSON 或 Markdown 写在
 `.mdx` 文件内。AI Agent 把这些值当作普通仓库文本直接读取和修改；Git Leaf 则把同一份源文件呈现为
 图表和其他视觉内容，供人理解。
+
+长期维护的公司报表可以把完整日数据保存在仓库内的标准 CSV、TSV 或 JSON 文件中，并用独立的
+`.dataset.json` 描述字段类型、含义、主键和聚合口径。原有 `Chart`、`DataTable` 可以选择时间区间，
+让读者切换日、周、月、自然季度视图。每个字段的聚合方式必须明确声明；缺失日期不会被当成 0，文档也
+不能执行脚本或查询其他仓库。
 
 Preview 负责呈现文档，Source 和 Live 仍编辑原文件，不需要同步第二份视觉数据模型。Git Leaf 只呈现
 白名单中的组件；文档不能运行任意 JSX、JavaScript、`import` 或脚本。

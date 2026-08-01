@@ -3,10 +3,10 @@ title: MDX-lite component demo
 domain: tools
 type: demo
 owner: maintainer
-last_updated: 2026-07-28
+last_updated: 2026-08-01
 source: git-leaf
 canonical: false
-ai_snippet: "[Demo] Git Leaf MDX-lite component preview | DataTable Timeline Chart DecisionBox MetricGrid FlowDiagram | sample data is not a source of truth"
+ai_snippet: "[Demo] Git Leaf MDX-lite component preview | inline and external dataset views | sample data is not a source of truth"
 ---
 
 # MDX-lite component demo
@@ -21,7 +21,7 @@ are sample data for visual validation, not business facts. See the
 | --- | --- |
 | `DataTable` | Structured detail and wide-table behavior |
 | `Timeline` | Milestones, progress, and risk states |
-| `Chart` | Line, bar, grouped, stacked, and combo charts |
+| `Chart` | Line, bar, grouped, stacked, combo, and external dataset charts |
 | `DecisionBox` | Decision, rationale, tradeoffs, reconsideration |
 | `MetricGrid` | Small headline metric sets |
 | `FlowDiagram` | Main processes and agent handoffs |
@@ -114,6 +114,25 @@ month,volume,completionRate
 ```
 </Chart>
 
+### External daily dataset
+
+The source CSV remains a full daily dataset. The same component can switch among day, week, month, and
+natural-quarter views without rewriting this MDX file.
+
+<Chart title="Daily company revenue and expense" dataset="./data/company-daily.dataset.json" type="line" x="period" series="revenue,expense" unit="CNY" revenueLabel="Revenue" expenseLabel="Expense" from="2026-01-01" to="2026-03-31" granularity="month" />
+
+The optional `query` block applies a finite equality filter before the manifest-defined rollups.
+
+<DataTable title="Weekly company summary" dataset="./data/company-daily.dataset.json" columns="date,revenue,expense,cash,conversion_rate" from="2026-01-01" to="2026-03-31" granularity="week">
+```query
+{
+  "where": [
+    {"field": "company_id", "op": "eq", "value": "001"}
+  ]
+}
+```
+</DataTable>
+
 ## 4. DecisionBox
 
 <DecisionBox title="Keep Git as the knowledge source of truth" status="accepted" owner="maintainer" source="docs/architecture.md">
@@ -170,5 +189,7 @@ Desktop shell,Electron,,Open any local Git repository,good
 
 - All six components render without an MDX component error.
 - Chart hover shows the combined tooltip for one x value.
+- External dataset controls switch among day, week, month, and quarter in Preview and Live.
+- The external DataTable and Chart read `data/company-daily.dataset.json`; the CSV remains standard CSV.
 - FlowDiagram renders as static SVG.
 - Syntax and new-component policy remain defined by [MDX-lite renderer reference](mdx-lite-guide.md).

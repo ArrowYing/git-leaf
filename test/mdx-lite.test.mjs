@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import { renderMarkdown } from "../src/content/markdown.mjs";
+import { datasetReferencesFromMarkdown } from "../src/content/mdx-lite.mjs";
 
 test("renderMarkdown renders a small whitelisted MDX DataTable without table tools", () => {
   const html = renderMarkdown(`<DataTable title="费用明细">
@@ -87,12 +88,58 @@ month,revenue,expense
   assert.doesNotMatch(html, /stroke="#edf0f5"|stroke="#d9dee8"|stroke="#98a2b3"/);
 });
 
+test("renderMarkdown extends Chart with an external dataset view placeholder", () => {
+  const html = renderMarkdown(`<Chart title="收入趋势" dataset="./data/company.dataset.json" type="line" x="period" series="revenue" from="2025-01-01" to="2026-12-31" granularity="quarter" />`, {
+    locale: "zh-CN",
+  });
+
+  assert.match(html, /data-mdx-dataset-view="true"/);
+  assert.match(html, /data-dataset-default-granularity="quarter"/);
+  assert.match(html, /data-dataset-granularity="day"/);
+  assert.match(html, /data-dataset-granularity="week"/);
+  assert.match(html, /data-dataset-granularity="month"/);
+  assert.match(html, /data-dataset-granularity="quarter"/);
+  assert.match(html, />季度<\/button>/);
+  assert.match(html, /正在加载数据集/);
+  assert.doesNotMatch(html, /mdx-component-error/);
+});
+
+test("renderMarkdown accepts only a fenced finite query inside a dataset component", () => {
+  const valid = renderMarkdown(`<DataTable dataset="./data/company.dataset.json" columns="date,revenue">
+\`\`\`query
+{"from":"2026-01-01","to":"2026-03-31","where":[{"field":"company_id","op":"eq","value":"001"}]}
+\`\`\`
+</DataTable>`);
+  const invalid = renderMarkdown(`<DataTable dataset="./data/company.dataset.json">
+\`\`\`csv
+date,revenue
+2026-01-01,10
+\`\`\`
+</DataTable>`);
+
+  assert.match(valid, /data-mdx-dataset-view="true"/);
+  assert.doesNotMatch(valid, /mdx-component-error/);
+  assert.match(invalid, /mdx-component-error/);
+  assert.match(invalid, /fenced query JSON object/);
+});
+
+test("datasetReferencesFromMarkdown ignores examples inside fenced code", () => {
+  const references = datasetReferencesFromMarkdown([
+    '<Chart dataset="./real.dataset.json" />',
+    "```mdx",
+    '<Chart dataset="./example.dataset.json" />',
+    "```",
+  ].join("\n"));
+
+  assert.deepEqual(references, ["./real.dataset.json"]);
+});
+
 test("renderMarkdown renders the MDX-lite demo without component errors", async () => {
   const demo = await readFile(new URL("../docs/mdx-lite-components-demo.mdx", import.meta.url), "utf8");
   const html = renderMarkdown(demo);
 
   assert.doesNotMatch(html, /mdx-component-error/);
-  assert.equal((html.match(/data-mdx-component="Chart"/g) ?? []).length, 3);
+  assert.equal((html.match(/data-mdx-component="Chart"/g) ?? []).length, 4);
   assert.match(html, /New and completed items/);
   assert.match(html, /Volume and completion rate/);
 });
@@ -132,6 +179,19 @@ month,revenue
 
   assert.match(visible, /class="mdx-chart-value-label"[^>]*>120<\/text>/);
   assert.doesNotMatch(hidden, /class="mdx-chart-value-label"/);
+});
+
+test("renderMarkdown restricts chart colors to inert hexadecimal values", () => {
+  const html = renderMarkdown(`<Chart title="Safe" x="month" series="revenue" revenueColor='" onload="alert(1)'>
+\`\`\`csv
+month,revenue
+2026-06,120
+\`\`\`
+</Chart>`);
+
+  assert.doesNotMatch(html, /onload=/);
+  assert.doesNotMatch(html, /alert\(1\)/);
+  assert.match(html, /fill="#2563eb"/);
 });
 
 test("renderMarkdown supports lightweight grouped and stacked chart variants", () => {

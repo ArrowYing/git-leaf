@@ -1,5 +1,5 @@
 ---
-last_updated: 2026-07-30
+last_updated: 2026-08-01
 ---
 
 # Git Leaf
@@ -81,6 +81,12 @@ document instead of being trapped in a screenshot or a separate dashboard. Chart
 timelines, headline metrics, decisions, and flows can be written as readable CSV, TSV, JSON, or
 Markdown inside the `.mdx` file. AI agents can read and update those values as ordinary repository
 text; Git Leaf renders the same source as charts and other visual blocks for people.
+
+Long-running company reports can keep their complete daily history in a standard repository-local CSV,
+TSV, or JSON file with a typed `.dataset.json` sidecar. Existing `Chart` and `DataTable` blocks can show
+a bounded range and let readers switch among day, week, month, and natural-quarter views. Aggregation is
+explicit per field, missing dates are not converted to zero, and documents still cannot run scripts or
+query another repository.
 
 Preview renders the document, while Source and Live edit the original file. There is no second visual
 data model to keep in sync. Only allowlisted components are rendered; documents cannot run arbitrary

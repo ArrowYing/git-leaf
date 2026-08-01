@@ -12,6 +12,7 @@ import {
   liveClassForLine,
   livePreviewBlocksForSource,
   livePreviewHtmlForBlock,
+  liveBlockPreviewIgnoresEvent,
   liveInlineRangesForLine,
   liveMarkdownLinkAtPosition,
   liveMarkdownLinksForLine,
@@ -655,4 +656,26 @@ test("livePreviewHtmlForBlock renders block preview without source line wrappers
   assert.match(chartHtml, /data-chart-tooltip="2026-06\\nrevenue: 120"/);
   assert.match(chartHtml, /class="mdx-chart-value-label"[^>]*>120<\/text>/);
   assert.doesNotMatch(chartHtml, /source-line-gutter/);
+});
+
+test("Live keeps dataset interval buttons interactive without making the whole MDX block inert", () => {
+  const intervalButton = {
+    closest: (selector) => selector === "[data-dataset-granularity]" ? intervalButton : null,
+  };
+  const chartSurface = { closest: () => null };
+
+  assert.equal(liveBlockPreviewIgnoresEvent({ type: "table" }, chartSurface), true);
+  assert.equal(liveBlockPreviewIgnoresEvent({ type: "mdx" }, intervalButton), true);
+  assert.equal(liveBlockPreviewIgnoresEvent({ type: "mdx" }, chartSurface), false);
+});
+
+test("livePreviewHtmlForBlock renders an external dataset shell with quarter control", () => {
+  const html = livePreviewHtmlForBlock(
+    '<Chart dataset="./company.dataset.json" x="period" series="revenue" granularity="quarter" />',
+    { locale: "zh-CN" },
+  );
+
+  assert.match(html, /data-mdx-dataset-view="true"/);
+  assert.match(html, /data-dataset-granularity="quarter"/);
+  assert.match(html, />季度<\/button>/);
 });

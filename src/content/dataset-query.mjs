@@ -1,0 +1,449 @@
+const GRANULARITIES = new Set(["day", "week", "month", "quarter"]);
+const QUERY_KEYS = new Set(["from", "to", "where"]);
+const FILTER_OPERATORS = new Set(["eq", "notEq", "in", "notIn"]);
+const MAX_OUTPUT_ROWS = 5_000;
+const MAX_RANGE_DAYS = 10_000;
+
+export function queryDataset({
+  manifest,
+  rows,
+  component,
+  attributes = {},
+  query = {},
+  granularity = "day",
+} = {}) {
+  assertQueryShape(query);
+  const selectedGranularity = String(granularity || "day").trim().toLowerCase();
+  if (!GRANULARITIES.has(selectedGranularity)) {
+    throw datasetQueryError(`Unsupported granularity: ${granularity}.`);
+  }
+
+  const fieldMap = new Map(manifest.fields.map((field) => [field.name, field]));
+  const timeField = manifest.time.field;
+  const xKey = component === "Chart" ? String(attributes.x || timeField).trim() : timeField;
+  if (component === "Chart" && xKey !== timeField && xKey !== "period") {
+    throw datasetQueryError(
+      `Dataset charts must use x="${timeField}" or x="period".`,
+    );
+  }
+
+  const outputFields = componentFields({
+    component,
+    attributes,
+    manifest,
+    xKey,
+  });
+  const from = normalizeRangeDate(query.from ?? attributes.from, "from");
+  const to = normalizeRangeDate(query.to ?? attributes.to, "to");
+  if (from && to && from > to) {
+    throw datasetQueryError("Dataset query from must not be after to.");
+  }
+
+  const filters = normalizeFilters(query.where, fieldMap);
+  const filteredRows = rows.filter((row) => (
+    (!from || row[timeField] >= from) &&
+    (!to || row[timeField] <= to) &&
+    filters.every((filter) => filterMatches(row, filter))
+  ));
+  if (filteredRows.length === 0) {
+    throw datasetQueryError("Dataset query returned no rows.");
+  }
+
+  const sortedRows = [...filteredRows].sort((left, right) => (
+    compareRows(left, right, [timeField, ...manifest.primaryKey])
+  ));
+  const effectiveFrom = from || sortedRows[0][timeField];
+  const effectiveTo = to || sortedRows.at(-1)[timeField];
+  if (dateDistance(effectiveFrom, effectiveTo) + 1 > MAX_RANGE_DAYS) {
+    throw datasetQueryError(`Dataset query range must not exceed ${MAX_RANGE_DAYS} days.`);
+  }
+  const buckets = new Map();
+  for (const row of sortedRows) {
+    const key = bucketStart(row[timeField], selectedGranularity, manifest.time.weekStartsOn);
+    const bucketRows = buckets.get(key) ?? [];
+    bucketRows.push(row);
+    buckets.set(key, bucketRows);
+  }
+  if (buckets.size > MAX_OUTPUT_ROWS) {
+    throw datasetQueryError(
+      `Dataset query produces ${buckets.size} rows; narrow the time range below ${MAX_OUTPUT_ROWS}.`,
+    );
+  }
+
+  const outputRows = [...buckets.entries()].map(([period, bucketRows]) => {
+    const result = {};
+    for (const name of outputFields) {
+      if (name === timeField || name === "period") {
+        result[name] = periodLabel(period, selectedGranularity);
+        continue;
+      }
+      const field = fieldMap.get(name);
+      if (!field) {
+        throw datasetQueryError(`Unknown dataset field: ${name}.`);
+      }
+      result[name] = aggregateField(field, bucketRows, {
+        granularity: selectedGranularity,
+        timeField,
+      });
+    }
+    if (component === "Chart" && !Object.hasOwn(result, xKey)) {
+      result[xKey] = periodLabel(period, selectedGranularity);
+    }
+    return result;
+  });
+
+  const observedDates = new Set(sortedRows.map((row) => row[timeField]));
+  const expectedDates = datesBetween(effectiveFrom, effectiveTo, manifest.time.calendar);
+  const missingDates = expectedDates.filter((date) => !observedDates.has(date));
+  const partialPeriods = [...buckets.entries()]
+    .filter(([period, bucketRows]) => periodIsPartial({
+      period,
+      rows: bucketRows,
+      granularity: selectedGranularity,
+      weekStartsOn: manifest.time.weekStartsOn,
+      calendar: manifest.time.calendar,
+      effectiveFrom,
+      effectiveTo,
+      timeField,
+    }))
+    .map(([period]) => periodLabel(period, selectedGranularity));
+
+  return {
+    rows: outputRows,
+    attributes: {
+      ...attributes,
+      ...(component === "Chart" ? { x: xKey } : {}),
+      ...(component === "DataTable" ? { columns: outputFields.join(",") } : {}),
+    },
+    meta: {
+      datasetId: manifest.id,
+      datasetTitle: manifest.title || manifest.id,
+      granularity: selectedGranularity,
+      from: effectiveFrom,
+      to: effectiveTo,
+      dataThrough: sortedRows.at(-1)[timeField],
+      sourceRows: filteredRows.length,
+      totalRows: rows.length,
+      outputRows: outputRows.length,
+      missingDateCount: missingDates.length,
+      missingDates: missingDates.slice(0, 20),
+      partialPeriodCount: partialPeriods.length,
+      partialPeriods: partialPeriods.slice(0, 20),
+    },
+  };
+}
+
+function componentFields({ component, attributes, manifest, xKey }) {
+  if (component === "Chart") {
+    const configured = uniqueStrings([
+      ...listAttribute(attributes.series || attributes.y),
+      ...listAttribute(attributes.bars || attributes.bar),
+      ...listAttribute(attributes.lines || attributes.line),
+      ...listAttribute(attributes.leftSeries || attributes.left || attributes.leftAxis || attributes.leftY),
+      ...listAttribute(attributes.rightSeries || attributes.right || attributes.rightAxis || attributes.rightY),
+    ]).filter((name) => name !== xKey && name !== manifest.time.field && name !== "period");
+    const series = configured.length > 0
+      ? configured
+      : manifest.fields
+        .filter((field) => field.rollup && numericField(field))
+        .map((field) => field.name);
+    if (series.length === 0) {
+      throw datasetQueryError("Dataset Chart requires at least one numeric series field.");
+    }
+    return [xKey, ...series];
+  }
+
+  if (component === "DataTable") {
+    const configured = listAttribute(attributes.columns);
+    if (configured.length > 0) {
+      return uniqueStrings(configured);
+    }
+    return [
+      manifest.time.field,
+      ...manifest.fields
+        .filter((field) => field.name !== manifest.time.field && field.rollup)
+        .map((field) => field.name),
+    ];
+  }
+
+  throw datasetQueryError(`External datasets are not supported by ${component}.`);
+}
+
+function aggregateField(field, rows, { granularity, timeField }) {
+  const rollup = field.rollup;
+  if (!rollup) {
+    if (granularity === "day" && rows.length === 1) {
+      return rows[0][field.name];
+    }
+    throw datasetQueryError(
+      `Field "${field.name}" needs a rollup before it can be shown in ${granularity} view.`,
+    );
+  }
+
+  if (rollup.op === "ratioOfSums") {
+    const numerator = sumValues(rows.map((row) => row[rollup.numerator]));
+    const denominator = sumValues(rows.map((row) => row[rollup.denominator]));
+    return denominator === 0 ? null : (numerator / denominator) * rollup.scale;
+  }
+
+  const values = rows.map((row) => row[field.name]).filter((value) => value !== null && value !== undefined);
+  if (rollup.op === "count") {
+    return values.length;
+  }
+  if (values.length === 0) {
+    return null;
+  }
+  if (rollup.op === "first") {
+    assertSingleRowPerDate(field, rows, timeField);
+    return values[0];
+  }
+  if (rollup.op === "last") {
+    assertSingleRowPerDate(field, rows, timeField);
+    return values.at(-1);
+  }
+
+  const numbers = values.filter(Number.isFinite);
+  if (numbers.length !== values.length) {
+    throw datasetQueryError(`Field "${field.name}" contains non-numeric values for ${rollup.op}.`);
+  }
+  if (rollup.op === "sum") {
+    return sumValues(numbers);
+  }
+  if (rollup.op === "avg") {
+    return sumValues(numbers) / numbers.length;
+  }
+  if (rollup.op === "min") {
+    return Math.min(...numbers);
+  }
+  if (rollup.op === "max") {
+    return Math.max(...numbers);
+  }
+  throw datasetQueryError(`Unsupported rollup for field "${field.name}": ${rollup.op}.`);
+}
+
+function assertSingleRowPerDate(field, rows, timeField) {
+  if (new Set(rows.map((row) => row[timeField])).size !== rows.length) {
+    throw datasetQueryError(
+      `Field "${field.name}" uses ${field.rollup.op}, but multiple rows share a date; filter the dataset to one series before aggregating.`,
+    );
+  }
+}
+
+function assertQueryShape(query) {
+  if (!query || typeof query !== "object" || Array.isArray(query)) {
+    throw datasetQueryError("Dataset query must be a JSON object.");
+  }
+  const unsupported = Object.keys(query).filter((key) => !QUERY_KEYS.has(key));
+  if (unsupported.length > 0) {
+    throw datasetQueryError(`Unsupported dataset query key: ${unsupported[0]}.`);
+  }
+}
+
+function normalizeFilters(where, fieldMap) {
+  if (where === undefined) {
+    return [];
+  }
+  if (!Array.isArray(where) || where.length > 10) {
+    throw datasetQueryError("Dataset query where must contain at most 10 filters.");
+  }
+  return where.map((filter) => {
+    if (!filter || typeof filter !== "object" || Array.isArray(filter)) {
+      throw datasetQueryError("Each dataset filter must be an object.");
+    }
+    const keys = Object.keys(filter);
+    if (keys.some((key) => !["field", "op", "value"].includes(key))) {
+      throw datasetQueryError("Dataset filters support only field, op, and value.");
+    }
+    const field = fieldMap.get(String(filter.field || ""));
+    if (!field) {
+      throw datasetQueryError(`Unknown filter field: ${filter.field}.`);
+    }
+    const op = String(filter.op || "eq");
+    if (!FILTER_OPERATORS.has(op)) {
+      throw datasetQueryError(`Unsupported filter operator: ${op}.`);
+    }
+    const arrayOperator = op === "in" || op === "notIn";
+    if (arrayOperator && (!Array.isArray(filter.value) || filter.value.length < 1 || filter.value.length > 100)) {
+      throw datasetQueryError(`${op} filters require 1 to 100 values.`);
+    }
+    return {
+      field: field.name,
+      op,
+      value: arrayOperator
+        ? filter.value.map((value) => coerceFilterValue(value, field))
+        : coerceFilterValue(filter.value, field),
+    };
+  });
+}
+
+function filterMatches(row, filter) {
+  const current = row[filter.field];
+  const equals = Array.isArray(filter.value)
+    ? filter.value.some((value) => Object.is(current, value))
+    : Object.is(current, filter.value);
+  return filter.op === "notEq" || filter.op === "notIn" ? !equals : equals;
+}
+
+function coerceFilterValue(value, field) {
+  if (value === null) {
+    return null;
+  }
+  if (field.type === "integer" || field.type === "decimal" || field.type === "number") {
+    const number = Number(value);
+    if (!Number.isFinite(number) || (field.type === "integer" && !Number.isInteger(number))) {
+      throw datasetQueryError(`Filter value for "${field.name}" must be ${field.type}.`);
+    }
+    return number;
+  }
+  if (field.type === "boolean") {
+    if (value === true || value === false) return value;
+    if (String(value).toLowerCase() === "true") return true;
+    if (String(value).toLowerCase() === "false") return false;
+    throw datasetQueryError(`Filter value for "${field.name}" must be boolean.`);
+  }
+  const text = String(value);
+  if (field.type === "date" && !isIsoDate(text)) {
+    throw datasetQueryError(`Filter value for "${field.name}" must be YYYY-MM-DD.`);
+  }
+  return text;
+}
+
+function periodIsPartial({
+  period,
+  rows,
+  granularity,
+  weekStartsOn,
+  calendar,
+  effectiveFrom,
+  effectiveTo,
+  timeField,
+}) {
+  const naturalEnd = bucketEnd(period, granularity, weekStartsOn);
+  if (period < effectiveFrom || naturalEnd > effectiveTo) {
+    return true;
+  }
+  const observed = new Set(rows.map((row) => row[timeField]));
+  return datesBetween(period, naturalEnd, calendar).some((date) => !observed.has(date));
+}
+
+function bucketStart(value, granularity, weekStartsOn = "monday") {
+  if (granularity === "day") {
+    return value;
+  }
+  const date = isoDateToUtc(value);
+  if (granularity === "month") {
+    date.setUTCDate(1);
+    return utcToIsoDate(date);
+  }
+  if (granularity === "quarter") {
+    date.setUTCMonth(Math.floor(date.getUTCMonth() / 3) * 3, 1);
+    return utcToIsoDate(date);
+  }
+  const weekOffset = weekStartsOn === "sunday"
+    ? date.getUTCDay()
+    : (date.getUTCDay() + 6) % 7;
+  date.setUTCDate(date.getUTCDate() - weekOffset);
+  return utcToIsoDate(date);
+}
+
+function bucketEnd(period, granularity) {
+  const date = isoDateToUtc(period);
+  if (granularity === "day") {
+    return period;
+  }
+  if (granularity === "week") {
+    date.setUTCDate(date.getUTCDate() + 6);
+    return utcToIsoDate(date);
+  }
+  if (granularity === "quarter") {
+    date.setUTCMonth(date.getUTCMonth() + 3, 0);
+    return utcToIsoDate(date);
+  }
+  date.setUTCMonth(date.getUTCMonth() + 1, 0);
+  return utcToIsoDate(date);
+}
+
+function periodLabel(period, granularity) {
+  if (granularity === "month") return period.slice(0, 7);
+  if (granularity === "quarter") {
+    return `${period.slice(0, 4)}-Q${Math.floor((Number(period.slice(5, 7)) - 1) / 3) + 1}`;
+  }
+  return period;
+}
+
+function datesBetween(from, to, calendar = "calendar") {
+  const dates = [];
+  const cursor = isoDateToUtc(from);
+  const end = isoDateToUtc(to);
+  while (cursor <= end) {
+    const day = cursor.getUTCDay();
+    if (calendar !== "weekdays" || (day !== 0 && day !== 6)) {
+      dates.push(utcToIsoDate(cursor));
+    }
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return dates;
+}
+
+function dateDistance(from, to) {
+  return Math.floor((isoDateToUtc(to) - isoDateToUtc(from)) / 86_400_000);
+}
+
+function normalizeRangeDate(value, name) {
+  if (value === undefined || value === null || String(value).trim() === "") {
+    return "";
+  }
+  const text = String(value).trim();
+  if (!isIsoDate(text)) {
+    throw datasetQueryError(`Dataset query ${name} must be YYYY-MM-DD.`);
+  }
+  return text;
+}
+
+function isIsoDate(value) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  return utcToIsoDate(isoDateToUtc(value)) === value;
+}
+
+function isoDateToUtc(value) {
+  const [year, month, day] = String(value).split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day));
+}
+
+function utcToIsoDate(date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function compareRows(left, right, fields) {
+  for (const field of uniqueStrings(fields)) {
+    const comparison = String(left[field] ?? "").localeCompare(String(right[field] ?? ""), "en", {
+      numeric: true,
+    });
+    if (comparison !== 0) return comparison;
+  }
+  return 0;
+}
+
+function sumValues(values) {
+  return values.filter(Number.isFinite).reduce((total, value) => total + value, 0);
+}
+
+function numericField(field) {
+  return ["integer", "decimal", "number"].includes(field.type);
+}
+
+function listAttribute(value) {
+  if (!value) return [];
+  return String(value).split(",").map((item) => item.trim()).filter(Boolean);
+}
+
+function uniqueStrings(values) {
+  return [...new Set(values.map((value) => String(value ?? "").trim()).filter(Boolean))];
+}
+
+function datasetQueryError(message) {
+  const error = new Error(message);
+  error.statusCode = 400;
+  error.code = "dataset_query_invalid";
+  return error;
+}

@@ -40,6 +40,7 @@ import { treeFilePresentation } from "./tree-file-title.js";
 import { hasTreeChanged } from "./tree-refresh.js";
 import { shouldReplaceDocumentHtml } from "./document-refresh.js";
 import { attachChartTooltips } from "./chart-tooltip.js";
+import { attachDatasetViews } from "./dataset-view.js";
 import {
   sourceLineFromPreviewScroll,
   shouldIgnoreWatchedChange,
@@ -496,6 +497,18 @@ const modeButtons = [...document.querySelectorAll("[data-mode]")];
 const themeToggle = document.querySelector("#theme-toggle");
 const chartTooltipController = attachChartTooltips(documentContent);
 const sourceChartTooltipController = attachChartTooltips(sourceEditorHost);
+const datasetViewSelections = new Map();
+const datasetViewOptions = {
+  selections: datasetViewSelections,
+  getContext: () => ({
+    repo: state.currentRepo,
+    file: state.currentDocument?.path ?? state.currentFile,
+    locale: state.locale,
+  }),
+  onRendered: (root) => enhanceTables(root),
+};
+const documentDatasetViewController = attachDatasetViews(documentContent, datasetViewOptions);
+const sourceDatasetViewController = attachDatasetViews(sourceEditorHost, datasetViewOptions);
 const uiTooltipController = createUiTooltip({
   tooltip: uiTooltip,
   eventRoot: appShell,
@@ -5080,6 +5093,7 @@ function renderDocumentContent(documentData) {
       || `<p class="empty-message">${escapeHtml(t("document.empty"))}</p>`;
     enhanceImageLoadStates(documentContent, { locale: state.locale });
     enhanceTables();
+    documentDatasetViewController.hydrate(documentContent);
     scheduleAnchoredSourceLineGutterSync();
     renderDocumentOutline();
     return;
@@ -7910,10 +7924,12 @@ async function handleWatchedDocumentChange(event, request = currentDocumentReque
   if (state.sourceWriteInFlight || state.remoteSyncOperation === "merge") {
     return;
   }
-  if (payload.sourceHash === state.currentDocument.sourceHash) {
+  const dependencyChanged = payload.dependencyHash !== state.currentDocument.dependencyHash;
+  if (payload.sourceHash === state.currentDocument.sourceHash && !dependencyChanged) {
     return;
   }
   if (
+    !dependencyChanged &&
     shouldIgnoreWatchedChange({
       currentMode: state.mode,
       watchedHash: payload.sourceHash,
@@ -7953,7 +7969,9 @@ async function checkDocumentStatus() {
   if (state.sourceWriteInFlight || state.remoteSyncOperation === "merge") {
     return;
   }
+  const dependencyChanged = status.dependencyHash !== state.currentDocument.dependencyHash;
   if (
+    !dependencyChanged &&
     shouldIgnoreWatchedChange({
       currentMode: state.mode,
       watchedHash: status.sourceHash,
@@ -7962,7 +7980,7 @@ async function checkDocumentStatus() {
   ) {
     return;
   }
-  if (status.mtimeMs > state.currentDocument.mtimeMs) {
+  if (dependencyChanged || status.mtimeMs > state.currentDocument.mtimeMs) {
     await refreshCurrentDocument({ external: true });
   }
 }
@@ -8237,8 +8255,12 @@ function openCurrentGithub() {
   }
 }
 
-function enhanceTables() {
-  for (const tableCard of documentContent.querySelectorAll("[data-enhanced-table]")) {
+function enhanceTables(root = documentContent) {
+  for (const tableCard of root.querySelectorAll("[data-enhanced-table]")) {
+    if (tableCard.dataset.tableEnhanced === "true") {
+      continue;
+    }
+    tableCard.dataset.tableEnhanced = "true";
     const table = tableCard.querySelector("table");
     const search = tableCard.querySelector("[data-table-search]");
     const copy = tableCard.querySelector("[data-table-copy]");

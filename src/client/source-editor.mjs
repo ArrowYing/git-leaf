@@ -3696,6 +3696,12 @@ export function livePreviewHtmlForBlock(source, renderOptions = {}) {
   return removeSourceBlockChrome(renderMarkdown(source, renderOptions)).trim();
 }
 
+export function liveBlockPreviewIgnoresEvent(block, eventTarget) {
+  return block?.type === "table" || Boolean(
+    eventTarget?.closest?.("[data-dataset-granularity]"),
+  );
+}
+
 function liveImagePreviewBlockAt(lines, index) {
   const line = String(lines[index] ?? "").trim();
   return (
@@ -3913,8 +3919,8 @@ class LiveBlockPreviewWidget extends WidgetType {
     return container;
   }
 
-  ignoreEvent() {
-    return this.block.type === "table";
+  ignoreEvent(event) {
+    return liveBlockPreviewIgnoresEvent(this.block, event?.target);
   }
 }
 

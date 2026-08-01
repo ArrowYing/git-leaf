@@ -3468,6 +3468,104 @@ summary.has-operation-feedback {
   margin: 18px 0;
 }
 
+.mdx-dataset-view {
+  display: grid;
+  gap: 10px;
+}
+
+.mdx-dataset-controls {
+  display: inline-flex;
+  justify-self: start;
+  overflow: hidden;
+  border: 1px solid var(--panel-border);
+  border-radius: 7px;
+  background: var(--panel);
+}
+
+.mdx-dataset-granularity {
+  min-width: 48px;
+  min-height: 30px;
+  border: 0;
+  border-right: 1px solid var(--panel-border);
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 680;
+  padding: 5px 11px;
+}
+
+.mdx-dataset-granularity:last-child {
+  border-right: 0;
+}
+
+.mdx-dataset-granularity:hover:not(:disabled) {
+  background: var(--panel-muted);
+  color: var(--text);
+}
+
+.mdx-dataset-granularity.is-active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.mdx-dataset-granularity:focus-visible {
+  position: relative;
+  z-index: 1;
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.mdx-dataset-granularity:disabled {
+  cursor: progress;
+  opacity: 0.72;
+}
+
+.mdx-dataset-result {
+  min-width: 0;
+}
+
+.mdx-dataset-result > .mdx-component {
+  margin: 0;
+}
+
+.mdx-dataset-view.is-loading .mdx-dataset-result > .mdx-component {
+  opacity: 0.58;
+}
+
+.mdx-dataset-loading {
+  margin: 0;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  background: var(--panel-muted);
+  color: var(--muted);
+  padding: 18px;
+  font-size: 13px;
+}
+
+.mdx-dataset-meta {
+  display: grid;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.mdx-dataset-meta-details,
+.mdx-dataset-warning {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.mdx-dataset-meta-details {
+  color: var(--muted);
+}
+
+.mdx-dataset-warning {
+  color: var(--warning-text, #92400e);
+}
+
 .mdx-component-title,
 .mdx-chart figcaption,
 .mdx-flow-diagram figcaption {
@@ -4408,6 +4506,10 @@ tr:last-child td {
     --table-head: #f8fafc;
     --document-font-size: 16px !important;
     --document-font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+
+  .mdx-dataset-controls {
+    display: none;
   }
 
   :root[data-document-font] {
