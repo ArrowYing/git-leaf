@@ -45,6 +45,7 @@ export function createUiTooltip({
   listen(root, "pointerover", handlePointerOver);
   listen(root, "pointermove", handlePointerMove);
   listen(root, "pointerout", handlePointerOut);
+  listen(root, "pointerdown", handlePointerDown);
   listen(root, "focusin", handleFocusIn);
   listen(root, "focusout", handleFocusOut);
   listen(root, "scroll", handleScroll, true);
@@ -69,6 +70,10 @@ export function createUiTooltip({
     if (tooltip?.contains?.(event.target)) {
       return;
     }
+    if (pointerInsideVisibleExpansionTooltip(event)) {
+      rememberPointer(event);
+      return;
+    }
     const resolved = resolveTarget(event.target);
     if (!resolved || sameResolvedTarget(resolved, resolveTarget(event.relatedTarget))) {
       return;
@@ -84,6 +89,10 @@ export function createUiTooltip({
 
   function handlePointerMove(event) {
     if (tooltip?.contains?.(event.target)) {
+      return;
+    }
+    if (pointerInsideVisibleExpansionTooltip(event)) {
+      rememberPointer(event);
       return;
     }
     const resolved = resolveTarget(event.target);
@@ -113,6 +122,10 @@ export function createUiTooltip({
     if (tooltip?.contains?.(event.target)) {
       return;
     }
+    if (pointerInsideVisibleExpansionTooltip(event)) {
+      rememberPointer(event);
+      return;
+    }
     const resolved = resolveTarget(event.target);
     if (!resolved || resolved.item?.contains?.(event.relatedTarget)) {
       return;
@@ -124,6 +137,12 @@ export function createUiTooltip({
       dismissedKey = "";
     }
     hide();
+  }
+
+  function handlePointerDown(event) {
+    if (pointerInsideVisibleExpansionTooltip(event)) {
+      hide();
+    }
   }
 
   function handleFocusIn(event) {
@@ -249,6 +268,7 @@ export function createUiTooltip({
         ? (resolved.source.variant ?? "action")
         : (resolved.source.variant ?? "content");
     tooltip.dataset.source = String(resolved.source.name ?? "");
+    applyTooltipHitTesting(tooltip);
     applyExpansionTypography({
       tooltip,
       titleElement,
@@ -259,13 +279,13 @@ export function createUiTooltip({
     tooltip.style.top = "0px";
     tooltip.hidden = false;
     tooltip.setAttribute?.("aria-hidden", "false");
-    position(resolved, placement);
+    position(resolved, placement, titleElement);
     visible = resolved;
     connectDescription(resolved);
     warmUntil = now() + warmDuration;
   }
 
-  function position(resolved, placement = null) {
+  function position(resolved, placement = null, contentElement = null) {
     if (!tooltip || tooltip.hidden) {
       return;
     }
@@ -278,6 +298,7 @@ export function createUiTooltip({
     const next = uiTooltipPosition({
       anchorRect: anchor.getBoundingClientRect(),
       tooltipRect: tooltip.getBoundingClientRect(),
+      contentRect: contentElement?.getBoundingClientRect?.(),
       boundsRect,
       placement: placement
         ?? valueFromSource(resolved.source.placement, resolved.item)
@@ -285,6 +306,28 @@ export function createUiTooltip({
     });
     tooltip.style.left = `${next.left}px`;
     tooltip.style.top = `${next.top}px`;
+  }
+
+  function pointerInsideVisibleExpansionTooltip(event) {
+    if (!visible || tooltip?.hidden || tooltip?.dataset?.variant !== "expansion") {
+      return false;
+    }
+    const clientX = finiteNumber(event?.clientX);
+    const clientY = finiteNumber(event?.clientY);
+    if (clientX === null || clientY === null || !tooltip?.getBoundingClientRect) {
+      return false;
+    }
+    const rect = tooltip.getBoundingClientRect();
+    const left = number(rect?.left);
+    const top = number(rect?.top);
+    const right = left + rectSize(rect, "width", "left", "right");
+    const bottom = top + rectSize(rect, "height", "top", "bottom");
+    return clientX >= left && clientX <= right && clientY >= top && clientY <= bottom;
+  }
+
+  function rememberPointer(event) {
+    pointerX = event.clientX;
+    pointerY = event.clientY;
   }
 
   function connectDescription(resolved) {
@@ -362,6 +405,7 @@ export function elementIsOverflowing(element) {
 export function uiTooltipPosition({
   anchorRect,
   tooltipRect,
+  contentRect,
   boundsRect,
   placement = "bottom",
   gap = 8,
@@ -386,8 +430,18 @@ export function uiTooltipPosition({
   let idealTop;
 
   if (placement === "expansion") {
-    idealLeft = anchorLeft - contentInset;
-    idealTop = anchorTop + (anchorHeight - tooltipHeight) / 2;
+    const tooltipLeft = finiteNumber(tooltipRect?.left);
+    const tooltipTop = finiteNumber(tooltipRect?.top);
+    const contentLeft = finiteNumber(contentRect?.left);
+    const contentTop = finiteNumber(contentRect?.top);
+    const contentOffsetLeft = tooltipLeft === null || contentLeft === null
+      ? contentInset
+      : contentLeft - tooltipLeft;
+    const contentOffsetTop = tooltipTop === null || contentTop === null
+      ? (tooltipHeight - anchorHeight) / 2
+      : contentTop - tooltipTop;
+    idealLeft = anchorLeft - contentOffsetLeft;
+    idealTop = anchorTop - contentOffsetTop;
   } else {
     const alignStart = placement.endsWith("-start");
     const preferTop = placement.startsWith("top");
@@ -525,6 +579,18 @@ function applyExpansionTypography({
   tooltip.dataset.expansionTypography = "true";
 }
 
+function applyTooltipHitTesting(tooltip) {
+  if (tooltip.dataset.variant === "expansion") {
+    tooltip.style.pointerEvents = "none";
+    return;
+  }
+  if (typeof tooltip.style.removeProperty === "function") {
+    tooltip.style.removeProperty("pointer-events");
+  } else {
+    delete tooltip.style.pointerEvents;
+  }
+}
+
 function itemKey(source, item) {
   const key = source.key?.(item) ?? source.details?.(item)?.name ?? "";
   return `${source.name ?? ""}:${key}`;
@@ -545,6 +611,11 @@ function rectSize(rect, sizeKey, startKey, endKey) {
 
 function number(value) {
   return Number(value) || 0;
+}
+
+function finiteNumber(value) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : null;
 }
 
 function clamp(value, minimum, maximum) {

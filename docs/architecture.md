@@ -173,6 +173,9 @@ presentation:
   frontmatter `title` or first level-one heading on an equally weighted second row; disabling the
   preference, filenames containing Han characters, and documents without a distinct title remain
   single-row;
+- truncated navigation text expands in a content-aligned tooltip that stays visually stable while the
+  pointer crosses it but remains hit-test transparent, so the underlying file or navigation target keeps
+  click ownership;
 - search, the current document, favorites, and Sync may reveal otherwise hidden paths;
 - Git Leaf-created empty folders contain a zero-byte `.gitkeep`; All and Content Files preserve the
   folder while hiding the placeholder, and Sync exposes the placeholder whenever Git reports its change;

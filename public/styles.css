@@ -1815,6 +1815,7 @@ summary.has-operation-feedback {
 
 .ui-tooltip[data-variant="expansion"] {
   padding-block: 5px;
+  pointer-events: none;
 }
 
 .ui-tooltip[data-source="file-tree"] {
@@ -1829,6 +1830,7 @@ summary.has-operation-feedback {
 }
 
 .ui-tooltip[data-source="file-tree"] .ui-tooltip-detail {
+  margin-top: 2px;
   color: var(--text-strong);
   font-family: inherit;
   font-size: inherit;
