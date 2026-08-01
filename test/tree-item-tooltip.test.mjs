@@ -37,7 +37,10 @@ test("AI snippet matches use the whole file row, normal delay, and file-name anc
   const tooltip = createElement({
     id: "ui-tooltip",
     hidden: true,
-    rect: { width: 440, height: 28 },
+    rect: { left: 0, top: 0, width: 440, height: 28 },
+  });
+  tooltip.ownerDocument.createElement = () => createElement({
+    rect: { left: 11, top: 6, width: 418, height: 17 },
   });
   tooltip.contains = (candidate) => candidate === tooltip;
   root.contains = (candidate) => item.contains(candidate) || candidate === tooltip;
@@ -99,7 +102,7 @@ test("AI snippet matches use the whole file row, normal delay, and file-name anc
     )?.textContent,
     "boundary",
   );
-  assert.equal(tooltip.style.left, "8px");
+  assert.equal(tooltip.style.left, "5px");
 
   root.emit("pointerout", {
     target: label,

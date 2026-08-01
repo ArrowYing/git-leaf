@@ -23,11 +23,16 @@ export const TREE_TOOLTIP_SMOKE_SEARCH_TERM = "boundary";
 export const TREE_TOOLTIP_SMOKE_DOCUMENT_TITLE =
   "AI 学习未来：研究边界卡片与验证记录";
 
+export const TREE_TOOLTIP_SMOKE_ROOT_FILE = "CONTEXT.md";
+
+export const TREE_TOOLTIP_SMOKE_ROOT_TITLE =
+  "Mango OS 上下文地图（给兄弟仓库 / 外部消费者）";
+
 export const TREE_TOOLTIP_SMOKE_AI_SNIPPET =
   "AI search context boundary evidence that is intentionally longer than the narrow sidebar";
 
 export const TREE_TOOLTIP_SMOKE_ACCEPTANCE =
-  `目录树中的目标英文文件名必须保留在第一行，中文 title ${TREE_TOOLTIP_SMOKE_DOCUMENT_TITLE} 默认以与文件名相同的视觉分量显示在第二行而不是只放进浮层；关闭“目录树文档标题”设置后目标项必须恢复单行且 title 搜索不再命中，重新开启后第二行与搜索结果必须恢复；目录树和文档导航中的截断项都应在悬停后快速显示同款浮层；文件名浮层不设宽度上限，完整文件名始终保持单行，不能因换行改变浮层高度；浮层内文件名与 title 的文字起点必须分别和目录树原文两行对齐；浮层出现后，直接点击它覆盖的原文件行或相邻文件行必须打开实际点击的文档，浮层不得抢走点击；将鼠标从目录行直接移入浮层的文件名与 title 两行时，浮层必须继续显示而不得闪动、消失或重新计时；搜索 ${TREE_TOOLTIP_SMOKE_SEARCH_TERM} 后，截断文件名浮层应展示完整高亮名称，从 README 文件名进入整行也应及时展示完整高亮 AI snippet，浮层从文件名起点展开，鼠标在文件名、title 与 snippet 之间移动时不得消失或重新计时；文档导航分隔线可向右拖宽但不能小于初始宽度；浮层出现后保持鼠标静止至少 10 秒，期间不得消失、闪动或重建。`;
+  `目录树中的目标英文文件名必须保留在第一行，中文 title ${TREE_TOOLTIP_SMOKE_DOCUMENT_TITLE} 默认以与文件名相同的视觉分量显示在第二行而不是只放进浮层；关闭“目录树文档标题”设置后目标项必须恢复单行且 title 搜索不再命中，重新开启后第二行与搜索结果必须恢复；目录树和文档导航中的截断项都应在悬停后快速显示同款浮层；文件名浮层不设宽度上限，完整文件名始终保持单行，不能因换行改变浮层高度；浮层内文件名与 title 的文字起点必须分别和目录树原文两行对齐，根目录 ${TREE_TOOLTIP_SMOKE_ROOT_FILE} 也不得因左侧安全边距而右移；浮层出现后，直接点击它覆盖的原文件行或相邻文件行必须打开实际点击的文档，浮层不得抢走点击；将鼠标从目录行直接移入浮层的文件名与 title 两行时，浮层必须继续显示而不得闪动、消失或重新计时；搜索 ${TREE_TOOLTIP_SMOKE_SEARCH_TERM} 后，截断文件名浮层应展示完整高亮名称，从 README 文件名进入整行也应及时展示完整高亮 AI snippet，浮层从文件名起点展开，鼠标在文件名、title 与 snippet 之间移动时不得消失或重新计时；文档导航分隔线可向右拖宽但不能小于初始宽度；浮层出现后保持鼠标静止至少 10 秒，期间不得消失、闪动或重建。`;
 
 const SIBLING_FILE_NAMES = [
   "2026-07-12-market-research-interview-evidence-card-with-a-long-title-v01.md",
@@ -67,6 +72,20 @@ export function createTreeTooltipSmokeFixture({
       "utf8",
     );
     writeFileSync(
+      path.join(repoRoot, TREE_TOOLTIP_SMOKE_ROOT_FILE),
+      [
+        "---",
+        `title: ${TREE_TOOLTIP_SMOKE_ROOT_TITLE}`,
+        "---",
+        "",
+        `# ${TREE_TOOLTIP_SMOKE_ROOT_TITLE}`,
+        "",
+        "This root-level document protects start-edge tooltip alignment.",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+    writeFileSync(
       documentPath,
       [
         "---",
@@ -95,6 +114,7 @@ export function createTreeTooltipSmokeFixture({
     return {
       repoRoot,
       file: TREE_TOOLTIP_SMOKE_RELATIVE_FILE,
+      rootFile: TREE_TOOLTIP_SMOKE_ROOT_FILE,
       acceptance: TREE_TOOLTIP_SMOKE_ACCEPTANCE,
       searchTerm: TREE_TOOLTIP_SMOKE_SEARCH_TERM,
     };

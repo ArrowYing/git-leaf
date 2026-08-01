@@ -11,6 +11,8 @@ import {
   TREE_TOOLTIP_SMOKE_AI_SNIPPET,
   TREE_TOOLTIP_SMOKE_DOCUMENT_TITLE,
   TREE_TOOLTIP_SMOKE_RELATIVE_FILE,
+  TREE_TOOLTIP_SMOKE_ROOT_FILE,
+  TREE_TOOLTIP_SMOKE_ROOT_TITLE,
   TREE_TOOLTIP_SMOKE_SEARCH_TERM,
   cleanupTreeTooltipSmokeFixture,
   createTreeTooltipSmokeFixture,
@@ -21,6 +23,7 @@ test("tree tooltip smoke fixture creates and cleans a deterministic long filenam
   const fixture = createTreeTooltipSmokeFixture({ temporaryRoot });
   try {
     assert.equal(fixture.file, TREE_TOOLTIP_SMOKE_RELATIVE_FILE);
+    assert.equal(fixture.rootFile, TREE_TOOLTIP_SMOKE_ROOT_FILE);
     assert.equal(fixture.searchTerm, TREE_TOOLTIP_SMOKE_SEARCH_TERM);
     assert.ok(path.basename(fixture.file).length > 70);
     assert.match(fixture.acceptance, /静止至少 10 秒/);
@@ -36,6 +39,11 @@ test("tree tooltip smoke fixture creates and cleans a deterministic long filenam
     assert.match(smokeDocument, new RegExp(DOCUMENT_OUTLINE_SMOKE_HEADING));
     assert.match(smokeDocument, new RegExp(`^title: ${TREE_TOOLTIP_SMOKE_DOCUMENT_TITLE}$`, "m"));
     assert.match(fixture.acceptance, new RegExp(TREE_TOOLTIP_SMOKE_DOCUMENT_TITLE));
+    assert.match(
+      readFileSync(path.join(fixture.repoRoot, fixture.rootFile), "utf8"),
+      new RegExp(`^title: ${TREE_TOOLTIP_SMOKE_ROOT_TITLE}$`, "m"),
+    );
+    assert.match(fixture.acceptance, new RegExp(TREE_TOOLTIP_SMOKE_ROOT_FILE));
     assert.match(
       readFileSync(path.join(fixture.repoRoot, "README.md"), "utf8"),
       new RegExp(TREE_TOOLTIP_SMOKE_AI_SNIPPET),

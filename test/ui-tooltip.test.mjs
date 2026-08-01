@@ -37,6 +37,19 @@ test("expansion tooltip text aligns with the source text instead of its outer bo
   });
 });
 
+test("root-level expansion tooltip keeps the source text origin near the left boundary", () => {
+  assert.deepEqual(uiTooltipPosition({
+    anchorRect: { left: 16, top: 207, width: 168, height: 17 },
+    tooltipRect: { left: 0, top: 0, width: 321, height: 48 },
+    contentRect: { left: 11, top: 6, width: 299, height: 17 },
+    boundsRect: { left: 0, top: 0, width: 800, height: 600 },
+    placement: "expansion",
+  }), {
+    left: 5,
+    top: 201,
+  });
+});
+
 test("action tooltips center below controls and flip above near the lower edge", () => {
   assert.deepEqual(uiTooltipPosition({
     anchorRect: { left: 100, top: 30, width: 40, height: 20 },

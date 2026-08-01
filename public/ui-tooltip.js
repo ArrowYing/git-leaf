@@ -424,7 +424,8 @@ export function uiTooltipPosition({
   const anchorBottom = anchorTop + anchorHeight;
   const tooltipWidth = Math.max(0, number(tooltipRect?.width));
   const tooltipHeight = Math.max(0, number(tooltipRect?.height));
-  const maxLeft = Math.max(padding, boundsWidth - tooltipWidth - padding);
+  const minimumLeft = placement === "expansion" ? 0 : padding;
+  const maxLeft = Math.max(minimumLeft, boundsWidth - tooltipWidth - padding);
   const maxTop = Math.max(padding, boundsHeight - tooltipHeight - padding);
   let idealLeft;
   let idealTop;
@@ -462,7 +463,7 @@ export function uiTooltipPosition({
   }
 
   return {
-    left: Math.round(clamp(idealLeft, padding, maxLeft)),
+    left: Math.round(clamp(idealLeft, minimumLeft, maxLeft)),
     top: Math.round(clamp(idealTop, padding, maxTop)),
   };
 }
