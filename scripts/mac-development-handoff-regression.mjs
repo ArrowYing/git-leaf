@@ -17,7 +17,7 @@ import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { extractFile } from "@electron/asar";
+import { extractFile, uncache } from "@electron/asar";
 
 import {
   normalizeDevelopmentHandoffReceipt,
@@ -705,13 +705,14 @@ function developmentFingerprint(rootDir, entries) {
   });
 }
 
-function readPackagedBuildInfo(appPath) {
+export function readPackagedBuildInfo(appPath) {
   const asarPath = path.join(
     appPath,
     "Contents",
     "Resources",
     "app.asar",
   );
+  uncache(asarPath);
   return JSON.parse(
     extractFile(asarPath, "git-leaf-build-info.json").toString("utf8"),
   );

@@ -1,12 +1,65 @@
 import assert from "node:assert/strict";
+import {
+  mkdir,
+  mkdtemp,
+  rename,
+  rm,
+  writeFile,
+} from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import test from "node:test";
+
+import { createPackage } from "@electron/asar";
 
 import {
   developmentHandoffRegressionSourceVersion,
+  readPackagedBuildInfo,
   runDevelopmentHandoffRegression,
   validateDevelopmentHandoffBuildPair,
   validateDevelopmentHandoffRegressionEvidence,
 } from "../scripts/mac-development-handoff-regression.mjs";
+
+test("packaged build identity refreshes after in-place App Contents replacement", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "git-leaf-handoff-asar-cache-"));
+  const resources = path.join(root, "Git Leaf.app", "Contents", "Resources");
+  const sourceFiles = path.join(root, "source-files");
+  const targetFiles = path.join(root, "target-files");
+  const asarPath = path.join(resources, "app.asar");
+  const replacementAsar = path.join(root, "replacement.asar");
+  const sourceBuild = {
+    version: "1.16.0",
+    buildId: "a".repeat(180),
+    dev: true,
+  };
+  const targetBuild = {
+    version: "1.17.0",
+    buildId: "target-internal",
+  };
+
+  try {
+    await mkdir(resources, { recursive: true });
+    await mkdir(sourceFiles, { recursive: true });
+    await mkdir(targetFiles, { recursive: true });
+    await writeFile(
+      path.join(sourceFiles, "git-leaf-build-info.json"),
+      `${JSON.stringify(sourceBuild, null, 2)}\n`,
+    );
+    await writeFile(
+      path.join(targetFiles, "git-leaf-build-info.json"),
+      `${JSON.stringify(targetBuild, null, 2)}\n`,
+    );
+    await createPackage(sourceFiles, asarPath);
+    assert.deepEqual(readPackagedBuildInfo(path.join(root, "Git Leaf.app")), sourceBuild);
+
+    await createPackage(targetFiles, replacementAsar);
+    await rename(replacementAsar, asarPath);
+
+    assert.deepEqual(readPackagedBuildInfo(path.join(root, "Git Leaf.app")), targetBuild);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
 
 const RECEIPT = {
   kind: "dev-to-internal",
