@@ -61,10 +61,10 @@ select a file just as you would in a familiar file browser.
 For a Markdown or MDX filename written without Chinese characters, Git Leaf keeps the source filename
 on the first line and shows a distinct document title underneath when frontmatter `title` or the first
 level-one heading provides one. Chinese filenames and documents without a distinct title stay on one
-line. The filename and title use the same visual weight so either can be scanned first. This second line
-is enabled by default; choose **Settings & Help → Files & Folders → Show filenames only** for a compact
-tree. The title is display-only: sorting, links, file operations, and Git continue to use the source
-filename and path.
+line. The title remains the primary visual cue while the filename is slightly muted but still readable.
+This second line is enabled by default; choose **Settings & Help → Files & Folders → Show filenames
+only** for a compact tree. The title is display-only: sorting, links, file operations, and Git continue
+to use the source filename and path.
 
 The sidebar offers three views:
 
@@ -85,7 +85,9 @@ terms are combined, so `spring plan` keeps items that match both terms. Search t
 folders needed to reach a result and does not permanently replace your manual folder choices. It
 matches folder names, file names, displayed document titles, and repository-provided search summaries;
 it is not full-text document search. When document-title display is turned off, hidden titles are also
-excluded from tree search rather than becoming invisible search fields.
+excluded from tree search rather than becoming invisible search fields. When a search summary needs an
+expansion, the floating window keeps the filename and title above the complete highlighted summary
+instead of replacing them.
 
 ### Read with source references
 

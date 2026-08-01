@@ -4,7 +4,7 @@ import test from "node:test";
 import { createTreeItemTooltipSource } from "../public/tree-item-tooltip.js";
 import { createUiTooltip } from "../public/ui-tooltip.js";
 
-test("AI snippet matches use the whole file row, normal delay, and file-name anchor", () => {
+test("AI snippet matches preserve filename and title before full highlighted evidence", () => {
   const root = createEventTarget();
   const label = createElement({
     className: "tree-file-label",
@@ -12,26 +12,39 @@ test("AI snippet matches use the whole file row, normal delay, and file-name anc
     scrollWidth: 167,
     clientWidth: 167,
   });
+  label.textContent = "README.md";
+  const title = createElement({
+    className: "tree-file-document-title",
+    rect: { left: 16, top: 59, width: 167, height: 17 },
+    scrollWidth: 167,
+    clientWidth: 167,
+  });
+  title.textContent = "Git Leaf UI Smoke Fixture";
   const evidence = createElement({
     className: "tree-file-search-evidence",
-    rect: { left: 16, top: 59, width: 167, height: 14 },
+    rect: { left: 16, top: 78, width: 167, height: 14 },
   });
   const item = createElement({
     dataset: {
       treeItem: "file",
       treePath: "README.md",
     },
-    rect: { left: 8, top: 35, width: 209, height: 42 },
+    rect: { left: 8, top: 35, width: 209, height: 61 },
   });
   item.querySelector = (selector) => (
     selector === ".tree-file-label"
       ? label
-      : selector === ".tree-file-search-evidence"
-        ? evidence
-        : null
+      : selector === ".tree-file-document-title"
+        ? title
+        : selector === ".tree-file-search-evidence"
+          ? evidence
+          : null
   );
-  item.contains = (candidate) => candidate === item || candidate === label || candidate === evidence;
+  item.contains = (candidate) => (
+    candidate === item || candidate === label || candidate === title || candidate === evidence
+  );
   label.closest = () => item;
+  title.closest = () => item;
   evidence.closest = () => item;
 
   const tooltip = createElement({
@@ -50,8 +63,11 @@ test("AI snippet matches use the whole file row, normal delay, and file-name anc
   const snippetDetails = new WeakMap([[
     item,
     {
-      name: snippet,
-      nameRanges: [{ from: matchFrom, to: matchFrom + "boundary".length }],
+      evidence: {
+        label: "AI",
+        text: snippet,
+        ranges: [{ from: matchFrom, to: matchFrom + "boundary".length }],
+      },
     },
   ]]);
   const source = createTreeItemTooltipSource({
@@ -63,7 +79,13 @@ test("AI snippet matches use the whole file row, normal delay, and file-name anc
   assert.equal(source.itemFromTarget(evidence), item);
   assert.equal(source.anchorElement(item), label);
   assert.equal(source.shouldShow(item), true);
-  assert.deepEqual(source.details(item), snippetDetails.get(item));
+  assert.deepEqual(source.details(item), {
+    name: "README.md",
+    nameRanges: [],
+    path: "Git Leaf UI Smoke Fixture",
+    pathRanges: [],
+    evidence: snippetDetails.get(item).evidence,
+  });
 
   const timers = [];
   const controller = createUiTooltip({
@@ -96,8 +118,10 @@ test("AI snippet matches use the whole file row, normal delay, and file-name anc
   timers[0].callback();
   assert.equal(tooltip.hidden, false);
   assert.equal(tooltip.dataset.source, "file-tree");
+  assert.equal(tooltip.children[0].textContent, "README.md");
+  assert.equal(tooltip.children[1].textContent, "Git Leaf UI Smoke Fixture");
   assert.equal(
-    tooltip.children[0].children.find(
+    tooltip.children[2].children[1].children.find(
       (child) => child.className === "ui-tooltip-search-match",
     )?.textContent,
     "boundary",
@@ -160,6 +184,8 @@ test("a truncated default document title expands together with its source filena
     name: "2026-07-31-weekly-report.md",
     nameRanges: [],
     path: "本周工作报告与下一阶段计划",
+    pathRanges: [],
+    evidence: null,
   });
 });
 

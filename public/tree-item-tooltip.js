@@ -3,6 +3,7 @@ import { elementIsOverflowing } from "./ui-tooltip.js";
 export function createTreeItemTooltipSource({
   container,
   nameRangesForItem = () => [],
+  detailRangesForItem = () => [],
   searchDetailsForItem = () => null,
   delay = 250,
 } = {}) {
@@ -29,15 +30,15 @@ export function createTreeItemTooltipSource({
 
   function details(item) {
     const searchDetails = searchDetailsForItem(item);
-    if (String(searchDetails?.name ?? "").trim()) {
-      return searchDetails;
-    }
     const label = labelElement(item);
     const name = label?.textContent?.trim() || "";
+    const path = titleElement(item)?.textContent?.trim() || "";
     return {
       name,
       nameRanges: nameRangesForItem(item, name),
-      path: titleElement(item)?.textContent?.trim() || "",
+      path,
+      pathRanges: detailRangesForItem(item, path),
+      evidence: searchDetails?.evidence ?? null,
     };
   }
 
@@ -55,7 +56,7 @@ export function createTreeItemTooltipSource({
     anchorElement: labelElement,
     describedElement: (item) => item,
     shouldShow: (item) => (
-      Boolean(String(searchDetailsForItem(item)?.name ?? "").trim())
+      Boolean(String(searchDetailsForItem(item)?.evidence?.text ?? "").trim())
       || elementIsOverflowing(labelElement(item))
       || elementIsOverflowing(titleElement(item))
     ),

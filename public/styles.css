@@ -1673,6 +1673,10 @@ summary:focus-visible {
   white-space: nowrap;
 }
 
+.tree-file.has-document-title .tree-file-label {
+  color: color-mix(in srgb, var(--text-secondary) 82%, var(--muted));
+}
+
 .tree-file-document-title {
   display: block;
   min-width: 0;
@@ -1779,11 +1783,19 @@ summary.is-missing {
   font-weight: 600;
 }
 
+.tree-file.has-document-title.is-active .tree-file-label {
+  color: color-mix(in srgb, var(--accent-text) 82%, var(--muted));
+}
+
 .tree-file.has-operation-feedback,
 summary.has-operation-feedback {
   background: var(--success-soft);
   box-shadow: inset 0 0 0 1px var(--success-border);
   color: var(--success-text);
+}
+
+.tree-file.has-document-title.has-operation-feedback .tree-file-label {
+  color: color-mix(in srgb, var(--success-text) 82%, var(--muted));
 }
 
 .ui-tooltip {
@@ -1824,7 +1836,8 @@ summary.has-operation-feedback {
 }
 
 .ui-tooltip[data-source="file-tree"] .ui-tooltip-title,
-.ui-tooltip[data-source="file-tree"] .ui-tooltip-detail {
+.ui-tooltip[data-source="file-tree"] .ui-tooltip-detail,
+.ui-tooltip[data-source="file-tree"] .ui-tooltip-evidence {
   overflow-wrap: normal;
   white-space: nowrap;
 }
@@ -1835,6 +1848,25 @@ summary.has-operation-feedback {
   font-family: inherit;
   font-size: inherit;
   font-weight: inherit;
+}
+
+.ui-tooltip[data-source="file-tree"]:has(.ui-tooltip-detail) .ui-tooltip-title {
+  color: color-mix(in srgb, var(--text-strong) 82%, var(--muted));
+}
+
+.ui-tooltip-evidence {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.ui-tooltip-evidence-label {
+  flex: 0 0 auto;
+  font-weight: 760;
 }
 
 .ui-tooltip-title {

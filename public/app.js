@@ -546,6 +546,11 @@ const uiTooltipController = createUiTooltip({
           ? textFilterMatchRanges(name, state.filter)
           : []
       ),
+      detailRangesForItem: (_item, detail) => (
+        isTreeTextSearchActive()
+          ? textFilterMatchRanges(detail, state.filter)
+          : []
+      ),
       searchDetailsForItem: (item) => treeItemSearchTooltips.get(item),
     }),
     {
@@ -4647,8 +4652,11 @@ function renderNode(node, parentPath) {
       const evidence = document.createElement("span");
       evidence.className = "tree-file-search-evidence";
       treeItemSearchTooltips.set(button, {
-        name: textMatchDetails.snippetMatch.text,
-        nameRanges: textMatchDetails.snippetMatch.ranges,
+        evidence: {
+          label: "AI",
+          text: textMatchDetails.snippetMatch.text,
+          ranges: textMatchDetails.snippetMatch.ranges,
+        },
       });
       const source = document.createElement("span");
       source.className = "tree-file-search-source";

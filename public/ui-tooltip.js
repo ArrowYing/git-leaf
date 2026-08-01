@@ -259,6 +259,8 @@ export function createUiTooltip({
       name,
       nameRanges: details.nameRanges,
       path: String(details.path ?? details.detail ?? "").trim(),
+      pathRanges: details.pathRanges,
+      evidence: details.evidence,
       shortcut: String(details.shortcut ?? "").trim(),
     });
     const placement = valueFromSource(resolved.source.placement, resolved.item) || "bottom";
@@ -468,7 +470,14 @@ export function uiTooltipPosition({
   };
 }
 
-function renderTooltip(tooltip, { name, nameRanges, path, shortcut }) {
+function renderTooltip(tooltip, {
+  name,
+  nameRanges,
+  path,
+  pathRanges,
+  evidence,
+  shortcut,
+}) {
   const documentRef = tooltip.ownerDocument ?? globalThis.document;
   const nameElement = documentRef.createElement("div");
   nameElement.className = "ui-tooltip-title";
@@ -488,8 +497,25 @@ function renderTooltip(tooltip, { name, nameRanges, path, shortcut }) {
   if (path && path !== name) {
     const pathElement = documentRef.createElement("div");
     pathElement.className = "ui-tooltip-detail";
-    pathElement.textContent = path;
+    appendHighlightedText(pathElement, path, pathRanges, documentRef);
     children.push(pathElement);
+  }
+  const evidenceText = String(evidence?.text ?? "").trim();
+  if (evidenceText) {
+    const evidenceElement = documentRef.createElement("div");
+    evidenceElement.className = "ui-tooltip-evidence";
+    const evidenceLabel = String(evidence?.label ?? "").trim();
+    if (evidenceLabel) {
+      const labelElement = documentRef.createElement("span");
+      labelElement.className = "ui-tooltip-evidence-label";
+      labelElement.textContent = evidenceLabel;
+      evidenceElement.append(labelElement);
+    }
+    const textElement = documentRef.createElement("span");
+    textElement.className = "ui-tooltip-evidence-text";
+    appendHighlightedText(textElement, evidenceText, evidence?.ranges, documentRef);
+    evidenceElement.append(textElement);
+    children.push(evidenceElement);
   }
   tooltip.replaceChildren(...children);
   return nameElement;
