@@ -183,7 +183,7 @@ manual download. Eligibility is fixed to:
 
 - current build: packaged `dev=true, distribution=source, releaseTrack=source`;
 - target: `distribution=official, releaseTrack=internal`, channel `internal-stable`;
-- version rule: target version greater than or equal to the current version, never lower;
+- version rule: target version strictly greater than the current development version;
 - installation: user-selected, nonprivileged direct-`Contents` replacement at the same App path.
 
 No environment variable may select another packaged target. Community builds with `dev=false`, public
@@ -201,8 +201,8 @@ processes while excluding its own Electron-as-Node process, revalidates the pers
 atomically removes both the receipt and the development build's explicit analytics value before a
 transactional direct-`Contents` replacement. It confirms the signed internal App can relaunch before
 discarding the rollback copy. A mismatch, write failure, replacement failure, or launch failure
-restores the dev App and its previous receipt/analytics state. The existing signed internal `1.16.0`
-package then initializes from its embedded `usageAnalyticsDefault=true` before telemetry starts. An
+restores the dev App and its previous receipt/analytics state. The newer signed internal package then
+initializes from its embedded `usageAnalyticsDefault=true` before telemetry starts. An
 internal-to-internal update does not use this exception.
 
 ## Formal official release
@@ -375,7 +375,7 @@ that legacy package's defective privileged Helper path. Its mandatory `finally` 
 state owned by that run. It then proves the real Profile and real ShipIt cache fingerprints did not change.
 A failure never creates passing evidence.
 
-Changes to the development handoff additionally require the same-version isolated regression:
+Changes to the development handoff additionally require the strictly newer-version isolated regression:
 
 ```bash
 npm run verify:dev-handoff:mac -- \
@@ -383,9 +383,9 @@ npm run verify:dev-handoff:mac -- \
   --allow-visible-app
 ```
 
-It packages the current source dev App, uses the exact signed `internal-stable` ZIP, drives the real
-user-visible update action, and proves the Bundle ID transition, target signature, preserved App
-directory inode, nonprivileged `Contents` bridge, absence of Squirrel/ShipIt use, target analytics
+It packages a deliberately lower-version source dev App, uses the exact newer signed `internal-stable`
+ZIP, drives the real user-visible update action, and proves the Bundle ID transition, target signature,
+preserved App directory inode, nonprivileged `Contents` bridge, absence of Squirrel/ShipIt use, target analytics
 default, telemetry initialization, receipt consumption, cleanup, and unchanged real Profile/cache
 fingerprints. The intent flag is mandatory to prevent accidental direct invocation because the
 temporary App opens and restarts on the current desktop, but the Agent supplies it without asking the

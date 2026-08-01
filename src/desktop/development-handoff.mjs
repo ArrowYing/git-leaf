@@ -2,6 +2,7 @@ import {
   isOfficialDistribution,
   releaseTrackForBuildInfo,
 } from "../build-info.mjs";
+import { isAppVersionNewer } from "./app-updates.mjs";
 
 export const DEVELOPMENT_HANDOFF_KIND = "dev-to-internal";
 export const DEVELOPMENT_HANDOFF_RELEASE_TRACK = "internal";
@@ -37,6 +38,13 @@ export function developmentHandoffTarget({
 export function desktopUpdatesEnabled(options = {}) {
   return isOfficialDistribution(options.buildInfo)
     || Boolean(developmentHandoffTarget(options));
+}
+
+export function developmentHandoffVersionAvailable({
+  currentVersion,
+  targetVersion,
+} = {}) {
+  return isAppVersionNewer(targetVersion, currentVersion);
 }
 
 export function developmentHandoffReceiptForManifest({ manifest } = {}) {

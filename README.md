@@ -180,8 +180,9 @@ repository's development and safety requirements.
 Settings identifies source, official public, official internal, and development builds and shows the
 effective usage-analytics state. There are still only two official release tracks—public and
 internal—and two macOS Bundle IDs. An installed source development build is not a third release: it may
-only switch to the latest official internal package, including the same version, after the user chooses
-Update. A Community package without the development marker remains disconnected from official feeds.
+only switch to the latest official internal package after that package's version becomes strictly newer
+than the development version and the user chooses Update. An equal or older official version is treated
+as current. A Community package without the development marker remains disconnected from official feeds.
 
 A build default is normally used only for first-time initialization, and ordinary updates preserve an
 existing `usageAnalyticsEnabled` value. The source-dev-to-internal identity handoff is the bounded

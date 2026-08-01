@@ -509,14 +509,14 @@ CompanyName, code signature, and update services. See [Release process](release.
 
 A human-installed macOS build with `dev=true, distribution=source, releaseTrack=source` keeps the
 Community Bundle ID and remains telemetry-ineligible. It has one additional routing capability: it
-resolves only `official + internal` on `internal-stable`, accepts the same or a newer version, and
+resolves only `official + internal` on `internal-stable`, accepts only a strictly newer version, and
 persists the full target version/build ID/commit/track/channel/platform before download. `dev=false`
 Community packages, unpackaged runs, and other platforms remain disconnected from official feeds.
 
-Ordinary Squirrel feeds still return a package only when the manifest version is newer. A development
-handoff does not use Squirrel: after validating `latest.json`, it downloads the exact ZIP URL and
-SHA-256 already named by the internal manifest. Equality is therefore a client-side identity rule and
-does not require a same-version exception in the update service.
+The development handoff uses the same strict version ordering as ordinary official updates. It does not
+use Squirrel because the Bundle ID changes: after validating `latest.json`, it downloads the exact ZIP
+URL and SHA-256 already named by the internal manifest. Equal or older targets remain current and never
+enter the handoff path.
 
 Official update checks read metadata only on launch, hourly, after reactivation, and after sleep. A
 package download starts only after the user chooses Update or a previously persisted update intent is

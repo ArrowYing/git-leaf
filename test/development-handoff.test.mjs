@@ -5,6 +5,7 @@ import {
   developmentHandoffReceiptForManifest,
   developmentHandoffReceiptMatchesBuild,
   developmentHandoffTarget,
+  developmentHandoffVersionAvailable,
   desktopUpdatesEnabled,
   normalizeDevelopmentHandoffReceipt,
 } from "../src/desktop/development-handoff.mjs";
@@ -82,6 +83,25 @@ test("desktop update controls are available only for official or eligible dev bu
     buildInfo: SOURCE_BUILD,
     isPackaged: false,
     platform: "darwin",
+  }), false);
+});
+
+test("development handoff requires a strictly newer internal version", () => {
+  assert.equal(developmentHandoffVersionAvailable({
+    currentVersion: "1.16.0",
+    targetVersion: "1.16.1",
+  }), true);
+  assert.equal(developmentHandoffVersionAvailable({
+    currentVersion: "1.16.0",
+    targetVersion: "1.16.0",
+  }), false);
+  assert.equal(developmentHandoffVersionAvailable({
+    currentVersion: "1.16.0+local-dev",
+    targetVersion: "1.16.0+internal",
+  }), false);
+  assert.equal(developmentHandoffVersionAvailable({
+    currentVersion: "1.16.0",
+    targetVersion: "1.15.0",
   }), false);
 });
 

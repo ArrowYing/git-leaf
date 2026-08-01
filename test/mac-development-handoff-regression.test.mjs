@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  developmentHandoffRegressionSourceVersion,
   runDevelopmentHandoffRegression,
   validateDevelopmentHandoffBuildPair,
   validateDevelopmentHandoffRegressionEvidence,
@@ -18,7 +19,7 @@ const RECEIPT = {
 };
 
 const SOURCE_BUILD = {
-  version: "1.16.0",
+  version: "1.15.0",
   buildId: "aaaaaaaaaaaa.20260730T010000Z.source",
   commit: "aaaaaaaaaaaa",
   dev: true,
@@ -46,7 +47,7 @@ test("development handoff regression requires an explicit visible-App acknowledg
   );
 });
 
-test("development handoff regression binds a same-version source app to the official internal target", () => {
+test("development handoff regression binds a lower source version to a newer internal target", () => {
   assert.deepEqual(validateDevelopmentHandoffBuildPair({
     sourceBuildInfo: SOURCE_BUILD,
     sourceBundleId: "org.gitleaf.community",
@@ -54,13 +55,15 @@ test("development handoff regression binds a same-version source app to the offi
     targetBundleId: "com.mangofuture.gitleaf",
     receipt: RECEIPT,
   }), {
-    version: "1.16.0",
+    sourceVersion: "1.15.0",
+    targetVersion: "1.16.0",
     sourceBuildId: SOURCE_BUILD.buildId,
     targetBuildId: TARGET_BUILD.buildId,
   });
 
   for (const mismatch of [
     { sourceBuildInfo: { ...SOURCE_BUILD, dev: false } },
+    { sourceBuildInfo: { ...SOURCE_BUILD, version: "1.16.0" } },
     { targetBuildInfo: { ...TARGET_BUILD, distribution: "source" } },
     { targetBuildInfo: { ...TARGET_BUILD, usageAnalyticsDefault: false } },
     { targetBuildInfo: { ...TARGET_BUILD, version: "1.16.1" } },
@@ -82,6 +85,16 @@ test("development handoff regression binds a same-version source app to the offi
   }
 });
 
+test("development handoff regression derives a strictly lower stable source version", () => {
+  assert.equal(developmentHandoffRegressionSourceVersion("1.16.2"), "1.16.1");
+  assert.equal(developmentHandoffRegressionSourceVersion("1.16.0"), "1.15.0");
+  assert.equal(developmentHandoffRegressionSourceVersion("2.0.0"), "1.0.0");
+  assert.throws(
+    () => developmentHandoffRegressionSourceVersion("0.0.0"),
+    /lower source version/i,
+  );
+});
+
 test("development handoff evidence requires the real installation and isolation outcomes", () => {
   const fingerprint = { sha256: "a".repeat(64), fileCount: 3 };
   const evidence = {
@@ -90,6 +103,7 @@ test("development handoff evidence requires the real installation and isolation 
     status: "passed",
     platform: "darwin-universal",
     version: "1.16.0",
+    sourceVersion: "1.15.0",
     sourceBuildId: SOURCE_BUILD.buildId,
     targetBuildId: TARGET_BUILD.buildId,
     sourceBundleId: "org.gitleaf.community",
@@ -125,6 +139,8 @@ test("development handoff evidence requires the real installation and isolation 
     evidence,
   );
   for (const invalid of [
+    { sourceVersion: undefined },
+    { sourceVersion: "1.16.0" },
     { analyticsDefaultAdopted: false },
     { handoffReceiptConsumed: false },
     { appDirectoryInodePreserved: false },

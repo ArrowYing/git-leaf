@@ -24,8 +24,8 @@ The installed development build currently cannot return to an official release t
   internal build preserves that value instead of applying its packaged default (`true`).
 
 The desired outcome is a one-way, user-initiated handoff from a human development install to the
-verified internal official release. It must work when the versions are equal and must enable usage
-analytics after the official internal build starts.
+verified internal official release. It must work only when that release is strictly newer and must
+enable usage analytics after the official internal build starts.
 
 ## Goals
 
@@ -34,13 +34,13 @@ analytics after the official internal build starts.
   - `org.gitleaf.community` for Community and source builds;
   - `com.mangofuture.gitleaf` for both public and internal official builds.
 - Allow only a packaged human development build (`dev=true`) to hand off to `official + internal`.
-- Allow the target internal version to be equal to or newer than the development version.
+- Allow the handoff only when the target internal version is strictly newer than the development version.
 - Never allow a downgrade.
 - Preserve the App directory, real Profile, repositories, sessions, and unrelated preferences.
 - Apply the target internal App's packaged `usageAnalyticsDefault` during the verified handoff, making
   analytics enabled for the current internal contract.
 - Return to ordinary internal update behavior after the handoff.
-- Verify the real packaged macOS transition, including the Bundle ID change and same-version case,
+- Verify the real packaged macOS transition, including the Bundle ID change and strict version increase,
   without running Agent automation against the real Profile.
 
 ## Non-goals
@@ -120,15 +120,15 @@ Normal official updates retain the strict rule:
 target version > current version
 ```
 
-An eligible development handoff uses:
+An eligible development handoff uses the same strict ordering:
 
 ```text
-target version >= current version
+target version > current version
 ```
 
-Equality is accepted only because the source and target identities differ. The manifest must match the
-fixed `internal` track, `internal-stable` channel, current platform, and a valid target build ID and
-commit. A lower target version remains rejected.
+The manifest must match the fixed `internal` track, `internal-stable` channel, current platform, and a
+valid target build ID and commit. Equal and lower target versions are treated as current and never enter
+the handoff path.
 
 Update availability and persisted intent must be keyed by target identity, not version alone. The
 minimum target identity is:
@@ -141,23 +141,22 @@ minimum target identity is:
 - channel;
 - platform.
 
-This lets `1.16.0 source/dev` distinguish `1.16.0 official/internal` and prevents an existing
-version-only preference from completing the wrong transition.
+This lets a lower source/dev version bind the exact newer official/internal target and prevents an
+existing version-only preference from completing the wrong transition.
 
-The update service's Squirrel feed keeps returning no package for ordinary equal-version requests. The
-development handoff does not use that feed. After validating `latest.json`, the client downloads the
-exact internal ZIP URL named by that manifest and verifies its declared size and SHA-256. The extracted
-App must match the same channel, platform, version, build ID, commit, Bundle ID, and Developer ID team
-before installation becomes available.
+The development handoff does not use the Squirrel feed because the Bundle ID changes. After validating
+`latest.json` and proving its version is strictly newer, the client downloads the exact internal ZIP URL
+named by that manifest and verifies its declared size and SHA-256. The extracted App must match the same
+channel, platform, version, build ID, commit, Bundle ID, and Developer ID team before installation
+becomes available.
 
 ## User flow
 
 The eligible development build participates in the normal metadata-check schedule. It may expose the
-same Check for Updates entry as an official build, but the copy must describe an identity handoff when
-the versions are equal, for example:
+same Check for Updates entry as an official build when a newer internal version exists, for example:
 
 ```text
-Switch to the internal Git Leaf 1.16.0 release
+Switch to the internal Git Leaf 1.16.1 release
 ```
 
 Metadata discovery never starts a package download. The user must choose the update action, matching the
@@ -291,8 +290,8 @@ Add behavior-level tests that prove:
 
 ### Packaged macOS acceptance
 
-Add a deterministic isolated packaged-App regression that starts from a development build with the same
-version as the internal target. It must use temporary HOME, userData, sessionData,
+Add a deterministic isolated packaged-App regression that starts from a development build with a lower
+version than the internal target. It must use temporary HOME, userData, sessionData,
 App location, update cache, and launch state. It must not automate the installed human App or write the
 real Profile.
 
@@ -305,7 +304,7 @@ The regression must prove:
 
 - starting identity: `dev=true, source, source`, `org.gitleaf.community`, telemetry off;
 - target identity: `dev=false, official, internal`, `com.mangofuture.gitleaf`;
-- source and target versions are equal;
+- the target version is strictly newer than the source development version;
 - the exact published internal candidate artifact is used;
 - the App directory inode is preserved;
 - no administrator prompt or privileged ShipIt job appears;
@@ -344,7 +343,7 @@ Update the authoritative release and architecture documents to state:
 - Community and human development builds are distinct even though both start from source identity;
 - Community builds never use official updates;
 - an installed human development build may hand off only to internal official;
-- equal-version handoff is an identity transition, not an ordinary version update;
+- equal-version targets are treated as current and only a newer internal version may hand off;
 - the verified transition reapplies the internal package's analytics default once;
 - public and internal official packages continue to share the official Bundle ID.
 

@@ -2,9 +2,9 @@
 
 > **For Codex:** REQUIRED SUB-SKILL: Use `superpowers:executing-plans` to implement this plan task-by-task.
 
-**Goal:** Let a packaged macOS `source` development build discover and install the latest `internal-stable` official build, including an equal-version build, while preserving the two existing Bundle IDs and enabling the installed internal build's packaged analytics default exactly once.
+**Goal:** Let a packaged macOS `source` development build discover and install the latest `internal-stable` official build only when it is strictly newer, while preserving the two existing Bundle IDs and enabling the installed internal build's packaged analytics default exactly once.
 
-**Architecture:** Add one explicit `dev-to-internal` transition contract shared by discovery, direct artifact preparation, and persisted receipts. The ordinary public/internal Squirrel updater remains strictly newer-version-only. The dev client downloads the exact internal ZIP bound by `latest.json`, verifies its checksum, official signature, Bundle ID, and complete embedded build identity, then hands it to a detached nonprivileged `Contents` helper. After the dev process exits, an exact receipt match atomically removes the receipt and the dev build's explicit analytics value so even the already-published internal `1.16.0` package applies its embedded `usageAnalyticsDefault=true` on launch. Replacement or relaunch failure restores both the App and configuration transaction.
+**Architecture:** Add one explicit `dev-to-internal` transition contract shared by discovery, direct artifact preparation, and persisted receipts. The dev handoff and ordinary public/internal updater both require a strictly newer version. The dev client downloads the exact internal ZIP bound by `latest.json`, verifies its checksum, official signature, Bundle ID, and complete embedded build identity, then hands it to a detached nonprivileged `Contents` helper. After the dev process exits, an exact receipt match atomically removes the receipt and the dev build's explicit analytics value so the newer internal package applies its embedded `usageAnalyticsDefault=true` on launch. Replacement or relaunch failure restores both the App and configuration transaction.
 
 **Tech Stack:** Node.js ESM, Electron, macOS `ditto` and `codesign`, transactional `Contents` replacement, `node:test`.
 
@@ -17,6 +17,11 @@
 > performs the receipt-gated transactional replacement. Native `ditto` preserves the signed App during
 > extraction, concurrent retries share one preparation, and the helper excludes itself while waiting
 > for the old App process tree. The update server remains unchanged.
+
+> Behavior correction, 2026-08-01: equal-version identity switching caused a development build to
+> advertise the already-published formal package indefinitely. Availability now requires
+> `target version > development version`; equal and lower targets are current. The isolated regression
+> packages a deliberately lower source version against the signed newer internal target.
 
 ---
 
@@ -56,17 +61,10 @@ assert.deepEqual(developmentHandoffTarget({
 });
 ```
 
-Cover rejection of unpackaged, Windows, `dev: false`, non-source distribution, and non-source track builds. Add receipt tests for all required target fields (`version`, `buildId`, `commit`, `releaseTrack`, `channel`, `platform`) and exact matching against an official, non-dev internal build.
-
-Extend the feed URL test to require an encoded handoff query:
-
-```js
-assert.equal(macAutoUpdaterFeedUrl({
-  currentVersion: "1.16.0",
-  handoff: receipt,
-}), "https://updates.mangofuture.com/git-leaf/internal-stable/darwin-universal/releases/1.16.0"
-  + "?transition=dev-to-internal&targetVersion=1.16.0&targetBuildId=...&targetCommit=...");
-```
+Cover rejection of unpackaged, Windows, `dev: false`, non-source distribution, and non-source track
+builds. Add receipt tests for all required target fields (`version`, `buildId`, `commit`, `releaseTrack`,
+`channel`, `platform`) and exact matching against an official, non-dev internal build. Add version tests
+proving newer is available while equal and older are current.
 
 - [ ] **Step 2: Run the focused tests and verify the new imports/assertions fail**
 
@@ -76,7 +74,7 @@ Run:
 node --test test/development-handoff.test.mjs test/desktop-app-updates.test.mjs
 ```
 
-Expected: failure because the handoff module and URL option do not exist.
+Expected: failure because the handoff module and strict version helper do not exist.
 
 - [ ] **Step 3: Implement the pure transition helpers**
 
@@ -94,7 +92,9 @@ export function developmentHandoffReceiptMatchesBuild({ receipt, buildInfo }) {}
 export function developmentHandoffVersionAvailable({ currentVersion, targetVersion }) {}
 ```
 
-`developmentHandoffVersionAvailable` must use `compareAppVersions(targetVersion, currentVersion) >= 0`; receipt construction must fail closed when any identity field is absent. Extend `macAutoUpdaterFeedUrl` to append the transition query only for a normalized receipt.
+`developmentHandoffVersionAvailable` must use `compareAppVersions(targetVersion, currentVersion) > 0`;
+receipt construction must fail closed when any identity field is absent. The handoff uses the validated
+manifest artifact directly and must not add a Squirrel feed exception.
 
 - [ ] **Step 4: Run focused tests**
 
@@ -228,7 +228,7 @@ Run:
 node --test test/desktop-updates.test.mjs test/desktop-main.test.mjs test/desktop-localization.test.mjs
 ```
 
-Expected: old tests still disable dev builds and equal versions are treated as current.
+Expected: old tests still disable dev builds and do not implement the strict dev handoff yet.
 
 - [ ] **Step 3: Wire the handoff into the updater**
 
@@ -236,13 +236,13 @@ Compute an optional `handoffTarget` once in `createDesktopUpdateController`. Whe
 
 - derive release track/channel from the target;
 - validate the internal manifest identity;
-- accept `target >= current`;
+- accept only `target > current`;
 - attach the normalized receipt to pending state;
 - persist that receipt before any download call;
 - prepare only the checksum-bound ZIP in the validated internal manifest;
 - restore only from a matching persisted receipt;
 - atomically prepare the matching receipt before the real install call;
-- use explicit handoff copy such as “Switch to the internal build” for equal-version availability.
+- use explicit handoff copy such as “Switch to the internal build” for newer-version availability.
 
 Keep all ordinary official builds on strict `target > current`. Add `getDevelopmentHandoff` and `saveDevelopmentHandoff` controller callbacks and wire them to config in `main.mjs`.
 
@@ -263,71 +263,18 @@ git add src/desktop/updates.mjs src/desktop/main.mjs src/desktop/localization.mj
 git commit -m "feat: let dev builds switch to internal"
 ```
 
-### Task 4: Superseded identity-bound equal-version macOS feed
+### Task 4: Superseded identity-bound macOS feed
 
 Packaged diagnosis made this server change unnecessary. It was removed: ordinary Squirrel feeds remain
 strictly newer-version-only, and the handoff prepares the exact artifact from `latest.json` directly.
 
-**Files:**
+The brief server exception experiment was reverted. The retained contract is simpler:
 
-- Modify: `scripts/gitleaf-update-server.py`
-- Modify: `test/gitleaf-update-server.test.mjs`
-
-- [ ] **Step 1: Add failing server route tests**
-
-For an `internal-stable` `1.16.0` manifest, prove:
-
-- ordinary `/releases/1.16.0` returns `204`;
-- a complete matching `dev-to-internal` query returns `200`;
-- wrong kind/version/build ID/commit returns `204`;
-- a handoff query against `stable`, another platform, or a non-internal manifest returns `204`;
-- an older target always returns `204`;
-- normal newer-version behavior remains `200`.
-
-- [ ] **Step 2: Run the focused server tests and verify failure**
-
-Run:
-
-```bash
-node --test test/gitleaf-update-server.test.mjs
-```
-
-Expected: equal-version requests still return `204`.
-
-- [ ] **Step 3: Implement the narrow server exception**
-
-Parse the feed URL query and permit equality only when all of these match the loaded manifest:
-
-```py
-transition == "dev-to-internal"
-channel == "internal-stable"
-platform_key == "darwin-universal"
-manifest["releaseTrack"] == "internal"
-manifest["channel"] == channel
-manifest["platform"] == platform_key
-targetVersion == manifest["version"]
-targetBuildId == manifest["buildId"]
-targetCommit == manifest["commit"]
-```
-
-Never permit `manifest.version < current_version`.
-
-- [ ] **Step 4: Run the server tests**
-
-Run:
-
-```bash
-node --test test/gitleaf-update-server.test.mjs
-```
-
-Expected: pass.
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add scripts/gitleaf-update-server.py test/gitleaf-update-server.test.mjs
-git commit -m "feat: serve identity-bound dev handoffs"
-```
+- equal and older `/releases/<current>` requests return `204`;
+- normal strictly newer Squirrel requests remain unchanged;
+- the dev handoff validates `latest.json` client-side and downloads its exact ZIP directly only after
+  proving `target > current`;
+- no transition query can bypass version ordering on the update server.
 
 ### Task 5: Add the nonprivileged bridge and real packaged regression
 
@@ -388,7 +335,8 @@ npm run verify:dev-handoff:mac -- \
   --allow-visible-app
 ```
 
-Expected: real packaged equal-version handoff passes with isolated state. The explicit flag acknowledges
+Expected: a lower-version packaged dev App hands off to the newer signed internal App with isolated
+state. The explicit flag acknowledges
 that the isolated temporary App is still visible on the current desktop; the harness clicks each
 transition action only once and must never automate a restart loop.
 
@@ -416,7 +364,7 @@ Document that:
 - there are still two official release tracks and two Bundle IDs, not a third release;
 - Community builds do not receive official updates;
 - only locally packaged `Git Leaf dev` builds may opt into the internal official build;
-- equal-version switching is intentional;
+- equal-version targets are current and only strictly newer internal versions may hand off;
 - the switch adopts the internal package's analytics default;
 - ordinary future internal upgrades preserve the user's analytics choice.
 

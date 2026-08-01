@@ -102,10 +102,11 @@ and using the same real Profile. Repositories, workbench sessions, appearance, l
 sidebar state therefore survive replacement. The development build remains telemetry-ineligible.
 
 The installed dev build may make one user-selected, one-way switch to the latest signed
-`internal-stable` package, including an internal package with the same version number. It cannot select
-public, candidate, or environment-provided channels. Before installation it removes the dev-initialized
-analytics value so the internal package applies its own embedded default. This capability is product
-routing, not proof of publisher identity or authorization to obtain confidential artifacts.
+`internal-stable` package only when its version is strictly newer than the development version. Equal or
+older official versions are treated as current. It cannot select public, candidate, or
+environment-provided channels. Before installation it removes the dev-initialized analytics value so
+the internal package applies its own embedded default. This capability is product routing, not proof of
+publisher identity or authorization to obtain confidential artifacts.
 
 Agent automation must not use this command or the real Profile. Use `make smoke-dev-mac` for an isolated
 one-time snapshot. When the cross-identity updater itself changes, run

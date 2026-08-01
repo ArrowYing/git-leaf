@@ -17,6 +17,7 @@ import { createDesktopTranslator } from "./localization.mjs";
 import {
   developmentHandoffReceiptForManifest,
   developmentHandoffTarget,
+  developmentHandoffVersionAvailable,
   normalizeDevelopmentHandoffReceipt,
   sameDevelopmentHandoffReceipt,
 } from "./development-handoff.mjs";
@@ -172,7 +173,10 @@ export function createDesktopUpdateController({
         if (
           !handoff
           || !sameDevelopmentHandoffTarget(handoff, handoffTarget)
-          || compareAppVersions(handoff.version, buildInfo?.version) < 0
+          || !developmentHandoffVersionAvailable({
+            currentVersion: buildInfo?.version,
+            targetVersion: handoff.version,
+          })
         ) {
           return false;
         }
@@ -530,7 +534,10 @@ export function createDesktopUpdateController({
     }
 
     const versionAvailable = handoffTarget
-      ? compareAppVersions(manifest.version, buildInfo?.version) >= 0
+      ? developmentHandoffVersionAvailable({
+        currentVersion: buildInfo?.version,
+        targetVersion: manifest.version,
+      })
       : isAppVersionNewer(manifest.version, buildInfo?.version);
     if (!versionAvailable) {
       pendingMacUpdate = null;

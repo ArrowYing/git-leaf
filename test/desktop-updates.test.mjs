@@ -182,10 +182,48 @@ test("desktop updater rejects manifests from another track, channel, or platform
   }
 });
 
-test("packaged source development builds can choose an equal-version internal handoff", async () => {
+test("packaged source development builds ignore an equal-version internal release", async () => {
+  const autoUpdater = fakeAutoUpdater();
+  let saveCalls = 0;
+  let prepareCalls = 0;
+  const controller = createDesktopUpdateController({
+    autoUpdater,
+    buildInfo: {
+      version: "1.16.0",
+      buildId: "aaaaaaaaaaaa.20260730T010000Z.source",
+      commit: "aaaaaaaaaaaa",
+      dev: true,
+      distribution: "source",
+      releaseTrack: "source",
+    },
+    fetch: fakeMacManifestFetch({
+      version: "1.16.0",
+      buildId: "2c3e9d8cfcfb.20260728T235326Z.internal",
+      commit: "2c3e9d8cfcfb",
+      releaseTrack: "internal",
+    }),
+    isPackaged: true,
+    platform: "darwin",
+    arch: "arm64",
+    saveDevelopmentHandoff: async () => {
+      saveCalls += 1;
+    },
+    prepareDevelopmentHandoffUpdate: async () => {
+      prepareCalls += 1;
+    },
+  });
+
+  assert.equal(await controller.checkForUpdates({ manual: false }), "current");
+  assert.equal(saveCalls, 0);
+  assert.equal(prepareCalls, 0);
+  assert.equal(autoUpdater.checked, false);
+  assert.deepEqual(autoUpdater.feedUrls, []);
+});
+
+test("packaged source development builds can choose a newer internal handoff", async () => {
   const autoUpdater = fakeAutoUpdater();
   const fetch = fakeMacManifestFetch({
-    version: "1.16.0",
+    version: "1.16.1",
     buildId: "2c3e9d8cfcfb.20260728T235326Z.internal",
     commit: "2c3e9d8cfcfb",
     releaseTrack: "internal",
@@ -236,7 +274,7 @@ test("packaged source development builds can choose an equal-version internal ha
   assert.deepEqual(operations, ["save", "prepare"]);
   assert.deepEqual(savedHandoffs, [{
     kind: "dev-to-internal",
-    version: "1.16.0",
+    version: "1.16.1",
     buildId: "2c3e9d8cfcfb.20260728T235326Z.internal",
     commit: "2c3e9d8cfcfb",
     releaseTrack: "internal",
@@ -289,7 +327,7 @@ test("development handoff download is blocked when its receipt cannot be saved",
     },
     dialog,
     fetch: fakeMacManifestFetch({
-      version: "1.16.0",
+      version: "1.16.1",
       buildId: "2c3e9d8cfcfb.20260728T235326Z.internal",
       commit: "2c3e9d8cfcfb",
       releaseTrack: "internal",
@@ -314,7 +352,7 @@ test("a saved identity-bound development handoff resumes without another choice"
   const autoUpdater = fakeAutoUpdater();
   const handoff = {
     kind: "dev-to-internal",
-    version: "1.16.0",
+    version: "1.16.1",
     buildId: "2c3e9d8cfcfb.20260728T235326Z.internal",
     commit: "2c3e9d8cfcfb",
     releaseTrack: "internal",
@@ -360,6 +398,35 @@ test("a saved identity-bound development handoff resumes without another choice"
   assert.deepEqual(autoUpdater.feedUrls, []);
 });
 
+test("an equal-version saved development handoff is not restored", async () => {
+  const handoff = {
+    kind: "dev-to-internal",
+    version: "1.16.0",
+    buildId: "2c3e9d8cfcfb.20260728T235326Z.internal",
+    commit: "2c3e9d8cfcfb",
+    releaseTrack: "internal",
+    channel: "internal-stable",
+    platform: "darwin-universal",
+  };
+  const controller = createDesktopUpdateController({
+    autoUpdater: fakeAutoUpdater(),
+    buildInfo: {
+      version: "1.16.0",
+      buildId: "aaaaaaaaaaaa.20260730T010000Z.source",
+      commit: "aaaaaaaaaaaa",
+      dev: true,
+      distribution: "source",
+      releaseTrack: "source",
+    },
+    isPackaged: true,
+    platform: "darwin",
+    arch: "arm64",
+    getDevelopmentHandoff: () => handoff,
+  });
+
+  assert.equal(await controller.restoreKnownUpdate(), false);
+});
+
 test("development handoff launches the prepared bridge instead of Squirrel", async () => {
   const autoUpdater = fakeAutoUpdater();
   const operations = [];
@@ -378,7 +445,7 @@ test("development handoff launches the prepared bridge instead of Squirrel", asy
       releaseTrack: "source",
     },
     fetch: fakeMacManifestFetch({
-      version: "1.16.0",
+      version: "1.16.1",
       buildId: "2c3e9d8cfcfb.20260728T235326Z.internal",
       commit: "2c3e9d8cfcfb",
       releaseTrack: "internal",
@@ -420,7 +487,7 @@ test("development handoff refuses installation when the bridge cannot launch", a
       releaseTrack: "source",
     },
     fetch: fakeMacManifestFetch({
-      version: "1.16.0",
+      version: "1.16.1",
       buildId: "2c3e9d8cfcfb.20260728T235326Z.internal",
       commit: "2c3e9d8cfcfb",
       releaseTrack: "internal",

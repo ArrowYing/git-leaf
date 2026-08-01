@@ -23,6 +23,7 @@ import {
   normalizeDevelopmentHandoffReceipt,
   sameDevelopmentHandoffReceipt,
 } from "../src/desktop/development-handoff.mjs";
+import { compareAppVersions } from "../src/desktop/app-updates.mjs";
 import { macDevelopmentHandoffCachePaths } from "../src/desktop/mac-development-handoff-update.mjs";
 import {
   applyMacBundleIcon,
@@ -70,6 +71,9 @@ const REPO_ROOT = path.dirname(path.dirname(SCRIPT_PATH));
 const PLATFORM_KEY = "darwin-universal";
 const INTERNAL_CHANNEL = "internal-stable";
 const DEFAULT_BASE_URL = "https://updates.mangofuture.com/git-leaf";
+const SEMANTIC_VERSION =
+  /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
+const STABLE_SEMANTIC_VERSION = /^(\d+)\.(\d+)\.(\d+)$/;
 const SOURCE_SHIPIT_JOB_LABEL =
   `${COMMUNITY_PACKAGE_IDENTITY.macBundleId}.ShipIt`;
 export const OFFICIAL_MAC_TEAM_IDENTIFIER = "HN6X79BUSR";
@@ -102,17 +106,23 @@ export function validateDevelopmentHandoffBuildPair({
     || targetBuildInfo?.releaseTrack !== "internal"
     || targetBuildInfo?.usageAnalyticsDefault !== true
     || targetBundleId !== OFFICIAL_PACKAGE_IDENTITY.macBundleId
-    || sourceBuildInfo?.version !== targetBuildInfo?.version
+    || !SEMANTIC_VERSION.test(String(sourceBuildInfo?.version || ""))
+    || !SEMANTIC_VERSION.test(String(targetBuildInfo?.version || ""))
+    || compareAppVersions(
+      targetBuildInfo?.version,
+      sourceBuildInfo?.version,
+    ) <= 0
     || !normalizedReceipt
     || !targetReceipt
     || !sameDevelopmentHandoffReceipt(normalizedReceipt, targetReceipt)
   ) {
     throw new Error(
-      "The packaged Apps do not satisfy the same-version development handoff contract.",
+      "The packaged Apps do not satisfy the strictly newer development handoff contract.",
     );
   }
   return {
-    version: sourceBuildInfo.version,
+    sourceVersion: sourceBuildInfo.version,
+    targetVersion: targetBuildInfo.version,
     sourceBuildId: sourceBuildInfo.buildId,
     targetBuildId: targetBuildInfo.buildId,
   };
@@ -132,6 +142,9 @@ export function validateDevelopmentHandoffRegressionEvidence(evidence) {
     || evidence?.source !== "git-leaf-macos-development-handoff-regression"
     || evidence?.status !== "passed"
     || evidence?.platform !== "darwin-universal"
+    || !SEMANTIC_VERSION.test(String(evidence?.sourceVersion || ""))
+    || !SEMANTIC_VERSION.test(String(evidence?.version || ""))
+    || compareAppVersions(evidence?.version, evidence?.sourceVersion) <= 0
     || evidence?.sourceBundleId !== COMMUNITY_PACKAGE_IDENTITY.macBundleId
     || evidence?.targetBundleId !== OFFICIAL_PACKAGE_IDENTITY.macBundleId
     || evidence?.targetTeamIdentifier !== OFFICIAL_MAC_TEAM_IDENTIFIER
@@ -168,6 +181,28 @@ function sameFingerprint(left, right) {
     && left.sha256 === right.sha256
     && left.fileCount === right.fileCount
   );
+}
+
+export function developmentHandoffRegressionSourceVersion(targetVersion) {
+  const match = String(targetVersion || "").trim().match(
+    STABLE_SEMANTIC_VERSION,
+  );
+  if (!match) {
+    throw new Error(
+      `Cannot derive a lower source version from ${targetVersion || "missing"}.`,
+    );
+  }
+  const parts = match.slice(1).map((part) => Number(part));
+  if (parts.some((part) => !Number.isSafeInteger(part))) {
+    throw new Error(
+      `Cannot derive a lower source version from ${targetVersion}.`,
+    );
+  }
+  const [major, minor, patch] = parts;
+  if (patch > 0) return `${major}.${minor}.${patch - 1}`;
+  if (minor > 0) return `${major}.${minor - 1}.0`;
+  if (major > 0) return `${major - 1}.0.0`;
+  throw new Error(`Cannot derive a lower source version from ${targetVersion}.`);
 }
 
 export async function runDevelopmentHandoffRegression({
@@ -212,8 +247,21 @@ export async function runDevelopmentHandoffRegression({
   writeFileSync(logPath, "", { flag: "w" });
 
   try {
+    const manifestUrl =
+      `${baseUrl.replace(/\/+$/, "")}/${INTERNAL_CHANNEL}/${PLATFORM_KEY}/latest.json`;
+    const targetManifest = validateUpdateRegressionManifest(
+      await fetchJson(manifestUrl),
+      {
+        channel: INTERNAL_CHANNEL,
+        track: "internal",
+      },
+    );
+    const sourceVersion = developmentHandoffRegressionSourceVersion(
+      targetManifest.version,
+    );
     const sourceAppPath = packageSourceDevelopmentApp({
       outputDir: packageOutputDir,
+      version: sourceVersion,
     });
     const sourceBuildInfo = readPackagedBuildInfo(sourceAppPath);
     const sourceBundleId = readAppPlistValue(
@@ -227,16 +275,6 @@ export async function runDevelopmentHandoffRegression({
       appDir: sourceAppPath,
     });
 
-    const manifestUrl =
-      `${baseUrl.replace(/\/+$/, "")}/${INTERNAL_CHANNEL}/${PLATFORM_KEY}/latest.json`;
-    const targetManifest = validateUpdateRegressionManifest(
-      await fetchJson(manifestUrl),
-      {
-        channel: INTERNAL_CHANNEL,
-        track: "internal",
-        expectedVersion: sourceBuildInfo.version,
-      },
-    );
     const targetZipPath = path.join(downloadsDir, targetManifest.files.zip.name);
     const localArchivedZip = path.join(
       REPO_ROOT,
@@ -459,7 +497,8 @@ export async function runDevelopmentHandoffRegression({
       source: "git-leaf-macos-development-handoff-regression",
       status: "passed",
       platform: PLATFORM_KEY,
-      version: pair.version,
+      version: pair.targetVersion,
+      sourceVersion: pair.sourceVersion,
       sourceBuildId: pair.sourceBuildId,
       targetBuildId: pair.targetBuildId,
       sourceBundleId,
@@ -589,12 +628,13 @@ export async function runDevelopmentHandoffRegression({
   return passedEvidence;
 }
 
-function packageSourceDevelopmentApp({ outputDir } = {}) {
+function packageSourceDevelopmentApp({ outputDir, version } = {}) {
   const buildInfo = {
     ...releaseBuildInfoFromEnv({
       rootDir: REPO_ROOT,
       env: {
         ...process.env,
+        VERSION: version,
         GIT_LEAF_RELEASE_PROFILE: "",
         GIT_LEAF_DISTRIBUTION: "source",
         GIT_LEAF_USAGE_ANALYTICS_DEFAULT: "false",
@@ -747,8 +787,8 @@ function printHelp() {
     [--base-url URL]
     --allow-visible-app
 
-This harness packages the current source dev build, switches it to the signed
-same-version internal-stable App, and keeps all automated state isolated. It
+This harness packages a lower-version source dev build, switches it to the
+newer signed internal-stable App, and keeps all automated state isolated. It
 still opens and restarts a visible temporary App, so the acknowledgement flag
 is mandatory.`);
 }
