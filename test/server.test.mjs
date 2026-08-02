@@ -719,7 +719,18 @@ test("dataset query API aggregates external daily data and refreshes its depende
     assert.equal(payload.meta.partialPeriodCount, 1);
     assert.equal(payload.meta.sourcePath, "company.csv");
 
-    await writeFile(path.join(repoRoot, "weekly.csv"), "date,revenue\n2026-01-05,10\n2026-01-12,20\n");
+    await writeFile(
+      path.join(repoRoot, "weekly.csv"),
+      [
+        "date,revenue",
+        "2025-12-29,10",
+        "2026-01-05,20",
+        "2026-01-12,30",
+        "2026-01-19,40",
+        "2026-01-26,50",
+        "",
+      ].join("\n"),
+    );
     await writeFile(path.join(repoRoot, "weekly.dataset.json"), JSON.stringify({
       schemaVersion: 1,
       id: "company_weekly",
@@ -758,9 +769,9 @@ test("dataset query API aggregates external daily data and refreshes its depende
     const weeklyPayload = await weeklyResponse.json();
     assert.equal(weeklyResponse.status, 200);
     assert.equal(weeklyPayload.meta.granularity, "week");
-    assert.deepEqual(weeklyPayload.meta.availableGranularities, ["week"]);
+    assert.deepEqual(weeklyPayload.meta.availableGranularities, ["week", "month", "quarter"]);
 
-    const invalidMonthlyResponse = await fetch(
+    const monthlyResponse = await fetch(
       `${baseUrl}/api/dataset-query?file=report.mdx&locale=zh-CN`,
       {
         method: "POST",
@@ -775,7 +786,12 @@ test("dataset query API aggregates external daily data and refreshes its depende
         }),
       },
     );
-    assert.equal(invalidMonthlyResponse.status, 400);
+    const monthlyPayload = await monthlyResponse.json();
+    assert.equal(monthlyResponse.status, 200);
+    assert.equal(monthlyPayload.meta.granularity, "month");
+    assert.match(monthlyPayload.html, /2026-01/);
+    assert.match(monthlyPayload.html, />150<\/text>/);
+    assert.equal(monthlyPayload.meta.omittedBoundaryPeriodCount, 0);
 
     const statusBefore = await getJson(`${baseUrl}/api/document-status?file=report.mdx`);
     await new Promise((resolve) => setTimeout(resolve, 8));

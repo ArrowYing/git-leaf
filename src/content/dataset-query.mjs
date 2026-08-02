@@ -99,7 +99,13 @@ export function queryDataset({
   const chartPeriodCounts = component === "Chart"
     ? Object.fromEntries(sourceCompatibleGranularities.map((candidate) => [
         candidate,
-        bucketCount(sortedRows, timeField, candidate, manifest.time.weekStartsOn),
+        bucketCount(
+          sortedRows,
+          timeField,
+          candidate,
+          manifest.time.weekStartsOn,
+          sourceGranularity,
+        ),
       ]))
     : {};
   const readableGranularities = component === "Chart"
@@ -119,7 +125,12 @@ export function queryDataset({
     : requestedGranularity;
   const buckets = new Map();
   for (const row of sortedRows) {
-    const key = bucketStart(row[timeField], selectedGranularity, manifest.time.weekStartsOn);
+    const key = bucketStart(
+      row[timeField],
+      selectedGranularity,
+      manifest.time.weekStartsOn,
+      sourceGranularity,
+    );
     const bucketRows = buckets.get(key) ?? [];
     bucketRows.push(row);
     buckets.set(key, bucketRows);
@@ -130,7 +141,51 @@ export function queryDataset({
     );
   }
 
-  const outputRows = [...buckets.entries()].map(([period, bucketRows]) => {
+  const observedPeriods = new Set(sortedRows.map((row) => row[timeField]));
+  const expectedPeriods = datasetPeriodStartsBetween(
+    effectiveFrom,
+    effectiveTo,
+    sourceGranularity,
+    manifest.time,
+  );
+  const missingPeriods = expectedPeriods.filter((period) => !observedPeriods.has(period));
+  const coverageFrom = sortedRows[0][timeField];
+  const coverageTo = sortedRows.at(-1)[timeField];
+  const bucketEntries = [...buckets.entries()];
+  const coverageByPeriod = new Map(bucketEntries.map(([period, bucketRows]) => [
+    period,
+    periodCoverage({
+      period,
+      rows: bucketRows,
+      granularity: selectedGranularity,
+      sourceGranularity,
+      weekStartsOn: manifest.time.weekStartsOn,
+      calendar: manifest.time.calendar,
+      coverageFrom,
+      coverageTo,
+      timeField,
+    }),
+  ]));
+  const omitIncompleteBoundaryPeriods = sourceGranularity === "week"
+    && (selectedGranularity === "month" || selectedGranularity === "quarter");
+  const omittedBoundaryPeriods = omitIncompleteBoundaryPeriods
+    ? bucketEntries
+      .filter(([period]) => coverageByPeriod.get(period).boundaryPartial)
+      .map(([period]) => periodLabel(period, selectedGranularity))
+    : [];
+  const visibleBucketEntries = omitIncompleteBoundaryPeriods
+    ? bucketEntries.filter(([period]) => !coverageByPeriod.get(period).boundaryPartial)
+    : bucketEntries;
+  if (visibleBucketEntries.length === 0) {
+    throw datasetQueryError(
+      `Dataset query has no complete ${selectedGranularity} periods after omitting incomplete boundary periods.`,
+    );
+  }
+  const partialPeriods = visibleBucketEntries
+    .filter(([period]) => coverageByPeriod.get(period).partial)
+    .map(([period]) => periodLabel(period, selectedGranularity));
+
+  const outputRows = visibleBucketEntries.map(([period, bucketRows]) => {
     const result = {};
     for (const name of outputFields) {
       if (name === timeField || name === "period") {
@@ -152,30 +207,6 @@ export function queryDataset({
     }
     return result;
   });
-
-  const observedPeriods = new Set(sortedRows.map((row) => row[timeField]));
-  const expectedPeriods = datasetPeriodStartsBetween(
-    effectiveFrom,
-    effectiveTo,
-    sourceGranularity,
-    manifest.time,
-  );
-  const missingPeriods = expectedPeriods.filter((period) => !observedPeriods.has(period));
-  const coverageFrom = sortedRows[0][timeField];
-  const coverageTo = sortedRows.at(-1)[timeField];
-  const partialPeriods = [...buckets.entries()]
-    .filter(([period, bucketRows]) => periodIsPartial({
-      period,
-      rows: bucketRows,
-      granularity: selectedGranularity,
-      sourceGranularity,
-      weekStartsOn: manifest.time.weekStartsOn,
-      calendar: manifest.time.calendar,
-      coverageFrom,
-      coverageTo,
-      timeField,
-    }))
-    .map(([period]) => periodLabel(period, selectedGranularity));
 
   const renderAttributes = {
     ...attributes,
@@ -220,13 +251,20 @@ export function queryDataset({
       missingDates: missingPeriods.slice(0, 20),
       partialPeriodCount: partialPeriods.length,
       partialPeriods: partialPeriods.slice(0, 20),
+      omittedBoundaryPeriodCount: omittedBoundaryPeriods.length,
+      omittedBoundaryPeriods: omittedBoundaryPeriods.slice(0, 20),
     },
   };
 }
 
-function bucketCount(rows, timeField, granularity, weekStartsOn) {
+function bucketCount(rows, timeField, granularity, weekStartsOn, sourceGranularity) {
   return new Set(
-    rows.map((row) => bucketStart(row[timeField], granularity, weekStartsOn)),
+    rows.map((row) => bucketStart(
+      row[timeField],
+      granularity,
+      weekStartsOn,
+      sourceGranularity,
+    )),
   ).size;
 }
 
@@ -419,7 +457,7 @@ function coerceFilterValue(value, field) {
   return text;
 }
 
-function periodIsPartial({
+function periodCoverage({
   period,
   rows,
   granularity,
@@ -431,26 +469,47 @@ function periodIsPartial({
   timeField,
 }) {
   const naturalEnd = bucketEnd(period, granularity, weekStartsOn);
-  const expectedPeriods = datasetPeriodStartsBetween(period, naturalEnd, sourceGranularity, {
-    weekStartsOn,
-    calendar,
-  });
-  if (
-    expectedPeriods.length === 0
+  const candidateFrom = sourceGranularity === "week"
+    && (granularity === "month" || granularity === "quarter")
+    ? shiftIsoDate(period, -3)
+    : period;
+  const expectedPeriods = datasetPeriodStartsBetween(
+    candidateFrom,
+    naturalEnd,
+    sourceGranularity,
+    { weekStartsOn, calendar },
+  ).filter((sourcePeriod) => (
+    bucketStart(sourcePeriod, granularity, weekStartsOn, sourceGranularity) === period
+  ));
+  const boundaryPartial = expectedPeriods.length === 0
     || expectedPeriods[0] < coverageFrom
-    || expectedPeriods.at(-1) > coverageTo
-  ) {
-    return true;
-  }
+    || expectedPeriods.at(-1) > coverageTo;
   const observed = new Set(rows.map((row) => row[timeField]));
-  return expectedPeriods.some((sourcePeriod) => !observed.has(sourcePeriod));
+  const missing = expectedPeriods.some((sourcePeriod) => !observed.has(sourcePeriod));
+  return {
+    partial: boundaryPartial || missing,
+    boundaryPartial,
+  };
 }
 
-function bucketStart(value, granularity, weekStartsOn = "monday") {
+function bucketStart(
+  value,
+  granularity,
+  weekStartsOn = "monday",
+  sourceGranularity = granularity,
+) {
   if (granularity === "day") {
     return value;
   }
   const date = isoDateToUtc(value);
+  // A weekly value remains atomic. Its fourth day represents the majority of
+  // the seven-day period when assigning it to a natural month or quarter.
+  if (
+    sourceGranularity === "week"
+    && (granularity === "month" || granularity === "quarter")
+  ) {
+    date.setUTCDate(date.getUTCDate() + 3);
+  }
   if (granularity === "month") {
     date.setUTCDate(1);
     return utcToIsoDate(date);
@@ -463,6 +522,12 @@ function bucketStart(value, granularity, weekStartsOn = "monday") {
     ? date.getUTCDay()
     : (date.getUTCDay() + 6) % 7;
   date.setUTCDate(date.getUTCDate() - weekOffset);
+  return utcToIsoDate(date);
+}
+
+function shiftIsoDate(value, days) {
+  const date = isoDateToUtc(value);
+  date.setUTCDate(date.getUTCDate() + days);
   return utcToIsoDate(date);
 }
 
