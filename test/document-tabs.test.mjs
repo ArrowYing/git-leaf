@@ -9,6 +9,7 @@ import {
   closeOtherDocumentTabs,
   documentTabBehaviorFromModifiers,
   documentTabHistoryAvailability,
+  isTreeDocumentNewTabShortcut,
   moveDocumentTabHistory,
   navigateDocumentTab,
   normalizeDocumentTabs,
@@ -16,6 +17,7 @@ import {
   removeDocumentTabPath,
   replaceDocumentTabPath,
   tabTitleFromPath,
+  treeDocumentTabBehaviorFromModifiers,
   updateActiveDocumentTabLocation,
 } from "../public/document-tabs.js";
 
@@ -35,12 +37,38 @@ test("tabTitleFromPath shows the file name", () => {
   assert.equal(tabTitleFromPath("docs/guides/github-apps-management.md"), "github-apps-management.md");
 });
 
-test("link modifiers select current, background, and foreground tab intents", () => {
+test("internal-link modifiers select current, background, and foreground tab intents", () => {
   assert.equal(documentTabBehaviorFromModifiers(), "current");
   assert.equal(documentTabBehaviorFromModifiers({ shiftKey: true }), "current");
   assert.equal(documentTabBehaviorFromModifiers({ metaKey: true }), "background");
   assert.equal(documentTabBehaviorFromModifiers({ ctrlKey: true }), "background");
   assert.equal(documentTabBehaviorFromModifiers({ metaKey: true, shiftKey: true }), "foreground");
+});
+
+test("file-tree modifiers reuse the active tab unless Command or Ctrl is held", () => {
+  assert.equal(treeDocumentTabBehaviorFromModifiers(), "current");
+  assert.equal(treeDocumentTabBehaviorFromModifiers({ shiftKey: true }), "current");
+  assert.equal(treeDocumentTabBehaviorFromModifiers({ metaKey: true }), "foreground");
+  assert.equal(treeDocumentTabBehaviorFromModifiers({ ctrlKey: true }), "foreground");
+  assert.equal(
+    treeDocumentTabBehaviorFromModifiers({ metaKey: true, shiftKey: true }),
+    "foreground",
+  );
+});
+
+test("Command-Enter and Ctrl-Enter are file-tree new-tab shortcuts", () => {
+  assert.equal(isTreeDocumentNewTabShortcut({ key: "Enter", metaKey: true }), true);
+  assert.equal(isTreeDocumentNewTabShortcut({ key: "Enter", ctrlKey: true }), true);
+  assert.equal(isTreeDocumentNewTabShortcut({ key: "Enter" }), false);
+  assert.equal(
+    isTreeDocumentNewTabShortcut({ key: "Enter", metaKey: true, shiftKey: true }),
+    false,
+  );
+  assert.equal(
+    isTreeDocumentNewTabShortcut({ key: "Enter", metaKey: true, altKey: true }),
+    false,
+  );
+  assert.equal(isTreeDocumentNewTabShortcut({ key: "Space", metaKey: true }), false);
 });
 
 test("normal document navigation replaces the active third tab and records its own history", () => {

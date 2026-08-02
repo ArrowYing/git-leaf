@@ -1,5 +1,5 @@
 ---
-last_updated: 2026-08-01
+last_updated: 2026-08-02
 ---
 
 # Git Leaf 用户手册
@@ -63,6 +63,11 @@ Markdown／MDX 文件名不含汉字时，Git Leaf 会在第一行保留真实�
 - **Favorites** 集中放置经常返回的文件夹和 Markdown／MDX 文档。可以从右键菜单收藏，也可以使用当前
   文档旁的星标。
 - **Sync** 显示远端状态和全部尚未发布的本地文件。
+
+在 **All**、搜索筛选结果、**Favorites** 和 **Sync** 中，文件使用同一套 Tab 规则。直接点击文件，会在
+当前活动 Tab 中打开；macOS 按住 Command 点击，或 Windows 按住 Ctrl 点击，会在新 Tab 中打开并立即
+切换过去。键盘用户聚焦文件后，也可以在 macOS 按 `Command+Enter`，或在 Windows 按 `Ctrl+Enter`
+执行同一个新建 Tab 操作。单独按住 Shift 点击，暂不提供特殊的多选行为。
 
 设置中可以选择“内容文件”或“全部仓库文件”。内容模式默认保留 Markdown、MDX、HTML、图片和 PDF；
 其他文件在被打开、发生改动或被搜索命中时出现。这个偏好只改变目录树显示，绝不会改变 Git Leaf 发现、

@@ -27,8 +27,8 @@ const SHORTCUT_GROUPS = Object.freeze([
       ["Command+Shift+G", "shortcut.openGitHub"],
       ["Command+Shift+O", "shortcut.openSource"],
       ["Command+Shift+R", "shortcut.revealFile"],
-      ["Command+Click", "shortcut.backgroundTab"],
-      ["Shift+Click", "shortcut.activeTab"],
+      ["Command+Click", "shortcut.activeTab"],
+      ["Command+Enter", "shortcut.activeTab"],
     ],
   },
   {

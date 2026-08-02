@@ -3,7 +3,7 @@ title: Git Leaf system architecture
 domain: ai
 type: architecture
 owner: maintainer
-last_updated: 2026-08-01
+last_updated: 2026-08-02
 source: git-leaf
 canonical: true
 ai_snippet: "[Architecture] Git Leaf | human desktop interface for shared context repositories | local HTTP service | Git worktrees | Preview Source Live | CodeMirror 6 | guarded Git sync"
@@ -147,9 +147,11 @@ the title bar. Opening a tab must not expand or scroll the file tree or steal it
 Sidebar” is the explicit action that expands ancestors and performs the smallest necessary scroll.
 
 Each tab has a stable identity, a current document location, and an independent Back/Forward history.
-Normal file-tree and internal-document navigation replace the current tab location. Command/Ctrl-click
-opens another tab. Browser URL state is a projection of the active location, not the application's
-navigation history.
+Every file-tree projection—All, filtered search results, Favorites, and Sync—uses the same navigation
+contract: a normal click replaces the current active tab, while Command/Ctrl-click creates and activates
+a new tab. Internal-document links keep a separate contract: a normal click replaces the current tab,
+Command/Ctrl-click creates a background tab, and adding Shift activates the new tab. Browser URL state
+is a projection of the active location, not the application's navigation history.
 
 Favorites are user preferences, not repository content. Desktop builds persist them in `userData`; the
 browser development entry uses repository-scoped `localStorage` as a best-effort fallback. Missing

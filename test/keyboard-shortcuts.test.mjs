@@ -30,6 +30,8 @@ test("keyboard shortcut help keeps the agreed Git Leaf shortcuts", () => {
   assert.match(text, /Command\+Shift\+G\s+Open GitHub Link/);
   assert.match(text, /Command\+Shift\+O\s+Open Source File/);
   assert.match(text, /Command\+Shift\+R\s+Reveal in File Manager/);
+  assert.match(text, /Command\+Click\s+Open File in New Active Tab/);
+  assert.match(text, /Command\+Enter\s+Open File in New Active Tab/);
   assert.match(text, /Command\+B\s+Toggle Sidebar/);
   assert.match(text, /Option\+1\s+Switch to All View/);
   assert.match(text, /Option\+2\s+Switch to Favorites View/);

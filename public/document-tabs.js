@@ -17,6 +17,30 @@ export function documentTabBehaviorFromModifiers({
   return opensSeparateTab ? "background" : "current";
 }
 
+export function treeDocumentTabBehaviorFromModifiers({
+  metaKey = false,
+  ctrlKey = false,
+} = {}) {
+  return metaKey || ctrlKey ? "foreground" : "current";
+}
+
+export function isTreeDocumentNewTabShortcut({
+  key = "",
+  metaKey = false,
+  ctrlKey = false,
+  shiftKey = false,
+  altKey = false,
+  isComposing = false,
+} = {}) {
+  return (
+    !isComposing &&
+    String(key).toLowerCase() === "enter" &&
+    (metaKey || ctrlKey) &&
+    !shiftKey &&
+    !altKey
+  );
+}
+
 export function normalizeDocumentTabs(tabs = []) {
   if (!Array.isArray(tabs)) {
     return [];

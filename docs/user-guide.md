@@ -1,5 +1,5 @@
 ---
-last_updated: 2026-08-01
+last_updated: 2026-08-02
 ---
 
 # Git Leaf user guide
@@ -72,6 +72,12 @@ The sidebar offers three views:
 - **Favorites** collects folders and Markdown or MDX documents you return to frequently. Add an item
   from its context menu or use the star beside the open document.
 - **Sync** shows remote status and every local file that has not been published.
+
+Files use the same tab behavior in **All**, filtered search results, **Favorites**, and **Sync**. Click a
+file to open it in the current active tab. Command-click on macOS or Ctrl-click on Windows opens it in
+a new tab and makes that tab active. Keyboard users can focus a file and press `Command+Enter` on
+macOS or `Ctrl+Enter` on Windows for the same new-tab action. Shift-click has no special selection
+behavior.
 
 Settings can show either **Content files** or **All repository files**. Content mode keeps Markdown,
 MDX, HTML, images, and PDFs visible by default, while other files appear when they are open, changed, or

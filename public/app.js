@@ -101,6 +101,7 @@ import {
   closeOtherDocumentTabs,
   documentTabBehaviorFromModifiers,
   documentTabHistoryAvailability,
+  isTreeDocumentNewTabShortcut,
   moveDocumentTabHistory,
   navigateDocumentTab,
   normalizeDocumentTabs,
@@ -109,6 +110,7 @@ import {
   replaceDocumentTabPath,
   resolveActiveDocumentTabId,
   tabTitleFromPath,
+  treeDocumentTabBehaviorFromModifiers,
   updateActiveDocumentTabLocation,
 } from "./document-tabs.js";
 import {
@@ -3554,12 +3556,11 @@ function collectTreeSearchMatchedPaths(nodes, parentPath, matched) {
   }
 }
 
-function tabBehaviorFromClick(event) {
-  return documentTabBehaviorFromModifiers(event);
-}
-
 async function openFileFromTree(filePath, event) {
-  await navigateDocumentLocation({ path: filePath }, { behavior: tabBehaviorFromClick(event) });
+  await navigateDocumentLocation(
+    { path: filePath },
+    { behavior: treeDocumentTabBehaviorFromModifiers(event) },
+  );
 }
 
 function replaceOpenDocumentTabPath(fromPath, toPath) {
@@ -3954,7 +3955,11 @@ function handleFileTreeContextMenu(event) {
       : [
         ...(favoriteItem ? [favoriteItem, null] : []),
         { id: "new-document", label: t("menu.newDocumentSameLocation"), disabled: !canEditCurrentRepo() },
-        { id: "open-new-tab", label: t("menu.openNewTab"), shortcut: "Shift+Enter" },
+        {
+          id: "open-new-tab",
+          label: t("menu.openNewTab"),
+          shortcuts: ["Command+Click", "Command+Enter"],
+        },
         ...(isRegularFile
           ? [
               null,
@@ -4050,13 +4055,21 @@ function showFileActionMenu(items, {
     label.textContent = item.label;
     leading.append(label);
     button.append(leading);
-    if (item.shortcut) {
+    const shortcuts = Array.isArray(item.shortcuts)
+      ? item.shortcuts
+      : item.shortcut
+        ? [item.shortcut]
+        : [];
+    if (shortcuts.length > 0) {
       const shortcut = document.createElement("span");
       shortcut.className = "file-action-menu-shortcut";
       shortcut.setAttribute("aria-hidden", "true");
-      shortcut.textContent = platformShortcutLabel(item.shortcut);
+      shortcut.textContent = shortcuts.map(platformShortcutLabel).join(" · ");
       button.append(shortcut);
-      button.setAttribute("aria-label", shortcutTooltip(item.label, item.shortcut));
+      button.setAttribute(
+        "aria-label",
+        `${item.label} (${shortcuts.map(platformShortcutLabel).join(", ")})`,
+      );
     }
     return button;
   }));
@@ -6102,6 +6115,10 @@ function shortcutActionFromKeyboardEvent(event) {
     return null;
   }
 
+  if (isTreeDocumentNewTabShortcut(event) && treeFileNewTabShortcutTarget(event.target)) {
+    return { command: "open-tree-file-new-tab" };
+  }
+
   const sidebarTab = sidebarTabFromShortcut({
     key,
     code: event.code,
@@ -6251,6 +6268,15 @@ async function runAppShortcut(action) {
         return;
       }
       closeActiveDocumentTab();
+      return;
+    }
+    case "open-tree-file-new-tab": {
+      const target = treeFileNewTabShortcutTarget();
+      if (!target) {
+        return;
+      }
+      closeFileActionMenu();
+      await openFileInForegroundTab(target.path);
       return;
     }
     case "set-mode":
@@ -6803,6 +6829,24 @@ function treeItemByPath(path, itemType = "") {
 function currentTreeItem(target = document.activeElement) {
   const item = target?.closest?.("[data-tree-item]");
   return item && fileTree.contains(item) ? item : null;
+}
+
+function treeFileNewTabShortcutTarget(target = document.activeElement) {
+  const menuTarget = fileActionMenuShortcutTarget("open-new-tab");
+  if (menuTarget?.path) {
+    return menuTarget;
+  }
+
+  const item = currentTreeItem(target);
+  if (
+    !item ||
+    item.dataset.treeItem !== "file" ||
+    item.getAttribute("aria-disabled") === "true" ||
+    !item.dataset.treePath
+  ) {
+    return null;
+  }
+  return { source: "tree", path: item.dataset.treePath };
 }
 
 function isVisibleTreeItem(item) {
@@ -7451,7 +7495,9 @@ function handleDocumentClick(event) {
   const openableLink = gitLeafOpenableLinkFromClick(event);
   if (openableLink) {
     event.preventDefault();
-    void navigateDocumentLocation(openableLink, { behavior: tabBehaviorFromClick(event) });
+    void navigateDocumentLocation(openableLink, {
+      behavior: documentTabBehaviorFromModifiers(event),
+    });
     return;
   }
 
