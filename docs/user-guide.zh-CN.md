@@ -61,7 +61,7 @@ Markdown／MDX 文件名不含汉字时，Git Leaf 会在第一行保留真实�
 
 - **All** 显示普通仓库目录树。
 - **Favorites** 集中放置经常返回的文件夹和 Markdown／MDX 文档。可以从右键菜单收藏，也可以使用当前
-  文档旁的星标。
+  文档旁的星标，或在 macOS 按 `Command+D`、在 Windows 按 `Ctrl+D`。
 - **Sync** 显示远端状态和全部尚未发布的本地文件。
 
 在 **All**、搜索筛选结果、**Favorites** 和 **Sync** 中，文件使用同一套 Tab 规则。直接点击文件，会在

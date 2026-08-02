@@ -70,7 +70,8 @@ The sidebar offers three views:
 
 - **All** shows the normal repository tree.
 - **Favorites** collects folders and Markdown or MDX documents you return to frequently. Add an item
-  from its context menu or use the star beside the open document.
+  from its context menu, use the star beside the open document, or press `Command+D` on macOS /
+  `Ctrl+D` on Windows.
 - **Sync** shows remote status and every local file that has not been published.
 
 Files use the same tab behavior in **All**, filtered search results, **Favorites**, and **Sync**. Click a

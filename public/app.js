@@ -78,6 +78,7 @@ import {
   applySidebarFavoriteOperation,
   createSidebarFavoriteToggleQueue,
   isSidebarFavoriteEntry,
+  isToggleFavoriteShortcut,
   normalizeSidebarFavoriteScopes,
   normalizeSidebarFavorites,
   replaceSidebarFavoritePath,
@@ -2684,7 +2685,8 @@ function updateDocumentFavoriteToggle() {
   const active = Boolean(path) && isMarkdownDocument() && isFavoriteItem("document", path);
   const label = active ? t("action.removeFavorite") : t("action.addFavorite");
   documentFavoriteToggle.setAttribute("aria-pressed", String(active));
-  documentFavoriteToggle.setAttribute("aria-label", label);
+  documentFavoriteToggle.setAttribute("aria-label", shortcutTooltip(label, "Command+D"));
+  setShortcutTooltip(documentFavoriteToggle, label, "Command+D");
 }
 
 function ensureSourceEditor() {
@@ -3928,6 +3930,7 @@ function handleFileTreeContextMenu(event) {
     ? {
         id: "toggle-favorite",
         label: t(favoriteActive ? "action.removeFavorite" : "action.addFavorite"),
+        shortcut: "Command+D",
         checked: favoriteActive,
       }
     : null;
@@ -3959,6 +3962,9 @@ function handleFileTreeContextMenu(event) {
         ]
       : [
         ...(favoriteItem ? [favoriteItem, null] : []),
+        ...(isMarkdownPath(path) ? [{ id: "copy-share", label: t("action.copyShareLink"), shortcut: "Command+Shift+L" }] : []),
+        { id: "copy-path", label: t("menu.copyPath"), shortcut: "Command+Shift+C" },
+        null,
         {
           id: "open-new-tab",
           label: t("menu.openNewTab"),
@@ -3966,9 +3972,6 @@ function handleFileTreeContextMenu(event) {
         },
         { id: "open-github", label: t("menu.openGitHub"), shortcut: "Command+Shift+G", disabled: !githubUrl },
         { id: "reveal-finder", label: revealInFileManagerLabel(), shortcut: "Command+Shift+R", disabled: !canEditCurrentRepo() },
-        null,
-        ...(isMarkdownPath(path) ? [{ id: "copy-share", label: t("action.copyShareLink"), shortcut: "Command+Shift+L" }] : []),
-        { id: "copy-path", label: t("menu.copyPath"), shortcut: "Command+Shift+C" },
         null,
         { id: "new-document", label: t("menu.newDocumentSameLocation"), disabled: !canEditCurrentRepo() },
         ...(isRegularFile
@@ -6170,6 +6173,10 @@ function shortcutActionFromKeyboardEvent(event) {
     return null;
   }
 
+  if (isToggleFavoriteShortcut(event)) {
+    return { command: "toggle-favorite" };
+  }
+
   if (!event.shiftKey && key === "b") {
     return { command: "toggle-sidebar" };
   }
@@ -6288,6 +6295,19 @@ async function runAppShortcut(action) {
       }
       closeFileActionMenu();
       await openFileInForegroundTab(target.path);
+      return;
+    }
+    case "toggle-favorite": {
+      const target = fileActionMenuShortcutTarget("toggle-favorite");
+      if (target?.favoriteType) {
+        closeFileActionMenu();
+        await toggleFavoriteItem({
+          type: target.favoriteType,
+          path: target.path,
+        });
+        return;
+      }
+      await toggleCurrentDocumentFavorite();
       return;
     }
     case "set-mode":

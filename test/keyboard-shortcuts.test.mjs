@@ -16,6 +16,7 @@ test("keyboard shortcut help keeps the agreed Git Leaf shortcuts", () => {
   assert.match(text, /Command\+Option\+Right\s+Next Repository/);
   assert.match(text, /Command\+W\s+Close Current Tab/);
   assert.match(text, /Command\+F\s+Find in Current Document/);
+  assert.match(text, /Command\+D\s+Add or Remove Favorite/);
   assert.match(text, /Command\+1\.\.8\s+Switch to Tab 1\.\.8/);
   assert.match(text, /Command\+9\s+Switch to Last Tab/);
   assert.match(text, /Command\+Shift\+\[\s+Previous Tab/);

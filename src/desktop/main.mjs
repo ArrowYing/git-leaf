@@ -130,6 +130,7 @@ import {
   getGitLeafHelpSections,
 } from "../../public/help-content.js";
 import { getKeyboardShortcutGroups } from "../../public/keyboard-shortcuts.js";
+import { isToggleFavoriteShortcut } from "../../public/sidebar-favorites.js";
 import { sidebarTabFromShortcut } from "../../public/sidebar-navigation.js";
 
 applyDevelopmentUserDataOverride({ app });
@@ -1021,6 +1022,17 @@ function desktopShortcutActionFromInput(input) {
 
   if (!(meta || ctrl)) {
     return null;
+  }
+
+  if (isToggleFavoriteShortcut({
+    key,
+    code,
+    metaKey: meta,
+    ctrlKey: ctrl,
+    shiftKey: shift,
+    altKey: alt,
+  })) {
+    return { command: "toggle-favorite" };
   }
 
   if (!shift && key === "b") {

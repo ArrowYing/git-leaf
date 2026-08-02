@@ -3,6 +3,24 @@ const MAX_FAVORITES_PER_SCOPE = 200;
 const MAX_FAVORITE_PATH_LENGTH = 1024;
 const FAVORITE_TYPES = new Set(["directory", "document"]);
 
+export function isToggleFavoriteShortcut({
+  key = "",
+  code = "",
+  metaKey = false,
+  ctrlKey = false,
+  shiftKey = false,
+  altKey = false,
+  isComposing = false,
+} = {}) {
+  return (
+    !isComposing &&
+    (metaKey || ctrlKey) &&
+    !shiftKey &&
+    !altKey &&
+    (String(key).toLowerCase() === "d" || String(code) === "KeyD")
+  );
+}
+
 export function normalizeSidebarFavoriteScopes(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return {};

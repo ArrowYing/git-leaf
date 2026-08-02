@@ -5,10 +5,21 @@ import {
   applySidebarFavoriteOperation,
   createSidebarFavoriteToggleQueue,
   favoriteNodesFromTree,
+  isToggleFavoriteShortcut,
   normalizeSidebarFavoriteScopes,
   replaceSidebarFavoritePath,
   sidebarFavoritesForScope,
 } from "../public/sidebar-favorites.js";
+
+test("Command-D and Ctrl-D toggle favorites without extra modifiers", () => {
+  assert.equal(isToggleFavoriteShortcut({ key: "d", metaKey: true }), true);
+  assert.equal(isToggleFavoriteShortcut({ code: "KeyD", ctrlKey: true }), true);
+  assert.equal(isToggleFavoriteShortcut({ key: "d" }), false);
+  assert.equal(isToggleFavoriteShortcut({ key: "d", metaKey: true, shiftKey: true }), false);
+  assert.equal(isToggleFavoriteShortcut({ key: "d", ctrlKey: true, altKey: true }), false);
+  assert.equal(isToggleFavoriteShortcut({ key: "d", metaKey: true, isComposing: true }), false);
+  assert.equal(isToggleFavoriteShortcut({ key: "f", metaKey: true }), false);
+});
 
 test("sidebar favorites normalize repository-relative document and directory entries", () => {
   assert.deepEqual(

@@ -22,6 +22,7 @@ const SHORTCUT_GROUPS = Object.freeze([
       ["Ctrl+Tab", "shortcut.nextTabWindows"],
       ["Command+W", "shortcut.closeTab"],
       ["Command+F", "shortcut.findDocument"],
+      ["Command+D", "shortcut.toggleFavorite"],
       ["Command+Shift+C", "shortcut.copyDocumentPath"],
       ["Command+Shift+L", "shortcut.copyShareLink"],
       ["Command+Shift+G", "shortcut.openGitHub"],
