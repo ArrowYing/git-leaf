@@ -79,6 +79,7 @@ import {
   createSidebarFavoriteToggleQueue,
   isSidebarFavoriteEntry,
   isToggleFavoriteShortcut,
+  missingSidebarFavoritesFromTree,
   normalizeSidebarFavoriteScopes,
   normalizeSidebarFavorites,
   replaceSidebarFavoritePath,
@@ -997,6 +998,45 @@ async function removeFavoritePath(type, path) {
   }
 }
 
+async function pruneMissingSidebarFavorites(tree) {
+  const missing = missingSidebarFavoritesFromTree(tree, state.sidebarFavorites);
+  if (missing.length === 0) {
+    return false;
+  }
+
+  try {
+    if (state.sidebarFavoritesAvailable) {
+      const response = await fetch(apiUrl("/api/favorites"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "remove-many",
+          entries: missing,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload.error || t("error.favoriteSave"));
+      }
+      state.sidebarFavorites = normalizeSidebarFavorites(payload.favorites);
+    } else {
+      const scope = localSidebarFavoriteScope();
+      const result = applySidebarFavoriteOperation(readLocalSidebarFavoriteScopes(), {
+        scope,
+        action: "remove-many",
+        entries: missing,
+      });
+      state.sidebarFavorites = sidebarFavoritesForScope(result.scopes, scope);
+      writeLocalSidebarFavoriteScopes(result.scopes);
+    }
+    updateDocumentFavoriteToggle();
+    return true;
+  } catch {
+    // Missing favorites remain hidden and are retried after the next complete tree refresh.
+    return false;
+  }
+}
+
 function refreshWorktreesOnWindowFocus() {
   loadWorktrees().catch(() => {});
 }
@@ -1139,10 +1179,21 @@ function handleWorktreeSelection(event) {
 
 async function loadTree({ force = false } = {}) {
   const response = await fetch(apiUrl("/api/tree"));
+  if (!response.ok) {
+    throw new Error("Unable to load repository tree");
+  }
   const payload = await response.json();
+  if (!Array.isArray(payload.tree)) {
+    throw new Error("Repository tree response is invalid");
+  }
   const frontmatterAllowedKeys = normalizeFrontmatterAllowedKeys(payload.frontmatterAllowedKeys);
   const frontmatterKeysChanged = !sameStringArray(state.frontmatterAllowedKeys, frontmatterAllowedKeys);
-  if (!force && !hasTreeChanged(state.tree, payload.tree) && !frontmatterKeysChanged) {
+  const treeChanged = hasTreeChanged(state.tree, payload.tree);
+  const favoritesChanged = await pruneMissingSidebarFavorites(payload.tree);
+  if (!force && !treeChanged && !frontmatterKeysChanged) {
+    if (favoritesChanged && state.sidebarTab === "favorites") {
+      renderTree();
+    }
     return;
   }
 

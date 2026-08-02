@@ -854,6 +854,21 @@ test("repository favorites persist safely beside unrelated desktop preferences",
       ],
     },
   });
+
+  await mutateDesktopRepositoryFavorites({
+    userDataDir,
+    repositoryRoot: repoRoot,
+    repoRoot,
+    operation: {
+      action: "remove-many",
+      entries: [{ type: "directory", path: "docs" }],
+    },
+  });
+  const pruned = await readDesktopConfig({ userDataDir });
+  assert.deepEqual(pruned.repositoryFavorites, {
+    [repoRoot]: [{ type: "document", path: "README.md" }],
+  });
+  assert.equal(pruned.preferences.colorMode, "dark");
 });
 
 test("repository favorite normalization drops unsafe entries without losing valid ones", async () => {

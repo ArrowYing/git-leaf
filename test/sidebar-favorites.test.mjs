@@ -6,6 +6,7 @@ import {
   createSidebarFavoriteToggleQueue,
   favoriteNodesFromTree,
   isToggleFavoriteShortcut,
+  missingSidebarFavoritesFromTree,
   normalizeSidebarFavoriteScopes,
   replaceSidebarFavoritePath,
   sidebarFavoritesForScope,
@@ -100,6 +101,34 @@ test("explicit favorite operations compose without dropping earlier additions", 
   ]);
 });
 
+test("batch removal prunes only the requested favorites in one persistence scope", () => {
+  assert.deepEqual(
+    applySidebarFavoriteOperation({
+      repo: [
+        { type: "document", path: "missing.md" },
+        { type: "document", path: "README.md" },
+        { type: "directory", path: "archive" },
+      ],
+      other: [{ type: "document", path: "missing.md" }],
+    }, {
+      scope: "repo",
+      action: "remove-many",
+      entries: [
+        { type: "document", path: "missing.md" },
+        { type: "directory", path: "archive" },
+      ],
+    }),
+    {
+      scopes: {
+        repo: [{ type: "document", path: "README.md" }],
+        other: [{ type: "document", path: "missing.md" }],
+      },
+      favorites: [{ type: "document", path: "README.md" }],
+      changed: true,
+    },
+  );
+});
+
 test("rapid favorite toggles are serialized against the latest saved state", async () => {
   let active = false;
   const requestedStates = [];
@@ -121,7 +150,7 @@ test("rapid favorite toggles are serialized against the latest saved state", asy
   assert.equal(active, false);
 });
 
-test("favorite tree keeps existing and missing entries in explicit order without mutating the source", () => {
+test("favorite tree omits missing entries and reports them for cleanup without mutating the source", () => {
   const tree = [
     { type: "file", name: "README.md", path: "README.md", kind: "markdown" },
     {
@@ -157,20 +186,18 @@ test("favorite tree keeps existing and missing entries in explicit order without
         ...tree[1].children[2],
         path: "docs/guides",
       },
-      {
-        type: "file",
-        name: "missing.md",
-        path: "missing.md",
-        kind: "unknown",
-        missing: true,
-      },
-      {
-        type: "directory",
-        name: "notes",
-        path: "archive/notes",
-        children: [],
-        missing: true,
-      },
+    ],
+  );
+  assert.deepEqual(
+    missingSidebarFavoritesFromTree(tree, [
+      { type: "directory", path: "docs" },
+      { type: "document", path: "README.md" },
+      { type: "document", path: "missing.md" },
+      { type: "directory", path: "archive/notes" },
+    ]),
+    [
+      { type: "document", path: "missing.md" },
+      { type: "directory", path: "archive/notes" },
     ],
   );
   assert.deepEqual(tree, original);

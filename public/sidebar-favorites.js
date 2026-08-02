@@ -64,11 +64,36 @@ export function applySidebarFavoriteOperation(value, {
   type,
   path,
   toPath = "",
+  entries = [],
 } = {}) {
   const scopes = normalizeSidebarFavoriteScopes(value);
+  if (typeof scope !== "string" || !scope.trim()) {
+    return { scopes, favorites: [], changed: false };
+  }
+
+  const favorites = scopes[scope] ?? [];
+  if (action === "remove-many") {
+    const removals = normalizeSidebarFavorites(entries);
+    if (removals.length === 0) {
+      return { scopes, favorites, changed: false };
+    }
+    const removalKeys = new Set(removals.map(sidebarFavoriteKey));
+    const nextFavorites = favorites.filter((item) => !removalKeys.has(sidebarFavoriteKey(item)));
+    if (nextFavorites.length === favorites.length) {
+      return { scopes, favorites, changed: false };
+    }
+    const nextScopes = { ...scopes };
+    if (nextFavorites.length > 0) {
+      nextScopes[scope] = nextFavorites;
+    } else {
+      delete nextScopes[scope];
+    }
+    return { scopes: nextScopes, favorites: nextFavorites, changed: true };
+  }
+
   const favorite = normalizeSidebarFavorite({ type, path });
-  if (!favorite || typeof scope !== "string" || !scope.trim()) {
-    return { scopes, favorites: scopes[scope] ?? [], changed: false };
+  if (!favorite) {
+    return { scopes, favorites, changed: false };
   }
 
   if (action === "replace") {
@@ -85,7 +110,6 @@ export function applySidebarFavoriteOperation(value, {
     };
   }
 
-  const favorites = scopes[scope] ?? [];
   const index = favorites.findIndex((item) => (
     item.type === favorite.type && item.path === favorite.path
   ));
@@ -146,7 +170,6 @@ export function favoriteNodesFromTree(nodes, favorites) {
   for (const favorite of normalizeSidebarFavorites(favorites)) {
     const node = index.get(`${favorite.type}:${favorite.path}`);
     if (!node) {
-      result.push(missingFavoriteNode(favorite));
       continue;
     }
     const cloned = cloneTreeNode(node);
@@ -155,6 +178,14 @@ export function favoriteNodesFromTree(nodes, favorites) {
       : cloned);
   }
   return result;
+}
+
+export function missingSidebarFavoritesFromTree(nodes, favorites) {
+  const index = new Map();
+  indexTreeNodes(Array.isArray(nodes) ? nodes : [], "", index);
+  return normalizeSidebarFavorites(favorites).filter((favorite) => (
+    !index.has(sidebarFavoriteKey(favorite))
+  ));
 }
 
 export function normalizeSidebarFavorites(value) {
@@ -252,26 +283,6 @@ function cloneTreeNode(node) {
   };
 }
 
-/**
- * Return a tree-renderable placeholder while preserving the favorite identity.
- * Missing entries retain their repository-relative path so the Favorites view
- * can still offer "Remove from favorites" in another branch or worktree.
- */
-function missingFavoriteNode(favorite) {
-  if (favorite.type === "directory") {
-    return {
-      type: "directory",
-      name: favorite.path.split("/").at(-1) || favorite.path,
-      path: favorite.path,
-      children: [],
-      missing: true,
-    };
-  }
-  return {
-    type: "file",
-    name: favorite.path.split("/").at(-1) || favorite.path,
-    path: favorite.path,
-    kind: "unknown",
-    missing: true,
-  };
+function sidebarFavoriteKey(favorite) {
+  return `${favorite.type}:${favorite.path}`;
 }

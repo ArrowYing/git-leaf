@@ -448,11 +448,16 @@ test("favorites API scopes finite mutations to the current repository", async ()
     mutateRepositoryFavorite: async ({ repositoryRoot, operation }) => {
       assert.equal(repositoryRoot, repoRoot);
       operations.push(operation);
-      favorites = operation.action === "add"
-        ? [...favorites, { type: operation.type, path: operation.path }]
-        : favorites.filter((item) => (
-            item.type !== operation.type || item.path !== operation.path
-          ));
+      if (operation.action === "add") {
+        favorites = [...favorites, { type: operation.type, path: operation.path }];
+      } else if (operation.action === "remove-many") {
+        const removals = new Set(operation.entries.map((entry) => `${entry.type}:${entry.path}`));
+        favorites = favorites.filter((item) => !removals.has(`${item.type}:${item.path}`));
+      } else {
+        favorites = favorites.filter((item) => (
+          item.type !== operation.type || item.path !== operation.path
+        ));
+      }
       return favorites;
     },
   });
@@ -484,6 +489,24 @@ test("favorites API scopes finite mutations to the current repository", async ()
       path: "README.md",
     }]);
 
+    const prune = await fetch(`${baseUrl}/api/favorites`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "remove-many",
+        entries: [{ type: "document", path: "README.md" }],
+      }),
+    });
+    assert.equal(prune.status, 200);
+    assert.deepEqual(await prune.json(), {
+      available: true,
+      favorites: [],
+    });
+    assert.deepEqual(operations.at(-1), {
+      action: "remove-many",
+      entries: [{ type: "document", path: "README.md" }],
+    });
+
     const unsafe = await fetch(`${baseUrl}/api/favorites`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -494,13 +517,24 @@ test("favorites API scopes finite mutations to the current repository", async ()
       }),
     });
     assert.equal(unsafe.status, 400);
-    assert.deepEqual(operations.length, 1);
+    assert.deepEqual(operations.length, 2);
+
+    const unsafeBatch = await fetch(`${baseUrl}/api/favorites`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "remove-many",
+        entries: [{ type: "document", path: "../outside.md" }],
+      }),
+    });
+    assert.equal(unsafeBatch.status, 400);
+    assert.deepEqual(operations.length, 2);
 
     const unsupported = await fetch(`${baseUrl}/api/favorites`, {
       method: "PUT",
     });
     assert.equal(unsupported.status, 405);
-    assert.deepEqual(operations.length, 1);
+    assert.deepEqual(operations.length, 2);
   } finally {
     await close(server);
   }

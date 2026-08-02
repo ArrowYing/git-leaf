@@ -1832,6 +1832,20 @@ function repositoryFavoriteOperation(value) {
     return null;
   }
   const action = value.action;
+  if (action === "remove-many") {
+    if (
+      !exactObjectKeys(value, ["action", "entries"]) ||
+      !Array.isArray(value.entries) ||
+      value.entries.length === 0 ||
+      value.entries.some((entry) => !exactObjectKeys(entry, ["type", "path"]))
+    ) {
+      return null;
+    }
+    const entries = normalizeSidebarFavorites(value.entries);
+    return entries.length === value.entries.length
+      ? { action, entries }
+      : null;
+  }
   const expectedKeys = action === "replace"
     ? ["action", "type", "path", "toPath"]
     : ["action", "type", "path"];

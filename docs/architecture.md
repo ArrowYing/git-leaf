@@ -159,8 +159,10 @@ blob root; repositories without one keep that action disabled.
 
 Favorites are user preferences, not repository content. Desktop builds persist them in `userData`; the
 browser development entry uses repository-scoped `localStorage` as a best-effort fallback. Missing
-favorite paths remain removable placeholders and are not deleted merely because another branch lacks
-them.
+favorite paths are removed only after a complete repository tree loads successfully. Search, filtering,
+or a failed or invalid tree response must never prune favorites. Renames performed inside Git Leaf update
+document favorites directly; external renames, deletions, and worktree changes may remove a favorite
+whose saved path is no longer present.
 
 Agent Context is session-scoped and isolated by repository and worktree. It stores repository-relative
 paths, source line ranges, captured Markdown, branch, and revision for the current window session. It
