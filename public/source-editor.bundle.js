@@ -37607,9 +37607,6 @@ var SOURCE_EDITOR_COMPONENT_MESSAGES = {
     "datatable.freeze": "Freeze first column",
     "datatable.sticky": "Sticky header",
     "datatable.copy": "Copy CSV",
-    "datatable.data": "Edit data",
-    "datatable.view": "Edit view",
-    "timeline.data": "Edit events",
     "chart.type": "Chart type",
     "chart.type.auto": "Auto type",
     "chart.type.line": "Line",
@@ -37619,17 +37616,12 @@ var SOURCE_EDITOR_COMPONENT_MESSAGES = {
     "chart.type.combo": "Combo",
     "chart.type.combo-dual-axis": "Dual axis",
     "chart.labels": "Value labels",
-    "chart.data": "Edit data",
-    "chart.view": "Edit view",
     "decision.status": "Decision status",
     "decision.status.none": "No status",
     "decision.status.accepted": "Accepted",
     "decision.status.proposed": "Proposed",
     "decision.status.rejected": "Rejected",
-    "decision.status.superseded": "Superseded",
-    "decision.data": "Edit decision",
-    "metrics.data": "Edit metrics",
-    "flow.data": "Edit flow"
+    "decision.status.superseded": "Superseded"
   },
   "zh-CN": {
     "toolbar.label": "\u7EC4\u4EF6\u5DE5\u5177\u680F",
@@ -37639,9 +37631,6 @@ var SOURCE_EDITOR_COMPONENT_MESSAGES = {
     "datatable.freeze": "\u51BB\u7ED3\u9996\u5217",
     "datatable.sticky": "\u56FA\u5B9A\u8868\u5934",
     "datatable.copy": "\u590D\u5236 CSV",
-    "datatable.data": "\u7F16\u8F91\u6570\u636E",
-    "datatable.view": "\u7F16\u8F91\u89C6\u56FE",
-    "timeline.data": "\u7F16\u8F91\u4E8B\u4EF6",
     "chart.type": "\u56FE\u8868\u7C7B\u578B",
     "chart.type.auto": "\u81EA\u52A8\u7C7B\u578B",
     "chart.type.line": "\u6298\u7EBF\u56FE",
@@ -37651,17 +37640,12 @@ var SOURCE_EDITOR_COMPONENT_MESSAGES = {
     "chart.type.combo": "\u7EC4\u5408\u56FE",
     "chart.type.combo-dual-axis": "\u53CC\u8F74\u7EC4\u5408\u56FE",
     "chart.labels": "\u6570\u503C\u6807\u7B7E",
-    "chart.data": "\u7F16\u8F91\u6570\u636E",
-    "chart.view": "\u7F16\u8F91\u89C6\u56FE",
     "decision.status": "\u51B3\u7B56\u72B6\u6001",
     "decision.status.none": "\u65E0\u72B6\u6001",
     "decision.status.accepted": "\u5DF2\u91C7\u7EB3",
     "decision.status.proposed": "\u63D0\u8BAE\u4E2D",
     "decision.status.rejected": "\u5DF2\u62D2\u7EDD",
-    "decision.status.superseded": "\u5DF2\u53D6\u4EE3",
-    "decision.data": "\u7F16\u8F91\u51B3\u7B56",
-    "metrics.data": "\u7F16\u8F91\u6307\u6807",
-    "flow.data": "\u7F16\u8F91\u6D41\u7A0B"
+    "decision.status.superseded": "\u5DF2\u53D6\u4EE3"
   }
 };
 var LIVE_MDX_CHART_TYPES = [
@@ -38792,7 +38776,6 @@ function isVerticalTableColumnSelection(selection) {
   );
 }
 function liveMdxToolbarControlDefinitions(component, attributes = {}) {
-  const datasetView = Boolean(String(attributes.dataset ?? "").trim());
   if (component === "DataTable") {
     return [
       liveMdxToggleControl("search", "search", "datatable.search", attributes.search),
@@ -38813,22 +38796,8 @@ function liveMdxToolbarControlDefinitions(component, attributes = {}) {
         "copyCsv",
         "datatable.copy",
         attributes.copyCsv ?? attributes.copy
-      ),
-      {
-        kind: "action",
-        id: "edit-body",
-        action: "edit-body",
-        labelKey: datasetView ? "datatable.view" : "datatable.data"
-      }
+      )
     ];
-  }
-  if (component === "Timeline") {
-    return [{
-      kind: "action",
-      id: "edit-body",
-      action: "edit-body",
-      labelKey: "timeline.data"
-    }];
   }
   if (component === "Chart") {
     const configuredType = String(attributes.type ?? "").trim().toLowerCase();
@@ -38852,12 +38821,6 @@ function liveMdxToolbarControlDefinitions(component, attributes = {}) {
         pressed: String(attributes.labels ?? "").trim().toLowerCase() !== "none",
         enabledValue: null,
         disabledValue: "none"
-      },
-      {
-        kind: "action",
-        id: "edit-body",
-        action: "edit-body",
-        labelKey: datasetView ? "chart.view" : "chart.data"
       }
     ];
   }
@@ -38877,30 +38840,8 @@ function liveMdxToolbarControlDefinitions(component, attributes = {}) {
           value,
           labelKey: `decision.status.${value || "none"}`
         }))
-      },
-      {
-        kind: "action",
-        id: "edit-body",
-        action: "edit-body",
-        labelKey: "decision.data"
       }
     ];
-  }
-  if (component === "MetricGrid") {
-    return [{
-      kind: "action",
-      id: "edit-body",
-      action: "edit-body",
-      labelKey: "metrics.data"
-    }];
-  }
-  if (component === "FlowDiagram") {
-    return [{
-      kind: "action",
-      id: "edit-body",
-      action: "edit-body",
-      labelKey: "flow.data"
-    }];
   }
   return [];
 }
@@ -38982,21 +38923,6 @@ function updateMdxLiteComponentAttribute(source, name2, value) {
 function escapeRegularExpression(value) {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
-function liveMdxBodyEditLine(source) {
-  const lines = String(source ?? "").split(/\r?\n/);
-  const block2 = mdxLiteComponentBlockAtLines(lines, 0);
-  if (!block2 || block2.selfClosing) {
-    return block2?.openingEndIndex ?? 0;
-  }
-  let lineIndex = block2.openingEndIndex + 1;
-  while (lineIndex < block2.endIndex && !lines[lineIndex].trim()) {
-    lineIndex += 1;
-  }
-  if (/^(`{3,}|~{3,})/.test(String(lines[lineIndex] ?? "").trim())) {
-    lineIndex += 1;
-  }
-  return lineIndex < block2.endIndex ? lineIndex : block2.openingEndIndex;
-}
 function createLiveMdxComponentInteraction({
   getView,
   getMode,
@@ -39062,7 +38988,7 @@ function createLiveMdxComponentInteraction({
     selection = null;
     refreshNow();
   };
-  const editSource = (container = selectionContainer(), { body = false } = {}) => {
+  const editSource = (container = selectionContainer()) => {
     const view = getView();
     const startLine = Number(container?.dataset.liveBlockStart);
     const endLine = Number(container?.dataset.liveBlockEnd);
@@ -39070,15 +38996,10 @@ function createLiveMdxComponentInteraction({
       return false;
     }
     const start = view.state.doc.line(startLine);
-    const end = view.state.doc.line(endLine);
-    const source = view.state.sliceDoc(start.from, end.to);
-    const relativeLine = body ? liveMdxBodyEditLine(source) : 0;
-    const targetLineNumber = Math.min(endLine, startLine + relativeLine);
-    const targetLine = view.state.doc.line(targetLineNumber);
     selection = null;
     refreshNow();
     view.dispatch({
-      selection: { anchor: targetLine.to },
+      selection: { anchor: start.to },
       effects: livePreviewEnterEffect.of(true),
       scrollIntoView: true
     });
@@ -39225,21 +39146,21 @@ function prepareLiveMdxComponentToolbar({
     block2.attributes
   )) {
     if (control.kind === "toggle") {
-      const button2 = createLiveMdxToolbarButton(
+      const button = createLiveMdxToolbarButton(
         documentRoot,
         translate(control.labelKey),
         translate(control.labelKey)
       );
-      button2.dataset.liveComponentControl = control.id;
-      button2.setAttribute("aria-pressed", String(control.pressed));
-      button2.addEventListener("click", (event) => {
+      button.dataset.liveComponentControl = control.id;
+      button.setAttribute("aria-pressed", String(control.pressed));
+      button.addEventListener("click", (event) => {
         event.preventDefault();
         event.stopPropagation();
         applyAttributes(container, {
           [control.attribute]: control.pressed ? control.disabledValue : control.enabledValue
         });
       });
-      toolbar.append(button2);
+      toolbar.append(button);
       continue;
     }
     if (control.kind === "select") {
@@ -39268,20 +39189,6 @@ function prepareLiveMdxComponentToolbar({
       toolbar.append(select);
       continue;
     }
-    const button = createLiveMdxToolbarButton(
-      documentRoot,
-      translate(control.labelKey),
-      translate(control.labelKey)
-    );
-    button.dataset.liveComponentAction = control.action;
-    button.addEventListener("click", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      if (control.action === "edit-body") {
-        editSource(container, { body: true });
-      }
-    });
-    toolbar.append(button);
   }
   toolbar.append(createLiveMdxToolbarSeparator(documentRoot));
   const sourceButton = createLiveMdxToolbarButton(
@@ -41553,7 +41460,6 @@ export {
   liveInlineRangesForLine,
   liveMarkdownLinkAtPosition,
   liveMarkdownLinksForLine,
-  liveMdxBodyEditLine,
   liveMdxComponentForLine,
   liveMdxTargetIsEmbeddedViewControl,
   liveMdxToolbarControlDefinitions,

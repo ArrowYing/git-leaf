@@ -169,17 +169,18 @@ The first toolbar version deliberately exposes only bounded, common operations:
 
 | Component | Live toolbar controls |
 | --- | --- |
-| `DataTable` | Search, freeze-first-column, sticky-header, and Copy CSV settings; edit inline data or the external view definition |
-| `Timeline` | Edit event data |
-| `Chart` | Chart type, value-label visibility, and edit inline data or the external view definition |
-| `DecisionBox` | Decision status and edit decision data |
-| `MetricGrid` | Edit metric data |
-| `FlowDiagram` | Edit flow data |
+| `DataTable` | Search, freeze-first-column, sticky-header, and Copy CSV settings |
+| `Timeline` | No additional setting |
+| `Chart` | Chart type and value-label visibility |
+| `DecisionBox` | Decision status |
+| `MetricGrid` | No additional setting |
+| `FlowDiagram` | No additional setting |
 
-An **Edit data**, **Edit events**, **Edit decision**, **Edit metrics**, or **Edit flow** action reveals the
-component body at its fenced data. The `</>` action reveals the complete component source. Fixed toolbar
-settings write the original MDX in one editor transaction; there is no separate visual component model.
-Unsupported or uncommon settings continue to use Source.
+Every component toolbar ends with one `</>` action that reveals the complete component source. Inline
+body data and external dataset view definitions use the same entry because both belong to this document;
+separate data or view source buttons would duplicate that action. Fixed toolbar settings write the
+original MDX in one editor transaction; there is no separate visual component model. Unsupported or
+uncommon settings continue to use Source.
 
 External-dataset day, week, month, and quarter buttons are not editing toolbar controls. They remain
 inside the rendered `Chart` or `DataTable`, change transient reading state only, and never write MDX.

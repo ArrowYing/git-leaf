@@ -235,9 +235,10 @@ links, frontmatter fields, and MDX-lite components. Only one editing target is a
 toolbar is anchored above the target, uses the same control sizing and selected-state treatment, and
 closes from its close button, Escape, or a different target. The MDX-lite editing toolbar is Live-only.
 The controls remain object-specific: a table exposes formatting, an image exposes image actions, and an
-MDX-lite component exposes only a few safe component settings plus explicit body-source and whole-source
-actions. Clicking a rendered MDX-lite surface selects it without moving CodeMirror into the component
-source.
+MDX-lite component exposes only a few safe component settings plus one explicit whole-source action.
+Inline and external component data use that same source entry because both are part of the current
+document; there are no additional body-data or view-source shortcuts. Clicking a rendered MDX-lite
+surface selects it without moving CodeMirror into the component source.
 
 Controls rendered inside a component for reading are not contextual editing toolbars. In particular,
 external-dataset interval buttons remain part of `Chart` or `DataTable`, change only transient view state,

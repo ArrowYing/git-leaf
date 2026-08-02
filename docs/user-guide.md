@@ -117,8 +117,8 @@ belongs to the repository and remains readable to agents and other tools.
 Live uses one contextual editing pattern for controlled images, links, frontmatter fields, native
 tables, and MDX-lite components. Only one object is active at a time, its compact toolbar stays above
 the object, and the toolbar closes with its close button, Escape, or selection of another object.
-Clicking an MDX-lite component keeps it rendered; use the toolbar's data action for its fenced body or
-`</>` for the complete component source. Preview does not show the MDX-lite editing toolbar.
+Clicking an MDX-lite component keeps it rendered; `</>` is its single source entry for both inline and
+external data. Preview does not show the MDX-lite editing toolbar.
 
 In a native Markdown table, click a cell to edit only that cell's source. You can start a drag while that
 cell is still being edited; crossing into neighboring cells selects the rectangle between the start and

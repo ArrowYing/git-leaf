@@ -3,7 +3,6 @@ import test from "node:test";
 
 import {
   createLiveMdxComponentInteraction,
-  liveMdxBodyEditLine,
   liveMdxToolbarControlDefinitions,
   updateMdxLiteComponentAttributes,
 } from "../src/client/source-editor.mjs";
@@ -11,12 +10,12 @@ import { mdxLiteComponentOpeningAtLines } from "../src/content/mdx-lite-syntax.m
 
 test("each MDX-lite component exposes only its small component-specific toolbar", () => {
   const expectedControls = {
-    DataTable: ["search", "freeze", "sticky", "copy", "edit-body"],
-    Timeline: ["edit-body"],
-    Chart: ["type", "labels", "edit-body"],
-    DecisionBox: ["status", "edit-body"],
-    MetricGrid: ["edit-body"],
-    FlowDiagram: ["edit-body"],
+    DataTable: ["search", "freeze", "sticky", "copy"],
+    Timeline: [],
+    Chart: ["type", "labels"],
+    DecisionBox: ["status"],
+    MetricGrid: [],
+    FlowDiagram: [],
   };
 
   for (const [component, expected] of Object.entries(expectedControls)) {
@@ -28,7 +27,7 @@ test("each MDX-lite component exposes only its small component-specific toolbar"
   }
 });
 
-test("toolbar definitions reflect aliases and distinguish inline data from dataset views", () => {
+test("toolbar definitions reflect aliases without duplicating the shared source action", () => {
   const tableControls = liveMdxToolbarControlDefinitions("DataTable", {
     freeze: "true",
     copy: "false",
@@ -36,9 +35,10 @@ test("toolbar definitions reflect aliases and distinguish inline data from datas
   });
   assert.equal(tableControls.find((control) => control.id === "freeze").pressed, true);
   assert.equal(tableControls.find((control) => control.id === "copy").pressed, false);
-  assert.equal(
-    tableControls.find((control) => control.id === "edit-body").labelKey,
-    "datatable.view",
+  assert.equal(tableControls.some((control) => control.kind === "action"), false);
+  assert.deepEqual(
+    tableControls.map((control) => control.id),
+    liveMdxToolbarControlDefinitions("DataTable").map((control) => control.id),
   );
 
   const chartControls = liveMdxToolbarControlDefinitions("Chart", {
@@ -47,6 +47,14 @@ test("toolbar definitions reflect aliases and distinguish inline data from datas
   });
   assert.equal(chartControls.find((control) => control.id === "type").value, "combo");
   assert.equal(chartControls.find((control) => control.id === "labels").pressed, false);
+  assert.deepEqual(
+    chartControls.map((control) => control.id),
+    liveMdxToolbarControlDefinitions("Chart", {
+      dataset: "./company.dataset.json",
+      type: "combo",
+      labels: "none",
+    }).map((control) => control.id),
+  );
 
   const decisionControls = liveMdxToolbarControlDefinitions("DecisionBox", {
     decisionStatus: "proposed",
@@ -112,29 +120,6 @@ test("component toolbar canonicalizes a decision status in one source rewrite", 
     "Decision,Keep one owner",
     "</DecisionBox>",
   ].join("\n"));
-});
-
-test("component data actions target fenced data and fall back to self-closing view source", () => {
-  const timeline = [
-    "<Timeline",
-    '  title="Progress"',
-    ">",
-    "```json",
-    "[",
-    '  {"date":"2026-08-01","title":"Done"}',
-    "]",
-    "```",
-    "</Timeline>",
-  ].join("\n");
-  assert.equal(liveMdxBodyEditLine(timeline), 4);
-
-  const dataset = [
-    "<Chart",
-    '  dataset="./company.dataset.json"',
-    '  type="line"',
-    "/>",
-  ].join("\n");
-  assert.equal(liveMdxBodyEditLine(dataset), 3);
 });
 
 test("an active component toolbar owns Escape and clears when the pointer leaves the editor", () => {
