@@ -138,7 +138,9 @@ to adjust frontmatter and structured blocks. Both Source and Live auto-save to t
 directory.
 
 Only Markdown and MDX are editable inside Git Leaf. Other repository files are read-only previews or
-open in a system application.
+open in a system application. Ordinary read-only files use the full file-tree row for their filename;
+after you open one, the mode control shows **Read-only** beside Preview. The tree keeps badges only for
+states that change or defer opening, such as detection, unsupported preview, or a missing file.
 
 ## Keep data readable to agents and visual for people
 

@@ -170,9 +170,9 @@ presentation:
 - All Repository Files shows the complete discovered tree;
 - when the default-on `showDocumentTitles` preference is enabled, Markdown and MDX files whose source
   filename contains no Han characters keep that filename on the first row and show a distinct
-  frontmatter `title` or first level-one heading on an equally weighted second row; disabling the
-  preference, filenames containing Han characters, and documents without a distinct title remain
-  single-row;
+  frontmatter `title` or first level-one heading as the primary second row while slightly muting the
+  filename; disabling the preference, filenames containing Han characters, and documents without a
+  distinct title remain single-row;
 - truncated navigation text expands in a content-aligned tooltip that stays visually stable while the
   pointer crosses it but remains hit-test transparent, so the underlying file or navigation target keeps
   click ownership;
@@ -199,6 +199,12 @@ opening, favorites, sessions, file operations, Git status, or synchronization.
 | Recognized UTF-8 code and configuration | Read-only code preview |
 | Unknown text | Detected on open and shown read-only |
 | Other binary files, symlinks, and submodules | Visible with an unsupported-preview state and an Open in System App action |
+
+Ordinary read-only previews do not repeat a capability badge on every file-tree row. Once opened, the
+top mode control keeps `Preview` visible and adds a localized read-only status. Tree-row badges are
+reserved for states that change or defer the opening result: unknown capability detection, unsupported
+preview, and a path missing from the current worktree. The accessible row label still includes the
+resolved capability.
 
 Ordinary deep links, shared links, and source-line locations remain limited to Markdown and MDX even
 though the file tree can display other types.

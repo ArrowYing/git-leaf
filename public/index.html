@@ -209,6 +209,19 @@
               <button id="mode-preview" type="button" data-mode="preview" aria-pressed="true">Preview</button>
               <button id="mode-source" type="button" data-mode="source" aria-pressed="false">Source</button>
               <button id="mode-live" type="button" data-mode="live" aria-pressed="false">Live</button>
+              <span
+                id="mode-readonly-status"
+                class="mode-readonly-status"
+                aria-label="只读预览"
+                data-i18n-aria-label="file.readonly"
+                hidden
+              >
+                <svg viewBox="0 0 16 16" aria-hidden="true">
+                  <rect x="3.5" y="7" width="9" height="6.5" rx="1.5"></rect>
+                  <path d="M5.5 7V5.25a2.5 2.5 0 0 1 5 0V7"></path>
+                </svg>
+                <span data-i18n="badge.readonly">只读</span>
+              </span>
             </div>
             <button
               id="theme-toggle"

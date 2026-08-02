@@ -37,6 +37,10 @@ import {
 } from "./outline.js";
 import { createTreeItemTooltipSource } from "./tree-item-tooltip.js";
 import { treeFilePresentation } from "./tree-file-title.js";
+import {
+  shouldShowReadonlyModeStatus,
+  treeFileCapability,
+} from "./file-capability.js";
 import { hasTreeChanged } from "./tree-refresh.js";
 import { shouldReplaceDocumentHtml } from "./document-refresh.js";
 import { attachChartTooltips } from "./chart-tooltip.js";
@@ -494,6 +498,7 @@ const documentSearchPrevious = document.querySelector("#document-search-previous
 const documentSearchNext = document.querySelector("#document-search-next");
 const documentSearchClose = document.querySelector("#document-search-close");
 const modeButtons = [...document.querySelectorAll("[data-mode]")];
+const modeReadonlyStatus = document.querySelector("#mode-readonly-status");
 const themeToggle = document.querySelector("#theme-toggle");
 const chartTooltipController = attachChartTooltips(documentContent);
 const sourceChartTooltipController = attachChartTooltips(sourceEditorHost);
@@ -2566,6 +2571,10 @@ function applyEditCapability() {
   const canUseEditor = canEditRepo && (!hasDocument || canEditCurrentDocument());
   document.querySelector("#mode-source").hidden = !canUseEditor;
   document.querySelector("#mode-live").hidden = !canUseEditor;
+  modeReadonlyStatus.hidden = !shouldShowReadonlyModeStatus({
+    hasDocument,
+    canUseEditor,
+  });
 }
 
 function applyRepositoryStatus(payload) {
@@ -4600,7 +4609,10 @@ function renderNode(node, parentPath) {
   const item = document.createElement("li");
   if (node.type === "file") {
     const button = document.createElement("button");
-    const capability = treeFileCapability(node.kind, { missing: node.missing === true });
+    const capability = treeFileCapability(node.kind, {
+      missing: node.missing === true,
+      translate: t,
+    });
     const presentation = treeFilePresentation(node, {
       showDocumentTitles: state.showDocumentTitles,
     });
@@ -4790,29 +4802,6 @@ function appendHighlightedText(element, text, ranges) {
   if (cursor < text.length) {
     element.append(document.createTextNode(text.slice(cursor)));
   }
-}
-
-function treeFileCapability(kind, { missing = false } = {}) {
-  if (missing) {
-    return { name: "missing", label: t("file.missing"), badge: t("badge.missing") };
-  }
-  if (kind === "markdown") {
-    return { name: "editable", label: t("file.editable"), badge: "" };
-  }
-  if (kind === "placeholder") {
-    return { name: "placeholder", label: t("file.placeholder"), badge: "" };
-  }
-  if (["unsupported", "symlink", "submodule"].includes(kind)) {
-    return {
-      name: "unsupported",
-      label: t("file.unsupported"),
-      badge: t("badge.unsupported"),
-    };
-  }
-  if (kind === "unknown") {
-    return { name: "unknown", label: t("file.unknown"), badge: t("badge.detect") };
-  }
-  return { name: "readonly", label: t("file.readonly"), badge: t("badge.readonly") };
 }
 
 function recordTreeDirectoryToggle(directoryPath, open) {

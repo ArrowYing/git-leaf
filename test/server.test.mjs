@@ -2073,6 +2073,7 @@ test("public module assets are served for the browser", async () => {
       "ui-tooltip.js",
       "tree-item-tooltip.js",
       "tree-file-title.js",
+      "file-capability.js",
       "pointer-resize.js",
       "outline.js",
       "tree-refresh.js",
