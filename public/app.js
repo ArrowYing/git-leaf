@@ -1954,7 +1954,11 @@ async function navigateDocumentLocation(
     location: { path: filePath, hash },
     behavior,
   });
-  applyDocumentTabState(nextTabs, { render: true, persist: true });
+  applyDocumentTabState(nextTabs, {
+    render: true,
+    persist: true,
+    revealActive: true,
+  });
   applyLoadedDocumentData(documentData, {
     hash,
     applySavedMode,
@@ -1990,7 +1994,11 @@ async function moveActiveDocumentTabHistory(direction) {
   if (!belongsToCurrentDocumentRepository(documentData)) {
     return false;
   }
-  applyDocumentTabState(nextTabs, { render: true, persist: true });
+  applyDocumentTabState(nextTabs, {
+    render: true,
+    persist: true,
+    revealActive: true,
+  });
   applyLoadedDocumentData(documentData, {
     hash: location.hash,
     restoreScrollTop: location.scrollTop,
@@ -2029,7 +2037,11 @@ async function activateDocumentTabAndLoad(targetTabId) {
   if (!belongsToCurrentDocumentRepository(documentData)) {
     return false;
   }
-  applyDocumentTabState(nextTabs, { render: true, persist: true });
+  applyDocumentTabState(nextTabs, {
+    render: true,
+    persist: true,
+    revealActive: true,
+  });
   applyLoadedDocumentData(documentData, {
     hash: location.hash,
     restoreScrollTop: location.scrollTop,
@@ -2456,7 +2468,10 @@ function serializeCurrentWorkbenchSession() {
   });
 }
 
-function applyDocumentTabState(result, { render = false, persist = false } = {}) {
+function applyDocumentTabState(
+  result,
+  { render = false, persist = false, revealActive = false } = {},
+) {
   const tabs = normalizeDocumentTabs(result?.tabs);
   const activeTabId = resolveActiveDocumentTabId({
     tabs,
@@ -2469,6 +2484,9 @@ function applyDocumentTabState(result, { render = false, persist = false } = {})
   updateDocumentHistoryControls();
   if (render) {
     renderDocumentTabs();
+  }
+  if (revealActive) {
+    revealActiveDocumentTab();
   }
   if (persist) {
     persistWorkbenchSession();
@@ -4149,10 +4167,7 @@ async function handleFileActionMenuClick(event) {
 }
 
 async function openFileInForegroundTab(path) {
-  const opened = await navigateDocumentLocation({ path }, { behavior: "foreground" });
-  if (opened) {
-    revealActiveDocumentTab();
-  }
+  await navigateDocumentLocation({ path }, { behavior: "foreground" });
 }
 
 function revealFileInTree(path) {
