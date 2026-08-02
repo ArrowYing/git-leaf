@@ -87,9 +87,10 @@ text; Git Leaf renders the same source as charts and other visual blocks for peo
 Long-running company reports can keep their complete history in a standard repository-local CSV, TSV,
 or JSON file with a typed `.dataset.json` sidecar. Existing `Chart` and `DataTable` blocks can show a
 bounded range and offer only the time views supported by the declared source granularity. Daily sources
-can switch among day, week, month, and natural-quarter views; weekly sources remain weekly. Aggregation is
-explicit per field, missing source periods are not converted to zero, and documents still cannot run scripts or
-query another repository.
+can switch among day, week, month, and natural-quarter views. Weekly sources can also show natural month
+and quarter by assigning each whole week to the bucket containing its fourth day; they never invent daily
+values. Aggregation is explicit per field, missing source periods are not converted to zero, and documents
+still cannot run scripts or query another repository.
 For common spreadsheet or BI exports, the sidecar can explicitly select physical columns and grouped-number
 formatting while leaving the original data file intact.
 

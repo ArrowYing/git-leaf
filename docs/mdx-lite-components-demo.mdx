@@ -196,8 +196,9 @@ The optional `query` block applies a finite equality filter before the manifest-
 ### Weekly source dataset
 
 This source contains complete weekly totals rather than daily rows. Its manifest declares
-`sourceGranularity: "week"`, so the rendered component exposes only Week. Git Leaf does not invent Day,
-Month, or Quarter values from these rows.
+`sourceGranularity: "week"`, so the rendered component exposes Week, Month, and Quarter without inventing
+Day values. Month and Quarter assign each whole week by its fourth day, then apply the manifest's explicit
+rollup directly to the assigned weeks.
 
 <Chart
   title="Weekly-only company revenue and expense"
@@ -206,6 +207,8 @@ Month, or Quarter values from these rows.
   x="period"
   series="revenue,expense"
   unit="CNY"
+  granularity="week"
+  granularityOptions="week,month,quarter"
 />
 
 ## 4. DecisionBox
@@ -275,7 +278,8 @@ Desktop shell,Electron,,Open any local Git repository,good
 - All six components render without an MDX component error.
 - Chart hover selects the nearest x value, emphasizes its visible marks, and shows its guide and combined tooltip.
 - Daily dataset controls switch among day, week, month, and quarter in Preview and Live.
-- The weekly-source chart exposes only Week and never invents Day, Month, or Quarter values.
+- The weekly-source chart exposes Week, Month, and Quarter, assigns whole weeks by their fourth day, and
+  never invents Day values.
 - The external DataTable and Chart read `data/company-daily.dataset.json`; the CSV remains standard CSV.
 - FlowDiagram renders as static SVG.
 - Syntax and new-component policy remain defined by [MDX-lite renderer reference](mdx-lite-guide.md).

@@ -210,7 +210,7 @@ test("queryDataset refuses an ambiguous last snapshot across multiple rows on on
   );
 });
 
-test("weekly source data exposes only weekly view and checks missing weeks", () => {
+test("weekly source data exposes safe coarser views and checks missing weeks", () => {
   const weeklyManifest = {
     ...manifest,
     id: "company_weekly",
@@ -232,20 +232,92 @@ test("weekly source data exposes only weekly view and checks missing weeks", () 
 
   assert.equal(result.meta.sourceGranularity, "week");
   assert.equal(result.meta.granularity, "week");
-  assert.deepEqual(result.meta.availableGranularities, ["week"]);
+  assert.deepEqual(result.meta.availableGranularities, ["week", "month", "quarter"]);
   assert.equal(result.meta.missingPeriodCount, 1);
   assert.deepEqual(result.meta.missingPeriods, ["2026-01-19"]);
   assert.equal(result.meta.partialPeriodCount, 0);
-  assert.throws(
-    () => queryDataset({
-      manifest: weeklyManifest,
-      rows,
-      component: "Chart",
-      attributes: { x: "period", series: "revenue" },
-      granularity: "month",
+  assert.equal(result.meta.omittedBoundaryPeriodCount, 0);
+});
+
+test("weekly source assigns whole weeks by midpoint and averages them directly", () => {
+  const weeklyManifest = {
+    ...manifest,
+    id: "company_weekly",
+    time: { ...manifest.time, sourceGranularity: "week" },
+  };
+  const dates = [
+    "2025-12-29",
+    "2026-01-05",
+    "2026-01-12",
+    "2026-01-19",
+    "2026-01-26",
+    "2026-02-02",
+    "2026-02-09",
+    "2026-02-16",
+    "2026-02-23",
+    "2026-03-02",
+    "2026-03-09",
+    "2026-03-16",
+    "2026-03-23",
+    "2026-03-30",
+  ];
+  const rows = dates.map((date, index) => ({
+    ...dailyRows(date, date)[0],
+    date,
+    users: (index + 1) * 10,
+  }));
+  const month = queryDataset({
+    manifest: weeklyManifest,
+    rows,
+    component: "Chart",
+    attributes: { x: "period", series: "users" },
+    granularity: "month",
+  });
+  const quarter = queryDataset({
+    manifest: weeklyManifest,
+    rows,
+    component: "Chart",
+    attributes: { x: "period", series: "users" },
+    granularity: "quarter",
+  });
+
+  assert.deepEqual(month.rows, [
+    { period: "2026-01", users: 30 },
+    { period: "2026-02", users: 75 },
+    { period: "2026-03", users: 115 },
+  ]);
+  assert.deepEqual(month.meta.omittedBoundaryPeriods, ["2026-04"]);
+  assert.equal(month.meta.partialPeriodCount, 0);
+  assert.deepEqual(quarter.rows, [{ period: "2026-Q1", users: 70 }]);
+  assert.deepEqual(quarter.meta.omittedBoundaryPeriods, ["2026-Q2"]);
+  assert.equal(quarter.meta.partialPeriodCount, 0);
+});
+
+test("weekly coarser views keep interior periods with missing weeks visible", () => {
+  const weeklyManifest = {
+    ...manifest,
+    id: "company_weekly",
+    time: { ...manifest.time, sourceGranularity: "week" },
+  };
+  const rows = ["2025-12-29", "2026-01-05", "2026-01-19", "2026-01-26"].map(
+    (date, index) => ({
+      ...dailyRows(date, date)[0],
+      date,
+      users: (index + 1) * 10,
     }),
-    /month view is unavailable for week source data/,
   );
+  const result = queryDataset({
+    manifest: weeklyManifest,
+    rows,
+    component: "Chart",
+    attributes: { x: "period", series: "users" },
+    granularity: "month",
+  });
+
+  assert.deepEqual(result.rows, [{ period: "2026-01", users: 25 }]);
+  assert.deepEqual(result.meta.missingPeriods, ["2026-01-12"]);
+  assert.deepEqual(result.meta.partialPeriods, ["2026-01"]);
+  assert.equal(result.meta.omittedBoundaryPeriodCount, 0);
 });
 
 test("monthly source data can aggregate into natural quarters without exposing day or week", () => {

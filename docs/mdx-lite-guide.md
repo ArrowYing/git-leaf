@@ -332,13 +332,18 @@ Available views follow a safe compatibility matrix:
 | Source granularity | Available views |
 | --- | --- |
 | `day` | `day`, `week`, `month`, `quarter` |
-| `week` | `week` |
+| `week` | `week`, `month`, `quarter` |
 | `month` | `month`, `quarter` |
 | `quarter` | `quarter` |
 
-A calendar week can cross month and quarter boundaries, so Git Leaf does not assign weekly totals to a
-natural month or quarter by start date, end date, or proportional spreading. Reports that need reliable
-monthly values must maintain a monthly source instead.
+A weekly source period remains atomic when it is shown by natural month or quarter: Git Leaf assigns the
+whole week to the bucket containing its fourth day (`week_start + 3 days`). This majority-days rule puts
+a Monday-through-Sunday week in the month or quarter containing Thursday, without inventing daily values
+or splitting a de-duplicated weekly metric. The field's explicit rollup then applies directly to all
+assigned source weeks. A quarterly `avg`, for example, averages the source weeks themselves rather than
+averaging monthly averages. Incomplete first or last month and quarter buckets are omitted and reported;
+an interior bucket with a missing week remains visible and is reported as partial. Weekly source data
+never exposes a day view.
 
 Rollups are `sum`, `avg`, `min`, `max`, `count`, `first`, or `last`. `ratioOfSums` is the one derived
 rollup and divides the sum of a numeric numerator by the sum of a numeric denominator. If a requested
@@ -433,8 +438,8 @@ Field aliases:
 
 `Chart` produces a static SVG for reading. It does not load ECharts. Moving anywhere inside the plot
 shows the nearest x value and combines its series into one tooltip. The active x column gets a vertical
-guide, all of its visible marks are emphasized, and the remaining marks are muted. X-axis labels use the
-available width more actively while still skipping labels that would overlap.
+guide, all of its visible marks are emphasized, and the remaining marks keep their normal appearance.
+X-axis labels use the available width more actively while still skipping labels that would overlap.
 
 ````mdx
 <Chart

@@ -8,6 +8,7 @@ const DATASET_MESSAGES = Object.freeze({
     range: "{from} to {to}",
     missing: "{count} expected source periods are missing; missing periods were not filled with zero.",
     partial: "{count} displayed periods are partial.",
+    omittedBoundary: "Incomplete boundary periods omitted: {count}.",
   }),
   "zh-CN": Object.freeze({
     loading: "正在加载数据集……",
@@ -17,6 +18,7 @@ const DATASET_MESSAGES = Object.freeze({
     range: "{from} 至 {to}",
     missing: "缺少 {count} 个预期源数据周期；缺失周期未按 0 填充。",
     partial: "当前有 {count} 个不完整周期。",
+    omittedBoundary: "已省略 {count} 个不完整的边界周期。",
   }),
 });
 
@@ -261,6 +263,17 @@ function renderMeta(meta, locale) {
   ].filter(Boolean).join(" · ");
   container.append(details);
 
+  const warnings = datasetWarningMessages(meta, locale);
+  if (warnings.length > 0) {
+    const warning = document.createElement("p");
+    warning.className = "mdx-dataset-warning";
+    warning.textContent = warnings.join(" ");
+    container.append(warning);
+  }
+  return container;
+}
+
+export function datasetWarningMessages(meta = {}, locale) {
   const warnings = [];
   const missingPeriodCount = Number.isFinite(meta.missingPeriodCount)
     ? meta.missingPeriodCount
@@ -271,13 +284,12 @@ function renderMeta(meta, locale) {
   if (meta.partialPeriodCount > 0) {
     warnings.push(localized(locale, "partial", { count: meta.partialPeriodCount }));
   }
-  if (warnings.length > 0) {
-    const warning = document.createElement("p");
-    warning.className = "mdx-dataset-warning";
-    warning.textContent = warnings.join(" ");
-    container.append(warning);
+  if (meta.omittedBoundaryPeriodCount > 0) {
+    warnings.push(localized(locale, "omittedBoundary", {
+      count: meta.omittedBoundaryPeriodCount,
+    }));
   }
-  return container;
+  return warnings;
 }
 
 function localized(locale, key, replacements = {}) {

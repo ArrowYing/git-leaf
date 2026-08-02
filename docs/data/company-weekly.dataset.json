@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "company_weekly_demo",
   "title": "Company weekly demo",
-  "description": "Synthetic weekly data used to verify source-granularity controls.",
+  "description": "Synthetic complete-week data used to verify weekly, natural-month, and natural-quarter views.",
   "data": "./company-weekly.csv",
   "format": "csv",
   "grain": ["week_start"],

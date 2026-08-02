@@ -12,7 +12,10 @@ test("source granularity exposes only mathematically reliable time views", () =>
     datasetGranularitiesForSource("day"),
     ["day", "week", "month", "quarter"],
   );
-  assert.deepEqual(datasetGranularitiesForSource("week"), ["week"]);
+  assert.deepEqual(
+    datasetGranularitiesForSource("week"),
+    ["week", "month", "quarter"],
+  );
   assert.deepEqual(datasetGranularitiesForSource("month"), ["month", "quarter"]);
   assert.deepEqual(datasetGranularitiesForSource("quarter"), ["quarter"]);
 });

@@ -149,10 +149,12 @@ turns the same source into visual blocks for people.
 For a long-running report, the complete CSV, TSV, or JSON may live beside the document with a
 `.dataset.json` description. A report author can give a `Chart` or `DataTable` a fixed date range; readers
 then use the buttons above it to select only views supported by the declared source granularity. Daily
-sources offer day, week, month, and quarter; weekly sources offer only week. The buttons change only the
-view and never rewrite the report or source data. Git Leaf calls out missing source periods and incomplete
-display periods. These interval controls belong to the rendered component; they are not Live editing
-toolbars and do not select the component.
+sources offer day, week, month, and quarter. Weekly sources offer week, month, and quarter by assigning
+each whole week to the natural period containing its fourth day; they do not invent daily values. The
+buttons change only the view and never rewrite the report or source data. Git Leaf calls out missing
+source periods, incomplete display periods, and omitted incomplete boundary periods. These interval
+controls belong to the rendered component; they are not Live editing toolbars and do not select the
+component.
 When a spreadsheet or BI export has presentation-only, duplicate, or multiline headers, its sidecar can
 select the intended physical columns explicitly; the source file stays unchanged.
 

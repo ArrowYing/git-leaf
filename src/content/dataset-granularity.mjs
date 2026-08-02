@@ -3,7 +3,7 @@ export const DATASET_GRANULARITIES = Object.freeze(["day", "week", "month", "qua
 const DATASET_GRANULARITY_SET = new Set(DATASET_GRANULARITIES);
 const SAFE_VIEW_GRANULARITIES = Object.freeze({
   day: Object.freeze(["day", "week", "month", "quarter"]),
-  week: Object.freeze(["week"]),
+  week: Object.freeze(["week", "month", "quarter"]),
   month: Object.freeze(["month", "quarter"]),
   quarter: Object.freeze(["quarter"]),
 });
