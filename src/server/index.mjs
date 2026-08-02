@@ -67,6 +67,7 @@ import {
 } from "./repository-file-operations.mjs";
 import { createGitLeafShareLink } from "./git-leaf-open-link.mjs";
 import { publishGitLeafShareLink } from "./git-share-publish.mjs";
+import { githubFileUrl } from "../../public/file-actions.js";
 import { sourceLinesFromMarkdown } from "../../public/line-selection.js";
 import { normalizeSidebarFavorites } from "../../public/sidebar-favorites.js";
 
@@ -224,6 +225,7 @@ async function handleRequest(request, response, context) {
     requestUrl.pathname === "/tree-item-tooltip.js" ||
     requestUrl.pathname === "/tree-file-title.js" ||
     requestUrl.pathname === "/file-capability.js" ||
+    requestUrl.pathname === "/file-actions.js" ||
     requestUrl.pathname === "/pointer-resize.js" ||
     requestUrl.pathname === "/outline.js" ||
     requestUrl.pathname === "/tree-refresh.js" ||
@@ -1022,6 +1024,7 @@ function publicRepository(repo) {
     detached: repo.detached,
     worktreeId: repo.worktreeId,
     worktreeName: repo.worktreeName,
+    githubBlobRoot: repo.githubBlobRoot || null,
     canEdit: true,
   };
 }
@@ -1161,9 +1164,7 @@ export async function documentPayload(
     sourceHash: fileFingerprint(fileStat),
     mtimeMs: fileStat.mtimeMs,
     size: fileStat.size,
-    githubUrl: repo.githubBlobRoot
-      ? `${repo.githubBlobRoot}/${encodeURI(documentPath.relativePath)}`
-      : null,
+    githubUrl: githubFileUrl(repo.githubBlobRoot, documentPath.relativePath) || null,
   };
 
   if (documentPath.kind !== "markdown") {

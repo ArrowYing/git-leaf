@@ -153,6 +153,10 @@ a new tab. Internal-document links keep a separate contract: a normal click repl
 Command/Ctrl-click creates a background tab, and adding Shift activates the new tab. Browser URL state
 is a projection of the active location, not the application's navigation history.
 
+File-tree context actions bind to the right-clicked repository-relative path rather than the active
+document. GitHub source actions derive the target URL from the current repository's validated GitHub
+blob root; repositories without one keep that action disabled.
+
 Favorites are user preferences, not repository content. Desktop builds persist them in `userData`; the
 browser development entry uses repository-scoped `localStorage` as a best-effort fallback. Missing
 favorite paths remain removable placeholders and are not deleted merely because another branch lacks

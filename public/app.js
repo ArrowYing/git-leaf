@@ -41,6 +41,7 @@ import {
   shouldShowReadonlyModeStatus,
   treeFileCapability,
 } from "./file-capability.js";
+import { githubFileUrl } from "./file-actions.js";
 import { hasTreeChanged } from "./tree-refresh.js";
 import { shouldReplaceDocumentHtml } from "./document-refresh.js";
 import { attachChartTooltips } from "./chart-tooltip.js";
@@ -3902,6 +3903,9 @@ function handleFileTreeContextMenu(event) {
     ? isFavoriteItem(favoriteCandidate, path)
     : false;
   const favoriteType = !isMissing || favoriteActive ? favoriteCandidate : "";
+  const githubUrl = isDirectory
+    ? ""
+    : githubFileUrl(repositoryById(state.currentRepo)?.githubBlobRoot, path);
   state.fileActionTarget = isDirectory
     ? {
         source: "tree-directory",
@@ -3918,6 +3922,7 @@ function handleFileTreeContextMenu(event) {
         favoriteType,
         kind,
         regularFile: isRegularFile,
+        githubUrl,
       };
   const favoriteItem = favoriteType
     ? {
@@ -3970,6 +3975,9 @@ function handleFileTreeContextMenu(event) {
         null,
         ...(isMarkdownPath(path) ? [{ id: "copy-share", label: t("action.copyShareLink"), shortcut: "Command+Shift+L" }] : []),
         { id: "reveal-finder", label: revealInFileManagerLabel(), shortcut: "Command+Shift+R", disabled: !canEditCurrentRepo() },
+        null,
+        { id: "open-github", label: t("menu.openGitHub"), shortcut: "Command+Shift+G", disabled: !githubUrl },
+        { id: "copy-path", label: t("menu.copyPath"), shortcut: "Command+Shift+C" },
       ];
   showFileActionMenu(items, {
     x: event.clientX,
@@ -3996,7 +4004,11 @@ function showCurrentDocumentActionsMenu() {
     return;
   }
   const rect = documentActionsMore.getBoundingClientRect();
-  state.fileActionTarget = { source: "current", path: state.currentDocument.path };
+  state.fileActionTarget = {
+    source: "current",
+    path: state.currentDocument.path,
+    githubUrl: state.currentDocument.githubUrl,
+  };
   showFileActionMenu([
     { id: "reveal-tree", label: t("menu.revealTree") },
     { id: "reveal-finder", label: revealInFileManagerLabel(), shortcut: "Command+Shift+R", disabled: !canEditCurrentRepo() },
@@ -4173,7 +4185,7 @@ async function handleFileActionMenuClick(event) {
   } else if (action === "copy-path") {
     await copyPathValue(target.path);
   } else if (action === "open-github") {
-    openCurrentGithub();
+    openGithubUrl(target.githubUrl);
   } else if (action === "open-system") {
     await openPathWithSystem(target.path);
   }
@@ -6311,9 +6323,16 @@ async function runAppShortcut(action) {
       await copyCurrentShareLink();
       return;
     }
-    case "open-document-github":
+    case "open-document-github": {
+      const target = fileActionMenuShortcutTarget("open-github");
+      if (target) {
+        closeFileActionMenu();
+        openGithubUrl(target.githubUrl);
+        return;
+      }
       openCurrentGithub();
       return;
+    }
     case "open-document-source": {
       const target = fileActionMenuShortcutTarget("open-system");
       if (target) {
@@ -8315,16 +8334,17 @@ function timeoutAfter(promise, timeoutMs) {
 }
 
 function openCurrentGithub() {
-  if (!state.currentDocument) {
-    return;
-  }
-  if (!state.currentDocument.githubUrl) {
+  openGithubUrl(state.currentDocument?.githubUrl);
+}
+
+function openGithubUrl(githubUrl) {
+  if (!githubUrl) {
     recordTelemetryFeature("github.open", { result: "error" });
     showCopyToast(t("toast.noGitHubLink"));
     return;
   }
   try {
-    window.open(state.currentDocument.githubUrl, "_blank", "noopener");
+    window.open(githubUrl, "_blank", "noopener");
     recordTelemetryFeature("github.open", { result: "success" });
     showCopyToast(t("toast.openedGitHub"));
   } catch {

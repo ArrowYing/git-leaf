@@ -1809,7 +1809,7 @@ test("repository payloads contain no sharing tokens", async () => {
     root: repoRoot,
     defaultFile: "sample.md",
     branch: "main",
-    githubBlobRoot: null,
+    githubBlobRoot: "https://github.com/ExampleOrg/docs-repo/blob/main",
   };
   const server = createPreviewServer({ repoRoot, initialFile, repository });
   const baseUrl = await listen(server);
@@ -1824,6 +1824,10 @@ test("repository payloads contain no sharing tokens", async () => {
     assert.equal(reposPayload.repositories[0]?.id, "docs-repo");
     assert.equal(reposPayload.repositories[0]?.defaultFile, "sample.md");
     assert.equal(reposPayload.repositories[0]?.branch, "main");
+    assert.equal(
+      reposPayload.repositories[0]?.githubBlobRoot,
+      "https://github.com/ExampleOrg/docs-repo/blob/main",
+    );
     assert.equal(Object.hasOwn(reposPayload.repositories[0], "shareToken"), false);
     assert.equal(reposPayload.repositories[0]?.canEdit, true);
 
@@ -2074,6 +2078,7 @@ test("public module assets are served for the browser", async () => {
       "tree-item-tooltip.js",
       "tree-file-title.js",
       "file-capability.js",
+      "file-actions.js",
       "pointer-resize.js",
       "outline.js",
       "tree-refresh.js",

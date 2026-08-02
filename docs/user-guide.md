@@ -79,6 +79,9 @@ a new tab and makes that tab active. Keyboard users can focus a file and press `
 macOS or `Ctrl+Enter` on Windows for the same new-tab action. Shift-click has no special selection
 behavior.
 
+The file context menu can also copy the selected repository-relative path or open that exact source
+file on GitHub when the repository has a recognizable GitHub `origin`.
+
 Settings can show either **Content files** or **All repository files**. Content mode keeps Markdown,
 MDX, HTML, images, and PDFs visible by default, while other files appear when they are open, changed, or
 matched by search. This preference changes only the tree display; it never changes what Git Leaf
