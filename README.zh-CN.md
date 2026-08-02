@@ -1,20 +1,47 @@
 ---
-last_updated: 2026-08-01
+last_updated: 2026-08-02
 ---
 
 # Git Leaf
 
 [English](README.md) | 简体中文
 
-面向团队与 AI Agent 共享上下文仓库的桌面应用。
+Git Leaf 是一款桌面应用，让非技术同事也能轻松查看和维护保存在 Git 中、由团队与 AI Agent 共用的
+Markdown 知识库。
 
-一个供 Agent 直接工作的仓库，一个供人使用的熟悉界面。
+如果团队把 Markdown 知识库保存在 Git 中，让团队成员与 Agent 围绕同一份上下文共同维护内容，Git Leaf
+会是一个以阅读和检查为先、比 Obsidian 更简单实用的选择。
 
-AI Agent 直接使用 Git 仓库；人通过 Git Leaf 阅读、检查并做范围明确的小修改，无需直接操作 Git 或
-Markdown。
+## 为什么需要 Git Leaf？
 
-Git Leaf 把在线文档的关键便利带回本地优先的文件库：用易读界面维护内容，通过 Git 共享更新，也能用
-一个 URL 直接打开本机对应文档。
+- 团队把 Markdown 知识库保存在 Git 中，方便 Agent、开发者和自动化直接使用这些文件，但对市场、运营等
+  同事来说，理解和处理 Git 同步往往过于复杂。
+- 非技术同事更多是在阅读现有文档、定位具体内容和检查 Agent 的修改，而不是从空白页面持续写笔记，却常常
+  只能使用以编辑或开发为中心的工具。
+- 团队不应该在“Agent 可以直接使用的文件”和“普通同事熟悉的文档体验”之间二选一，也不应该为了方便人
+  阅读而维护第二份内容。
+
+## 为什么不直接使用 Obsidian？
+
+- Obsidian 以编辑为先，[Live Preview](https://help.obsidian.md/Live%2Bpreview%2Bupdate) 让笔记在可编辑状态中
+  接近最终呈现；Git Leaf 以 Preview 为先，文档默认以完整呈现效果打开，重点是阅读和检查。
+- 只需要预览文档、精确定位、少量编辑和 Agent 协作的团队，并不需要 Obsidian 提供的许多笔记与知识管理
+  功能。
+- 知识库不在 Git 中时，Obsidian 可能更合适；Git 已经承载人与 Agent 的共享上下文，而非技术同事不应该
+  日常操作 Git 时，Git Leaf 是更专注的选择。
+
+## 核心功能
+
+- **Preview First，需要时再编辑。** Markdown／MDX 文档默认在 Preview 中以完整呈现效果打开，并保留
+  源文件行号和文本选区；需要小改时，再切换到 Live 或 Source 编辑原文件。
+- **准确的 Agent 上下文。** 选择单个文件中带源位置的几行，或组合多个文件的内容，复制为 Agent 可以
+  直接使用的 Markdown 上下文。
+- **无感更新，受控发布。** Git Leaf 在安全时自动应用远端更新；用户决定发布时，一次操作提交并推送当前
+  仓库的全部本地改动。
+- **像在线文档一样发送链接。** 同事或 Agent 可以在聊天中发送 Git Leaf HTTPS 链接，接收者点开后即可在
+  本地知识库中打开对应文档。Git Leaf 只会在确认已发布版本后生成可供同事使用的版本化分享链接。
+- **Agent 可读的数据，人可读的图表。** 受控 MDX 把图表、表格和指标的数据保留为仓库中的可读文本，让
+  Agent 直接修改数据，让人通过 Git Leaf 查看可视化结果。
 
 [**下载 macOS 版**](https://gitleaf.mangofuture.com/download?lang=zh-CN#macos) ·
 [Windows Preview](https://gitleaf.mangofuture.com/download?lang=zh-CN#windows) ·
@@ -105,17 +132,6 @@ Preview 负责呈现文档，Source 和 Live 仍编辑原文件，不需要同�
 | AI Agent | Codex、Claude、Copilot 或其他 Agent 客户端 | 直接读取和修改文件 |
 | 阅读或做范围明确修改的团队成员 | **Git Leaf** | 通过面向文档的桌面界面使用仓库 |
 | 开发者和仓库维护者 | IDE、终端和 Git 工具 | 完整控制分支、diff、冲突、代码和自动化 |
-
-### 为什么不直接使用 VS Code 或 Obsidian？
-
-如果所有对仓库负责的人都熟悉开发工具，并且需要完整控制 Git，应该使用
-[VS Code](https://code.visualstudio.com/docs/sourcecontrol/overview)。如果工作的中心是一个供人记录、
-链接和扩展的 Vault，即使也使用 Git 同步，[Obsidian](https://obsidian.md/help/Files%2Band%2Bfolders/How%2BObsidian%2Bstores%2Bdata)
-仍然更合适。
-
-当 Agent 直接使用仓库，而对其中内容含义和正确性负责的人需要以易读、专注的方式检查和修正同一批文件时，
-Git Leaf 才是更合适的选项。它不是为了让 Git 更强，而是让团队里不使用开发工具的人，也能参与 Agent
-上下文仓库的日常维护。
 
 ## 下载
 

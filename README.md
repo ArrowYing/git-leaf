@@ -1,20 +1,55 @@
 ---
-last_updated: 2026-08-01
+last_updated: 2026-08-02
 ---
 
 # Git Leaf
 
 English | [简体中文](README.zh-CN.md)
 
-A desktop interface for Git repositories used as shared context by teams and AI agents.
+Git Leaf is a desktop app that gives non-technical teammates a simple way to review and maintain
+Markdown knowledge bases stored in Git and shared with AI agents.
 
-One repository for agents. A familiar interface for people.
+If your team keeps a Markdown knowledge base in Git so people and agents can work with the same context
+and maintain it together, Git Leaf is a preview-first alternative that is simpler and more practical
+than Obsidian.
 
-AI agents work directly in Git. People use Git Leaf to read, inspect, and make focused edits without
-working directly in Git or Markdown.
+## Why Git Leaf?
 
-Git Leaf brings the convenience people expect from online documents to local-first files: a readable
-interface, shared updates through Git, and URLs that open the right local document.
+- Keeping a Markdown knowledge base in Git lets agents, developers, and automation work directly with
+  the files, but understanding and managing Git synchronization is often too complex for marketing,
+  operations, and other non-technical teammates.
+- Non-technical teammates spend more time reading existing documents, locating specific content, and
+  reviewing agent changes than writing notes from scratch, yet the available tools are often centered
+  on editing or development.
+- Teams should not have to choose between files that agents can use directly and a familiar document
+  experience, nor maintain a second copy of the same knowledge for people.
+
+## Why not Obsidian?
+
+- Obsidian is editing-first: [Live Preview](https://help.obsidian.md/Live%2Bpreview%2Bupdate) keeps notes
+  editable while showing a near-rendered result. Git Leaf is preview-first: documents open in a fully
+  rendered Preview designed for reading and review.
+- Teams that only need document previews, precise references, small edits, and agent collaboration do
+  not need many of Obsidian's broader note-taking and knowledge-management features.
+- Obsidian may be the better fit when the knowledge base does not live in Git; Git Leaf is the more
+  focused choice when Git carries shared context for people and agents but non-technical teammates
+  should not operate Git.
+
+## Core features
+
+- **Preview first, edit when needed.** Markdown and MDX documents open in a fully rendered Preview with
+  source-backed line numbers and text selection; Live and Source remain available for focused edits to
+  the original files.
+- **Precise context for agents.** Users can select source-backed lines from one file or combine content
+  from multiple files, then copy portable Markdown context for an agent.
+- **Quiet updates, controlled publishing.** Git Leaf applies remote updates automatically when safe;
+  when a user chooses to publish, one action commits and pushes all local changes in the current
+  repository.
+- **Links that share like online documents.** Teammates and agents can send Git Leaf HTTPS links in chat,
+  letting recipients open the matching document in their local knowledge base. Git Leaf creates a
+  versioned share link only after verifying the published revision.
+- **Agent-readable data, human-readable visuals.** Controlled MDX keeps chart, table, and metric data as
+  readable repository text that agents can edit and Git Leaf can render for people.
 
 [**Download for macOS**](https://gitleaf.mangofuture.com/download#macos) ·
 [Windows Preview](https://gitleaf.mangofuture.com/download#windows) ·
@@ -121,19 +156,6 @@ Each participant can use the interface suited to their work while the files rema
 | AI agents | Codex, Claude, Copilot, or another agent client | Read and modify the files directly |
 | Team members reading or making focused edits | **Git Leaf** | Use the repository through a document-oriented desktop interface |
 | Developers and repository maintainers | An IDE, terminal, and Git tools | Keep full control of branches, diffs, conflicts, code, and automation |
-
-### Why not VS Code or Obsidian?
-
-Use [VS Code](https://code.visualstudio.com/docs/sourcecontrol/overview) when everyone responsible for
-the repository is comfortable with developer tools and wants complete Git control. Use
-[Obsidian](https://obsidian.md/help/Files%2Band%2Bfolders/How%2BObsidian%2Bstores%2Bdata) when a Vault
-and its note-taking, linking, and plugin system are the center of the work, even if Git is used for
-synchronization.
-
-Git Leaf is the option when agents work directly in the repository but the people responsible for its
-meaning and correctness need a readable, focused way to inspect and correct the same files. Its job is
-not to make Git more powerful; it is to let the rest of the team participate without turning their
-daily work into a developer workflow.
 
 ## Download
 
