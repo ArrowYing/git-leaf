@@ -403,7 +403,7 @@ Open Settings and Help with `Command+,` on macOS or `Ctrl+,` on Windows. From th
 - build, update, and usage-analytics settings available for the installed distribution.
 
 The same screen contains Git Leaf Help, supported file types, environment and repository status, and
-the complete keyboard-shortcut list. Open shortcuts directly with `Command+/` on macOS or `Ctrl+/` on
+the complete keyboard-shortcut list. Open shortcuts directly with `Command+?` on macOS or `Ctrl+?` on
 Windows.
 
 ## When to use another tool

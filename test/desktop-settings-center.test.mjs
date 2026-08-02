@@ -316,7 +316,7 @@ test("settings IPC authorizes its own view and whitelists model, preference, and
           title: resolvedLanguage === "zh-CN" ? "仓库文件" : "Repository files",
           body: ["帮助内容"],
         }],
-        shortcutGroups: [{ title: "Help", shortcuts: [{ keys: "Command+/", action: "Help" }] }],
+        shortcutGroups: [{ title: "Help", shortcuts: [{ keys: "Command+?", action: "Help" }] }],
       };
     },
     checkForUpdates: async () => {
@@ -333,7 +333,7 @@ test("settings IPC authorizes its own view and whitelists model, preference, and
   assert.equal(model.resolvedLanguage, "zh-CN");
   assert.equal(model.status.repository.name, "git-leaf");
   assert.equal(model.helpSections[0].title, "仓库文件");
-  assert.equal(model.shortcutGroups[0].shortcuts[0].keys, "Command+/");
+  assert.equal(model.shortcutGroups[0].shortcuts[0].keys, "Command+?");
   assert.deepEqual(contentLanguages, ["zh-CN", "zh-CN"]);
   assert.deepEqual(statusLanguages, ["zh-CN", "zh-CN"]);
 

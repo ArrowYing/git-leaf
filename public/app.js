@@ -121,7 +121,10 @@ import {
   workbenchSessionForLaunch,
   workbenchSessionForRepo,
 } from "./workbench-session.js";
-import { getKeyboardShortcutGroups } from "./keyboard-shortcuts.js";
+import {
+  getKeyboardShortcutGroups,
+  isKeyboardShortcutsHelpShortcut,
+} from "./keyboard-shortcuts.js";
 import {
   findTextRanges,
   nextSearchIndex,
@@ -6241,7 +6244,7 @@ function shortcutActionFromKeyboardEvent(event) {
     return { command: "find-in-document" };
   }
 
-  if (key === "/" || key === "?") {
+  if (isKeyboardShortcutsHelpShortcut(event)) {
     return { command: "show-keyboard-shortcuts" };
   }
 

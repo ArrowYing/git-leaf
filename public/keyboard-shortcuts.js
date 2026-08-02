@@ -62,10 +62,28 @@ const SHORTCUT_GROUPS = Object.freeze([
     titleKey: "shortcuts.help",
     shortcuts: [
       ["Command+,", "shortcut.openSettings"],
-      ["Command+/", "shortcut.openShortcuts"],
+      ["Command+?", "shortcut.openShortcuts"],
     ],
   },
 ]);
+
+export function isKeyboardShortcutsHelpShortcut({
+  key = "",
+  code = "",
+  metaKey = false,
+  ctrlKey = false,
+  shiftKey = false,
+  altKey = false,
+  isComposing = false,
+} = {}) {
+  return (
+    !isComposing &&
+    (metaKey || ctrlKey) &&
+    shiftKey &&
+    !altKey &&
+    (String(key) === "?" || String(code) === "Slash")
+  );
+}
 
 export function getKeyboardShortcutGroups(locale = "en") {
   const t = createTranslator(WORKBENCH_MESSAGES, locale);

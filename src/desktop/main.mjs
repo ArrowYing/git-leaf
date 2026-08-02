@@ -129,7 +129,10 @@ import {
   getFileTypeHelpRows,
   getGitLeafHelpSections,
 } from "../../public/help-content.js";
-import { getKeyboardShortcutGroups } from "../../public/keyboard-shortcuts.js";
+import {
+  getKeyboardShortcutGroups,
+  isKeyboardShortcutsHelpShortcut,
+} from "../../public/keyboard-shortcuts.js";
 import { isToggleFavoriteShortcut } from "../../public/sidebar-favorites.js";
 import { sidebarTabFromShortcut } from "../../public/sidebar-navigation.js";
 
@@ -889,17 +892,27 @@ function desktopShellShortcutFromInput(input) {
   const ctrl = input.control === true;
   const shift = input.shift === true;
   const alt = input.alt === true;
-  if (alt || shift) {
+  if (alt) {
     return null;
   }
-  if (settingsCenter?.visible && key === "escape") {
+  if (!shift && settingsCenter?.visible && key === "escape") {
     return { command: "close-settings" };
   }
-  if ((meta || ctrl) && (key === "," || code === "Comma")) {
+  if (!shift && (meta || ctrl) && (key === "," || code === "Comma")) {
     return { command: "show-settings", section: "general" };
   }
-  if ((meta || ctrl) && (key === "/" || code === "Slash")) {
+  if (isKeyboardShortcutsHelpShortcut({
+    key,
+    code,
+    metaKey: meta,
+    ctrlKey: ctrl,
+    shiftKey: shift,
+    altKey: alt,
+  })) {
     return { command: "show-settings", section: "shortcuts" };
+  }
+  if (shift) {
+    return null;
   }
   if (process.platform === "darwin" && meta && !ctrl && key === "m") {
     return { command: "minimize-window" };

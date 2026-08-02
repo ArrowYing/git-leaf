@@ -366,7 +366,10 @@
       showSection("general");
       return;
     }
-    if (event.code === "Slash" || event.key === "/" || event.key === "?") {
+    if (
+      event.shiftKey &&
+      (event.code === "Slash" || event.key === "?")
+    ) {
       event.preventDefault();
       event.stopPropagation();
       showSection("shortcuts");

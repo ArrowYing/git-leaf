@@ -4,8 +4,27 @@ import test from "node:test";
 import {
   KEYBOARD_SHORTCUT_GROUPS,
   getKeyboardShortcutGroups,
+  isKeyboardShortcutsHelpShortcut,
   keyboardShortcutsPlainText,
 } from "../public/keyboard-shortcuts.js";
+
+test("Command-question-mark and Ctrl-question-mark open keyboard shortcut help", () => {
+  assert.equal(isKeyboardShortcutsHelpShortcut({ key: "?", metaKey: true, shiftKey: true }), true);
+  assert.equal(
+    isKeyboardShortcutsHelpShortcut({ code: "Slash", ctrlKey: true, shiftKey: true }),
+    true,
+  );
+  assert.equal(isKeyboardShortcutsHelpShortcut({ key: "/", metaKey: true }), false);
+  assert.equal(isKeyboardShortcutsHelpShortcut({ key: "?", metaKey: true }), false);
+  assert.equal(
+    isKeyboardShortcutsHelpShortcut({ key: "?", metaKey: true, shiftKey: true, altKey: true }),
+    false,
+  );
+  assert.equal(
+    isKeyboardShortcutsHelpShortcut({ key: "?", metaKey: true, shiftKey: true, isComposing: true }),
+    false,
+  );
+});
 
 test("keyboard shortcut help keeps the agreed Git Leaf shortcuts", () => {
   const text = keyboardShortcutsPlainText();
@@ -47,7 +66,7 @@ test("keyboard shortcut help keeps the agreed Git Leaf shortcuts", () => {
   assert.match(text, /ArrowLeft\/Right\s+Collapse or Expand Folder/);
   assert.match(text, /Enter\s+Open Selected File/);
   assert.match(text, /Command\+,\s+Open Settings/);
-  assert.match(text, /Command\+\/\s+Open Keyboard Shortcuts/);
+  assert.match(text, /Command\+\?\s+Open Keyboard Shortcuts/);
 });
 
 test("keyboard shortcut help localizes labels without changing key bindings", () => {
