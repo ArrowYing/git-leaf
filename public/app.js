@@ -3959,25 +3959,24 @@ function handleFileTreeContextMenu(event) {
         ]
       : [
         ...(favoriteItem ? [favoriteItem, null] : []),
-        { id: "new-document", label: t("menu.newDocumentSameLocation"), disabled: !canEditCurrentRepo() },
         {
           id: "open-new-tab",
           label: t("menu.openNewTab"),
           shortcuts: ["Command+Click", "Command+Enter"],
         },
+        { id: "open-github", label: t("menu.openGitHub"), shortcut: "Command+Shift+G", disabled: !githubUrl },
+        { id: "reveal-finder", label: revealInFileManagerLabel(), shortcut: "Command+Shift+R", disabled: !canEditCurrentRepo() },
+        null,
+        ...(isMarkdownPath(path) ? [{ id: "copy-share", label: t("action.copyShareLink"), shortcut: "Command+Shift+L" }] : []),
+        { id: "copy-path", label: t("menu.copyPath"), shortcut: "Command+Shift+C" },
+        null,
+        { id: "new-document", label: t("menu.newDocumentSameLocation"), disabled: !canEditCurrentRepo() },
         ...(isRegularFile
           ? [
-              null,
               { id: "rename-file", label: t("menu.renameFile"), shortcut: "F2", disabled: !canEditCurrentRepo() },
               { id: "delete-path", label: t("menu.deleteFile"), disabled: !canEditCurrentRepo() },
             ]
           : []),
-        null,
-        ...(isMarkdownPath(path) ? [{ id: "copy-share", label: t("action.copyShareLink"), shortcut: "Command+Shift+L" }] : []),
-        { id: "reveal-finder", label: revealInFileManagerLabel(), shortcut: "Command+Shift+R", disabled: !canEditCurrentRepo() },
-        null,
-        { id: "open-github", label: t("menu.openGitHub"), shortcut: "Command+Shift+G", disabled: !githubUrl },
-        { id: "copy-path", label: t("menu.copyPath"), shortcut: "Command+Shift+C" },
       ];
   showFileActionMenu(items, {
     x: event.clientX,
