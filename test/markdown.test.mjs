@@ -216,6 +216,30 @@ Paragraph line two
   assert.match(html, /aria-label="Source line numbers"/);
 });
 
+test("renderMarkdown aligns fenced-code controls with the source lines visible in Preview", () => {
+  const html = renderMarkdown(`Before
+
+\`\`\`text
+first
+
+third
+\`\`\`
+`);
+  const codeBlock = html.match(
+    /<div class="source-block"[^>]*data-source-start="4"[\s\S]*?<\/pre>/,
+  )?.[0] ?? "";
+
+  assert.match(codeBlock, /data-source-end="6"/);
+  assert.match(codeBlock, /data-source-line-layout="code"/);
+  for (const line of [4, 5, 6]) {
+    assert.match(codeBlock, new RegExp(`data-source-line="${line}"`));
+    assert.match(codeBlock, new RegExp(`data-source-code-line="${line}"`));
+  }
+  assert.doesNotMatch(codeBlock, /data-source-line="3"/);
+  assert.doesNotMatch(codeBlock, /data-source-line="7"/);
+  assert.match(codeBlock, /data-source-code-line="5"><\/span>/);
+});
+
 test("renderMarkdown localizes source line controls without changing document content", () => {
   const html = renderMarkdown("# 用户标题\n", { locale: "zh-CN" });
 

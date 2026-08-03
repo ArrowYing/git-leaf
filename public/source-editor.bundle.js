@@ -35867,8 +35867,28 @@ function createRenderer(options) {
       "</span>"
     ].join("");
   };
-  renderer.renderer.rules.fence = (tokens, index, rendererOptions, env, self) => sourceBlockOpen(tokens[index], env) + originalFence(tokens, index, rendererOptions, env, self) + sourceBlockClose();
-  renderer.renderer.rules.code_block = (tokens, index, rendererOptions, env, self) => sourceBlockOpen(tokens[index], env) + originalCodeBlock(tokens, index, rendererOptions, env, self) + sourceBlockClose();
+  renderer.renderer.rules.fence = (tokens, index, rendererOptions, env, self) => {
+    const token = tokens[index];
+    const sourceLines = renderedCodeSourceLines(token, env, { fenced: true });
+    return sourceBlockOpen(token, env, {
+      lineLayout: "code",
+      lines: sourceLines
+    }) + annotateRenderedCodeLines(
+      originalFence(tokens, index, rendererOptions, env, self),
+      sourceLines
+    ) + sourceBlockClose();
+  };
+  renderer.renderer.rules.code_block = (tokens, index, rendererOptions, env, self) => {
+    const token = tokens[index];
+    const sourceLines = renderedCodeSourceLines(token, env);
+    return sourceBlockOpen(token, env, {
+      lineLayout: "code",
+      lines: sourceLines
+    }) + annotateRenderedCodeLines(
+      originalCodeBlock(tokens, index, rendererOptions, env, self),
+      sourceLines
+    ) + sourceBlockClose();
+  };
   renderer.renderer.rules.bullet_list_open = (tokens, index, rendererOptions, env, self) => {
     const shouldWrapList = beginList(env, tokens[index]);
     return (shouldWrapList ? sourceBlockOpen(tokens[index], env, {
@@ -36092,7 +36112,7 @@ function sourceBlockOpen(token, env, {
   }
   const fallbackStart = token.map[0] + (env.lineOffset ?? 0) + 1;
   const fallbackEnd = token.map[1] + (env.lineOffset ?? 0);
-  const lineNumbers2 = Array.isArray(lines) && lines.length > 0 ? [...new Set(lines)].filter(Number.isInteger).sort((left, right) => left - right) : Array.from({ length: fallbackEnd - fallbackStart + 1 }, (_, index) => fallbackStart + index);
+  const lineNumbers2 = Array.isArray(lines) ? [...new Set(lines)].filter(Number.isInteger).sort((left, right) => left - right) : Array.from({ length: fallbackEnd - fallbackStart + 1 }, (_, index) => fallbackStart + index);
   const lineRanges = Array.isArray(ranges) && ranges.length > 0 ? ranges.filter((range) => Number.isInteger(range?.start) && Number.isInteger(range?.end)).map((range) => ({
     start: Math.min(range.start, range.end),
     end: Math.max(range.start, range.end)
@@ -36121,6 +36141,38 @@ function sourceBlockOpen(token, env, {
 }
 function sourceBlockClose() {
   return "</div></div>";
+}
+function renderedCodeSourceLines(token, env, { fenced = false } = {}) {
+  if (!token?.map) {
+    return [];
+  }
+  const content2 = String(token.content ?? "");
+  if (!content2) {
+    return [];
+  }
+  const renderedLineCount = content2.endsWith("\n") ? content2.slice(0, -1).split("\n").length : content2.split("\n").length;
+  const firstLine = token.map[0] + (env.lineOffset ?? 0) + (fenced ? 2 : 1);
+  return Array.from({ length: renderedLineCount }, (_, index) => firstLine + index);
+}
+function annotateRenderedCodeLines(renderedHtml, sourceLines) {
+  if (!Array.isArray(sourceLines) || sourceLines.length === 0) {
+    return renderedHtml;
+  }
+  const codeStart = renderedHtml.indexOf("<code");
+  const contentStart = codeStart >= 0 ? renderedHtml.indexOf(">", codeStart) + 1 : -1;
+  const contentEnd = renderedHtml.lastIndexOf("</code>");
+  if (contentStart <= 0 || contentEnd < contentStart) {
+    return renderedHtml;
+  }
+  const renderedContent = renderedHtml.slice(contentStart, contentEnd);
+  const hasTrailingNewline = renderedContent.endsWith("\n");
+  const contentWithoutTrailingNewline = hasTrailingNewline ? renderedContent.slice(0, -1) : renderedContent;
+  const renderedLines = contentWithoutTrailingNewline.split("\n");
+  if (renderedLines.length !== sourceLines.length) {
+    return renderedHtml;
+  }
+  const annotatedContent = renderedLines.map((line, index) => `<span class="source-code-line" data-source-code-line="${sourceLines[index]}">${line}</span>`).join("\n");
+  return renderedHtml.slice(0, contentStart) + annotatedContent + (hasTrailingNewline ? "\n" : "") + renderedHtml.slice(contentEnd);
 }
 function listItemSourceLines(tokens, startIndex, env) {
   const lines = [];

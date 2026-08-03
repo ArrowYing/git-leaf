@@ -2590,7 +2590,8 @@ summary.has-operation-feedback {
 }
 
 .source-line-gutter[data-source-line-layout="list"],
-.source-line-gutter[data-source-line-layout="table"] {
+.source-line-gutter[data-source-line-layout="table"],
+.source-line-gutter[data-source-line-layout="code"] {
   display: block;
   height: 100%;
 }
@@ -2616,10 +2617,19 @@ summary.has-operation-feedback {
 }
 
 .source-line-gutter[data-source-line-layout="list"] .source-line-button,
-.source-line-gutter[data-source-line-layout="table"] .source-line-button {
+.source-line-gutter[data-source-line-layout="table"] .source-line-button,
+.source-line-gutter[data-source-line-layout="code"] .source-line-button {
   position: absolute;
   left: 0;
   top: var(--source-line-top, 0px);
+}
+
+.source-code-line {
+  position: relative;
+}
+
+.source-code-line:empty::before {
+  content: "\200b";
 }
 
 .source-line-button[data-source-end] {

@@ -342,7 +342,7 @@ const state = {
   lastSourceVisibleLine: null,
   lastPreviewVisibleLine: null,
   selectionPopoverFrame: null,
-  listSourceLineGutterFrame: null,
+  anchoredSourceLineGutterFrame: null,
   lastWrittenHash: null,
   outlineItems: [],
   copyToastTimer: null,
@@ -2788,6 +2788,7 @@ function applyAppearancePreferences(preferences) {
   document.documentElement.style.setProperty("--document-font-size", `${state.documentFontSize}px`);
   updateThemeToggle();
   state.sourceEditor?.setTheme(state.theme);
+  scheduleAnchoredSourceLineGutterSync();
 }
 
 function toggleWebTheme() {
@@ -9481,12 +9482,12 @@ function positionSelectionPopover() {
 }
 
 function scheduleAnchoredSourceLineGutterSync() {
-  if (state.listSourceLineGutterFrame) {
+  if (state.anchoredSourceLineGutterFrame) {
     return;
   }
 
-  state.listSourceLineGutterFrame = window.requestAnimationFrame(() => {
-    state.listSourceLineGutterFrame = null;
+  state.anchoredSourceLineGutterFrame = window.requestAnimationFrame(() => {
+    state.anchoredSourceLineGutterFrame = null;
     syncAnchoredSourceLineGutters();
   });
 }
@@ -9495,6 +9496,7 @@ function syncAnchoredSourceLineGutters() {
   const gutters = documentContent.querySelectorAll([
     '.source-line-gutter[data-source-line-layout="list"]',
     '.source-line-gutter[data-source-line-layout="table"]',
+    '.source-line-gutter[data-source-line-layout="code"]',
   ].join(","));
   for (const gutter of gutters) {
     const block = gutter.closest(".source-block");
@@ -9503,9 +9505,10 @@ function syncAnchoredSourceLineGutters() {
       continue;
     }
 
-    const anchorAttribute = gutter.dataset.sourceLineLayout === "table"
+    const layout = gutter.dataset.sourceLineLayout;
+    const anchorAttribute = layout === "table"
       ? "data-source-table-line"
-      : "data-source-list-line";
+      : (layout === "code" ? "data-source-code-line" : "data-source-list-line");
     for (const button of gutter.querySelectorAll("[data-source-line]")) {
       const line = button.dataset.sourceLine;
       const anchor = block.querySelector(`[${anchorAttribute}="${line}"]`);
@@ -9514,7 +9517,11 @@ function syncAnchoredSourceLineGutters() {
         continue;
       }
 
-      const top = Math.max(0, anchorRect.top - blockRect.top);
+      const buttonRect = button.getBoundingClientRect();
+      const centerOffset = layout === "code"
+        ? (anchorRect.height - buttonRect.height) / 2
+        : 0;
+      const top = Math.max(0, anchorRect.top - blockRect.top + centerOffset);
       button.style.setProperty("--source-line-top", `${top}px`);
     }
   }
