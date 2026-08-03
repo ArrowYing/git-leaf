@@ -16,6 +16,7 @@ import { isOfficialDistribution } from "../build-info.mjs";
 
 export const TELEMETRY_SCHEMA_VERSION = 1;
 export const DEFAULT_TELEMETRY_ENDPOINT = "https://gitleaf.mangofuture.com/telemetry/v1/events";
+export const ACTIVITY_DURATION_CONTRACT = "foreground_interactive_v1";
 
 const STATE_FILENAME = "telemetry-state.json";
 const QUEUE_FILENAME = "telemetry-queue.json";
@@ -27,6 +28,7 @@ const MAX_QUEUE_BYTES = 1024 * 1024;
 const MAX_QUEUE_AGE_DAYS = 30;
 const MAX_BACKOFF_MS = 6 * 60 * 60 * 1000;
 const CHECKPOINT_DELAY_MS = 500;
+const MAX_DAILY_DURATION_MS = 172_800_000;
 const ENTRY_KINDS = new Set(["manual", "deep_link", "update_restart", "windows_bootstrap", "unknown"]);
 const MODES = new Set(["preview", "source", "live"]);
 const CLIENT_PLATFORMS = new Set(["darwin", "win32"]);
@@ -293,17 +295,13 @@ export function createTelemetryClient({
       return true;
     },
     recordActiveMinute(mode = "preview") {
-      if (!MODES.has(mode)) return false;
-      if (!ready()) return bufferOperation({ kind: "active_minute", mode });
-      const day = currentDay();
-      if (day.activeMinutes < 1_000_000) {
-        day.activeMinutes = incrementCount(day.activeMinutes);
-        day.modeMinutes[mode] = incrementCount(day.modeMinutes[mode]);
-      }
-      day.dirty = true;
-      scheduleCheckpoint();
-      return true;
+      return recordActivityDuration({
+        foregroundMs: 60_000,
+        interactiveMs: 60_000,
+        mode,
+      });
     },
+    recordActivityDuration,
     recordUpdateState(update) {
       const properties = normalizeUpdateProperties(update, { appVersion: buildInfo.version });
       if (!properties) return false;
@@ -378,6 +376,15 @@ export function createTelemetryClient({
     return enabled && operational && initialized && state && queue;
   }
 
+  function recordActivityDuration({ foregroundMs, interactiveMs, mode = "preview", localDate } = {}) {
+    const duration = normalizeActivityDuration({ foregroundMs, interactiveMs, mode, localDate });
+    if (!duration || (duration.localDate && duration.localDate > localDateFor(now()))) return false;
+    if (!ready()) return bufferOperation({ kind: "activity_duration", duration });
+    const recorded = apiRecordActivityDuration(duration);
+    if (recorded) scheduleCheckpoint();
+    return recorded;
+  }
+
   function bufferOperation(operation) {
     if (!enabled || !operational || !initializationStarted || initialized) return false;
     if (pendingOperations.length >= 200) pendingOperations.shift();
@@ -394,7 +401,13 @@ export function createTelemetryClient({
       case "feature":
         return apiRecordFeature(operation.action);
       case "active_minute":
-        return apiRecordActiveMinute(operation.mode);
+        return apiRecordActivityDuration({
+          foregroundMs: 60_000,
+          interactiveMs: 60_000,
+          mode: operation.mode,
+        });
+      case "activity_duration":
+        return apiRecordActivityDuration(operation.duration);
       case "update":
         enqueueEvent("git_leaf.update.state_changed", operation.properties);
         return true;
@@ -445,13 +458,40 @@ export function createTelemetryClient({
     return true;
   }
 
-  function apiRecordActiveMinute(mode) {
-    const day = currentDay();
-    if (day.activeMinutes < 1_000_000) {
-      day.activeMinutes = incrementCount(day.activeMinutes);
-      day.modeMinutes[mode] = incrementCount(day.modeMinutes[mode]);
+  function apiRecordActivityDuration({ foregroundMs, interactiveMs, mode, localDate }) {
+    const summaryDate = localDate ?? localDateFor(now());
+    state.days[summaryDate] ??= emptyDay({
+      installId: state.installId,
+      localDate: summaryDate,
+    });
+    const day = state.days[summaryDate];
+    const remainingForegroundMs = Math.max(0, MAX_DAILY_DURATION_MS - day.foregroundExposureMs);
+    const acceptedForegroundMs = Math.min(remainingForegroundMs, foregroundMs);
+    const acceptedInteractiveMs = Math.min(
+      acceptedForegroundMs,
+      Math.max(0, MAX_DAILY_DURATION_MS - day.interactiveActiveMs),
+      interactiveMs,
+    );
+    if (acceptedForegroundMs <= 0) return false;
+    day.foregroundExposureMs += acceptedForegroundMs;
+    day.interactiveActiveMs += acceptedInteractiveMs;
+    day.modeForegroundExposureMs[mode] += acceptedForegroundMs;
+    day.modeInteractiveMs[mode] += acceptedInteractiveMs;
+    if (day.activityDurationContract === ACTIVITY_DURATION_CONTRACT) {
+      projectInteractiveMillisecondsToLegacyMinutes(day);
+    } else {
+      day.legacyInteractiveRemainderMs += acceptedInteractiveMs;
+      while (day.legacyInteractiveRemainderMs >= 60_000 && day.activeMinutes < 1_000_000) {
+        day.legacyInteractiveRemainderMs -= 60_000;
+        day.activeMinutes = incrementCount(day.activeMinutes);
+        day.modeMinutes[mode] = incrementCount(day.modeMinutes[mode]);
+      }
     }
     day.dirty = true;
+    if (summaryDate < localDateFor(now())) {
+      enqueueDailySummary(day);
+      day.lastAutoQueuedRevision = day.revision;
+    }
     return true;
   }
 
@@ -669,6 +709,7 @@ function normalizeDays(value, installId) {
   for (const [localDate, raw] of Object.entries(value)) {
     if (!validLocalDate(localDate) || !raw || typeof raw !== "object") continue;
     const fallback = emptyDay({ installId, localDate });
+    const durationState = normalizeActivityDurationState(raw);
     days[localDate] = {
       ...fallback,
       ...raw,
@@ -693,10 +734,42 @@ function normalizeDays(value, installId) {
         source: nonNegativeInteger(raw.modeMinutes?.source),
         live: nonNegativeInteger(raw.modeMinutes?.live),
       },
+      ...durationState,
       featureCounters: normalizeFeatureCounters(raw.featureCounters),
     };
   }
   return days;
+}
+
+function normalizeActivityDurationState(raw) {
+  const foregroundExposureMs = boundedDurationMilliseconds(raw.foregroundExposureMs);
+  const interactiveActiveMs = boundedDurationMilliseconds(raw.interactiveActiveMs);
+  const modeForegroundExposureMs = normalizeDurationModeMap(raw.modeForegroundExposureMs);
+  const modeInteractiveMs = normalizeDurationModeMap(raw.modeInteractiveMs);
+  const balanced = interactiveActiveMs <= foregroundExposureMs &&
+    sumCounts(modeForegroundExposureMs) === foregroundExposureMs &&
+    sumCounts(modeInteractiveMs) === interactiveActiveMs &&
+    [...MODES].every((mode) => modeInteractiveMs[mode] <= modeForegroundExposureMs[mode]);
+  if (!balanced) {
+    return {
+      activityDurationContract: "",
+      foregroundExposureMs: 0,
+      interactiveActiveMs: 0,
+      modeForegroundExposureMs: { preview: 0, source: 0, live: 0 },
+      modeInteractiveMs: { preview: 0, source: 0, live: 0 },
+      legacyInteractiveRemainderMs: 0,
+    };
+  }
+  return {
+    activityDurationContract: raw.activityDurationContract === ACTIVITY_DURATION_CONTRACT
+      ? ACTIVITY_DURATION_CONTRACT
+      : "",
+    foregroundExposureMs,
+    interactiveActiveMs,
+    modeForegroundExposureMs,
+    modeInteractiveMs,
+    legacyInteractiveRemainderMs: boundedRemainderMilliseconds(raw.legacyInteractiveRemainderMs),
+  };
 }
 
 function emptyDay({ installId, localDate }) {
@@ -716,8 +789,60 @@ function emptyDay({ installId, localDate }) {
     worktreeSwitchCount: 0,
     repositoryKeys: {},
     modeMinutes: { preview: 0, source: 0, live: 0 },
+    activityDurationContract: ACTIVITY_DURATION_CONTRACT,
+    foregroundExposureMs: 0,
+    interactiveActiveMs: 0,
+    modeForegroundExposureMs: { preview: 0, source: 0, live: 0 },
+    modeInteractiveMs: { preview: 0, source: 0, live: 0 },
+    legacyInteractiveRemainderMs: 0,
     featureCounters: {},
   };
+}
+
+function normalizeActivityDuration({ foregroundMs, interactiveMs, mode, localDate }) {
+  if (!MODES.has(mode) ||
+      !Number.isSafeInteger(foregroundMs) || foregroundMs <= 0 ||
+      !Number.isSafeInteger(interactiveMs) || interactiveMs < 0 ||
+      interactiveMs > foregroundMs ||
+      (localDate !== undefined && !validLocalDate(localDate))) return null;
+  return { foregroundMs, interactiveMs, mode, ...(localDate ? { localDate } : {}) };
+}
+
+function projectInteractiveMillisecondsToLegacyMinutes(day) {
+  const activeMinutes = Math.min(1_000_000, Math.floor(day.interactiveActiveMs / 60_000));
+  const projected = Object.fromEntries([...MODES].map((mode) => [
+    mode,
+    Math.floor(day.modeInteractiveMs[mode] / 60_000),
+  ]));
+  let remaining = activeMinutes - sumCounts(projected);
+  const remainderOrder = [...MODES].sort((left, right) =>
+    (day.modeInteractiveMs[right] % 60_000) - (day.modeInteractiveMs[left] % 60_000) ||
+    left.localeCompare(right)
+  );
+  for (const mode of remainderOrder) {
+    if (remaining <= 0) break;
+    projected[mode] += 1;
+    remaining -= 1;
+  }
+  day.activeMinutes = activeMinutes;
+  day.modeMinutes = projected;
+}
+
+function boundedDurationMilliseconds(value) {
+  return Number.isSafeInteger(value) && value >= 0
+    ? Math.min(MAX_DAILY_DURATION_MS, value)
+    : 0;
+}
+
+function boundedRemainderMilliseconds(value) {
+  return Number.isSafeInteger(value) && value >= 0 && value < 60_000 ? value : 0;
+}
+
+function normalizeDurationModeMap(value) {
+  return Object.fromEntries([...MODES].map((mode) => [
+    mode,
+    boundedDurationMilliseconds(value?.[mode]),
+  ]));
 }
 
 function dailySummaryProperties(day, repositoryLastUsed) {
@@ -736,6 +861,13 @@ function dailySummaryProperties(day, repositoryLastUsed) {
       .filter((lastUsed) => lastUsed >= rollingCutoff && lastUsed <= day.localDate).length,
     worktree_switch_count: day.worktreeSwitchCount,
     mode_minutes: { ...day.modeMinutes },
+    ...(day.activityDurationContract === ACTIVITY_DURATION_CONTRACT ? {
+      activity_duration_contract: ACTIVITY_DURATION_CONTRACT,
+      foreground_exposure_ms: day.foregroundExposureMs,
+      interactive_active_ms: day.interactiveActiveMs,
+      mode_foreground_exposure_ms: { ...day.modeForegroundExposureMs },
+      mode_interactive_ms: { ...day.modeInteractiveMs },
+    } : {}),
     feature_counts: Object.values(day.featureCounters)
       .sort((left, right) => featureCounterKey(left.featureId, left.dimensions)
         .localeCompare(featureCounterKey(right.featureId, right.dimensions)))
@@ -897,7 +1029,20 @@ function validDailySummaryProperties(properties, { installId, envelopeLocalDate 
     "feature_counts",
   ];
   const hasSummaryDate = Object.hasOwn(properties, "summary_date");
-  if (!hasExactKeys(properties, hasSummaryDate ? [...baseKeys, "summary_date"] : baseKeys)) return false;
+  const durationKeys = [
+    "activity_duration_contract",
+    "foreground_exposure_ms",
+    "interactive_active_ms",
+    "mode_foreground_exposure_ms",
+    "mode_interactive_ms",
+  ];
+  const hasDuration = durationKeys.some((key) => Object.hasOwn(properties, key));
+  const expectedKeys = [
+    ...baseKeys,
+    ...(hasSummaryDate ? ["summary_date"] : []),
+    ...(hasDuration ? durationKeys : []),
+  ];
+  if (!hasExactKeys(properties, expectedKeys)) return false;
   if (!/^[a-f0-9]{32,64}$/.test(properties.summary_id) ||
       !positiveCount(properties.revision) || properties.revision > 100_000) return false;
   if (hasSummaryDate) {
@@ -929,6 +1074,7 @@ function validDailySummaryProperties(properties, { installId, envelopeLocalDate 
   if (!modes || typeof modes !== "object" || Array.isArray(modes) ||
       !hasExactKeys(modes, ["preview", "source", "live"]) ||
       Object.values(modes).some((count) => !validCount(count))) return false;
+  if (hasDuration && !validActivityDurationProperties(properties)) return false;
   if (!Array.isArray(properties.feature_counts) || properties.feature_counts.length > 100 || properties.feature_counts.some((counter) => {
     if (!counter || typeof counter !== "object" || Array.isArray(counter)) return true;
     if (!hasOnlyKeys(counter, ["feature_id", "dimensions", "count"]) ||
@@ -944,6 +1090,30 @@ function validDailySummaryProperties(properties, { installId, envelopeLocalDate 
     properties.active_minutes === sumCounts(modes) &&
     properties.distinct_repository_count <= properties.repository_open_count &&
     properties.distinct_repository_count <= properties.rolling_30d_distinct_repository_count;
+}
+
+function validActivityDurationProperties(properties) {
+  if (properties.activity_duration_contract !== ACTIVITY_DURATION_CONTRACT) return false;
+  if (!boundedDurationValue(properties.foreground_exposure_ms) ||
+      !boundedDurationValue(properties.interactive_active_ms) ||
+      !validDurationModeMap(properties.mode_foreground_exposure_ms) ||
+      !validDurationModeMap(properties.mode_interactive_ms)) return false;
+  if (sumCounts(properties.mode_foreground_exposure_ms) !== properties.foreground_exposure_ms ||
+      sumCounts(properties.mode_interactive_ms) !== properties.interactive_active_ms ||
+      properties.interactive_active_ms > properties.foreground_exposure_ms) return false;
+  return [...MODES].every((mode) =>
+    properties.mode_interactive_ms[mode] <= properties.mode_foreground_exposure_ms[mode]
+  );
+}
+
+function validDurationModeMap(value) {
+  return value && typeof value === "object" && !Array.isArray(value) &&
+    hasExactKeys(value, [...MODES]) &&
+    Object.values(value).every(boundedDurationValue);
+}
+
+function boundedDurationValue(value) {
+  return Number.isSafeInteger(value) && value >= 0 && value <= MAX_DAILY_DURATION_MS;
 }
 
 function validCount(value) {

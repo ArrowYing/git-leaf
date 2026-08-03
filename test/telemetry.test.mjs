@@ -815,6 +815,126 @@ test("client persists anonymous installation lifecycle and revised daily summari
   assert.deepEqual(queue.events, []);
 });
 
+test("client records exact foreground and interaction duration with balanced mode totals", async () => {
+  const userDataDir = await mkdtemp(path.join(tmpdir(), "git-leaf-telemetry-duration-"));
+  const client = createTelemetryClient({
+    enabled: true,
+    userDataDir,
+    buildInfo: releaseBuild("1.18.0"),
+    now: mutableClock("2026-08-03T08:00:00.000Z").now,
+    randomUUID: sequenceUuid(),
+  });
+  await client.initialize();
+
+  assert.equal(client.recordActivityDuration({
+    foregroundMs: 90_000,
+    interactiveMs: 70_000,
+    mode: "preview",
+  }), true);
+  assert.equal(client.recordActivityDuration({
+    foregroundMs: 50_000,
+    interactiveMs: 40_000,
+    mode: "live",
+  }), true);
+  assert.equal(client.recordActivityDuration({
+    foregroundMs: 1_000,
+    interactiveMs: 2_000,
+    mode: "preview",
+  }), false);
+  await client.queueDailySummary();
+
+  const summary = client.snapshot().queue.events.find((event) =>
+    event.event_name === "git_leaf.daily.summary"
+  );
+  assert.equal(summary.properties.activity_duration_contract, "foreground_interactive_v1");
+  assert.equal(summary.properties.foreground_exposure_ms, 140_000);
+  assert.equal(summary.properties.interactive_active_ms, 110_000);
+  assert.deepEqual(summary.properties.mode_foreground_exposure_ms, {
+    preview: 90_000,
+    source: 0,
+    live: 50_000,
+  });
+  assert.deepEqual(summary.properties.mode_interactive_ms, {
+    preview: 70_000,
+    source: 0,
+    live: 40_000,
+  });
+  assert.equal(summary.properties.active_minutes, 1);
+  assert.deepEqual(summary.properties.mode_minutes, { preview: 1, source: 0, live: 0 });
+});
+
+test("a settled prior-day duration is queued immediately under its business date", async () => {
+  const userDataDir = await mkdtemp(path.join(tmpdir(), "git-leaf-telemetry-duration-rollover-"));
+  const clock = mutableClock("2026-08-03T08:00:00.000Z");
+  const client = createTelemetryClient({
+    enabled: true,
+    userDataDir,
+    buildInfo: releaseBuild("1.18.0"),
+    now: clock.now,
+    randomUUID: sequenceUuid(),
+  });
+  await client.initialize();
+
+  assert.equal(client.recordActivityDuration({
+    foregroundMs: 5_000,
+    interactiveMs: 5_000,
+    mode: "preview",
+    localDate: "2026-08-02",
+  }), true);
+
+  const summary = client.snapshot().queue.events.find((event) =>
+    event.event_name === "git_leaf.daily.summary"
+  );
+  assert.equal(summary.properties.summary_date, "2026-08-02");
+  assert.equal(summary.local_date, "2026-08-03");
+  assert.equal(summary.properties.foreground_exposure_ms, 5_000);
+});
+
+test("same-day legacy state stays legacy instead of claiming the duration capability retroactively", async () => {
+  const userDataDir = await mkdtemp(path.join(tmpdir(), "git-leaf-telemetry-duration-migration-"));
+  const clock = mutableClock("2026-08-03T08:00:00.000Z");
+  const first = createTelemetryClient({
+    enabled: true,
+    userDataDir,
+    buildInfo: releaseBuild("1.18.0"),
+    now: clock.now,
+    randomUUID: sequenceUuid(),
+  });
+  await first.initialize();
+  first.recordLaunch("manual");
+  await first.checkpoint();
+
+  const statePath = path.join(userDataDir, "telemetry-state.json");
+  const legacyState = JSON.parse(await readFile(statePath, "utf8"));
+  const legacyDay = Object.values(legacyState.days)[0];
+  for (const key of [
+    "activityDurationContract",
+    "foregroundExposureMs",
+    "interactiveActiveMs",
+    "modeForegroundExposureMs",
+    "modeInteractiveMs",
+    "legacyInteractiveRemainderMs",
+  ]) delete legacyDay[key];
+  await writeFile(statePath, `${JSON.stringify(legacyState, null, 2)}\n`);
+
+  const restarted = createTelemetryClient({
+    enabled: true,
+    userDataDir,
+    buildInfo: releaseBuild("1.18.0"),
+    now: clock.now,
+    randomUUID: sequenceUuid(),
+  });
+  await restarted.initialize();
+  restarted.recordActivityDuration({ foregroundMs: 60_000, interactiveMs: 60_000, mode: "preview" });
+  await restarted.queueDailySummary();
+
+  const summary = restarted.snapshot().queue.events.findLast((event) =>
+    event.event_name === "git_leaf.daily.summary"
+  );
+  assert.equal(Object.hasOwn(summary.properties, "activity_duration_contract"), false);
+  assert.equal(summary.properties.active_minutes, 1);
+});
+
 test("daily summary polling uploads only changed revisions", async () => {
   const userDataDir = await mkdtemp(path.join(tmpdir(), "git-leaf-telemetry-dirty-summary-"));
   const client = createTelemetryClient({

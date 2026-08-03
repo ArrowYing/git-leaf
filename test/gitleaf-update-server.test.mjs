@@ -397,6 +397,32 @@ test("gitleaf update server accepts legacy daily summaries and binds explicit su
     };
     assert.equal((await postTelemetry(port, [explicit])).status, 202);
 
+    const capable = telemetryDailyEvent();
+    capable.event_id = telemetryEventId(56);
+    capable.properties = {
+      ...capable.properties,
+      activity_duration_contract: "foreground_interactive_v1",
+      foreground_exposure_ms: 600_000,
+      interactive_active_ms: 300_000,
+      mode_foreground_exposure_ms: { preview: 600_000, source: 0, live: 0 },
+      mode_interactive_ms: { preview: 300_000, source: 0, live: 0 },
+    };
+    assert.equal((await postTelemetry(port, [capable])).status, 202);
+
+    const imbalancedCapable = structuredClone(capable);
+    imbalancedCapable.event_id = telemetryEventId(57);
+    imbalancedCapable.properties.mode_foreground_exposure_ms.preview = 599_999;
+    assert.equal(
+      (await postTelemetry(port, [imbalancedCapable])).status,
+      202,
+      "shape-valid imbalances must reach summary quality isolation",
+    );
+
+    const partialCapability = structuredClone(capable);
+    partialCapability.event_id = telemetryEventId(58);
+    delete partialCapability.properties.mode_interactive_ms;
+    assert.equal((await postTelemetry(port, [partialCapability])).status, 400);
+
     const invalidDate = structuredClone(explicit);
     invalidDate.event_id = telemetryEventId(52);
     invalidDate.properties.summary_date = "2026-02-30";

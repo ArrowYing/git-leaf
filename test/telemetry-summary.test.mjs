@@ -65,6 +65,12 @@ test("launch-based DAU counts every opened App and keeps deeper activity separat
     revision: 1,
     activeMinutes: 0,
     featureCounts: [],
+    duration: {
+      foregroundMs: 0,
+      interactiveMs: 0,
+      modeForegroundExposureMs: { preview: 0, source: 0, live: 0 },
+      modeInteractiveMs: { preview: 0, source: 0, live: 0 },
+    },
   });
   const featureOnly = dailyEvent({
     eventId: "launch-based-feature",
@@ -90,6 +96,106 @@ test("launch-based DAU counts every opened App and keeps deeper activity separat
   assert.equal(day.launches, 2);
   assert.deepEqual(report.activity.active_versions, { "1.5.0": 2 });
   assert.deepEqual(report.activity.engaged_versions, { "1.5.0": 1 });
+});
+
+test("capable duration reports foreground and interaction separately without mixing legacy minutes", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "git-leaf-duration-capability-"));
+  const capable = dailyEvent({
+    eventId: "duration-capable",
+    installId: "duration-capable",
+    revision: 1,
+    activeMinutes: 5,
+    featureCounts: [],
+    duration: {
+      foregroundMs: 600_000,
+      interactiveMs: 300_000,
+      modeForegroundExposureMs: { preview: 600_000, source: 0, live: 0 },
+      modeInteractiveMs: { preview: 300_000, source: 0, live: 0 },
+    },
+  });
+  const legacy = dailyEvent({
+    eventId: "duration-legacy",
+    installId: "duration-legacy",
+    revision: 1,
+    activeMinutes: 4,
+    featureCounts: [],
+  });
+  await writeFile(path.join(root, "events.jsonl"), `${[capable, legacy].map(JSON.stringify).join("\n")}\n`);
+
+  const report = await summarizeTelemetryFiles({ root });
+  const day = report.activity.by_date["2026-07-12"];
+
+  assert.ok(day, JSON.stringify(report.data_quality));
+  assert.equal(day.active_installations, 2);
+  assert.equal(day.engaged_installations, 2);
+  assert.equal(day.foreground_exposure_ms, 600_000);
+  assert.equal(day.foreground_exposure_minutes, 10);
+  assert.equal(day.interactive_active_ms, 300_000);
+  assert.equal(day.interactive_minutes, 5);
+  assert.equal(day.duration_status, "partial_capability");
+  assert.equal(day.duration_capable_summaries, 1);
+  assert.equal(day.duration_legacy_summaries, 1);
+  assert.equal(day.legacy_active_minutes, 4);
+  assert.equal(day.active_minutes, 4);
+  assert.equal(report.activity.duration_status, "partial_capability");
+  assert.equal(report.activity.foreground_exposure_minutes, 10);
+  assert.equal(report.activity.interactive_minutes, 5);
+  assert.deepEqual(report.activity.mode_foreground_exposure_minutes, { preview: 10, source: 0, live: 0 });
+  assert.deepEqual(report.activity.mode_interactive_minutes, { preview: 5, source: 0, live: 0 });
+  assert.deepEqual(report.activity.mode_minutes, { preview: 4, source: 0, live: 0 });
+  const markdown = telemetryReportMarkdown(report);
+  assert.match(markdown, /活跃分钟 \| 前台展示分钟/);
+  assert.match(markdown, /活跃 5 分钟，前台展示 10 分钟/);
+});
+
+test("static foreground exposure does not create a new DAU without interaction", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "git-leaf-duration-reading-dau-"));
+  const reading = dailyEvent({
+    eventId: "duration-reading",
+    installId: "duration-reading",
+    revision: 1,
+    activeMinutes: 0,
+    featureCounts: [],
+    duration: {
+      foregroundMs: 600_000,
+      interactiveMs: 0,
+      modeForegroundExposureMs: { preview: 600_000, source: 0, live: 0 },
+      modeInteractiveMs: { preview: 0, source: 0, live: 0 },
+    },
+  });
+  reading.properties.launch_count = 0;
+  reading.properties.launch_counts_by_entry_kind = {};
+  await writeFile(path.join(root, "events.jsonl"), `${JSON.stringify(reading)}\n`);
+
+  const day = (await summarizeTelemetryFiles({ root })).activity.by_date["2026-07-12"];
+  assert.equal(day.active_installations, 0);
+  assert.equal(day.engaged_installations, 0);
+  assert.equal(day.foreground_exposure_minutes, 10);
+  assert.equal(day.interactive_minutes, 0);
+  assert.equal(day.legacy_active_minutes, null);
+});
+
+test("imbalanced capable duration is isolated as daily-summary quality failure", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "git-leaf-duration-quality-"));
+  const inconsistent = dailyEvent({
+    eventId: "duration-inconsistent",
+    installId: "duration-inconsistent",
+    revision: 1,
+    activeMinutes: 5,
+    duration: {
+      foregroundMs: 600_000,
+      interactiveMs: 300_000,
+      modeForegroundExposureMs: { preview: 599_999, source: 0, live: 0 },
+      modeInteractiveMs: { preview: 300_000, source: 0, live: 0 },
+    },
+  });
+  await writeFile(path.join(root, "events.jsonl"), `${JSON.stringify(inconsistent)}\n`);
+
+  const report = await summarizeTelemetryFiles({ root });
+  assert.equal(report.activity.by_date["2026-07-12"].foreground_exposure_minutes, null);
+  assert.equal(report.activity.by_date["2026-07-12"].duration_status, "unavailable_quality");
+  assert.equal(report.data_quality.daily_summary_inconsistencies.foreground_exposure_mismatch, 1);
+  assert.equal(report.data_quality.excluded_inconsistent_daily_summaries, 1);
 });
 
 test("requested daily gaps are explicit and yesterday remains provisional for late arrivals", async () => {
@@ -797,6 +903,10 @@ test("logically inconsistent daily summaries are excluded from every daily-deriv
   assert.deepEqual(report.data_quality.daily_summary_inconsistencies, {
     launch_count_mismatch: 1,
     active_minutes_mismatch: 1,
+    foreground_exposure_mismatch: 0,
+    interactive_duration_mismatch: 0,
+    interactive_duration_exceeds_foreground: 0,
+    mode_interactive_duration_exceeds_foreground: 0,
     distinct_repositories_exceed_opens: 0,
     daily_repositories_exceed_rolling_30d: 0,
   });
@@ -1257,6 +1367,7 @@ function dailyEvent({
   featureCounts = [{ feature_id: "navigation.file_search", count: 3 }],
   occurredAt = "2026-07-12T08:00:00.000Z",
   envelopeDate = occurredAt.slice(0, 10),
+  duration = null,
 }) {
   const event = baseEvent(eventId, installId, "git_leaf.daily.summary", {
     summary_id: summaryId,
@@ -1271,6 +1382,13 @@ function dailyEvent({
     rolling_30d_distinct_repository_count: 1,
     worktree_switch_count: 0,
     mode_minutes: { preview: activeMinutes, source: 0, live: 0 },
+    ...(duration ? {
+      activity_duration_contract: "foreground_interactive_v1",
+      foreground_exposure_ms: duration.foregroundMs,
+      interactive_active_ms: duration.interactiveMs,
+      mode_foreground_exposure_ms: duration.modeForegroundExposureMs,
+      mode_interactive_ms: duration.modeInteractiveMs,
+    } : {}),
     feature_counts: featureCounts,
   }, { occurredAt });
   event.local_date = envelopeDate;

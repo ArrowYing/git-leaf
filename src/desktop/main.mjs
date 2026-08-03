@@ -427,7 +427,10 @@ async function initializeDesktopTelemetry() {
     void initialization
       .then((initialized) => {
         if (!initialized || !initializedClient.enabled || telemetryClient !== initializedClient || isQuitting) return;
-        telemetryUploadScheduler = createTelemetryUploadScheduler({ telemetry: initializedClient });
+        telemetryUploadScheduler = createTelemetryUploadScheduler({
+          telemetry: initializedClient,
+          beforeQueueDailySummary: () => telemetryActivityTracker?.flush?.(),
+        });
         telemetryUploadScheduler.start();
       })
       .catch(() => {
@@ -474,6 +477,7 @@ async function recordDesktopTelemetryActions(actions) {
   }
   for (const action of normalized) {
     if (action.kind === "mode") {
+      telemetryActivityTracker?.setMode?.(action.mode);
       telemetryMode = action.mode;
     } else {
       telemetryClient.recordFeature(action.featureId, action.dimensions);

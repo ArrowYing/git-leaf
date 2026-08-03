@@ -5,6 +5,7 @@ export const DEFAULT_TELEMETRY_SHUTDOWN_UPLOAD_TIMEOUT_MS = 1_500;
 
 export function createTelemetryUploadScheduler({
   telemetry,
+  beforeQueueDailySummary = () => {},
   initialDelayMs = DEFAULT_TELEMETRY_INITIAL_UPLOAD_DELAY_MS,
   intervalMs = DEFAULT_TELEMETRY_UPLOAD_INTERVAL_MS,
   uploadTimeoutMs = DEFAULT_TELEMETRY_UPLOAD_TIMEOUT_MS,
@@ -64,6 +65,7 @@ export function createTelemetryUploadScheduler({
     if (!telemetry) return Promise.resolve(false);
     if (inFlight) return inFlight;
     inFlight = Promise.resolve()
+      .then(() => beforeQueueDailySummary())
       .then(() => telemetry.queueDailySummary?.())
       .then(() => telemetry.flush?.({ timeoutMs: uploadTimeoutMs }))
       .catch(() => false)

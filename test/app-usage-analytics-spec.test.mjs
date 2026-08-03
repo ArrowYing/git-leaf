@@ -33,6 +33,12 @@ test("usage analytics spec is the sole metric, privacy, and storage contract", a
   assert.match(spec, /Do not put legacy data, `current_other`, or failures at[\s\S]*into the denominator/);
   assert.match(spec, /launch_count = sum\(launch_counts_by_entry_kind\)/);
   assert.match(spec, /active_minutes = preview_minutes \+ source_minutes \+ live_minutes/);
+  assert.match(spec, /activity_duration_contract = foreground_interactive_v1/);
+  assert.match(spec, /Foreground exposure includes quiet reading/);
+  assert.match(spec, /secondary upper bound, not the primary active-time metric/);
+  assert.match(spec, /physical scrolling is covered by that signal/);
+  assert.match(spec, /interactive_active_ms <= foreground_exposure_ms/);
+  assert.match(spec, /must never convert or combine[\s\S]*legacy sampled minutes with capable/);
   assert.match(spec, /Other valid summaries[\s\S]*produce a `partial_quality` result/);
   assert.match(spec, /completed_without_prior_lifecycle/);
   assert.match(spec, /All seven use deduplicated state groups/);

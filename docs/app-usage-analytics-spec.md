@@ -1,5 +1,5 @@
 ---
-last_updated: 2026-07-28
+last_updated: 2026-08-03
 status: normative
 ---
 
@@ -51,8 +51,9 @@ historical records. Preserve old absolute facts without pretending they satisfy 
 - The client generates `repo_secret` and computes
   `repo_local_key = HMAC-SHA256(repo_secret, canonical_git_common_dir)` locally for distinct repository
   counts. The receiver never gets this key, a repository path, a remote, or Git common-dir data.
-- Launches, active minutes, distinct repositories, mode minutes, and feature activity accumulate locally
-  by day. The receiver gets daily snapshots, not clicks, keystrokes, or minute-by-minute heartbeats.
+- Launches, foreground exposure, interactive duration, distinct repositories, mode duration, and feature
+  activity accumulate locally by day. The receiver gets cumulative daily snapshots, not clicks,
+  keystrokes, input events, or second-by-second heartbeats.
 - A renderer can submit only allowlisted counters to Electron. Electron adds and validates the install
   identity, app version, queue state, and network envelope.
 - Analytics is best effort. Initialization, persistence, upload, or receiver failure must not block
@@ -85,7 +86,8 @@ consent decision, store, and retention policy.
   has not safely entered the queue cannot be deleted early.
 - A batch contains at most 100 events and at most 64 KiB of uncompressed JSON.
 - The first snapshot is queued about two seconds after launch. While values change, the latest revision
-  is queued at most once per minute. No change means no empty revision.
+  is queued at most once per minute. Local duration state is settled on window, power, mode, day, and
+  shutdown transitions and periodically checkpointed; no change means no empty revision.
 - Network failures use exponential backoff capped at six hours. The queue retains at most 30 days or
   1 MiB; a newer revision may replace an older queued revision for the same `summary_id`.
 - Normal exit queues the latest snapshot and performs at most 1.5 seconds of best-effort upload. Failure
@@ -252,7 +254,7 @@ A daily summary is a cumulative snapshot.
 | `summary_date` | Local calendar date | Business date of the cumulative snapshot |
 | `launch_count` | Count | App process launches |
 | `launch_counts_by_entry_kind` | Count | `manual`, `deep_link`, `update_restart`, `windows_bootstrap`, `unknown` |
-| `active_minutes` | Whole minutes | Visible, focused, unlocked, non-idle, non-update-exit minutes |
+| `active_minutes` | Whole minutes | Legacy compatibility projection of interactive duration; older clients used one-minute sampling |
 | `repository_open_count` | Count | Successful repository opens |
 | `repository_switch_count` | Count | Switches between repositories |
 | `distinct_repository_count` | Repositories | Locally deduplicated repositories that day |
@@ -262,6 +264,51 @@ A daily summary is a cumulative snapshot.
 | `mode_minutes.source` | Whole minutes | Qualifying Source activity |
 | `mode_minutes.live` | Whole minutes | Qualifying Live activity |
 | `feature_counts` | Count | Allowlisted feature/dimension cumulative counts |
+
+### Foreground exposure and interactive duration capability
+
+The `foreground_interactive_v1` capability is present only when a daily summary carries this complete
+field group:
+
+| Field | Unit | Meaning |
+| --- | --- | --- |
+| `activity_duration_contract` | Fixed string | `foreground_interactive_v1` |
+| `foreground_exposure_ms` | Milliseconds | Elapsed time while the App window is visible and focused, the screen is unlocked, the process is not suspended, and update exit or normal quit has not begun |
+| `interactive_active_ms` | Milliseconds | Primary active duration: the subset of foreground exposure while operating-system idle time is below 300 seconds |
+| `mode_foreground_exposure_ms.preview/source/live` | Milliseconds | Foreground exposure attributed to the current document mode |
+| `mode_interactive_ms.preview/source/live` | Milliseconds | Interactive duration attributed to the current document mode |
+
+Foreground exposure includes quiet reading, but it can also include an unattended App left focused. It is
+therefore a secondary upper bound, not the primary active-time metric. Interactive duration is the primary
+active-time metric. It stops after five minutes without operating-system input and resumes when physical
+keyboard, mouse, or trackpad input resets system idle time; physical scrolling is covered by that signal.
+The client does not collect renderer scroll, click, key, or pointer events, so programmatic scrolling does
+not renew activity and no input stream is uploaded. The client uses monotonic elapsed time and settles the
+previous segment on focus, blur, show, hide, minimize, restore, window close, lock, unlock, suspend, resume,
+mode change, periodic persistence, local-day rollover, and shutdown. A periodic reconciliation may detect
+the idle boundary, but it records elapsed duration rather than turning a sampled instant into one whole
+minute.
+
+The complete group is an explicit field-presence capability within schema v1. Partial groups are invalid.
+For capable summaries:
+
+```text
+activity_duration_contract = foreground_interactive_v1
+foreground_exposure_ms = sum(mode_foreground_exposure_ms)
+interactive_active_ms = sum(mode_interactive_ms)
+interactive_active_ms <= foreground_exposure_ms
+mode_interactive_ms[mode] <= mode_foreground_exposure_ms[mode]
+```
+
+`active_minutes` and `mode_minutes` remain only for compatibility with old consumers. A capable client
+sets `active_minutes = floor(interactive_active_ms / 60000)`. It floors each mode independently, then
+assigns any remaining whole minutes to modes in descending fractional-remainder order (mode name breaks
+ties), so `mode_minutes` stays balanced with `active_minutes`.
+Reports must use capable interactive duration as the primary active-time metric, show foreground exposure
+as a secondary upper bound, and show legacy sampled minutes separately. They must never convert or combine
+legacy sampled minutes with capable milliseconds. The first formally published App version carrying this
+capability is recorded during its release; field presence remains the processing key so prerelease and
+same-day transition summaries do not gain capability retroactively.
 
 `summary_id` equals the prefix, at the configured summary-ID length, of the hexadecimal
 `SHA256(install_id + ":" + summary_date)`; current clients use 32 characters. `occurred_at`, envelope
@@ -361,6 +408,9 @@ Each final daily summary must satisfy:
 ```text
 launch_count = sum(launch_counts_by_entry_kind)
 active_minutes = preview_minutes + source_minutes + live_minutes
+foreground_exposure_ms = mode_foreground_exposure_ms.preview + mode_foreground_exposure_ms.source + mode_foreground_exposure_ms.live
+interactive_active_ms = mode_interactive_ms.preview + mode_interactive_ms.source + mode_interactive_ms.live
+interactive_active_ms <= foreground_exposure_ms
 distinct_repository_count <= repository_open_count
 distinct_repository_count <= rolling_30d_distinct_repository_count
 engaged installations <= DAU
@@ -431,14 +481,24 @@ denominator, and window; a denominator below ten is marked small sample.
 
 ### Activity
 
-- **DAU**: distinct installation with a final valid daily summary where `launch_count > 0`,
-  `active_minutes > 0`, or any valid feature count is positive.
-- **Engaged installations**: distinct installation with active minutes or a feature count; kept separate
-  from launch-based DAU.
+- **DAU**: for `foreground_interactive_v1`, a distinct installation with a final valid daily summary
+  where `launch_count > 0`, `interactive_active_ms > 0`, or any valid feature count is positive; for
+  legacy summaries, use `launch_count > 0`, `active_minutes > 0`, or a positive valid feature count.
+  A launch always counts even when active duration is zero. Foreground exposure alone does not create a
+  new day's DAU when an App opened earlier is left focused and unattended across the date boundary.
+- **Engaged installations**: for `foreground_interactive_v1`, a distinct installation with positive
+  interactive milliseconds or a feature count; for legacy summaries, positive active minutes or a
+  feature count. It remains separate from launch-based DAU.
 - **WAU**: union of DAU installations over seven valid daily-summary business dates.
 - **MAU**: union over 30 valid dates; insufficient coverage is explicitly partial.
-- Active minutes, launches, mode minutes, repository distributions, feature counts, and feature-using
-  installations use only final valid daily snapshots.
+- Interactive duration and foreground exposure use only capable final valid daily snapshots. Output
+  milliseconds, seconds, and minutes from those same capable records, plus capable/legacy summary counts and a
+  `complete`, `partial_capability`, `unavailable_capability`, or quality status. Never fill missing
+  capability with legacy minutes.
+- In report JSON, `legacy_active_minutes`, the deprecated `active_minutes` alias, and `mode_minutes`
+  contain only legacy sampled summaries. They never include the capable compatibility projection.
+- Legacy active minutes, launches, legacy mode minutes, repository distributions, feature counts, and
+  feature-using installations use only final valid daily snapshots.
 - Feature adoption divides feature-using installations by active installations in the identical date,
   platform, and version slice.
 
@@ -487,8 +547,9 @@ Order:
 4. strict update-check absolute states and balance, with legacy states separate;
 5. strict state ordering and window-truncation note;
 6. failures by stage, code, platform, and app version;
-7. `launch_based_v2` DAU/WAU/MAU, engaged installations, late-arrival status, minutes, modes, features,
-   and deep-link failure reasons;
+7. `launch_based_v2` DAU/WAU/MAU, engaged installations, late-arrival status, primary interactive
+   duration and secondary foreground exposure with capability coverage, legacy minutes separately, modes, features, and
+   deep-link failure reasons;
 8. data quality and interpretation boundaries;
 9. absolute change from a comparable prior report, or “no comparable baseline.”
 

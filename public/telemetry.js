@@ -125,6 +125,7 @@ export function createRendererTelemetry({
       const action = normalizeRendererTelemetryAction({ kind: "mode", mode });
       if (!action) return false;
       enqueue(action);
+      schedule(0, { replace: true });
       return true;
     },
     async flush() {
@@ -164,12 +165,16 @@ export function createRendererTelemetry({
     schedule();
   }
 
-  function schedule() {
+  function schedule(delayMs = flushDelayMs, { replace = false } = {}) {
+    if (replace && timer !== null) {
+      clearTimeoutFn(timer);
+      timer = null;
+    }
     if (timer !== null || actions.length === 0) return;
     timer = setTimeoutFn(async () => {
       timer = null;
       await api.flush();
-    }, flushDelayMs);
+    }, delayMs);
   }
   return api;
 }

@@ -5,6 +5,8 @@ import { createRendererTelemetry } from "../public/telemetry.js";
 
 test("renderer telemetry batches only local counter actions", async () => {
   const requests = [];
+  const scheduledDelays = [];
+  const cleared = [];
   let scheduled = null;
   const telemetry = createRendererTelemetry({
     enabled: true,
@@ -12,11 +14,12 @@ test("renderer telemetry batches only local counter actions", async () => {
       requests.push({ url, options });
       return { ok: true };
     },
-    setTimeoutFn: (callback) => {
+    setTimeoutFn: (callback, delay) => {
+      scheduledDelays.push(delay);
       scheduled = callback;
       return 1;
     },
-    clearTimeoutFn: () => {},
+    clearTimeoutFn: (timer) => cleared.push(timer),
   });
 
   assert.equal(telemetry.recordFeature("navigation.file_search"), true);
@@ -33,6 +36,8 @@ test("renderer telemetry batches only local counter actions", async () => {
   assert.equal(telemetry.recordFeature("git.sync", { result: "maybe" }), false);
   assert.equal(telemetry.recordFeature("git.sync", { path: "/private/repo" }), false);
   assert.equal(telemetry.setMode("invalid"), false);
+  assert.deepEqual(scheduledDelays, [1000, 0]);
+  assert.deepEqual(cleared, [1]);
   await scheduled();
 
   assert.equal(requests.length, 1);

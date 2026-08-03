@@ -18,6 +18,16 @@ const EVENT_NAMES = new Set([
   "git_leaf.daily.summary",
 ]);
 const ENTRY_KINDS = new Set(["manual", "deep_link", "update_restart", "windows_bootstrap", "unknown"]);
+const ACTIVITY_DURATION_CONTRACT = "foreground_interactive_v1";
+const ACTIVITY_DURATION_KEYS = [
+  "activity_duration_contract",
+  "foreground_exposure_ms",
+  "interactive_active_ms",
+  "mode_foreground_exposure_ms",
+  "mode_interactive_ms",
+];
+const ACTIVITY_MODES = ["preview", "source", "live"];
+const MAX_DAILY_DURATION_MS = 172_800_000;
 const UPDATE_STATES = new Set([
   "check_started", "current", "available", "downloaded", "skipped",
   "install_started", "completed", "failed",
@@ -274,6 +284,14 @@ export async function summarizeTelemetryFiles({
   const engagedVersions = new Map();
   const repositoryCounts = {};
   const modeMinutes = { preview: 0, source: 0, live: 0 };
+  const modeForegroundExposureMs = { preview: 0, source: 0, live: 0 };
+  const modeInteractiveMs = { preview: 0, source: 0, live: 0 };
+  const durationCapableInstallations = new Set();
+  const durationLegacyInstallations = new Set();
+  let durationCapableSummaries = 0;
+  let durationLegacySummaries = 0;
+  let foregroundExposureMs = 0;
+  let interactiveActiveMs = 0;
   const dailyCoverageDates = new Set(latestDailyEvents.map(eventMetricDate));
   let repositoryMetricsUnavailable = false;
   for (const event of eligibleDailyEvents) {
@@ -281,12 +299,24 @@ export async function summarizeTelemetryFiles({
     const date = eventMetricDate(event);
     const featureCounts = Array.isArray(properties.feature_counts) ? properties.feature_counts : [];
     const balance = dailySummaryBalance(event);
-    const engaged = properties.active_minutes > 0 || featureCounts.some((counter) => counter.count > 0);
-    const active = properties.launch_count > 0 || engaged;
+    const durationCapable = hasActivityDurationCapability(properties);
+    const featureEngaged = featureCounts.some((counter) => counter.count > 0);
+    const engaged = (durationCapable
+      ? properties.interactive_active_ms > 0
+      : properties.active_minutes > 0) || featureEngaged;
+    const active = properties.launch_count > 0 || featureEngaged || (durationCapable
+      ? properties.interactive_active_ms > 0
+      : properties.active_minutes > 0);
     const day = activityDates.get(date) ?? {
       installations: new Set(),
       engagedInstallations: new Set(),
       activeMinutes: 0,
+      foregroundExposureMs: 0,
+      interactiveActiveMs: 0,
+      durationCapableSummaries: 0,
+      durationLegacySummaries: 0,
+      durationCapableInstallations: new Set(),
+      durationLegacyInstallations: new Set(),
       launches: 0,
       activeUnavailable: false,
       launchesUnavailable: false,
@@ -294,12 +324,28 @@ export async function summarizeTelemetryFiles({
       excludedInconsistentSummaries: 0,
       excludedConflictingSummaries: 0,
     };
-    if (balance.activeMinutesMismatch) {
-      day.activeUnavailable = true;
+    if (active) day.installations.add(event.install_id);
+    if (engaged) day.engagedInstallations.add(event.install_id);
+    if (durationCapable) {
+      day.foregroundExposureMs += properties.foreground_exposure_ms;
+      day.interactiveActiveMs += properties.interactive_active_ms;
+      day.durationCapableSummaries += 1;
+      day.durationCapableInstallations.add(event.install_id);
+      durationCapableSummaries += 1;
+      durationCapableInstallations.add(event.install_id);
+      foregroundExposureMs += properties.foreground_exposure_ms;
+      interactiveActiveMs += properties.interactive_active_ms;
+      for (const mode of ACTIVITY_MODES) {
+        modeForegroundExposureMs[mode] += properties.mode_foreground_exposure_ms[mode];
+        modeInteractiveMs[mode] += properties.mode_interactive_ms[mode];
+      }
     } else {
-      if (active) day.installations.add(event.install_id);
-      if (engaged) day.engagedInstallations.add(event.install_id);
       day.activeMinutes += properties.active_minutes;
+      day.durationLegacySummaries += 1;
+      day.durationLegacyInstallations.add(event.install_id);
+      durationLegacySummaries += 1;
+      durationLegacyInstallations.add(event.install_id);
+      for (const mode of Object.keys(modeMinutes)) modeMinutes[mode] += properties.mode_minutes[mode];
     }
     if (balance.launchCountMismatch) day.launchesUnavailable = true;
     else day.launches += properties.launch_count;
@@ -324,10 +370,6 @@ export async function summarizeTelemetryFiles({
       const repoCount = String(properties.distinct_repository_count);
       repositoryCounts[repoCount] = (repositoryCounts[repoCount] ?? 0) + 1;
     }
-    if (!balance.activeMinutesMismatch) {
-      for (const mode of Object.keys(modeMinutes)) modeMinutes[mode] += properties.mode_minutes[mode];
-    }
-
     for (const counter of featureCounts) {
       const dimensions = reportedFeatureDimensions(counter.feature_id, counter.dimensions ?? {});
       const key = featureCounterKey(counter.feature_id, dimensions);
@@ -348,6 +390,12 @@ export async function summarizeTelemetryFiles({
       installations: new Set(),
       engagedInstallations: new Set(),
       activeMinutes: 0,
+      foregroundExposureMs: 0,
+      interactiveActiveMs: 0,
+      durationCapableSummaries: 0,
+      durationLegacySummaries: 0,
+      durationCapableInstallations: new Set(),
+      durationLegacyInstallations: new Set(),
       launches: 0,
       activeUnavailable: true,
       launchesUnavailable: true,
@@ -365,6 +413,12 @@ export async function summarizeTelemetryFiles({
       installations: new Set(),
       engagedInstallations: new Set(),
       activeMinutes: 0,
+      foregroundExposureMs: 0,
+      interactiveActiveMs: 0,
+      durationCapableSummaries: 0,
+      durationLegacySummaries: 0,
+      durationCapableInstallations: new Set(),
+      durationLegacyInstallations: new Set(),
       launches: 0,
       activeUnavailable: true,
       launchesUnavailable: true,
@@ -377,7 +431,15 @@ export async function summarizeTelemetryFiles({
     activityDates.set(date, day);
   }
 
-  const reportedModeMinutes = aggregateDailyStatus === "unavailable_quality"
+  const durationStatus = activityDurationStatus({
+    qualityStatus: aggregateDailyStatus,
+    capableSummaries: durationCapableSummaries,
+    legacySummaries: durationLegacySummaries,
+  });
+  const legacyDurationStatus = aggregateDailyStatus === "unavailable_quality"
+    ? "unavailable_quality"
+    : durationLegacySummaries === 0 ? "unavailable_capability" : aggregateDailyStatus;
+  const reportedModeMinutes = legacyDurationStatus.startsWith("unavailable")
     ? { preview: null, source: null, live: null }
     : modeMinutes;
   const generatedAt = now().toISOString();
@@ -414,6 +476,16 @@ export async function summarizeTelemetryFiles({
     .sort((left, right) => left.localeCompare(right))
     .map((date) => {
       const value = activityDates.get(date);
+      const dateDurationStatus = value
+        ? activityDurationStatus({
+          qualityStatus: value.status,
+          capableSummaries: value.durationCapableSummaries,
+          legacySummaries: value.durationLegacySummaries,
+        })
+        : "unavailable_coverage";
+      const durationAvailable = value && value.durationCapableSummaries > 0 &&
+        dateDurationStatus !== "unavailable_quality";
+      const legacyMinutesAvailable = value && !value.activeUnavailable && value.durationLegacySummaries > 0;
       return [date, {
         active_installations: !value || value.activeUnavailable ? null : value.installations.size,
         engaged_installations: !value || value.activeUnavailable ? null : value.engagedInstallations.size,
@@ -423,7 +495,19 @@ export async function summarizeTelemetryFiles({
         monthly_active_installations: rollingActiveMetric(activityDates, dailyCoverageDates, date, 30, {
           partialValueAllowed: true,
         }),
-        active_minutes: !value || value.activeUnavailable ? null : value.activeMinutes,
+        foreground_exposure_ms: durationAvailable ? value.foregroundExposureMs : null,
+        foreground_exposure_seconds: durationAvailable ? millisecondsToSeconds(value.foregroundExposureMs) : null,
+        foreground_exposure_minutes: durationAvailable ? millisecondsToMinutes(value.foregroundExposureMs) : null,
+        interactive_active_ms: durationAvailable ? value.interactiveActiveMs : null,
+        interactive_seconds: durationAvailable ? millisecondsToSeconds(value.interactiveActiveMs) : null,
+        interactive_minutes: durationAvailable ? millisecondsToMinutes(value.interactiveActiveMs) : null,
+        duration_status: dateDurationStatus,
+        duration_capable_summaries: value ? value.durationCapableSummaries : null,
+        duration_legacy_summaries: value ? value.durationLegacySummaries : null,
+        duration_capable_installations: value ? value.durationCapableInstallations.size : null,
+        duration_legacy_installations: value ? value.durationLegacyInstallations.size : null,
+        legacy_active_minutes: legacyMinutesAvailable ? value.activeMinutes : null,
+        active_minutes: legacyMinutesAvailable ? value.activeMinutes : null,
         launches: !value || value.launchesUnavailable ? null : value.launches,
         status: value?.status ?? "unavailable_coverage",
         freshness_status: dailyFreshnessStatus(date, { todayLocalDate, yesterdayLocalDate }),
@@ -481,8 +565,36 @@ export async function summarizeTelemetryFiles({
         .sort(([left], [right]) => left.localeCompare(right))
         .map(([version, installs]) => [version, installs.size])),
       engaged_versions_status: aggregateDailyStatus,
+      duration_contract: ACTIVITY_DURATION_CONTRACT,
+      duration_status: durationStatus,
+      duration_capable_summaries: durationCapableSummaries,
+      duration_legacy_summaries: durationLegacySummaries,
+      duration_capable_installations: durationCapableInstallations.size,
+      duration_legacy_installations: durationLegacyInstallations.size,
+      foreground_exposure_ms: durationCapableSummaries > 0 && durationStatus !== "unavailable_quality"
+        ? foregroundExposureMs : null,
+      foreground_exposure_seconds: durationCapableSummaries > 0 && durationStatus !== "unavailable_quality"
+        ? millisecondsToSeconds(foregroundExposureMs) : null,
+      foreground_exposure_minutes: durationCapableSummaries > 0 && durationStatus !== "unavailable_quality"
+        ? millisecondsToMinutes(foregroundExposureMs) : null,
+      interactive_active_ms: durationCapableSummaries > 0 && durationStatus !== "unavailable_quality"
+        ? interactiveActiveMs : null,
+      interactive_seconds: durationCapableSummaries > 0 && durationStatus !== "unavailable_quality"
+        ? millisecondsToSeconds(interactiveActiveMs) : null,
+      interactive_minutes: durationCapableSummaries > 0 && durationStatus !== "unavailable_quality"
+        ? millisecondsToMinutes(interactiveActiveMs) : null,
+      mode_foreground_exposure_ms: durationCapableSummaries > 0 && durationStatus !== "unavailable_quality"
+        ? modeForegroundExposureMs : null,
+      mode_foreground_exposure_minutes: durationCapableSummaries > 0 && durationStatus !== "unavailable_quality"
+        ? durationModeMinutes(modeForegroundExposureMs) : null,
+      mode_interactive_ms: durationCapableSummaries > 0 && durationStatus !== "unavailable_quality"
+        ? modeInteractiveMs : null,
+      mode_interactive_minutes: durationCapableSummaries > 0 && durationStatus !== "unavailable_quality"
+        ? durationModeMinutes(modeInteractiveMs) : null,
+      legacy_active_minutes: durationLegacySummaries > 0 && legacyDurationStatus !== "unavailable_quality"
+        ? Object.values(modeMinutes).reduce((sum, value) => sum + value, 0) : null,
       mode_minutes: reportedModeMinutes,
-      mode_minutes_status: aggregateDailyStatus,
+      mode_minutes_status: legacyDurationStatus,
     } : unavailableActivityReport(),
     repositories: eventMetricsAvailable ? {
       daily_distinct_count_distribution: aggregateDailyStatus === "unavailable_quality" || repositoryMetricsUnavailable
@@ -639,6 +751,23 @@ function unavailableActivityReport() {
     active_versions_status: "unavailable_source",
     engaged_versions: null,
     engaged_versions_status: "unavailable_source",
+    duration_contract: ACTIVITY_DURATION_CONTRACT,
+    duration_status: "unavailable_source",
+    duration_capable_summaries: null,
+    duration_legacy_summaries: null,
+    duration_capable_installations: null,
+    duration_legacy_installations: null,
+    foreground_exposure_ms: null,
+    foreground_exposure_seconds: null,
+    foreground_exposure_minutes: null,
+    interactive_active_ms: null,
+    interactive_seconds: null,
+    interactive_minutes: null,
+    mode_foreground_exposure_ms: null,
+    mode_foreground_exposure_minutes: null,
+    mode_interactive_ms: null,
+    mode_interactive_minutes: null,
+    legacy_active_minutes: null,
     mode_minutes: null,
     mode_minutes_status: "unavailable_source",
   };
@@ -673,6 +802,31 @@ function dailyFreshnessStatus(date, { todayLocalDate, yesterdayLocalDate }) {
   if (date === todayLocalDate) return "incomplete_today";
   if (date === yesterdayLocalDate) return "provisional_late_arrivals";
   return "historical";
+}
+
+function activityDurationStatus({ qualityStatus, capableSummaries, legacySummaries }) {
+  if (qualityStatus === "unavailable_quality") return "unavailable_quality";
+  if (capableSummaries === 0) {
+    return qualityStatus === "partial_quality" ? "unavailable_quality" : "unavailable_capability";
+  }
+  if (qualityStatus === "partial_quality") return "partial_quality";
+  return legacySummaries > 0 ? "partial_capability" : "complete";
+}
+
+function millisecondsToSeconds(value) {
+  return roundedDuration(value / 1_000);
+}
+
+function millisecondsToMinutes(value) {
+  return roundedDuration(value / 60_000);
+}
+
+function roundedDuration(value) {
+  return Number(value.toFixed(3));
+}
+
+function durationModeMinutes(value) {
+  return Object.fromEntries(ACTIVITY_MODES.map((mode) => [mode, millisecondsToMinutes(value[mode])]));
 }
 
 function resolveDailySummaryDates(events) {
@@ -837,6 +991,10 @@ function dailySummaryInconsistencies(events) {
   const result = {
     launch_count_mismatch: 0,
     active_minutes_mismatch: 0,
+    foreground_exposure_mismatch: 0,
+    interactive_duration_mismatch: 0,
+    interactive_duration_exceeds_foreground: 0,
+    mode_interactive_duration_exceeds_foreground: 0,
     distinct_repositories_exceed_opens: 0,
     daily_repositories_exceed_rolling_30d: 0,
   };
@@ -844,6 +1002,14 @@ function dailySummaryInconsistencies(events) {
     const balance = dailySummaryBalance(event);
     if (balance.launchCountMismatch) result.launch_count_mismatch += 1;
     if (balance.activeMinutesMismatch) result.active_minutes_mismatch += 1;
+    if (balance.foregroundExposureMismatch) result.foreground_exposure_mismatch += 1;
+    if (balance.interactiveDurationMismatch) result.interactive_duration_mismatch += 1;
+    if (balance.interactiveDurationExceedsForeground) {
+      result.interactive_duration_exceeds_foreground += 1;
+    }
+    if (balance.modeInteractiveDurationExceedsForeground) {
+      result.mode_interactive_duration_exceeds_foreground += 1;
+    }
     if (balance.repositoriesExceedOpens) result.distinct_repositories_exceed_opens += 1;
     if (balance.repositoriesExceedRolling) result.daily_repositories_exceed_rolling_30d += 1;
   }
@@ -856,9 +1022,24 @@ function dailySummaryBalance(event) {
     .reduce((sum, value) => sum + value, 0);
   const modeMinutes = Object.values(properties.mode_minutes)
     .reduce((sum, value) => sum + value, 0);
+  const hasDuration = hasActivityDurationCapability(properties);
+  const modeForegroundExposureMs = hasDuration
+    ? Object.values(properties.mode_foreground_exposure_ms).reduce((sum, value) => sum + value, 0)
+    : 0;
+  const modeInteractiveMs = hasDuration
+    ? Object.values(properties.mode_interactive_ms).reduce((sum, value) => sum + value, 0)
+    : 0;
   return {
     launchCountMismatch: launchKinds !== properties.launch_count,
     activeMinutesMismatch: modeMinutes !== properties.active_minutes,
+    foregroundExposureMismatch:
+      hasDuration && modeForegroundExposureMs !== properties.foreground_exposure_ms,
+    interactiveDurationMismatch: hasDuration && modeInteractiveMs !== properties.interactive_active_ms,
+    interactiveDurationExceedsForeground:
+      hasDuration && properties.interactive_active_ms > properties.foreground_exposure_ms,
+    modeInteractiveDurationExceedsForeground: hasDuration && ACTIVITY_MODES.some((mode) =>
+      properties.mode_interactive_ms[mode] > properties.mode_foreground_exposure_ms[mode]
+    ),
     repositoriesExceedOpens: properties.distinct_repository_count > properties.repository_open_count,
     repositoriesExceedRolling:
       properties.distinct_repository_count > properties.rolling_30d_distinct_repository_count,
@@ -1011,7 +1192,10 @@ function validDailySummaryProperties(properties, installId, envelopeDate) {
     "distinct_repository_count", "rolling_30d_distinct_repository_count",
     "worktree_switch_count", "mode_minutes", "feature_counts",
   ];
-  if (!isPlainObject(properties) || !onlyKeys(properties, [...requiredKeys, "summary_date"]) ||
+  const hasDuration = isPlainObject(properties) &&
+    ACTIVITY_DURATION_KEYS.some((key) => Object.hasOwn(properties, key));
+  if (!isPlainObject(properties) ||
+      !onlyKeys(properties, [...requiredKeys, "summary_date", ...(hasDuration ? ACTIVITY_DURATION_KEYS : [])]) ||
       requiredKeys.some((key) => !Object.hasOwn(properties, key)) ||
       typeof properties.summary_id !== "string" || !/^[a-f0-9]{32,64}$/.test(properties.summary_id) ||
       !boundedInteger(properties.revision, 1, 100_000)) return false;
@@ -1033,6 +1217,7 @@ function validDailySummaryProperties(properties, installId, envelopeDate) {
         .some((count) => !boundedInteger(count, 0, 1_000_000))) return false;
   if (!isPlainObject(properties.mode_minutes) || !exactKeys(properties.mode_minutes, ["preview", "source", "live"]) ||
       Object.values(properties.mode_minutes).some((count) => !boundedInteger(count, 0, 1_000_000))) return false;
+  if (hasDuration && !validActivityDurationShape(properties)) return false;
   if (!Array.isArray(properties.feature_counts) || properties.feature_counts.length > 100) return false;
   const featureKeys = new Set();
   for (const counter of properties.feature_counts) {
@@ -1042,6 +1227,25 @@ function validDailySummaryProperties(properties, installId, envelopeDate) {
     featureKeys.add(key);
   }
   return true;
+}
+
+function validActivityDurationShape(properties) {
+  return ACTIVITY_DURATION_KEYS.every((key) => Object.hasOwn(properties, key)) &&
+    properties.activity_duration_contract === ACTIVITY_DURATION_CONTRACT &&
+    boundedInteger(properties.foreground_exposure_ms, 0, MAX_DAILY_DURATION_MS) &&
+    boundedInteger(properties.interactive_active_ms, 0, MAX_DAILY_DURATION_MS) &&
+    validDurationModeMap(properties.mode_foreground_exposure_ms) &&
+    validDurationModeMap(properties.mode_interactive_ms);
+}
+
+function validDurationModeMap(value) {
+  return isPlainObject(value) && exactKeys(value, ACTIVITY_MODES) &&
+    Object.values(value).every((duration) => boundedInteger(duration, 0, MAX_DAILY_DURATION_MS));
+}
+
+function hasActivityDurationCapability(properties) {
+  return properties?.activity_duration_contract === ACTIVITY_DURATION_CONTRACT &&
+    ACTIVITY_DURATION_KEYS.every((key) => Object.hasOwn(properties, key));
 }
 
 function dailySummaryId(installId, summaryDate, length = 32) {
@@ -1615,20 +1819,23 @@ export function telemetryReportMarkdown(report) {
     "",
     `> 活跃口径：${report.activity.contract_version ?? "launch_based_v2"}。DAU 表示当天打开过正式 App 的安装实例；深度活跃保留时长／功能动作口径。`,
     "",
-    "| 日期 | DAU（打开） | 深度活跃 | WAU | MAU | 活跃分钟 | 启动次数 | 数据新鲜度 |",
-    "| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |",
+    "| 日期 | DAU（打开） | 深度活跃 | WAU | MAU | 活跃分钟 | 前台展示分钟 | legacy 分钟 | 启动次数 | 数据新鲜度 |",
+    "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |",
   );
   for (const [date, values] of Object.entries(report.activity.by_date ?? {})) {
     const label = `${date}${date === window.today_incomplete ? "（当日未完成）" : ""}`;
-    lines.push(`| ${label} | ${formatNullable(values.active_installations)} | ${formatNullable(values.engaged_installations)} | ${formatRollingActive(values.weekly_active_installations, "WAU")} | ${formatRollingActive(values.monthly_active_installations, "MAU")} | ${formatNullable(values.active_minutes)} | ${formatNullable(values.launches)} | ${values.freshness_status ?? "historical"} |`);
+    lines.push(`| ${label} | ${formatNullable(values.active_installations)} | ${formatNullable(values.engaged_installations)} | ${formatRollingActive(values.weekly_active_installations, "WAU")} | ${formatRollingActive(values.monthly_active_installations, "MAU")} | ${formatNullable(values.interactive_minutes)} | ${formatNullable(values.foreground_exposure_minutes)} | ${formatNullable(values.legacy_active_minutes)} | ${formatNullable(values.launches)} | ${values.freshness_status ?? "historical"} |`);
   }
-  if (report.activity.by_date === null) lines.push("| N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A |");
-  else if (Object.keys(report.activity.by_date).length === 0) lines.push("| 无口径内每日汇总 | — | — | — | — | — | — | — |");
+  if (report.activity.by_date === null) lines.push("| N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A |");
+  else if (Object.keys(report.activity.by_date).length === 0) lines.push("| 无口径内每日汇总 | — | — | — | — | — | — | — | — | — |");
   lines.push(
     "",
     `- 活跃版本分布（status=${report.activity.active_versions_status}）：${formatObjectCounts(report.activity.active_versions)}`,
     `- 深度活跃版本分布（status=${report.activity.engaged_versions_status}）：${formatObjectCounts(report.activity.engaged_versions)}`,
-    `- 模式分钟（status=${report.activity.mode_minutes_status}）：${report.activity.mode_minutes === null ? "N/A" : `preview=${formatNullable(report.activity.mode_minutes.preview)}，source=${formatNullable(report.activity.mode_minutes.source)}，live=${formatNullable(report.activity.mode_minutes.live)}`}`,
+    `- 新时长口径（status=${report.activity.duration_status}）：活跃 ${formatNullable(report.activity.interactive_minutes)} 分钟，前台展示 ${formatNullable(report.activity.foreground_exposure_minutes)} 分钟；capable/legacy 汇总 ${formatNullable(report.activity.duration_capable_summaries)}/${formatNullable(report.activity.duration_legacy_summaries)}`,
+    `- 新口径模式活跃分钟：${formatModeDuration(report.activity.mode_interactive_minutes)}`,
+    `- 新口径模式前台展示分钟：${formatModeDuration(report.activity.mode_foreground_exposure_minutes)}`,
+    `- legacy 抽样模式分钟（status=${report.activity.mode_minutes_status}）：${formatModeDuration(report.activity.mode_minutes)}`,
     `- 每日不同仓库分布（status=${report.repositories.status}）：${formatObjectCounts(report.repositories.daily_distinct_count_distribution)}`,
     "",
     `### 功能使用（status=${report.features_status}）`,
@@ -1658,6 +1865,10 @@ export function telemetryReportMarkdown(report) {
     `- 因内部不一致排除的日汇总：${formatSourceMetric(report.data_quality.excluded_inconsistent_daily_summaries)}`,
     `- 启动次数不平衡：${formatSourceMetric(dailyQuality.launch_count_mismatch)}`,
     `- 活跃分钟不平衡：${formatSourceMetric(dailyQuality.active_minutes_mismatch)}`,
+    `- 前台展示时长不平衡：${formatSourceMetric(dailyQuality.foreground_exposure_mismatch)}`,
+    `- 交互时长不平衡：${formatSourceMetric(dailyQuality.interactive_duration_mismatch)}`,
+    `- 交互总时长大于前台时长：${formatSourceMetric(dailyQuality.interactive_duration_exceeds_foreground)}`,
+    `- 模式交互时长大于模式前台时长：${formatSourceMetric(dailyQuality.mode_interactive_duration_exceeds_foreground)}`,
     `- 每日仓库数大于打开次数：${formatSourceMetric(dailyQuality.distinct_repositories_exceed_opens)}`,
     `- 每日仓库数大于 30 日仓库数：${formatSourceMetric(dailyQuality.daily_repositories_exceed_rolling_30d)}`,
     `- 更新检查平衡差（strict capability）：${formatSourceMetric(checkBalance.difference)}`,
@@ -1734,6 +1945,12 @@ function formatDuration(seconds) {
 
 function formatNullable(value) {
   return value === null || value === undefined ? "不可计算" : String(value);
+}
+
+function formatModeDuration(value) {
+  return value === null
+    ? "N/A"
+    : ACTIVITY_MODES.map((mode) => `${mode}=${formatNullable(value[mode])}`).join("，");
 }
 
 function formatRollingActive(metric, label) {

@@ -10,6 +10,7 @@ test("telemetry upload scheduler sends the launch summary quickly and refreshes 
   let initialCallback = null;
   let intervalCallback = null;
   const scheduler = createTelemetryUploadScheduler({
+    beforeQueueDailySummary: () => calls.push("settle"),
     telemetry: {
       queueDailySummary: async () => {
         calls.push("queue");
@@ -44,8 +45,10 @@ test("telemetry upload scheduler sends the launch summary quickly and refreshes 
   await initialCallback();
   await intervalCallback();
   assert.deepEqual(calls, [
+    "settle",
     "queue",
     ["flush", { timeoutMs: 10_000 }],
+    "settle",
     "queue",
     ["flush", { timeoutMs: 10_000 }],
   ]);

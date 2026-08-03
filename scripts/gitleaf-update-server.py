@@ -957,7 +957,16 @@ def valid_daily_summary_properties(properties, install_id, event_local_date):
         "worktree_switch_count", "mode_minutes", "feature_counts",
     }
     has_summary_date = isinstance(properties, dict) and "summary_date" in properties
-    expected_keys = base_keys | ({"summary_date"} if has_summary_date else set())
+    duration_keys = {
+        "activity_duration_contract", "foreground_exposure_ms", "interactive_active_ms",
+        "mode_foreground_exposure_ms", "mode_interactive_ms",
+    }
+    has_duration = isinstance(properties, dict) and any(key in properties for key in duration_keys)
+    expected_keys = (
+        base_keys
+        | ({"summary_date"} if has_summary_date else set())
+        | (duration_keys if has_duration else set())
+    )
     if not exact_dict_keys(properties, expected_keys):
         return False
     summary_id = properties.get("summary_id")
@@ -993,12 +1002,36 @@ def valid_daily_summary_properties(properties, install_id, event_local_date):
         return False
     if not all(bounded_integer(count, 0, 1000000) for count in mode_minutes.values()):
         return False
+    if has_duration and not valid_activity_duration_properties(properties):
+        return False
     feature_counts = properties.get("feature_counts")
     return (
         isinstance(feature_counts, list)
         and len(feature_counts) <= 100
         and all(valid_feature_counter(counter) for counter in feature_counts)
     )
+
+
+def valid_activity_duration_properties(properties):
+    if properties.get("activity_duration_contract") != "foreground_interactive_v1":
+        return False
+    foreground_exposure_ms = properties.get("foreground_exposure_ms")
+    interactive_ms = properties.get("interactive_active_ms")
+    mode_foreground_exposure_ms = properties.get("mode_foreground_exposure_ms")
+    mode_interactive_ms = properties.get("mode_interactive_ms")
+    if not bounded_integer(foreground_exposure_ms, 0, 172800000):
+        return False
+    if not bounded_integer(interactive_ms, 0, 172800000):
+        return False
+    if not exact_dict_keys(mode_foreground_exposure_ms, {"preview", "source", "live"}):
+        return False
+    if not exact_dict_keys(mode_interactive_ms, {"preview", "source", "live"}):
+        return False
+    if not all(bounded_integer(value, 0, 172800000) for value in mode_foreground_exposure_ms.values()):
+        return False
+    if not all(bounded_integer(value, 0, 172800000) for value in mode_interactive_ms.values()):
+        return False
+    return True
 
 
 def valid_feature_counter(counter):
