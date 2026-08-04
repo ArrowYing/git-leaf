@@ -17,6 +17,7 @@ const FILE_TYPE_ROWS = Object.freeze([
   { files: ".html .htm", visibility: "default", behavior: "html" },
   { files: ".csv", visibility: "onDemand", behavior: "csv" },
   { files: ".json", visibility: "onDemand", behavior: "json" },
+  { files: ".ndjson .jsonl", visibility: "onDemand", behavior: "ndjson" },
   { files: ".yaml .yml .txt", visibility: "onDemand", behavior: "text" },
   { filesKey: "help.files.code", visibility: "onDemand", behavior: "code" },
   { filesKey: "help.files.other", visibility: "onDemand", behavior: "other" },

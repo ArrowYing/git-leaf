@@ -3883,6 +3883,135 @@ summary.has-operation-feedback {
   font-size: 13px;
 }
 
+.file-preview-ndjson {
+  min-width: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 13px;
+}
+
+.ndjson-overview {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 6px 16px;
+  margin: 0 0 10px;
+  color: var(--muted);
+}
+
+.ndjson-record-list {
+  display: grid;
+  min-width: 0;
+  gap: 8px;
+}
+
+.ndjson-record {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.ndjson-record-summary {
+  display: flex;
+  min-width: 0;
+  min-height: 38px;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.ndjson-record-summary::-webkit-details-marker {
+  display: none;
+}
+
+.ndjson-record-summary::before {
+  content: "›";
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-family: var(--document-font-family);
+  font-size: 18px;
+  line-height: 1;
+  transform: rotate(0deg);
+  transition: transform 120ms ease-out;
+}
+
+.ndjson-record[open] > .ndjson-record-summary::before {
+  transform: rotate(90deg);
+}
+
+.ndjson-record-summary:hover {
+  background: var(--row-hover);
+}
+
+.ndjson-record-identity {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.ndjson-record-line {
+  color: var(--muted);
+}
+
+.ndjson-record-invalid {
+  margin-left: auto;
+  color: var(--danger-text);
+  font-weight: 700;
+}
+
+.ndjson-record-body {
+  min-width: 0;
+  border-top: 1px solid var(--panel-border-soft);
+  padding: 6px 8px 8px;
+  background: var(--panel-muted);
+}
+
+.ndjson-record .json-tree-node,
+.ndjson-record .json-tree-children {
+  min-width: 0;
+}
+
+.ndjson-record .json-tree-row,
+.ndjson-record .json-tree-summary {
+  min-width: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.ndjson-record .ndjson-invalid-source {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.ndjson-footer {
+  display: flex;
+  justify-content: center;
+  padding-top: 12px;
+}
+
+.ndjson-footer[hidden] {
+  display: none;
+}
+
+.ndjson-show-more {
+  min-height: 34px;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 0 12px;
+  font: inherit;
+}
+
+.ndjson-show-more:hover {
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+
 .json-tree-node {
   min-width: max-content;
 }

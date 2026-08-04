@@ -18,6 +18,7 @@ test("Git Leaf help explains stable filtering and all repository files", () => {
   assert.match(text, /仓库中全部已跟踪文件/);
   assert.match(text, /\.md \.mdx\s+默认显示\s+Markdown \/ MDX 预览，可编辑/);
   assert.match(text, /\.json\s+按需显示\s+格式化 JSON 树/);
+  assert.match(text, /\.ndjson \.jsonl\s+按需显示\s+每行一棵可折叠 JSON 树/);
   assert.match(text, /\.html \.htm\s+默认显示\s+浏览器 HTML 效果预览/);
   assert.match(text, /当前打开的文件、搜索结果/);
   assert.match(text, /切换文档不会因为引用关系改变目录内容/);
@@ -57,6 +58,7 @@ test("Git Leaf help explains stable filtering and all repository files", () => {
       ".html .htm",
       ".csv",
       ".json",
+      ".ndjson .jsonl",
       ".yaml .yml .txt",
       ".js .ts .py .css .toml 等文本代码 / 配置",
       "其他文件（例如 .pptx）",
@@ -69,6 +71,7 @@ test("Git Leaf help explains stable filtering and all repository files", () => {
       "默认显示",
       "默认显示",
       "默认显示",
+      "按需显示",
       "按需显示",
       "按需显示",
       "按需显示",

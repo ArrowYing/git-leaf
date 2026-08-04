@@ -162,7 +162,8 @@ JSX, JavaScript, imports, or scripts.
 - A searchable repository panel for opening, switching, and removing repositories from Git Leaf without
   deleting local files, plus worktree switching with restored tabs, navigation history, scroll positions,
   and focus.
-- Read-only previews for images, PDFs, CSV, JSON, YAML, HTML, code, and other repository attachments.
+- Read-only previews for images, PDFs, CSV, JSON, JSON Lines (`.ndjson` / `.jsonl`), YAML, HTML, code,
+  and other repository attachments.
 - Source line references that paste as quoted context, preserve where selected text came from, and leave
   a blank paragraph ready for the user's prompt.
 - Conservative file operations that avoid turning Git Leaf into a general file manager or IDE.

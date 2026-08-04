@@ -579,6 +579,7 @@ test("tree API always returns every repository file", async () => {
   await mkdir(path.join(repoRoot, "docs"), { recursive: true });
   await writeFile(path.join(repoRoot, "sample.md"), "# Sample\n");
   await writeFile(path.join(repoRoot, "docs", "data.json"), "{\"ok\":true}\n");
+  await writeFile(path.join(repoRoot, "docs", "events.ndjson"), "{\"event\":1}\n");
   await writeFile(path.join(repoRoot, "docs", "page.html"), "<h1>Page</h1>");
   await writeFile(path.join(repoRoot, "docs", "script.js"), "export const ok = true;\n");
   await writeFile(path.join(repoRoot, "docs", "slides.pptx"), Buffer.from([0x50, 0x4b, 0x03, 0x04, 0x00]));
@@ -598,6 +599,7 @@ test("tree API always returns every repository file", async () => {
       docs.children.map(({ name, kind }) => ({ name, kind })),
       [
         { name: "data.json", kind: "json" },
+        { name: "events.ndjson", kind: "ndjson" },
         { name: "page.html", kind: "html" },
         { name: "script.js", kind: "code" },
         { name: "slides.pptx", kind: "unknown" },
@@ -613,6 +615,10 @@ test("document API returns readonly payloads for previewable, code, and unsuppor
   await writeFile(path.join(repoRoot, "sample.md"), "# Sample\n");
   await writeFile(path.join(repoRoot, "data.json"), "{\"ok\":true,\"items\":[1,2]}\n");
   await writeFile(path.join(repoRoot, "invalid.json"), "{\"broken\":\n");
+  await writeFile(
+    path.join(repoRoot, "events.ndjson"),
+    '{"event":1,"message":"first"}\n{"event":2,"message":"second"}\n',
+  );
   await writeFile(path.join(repoRoot, "page.html"), '<link rel="stylesheet" href="./page.css"><h1>Page</h1>');
   await writeFile(path.join(repoRoot, "script.js"), "export const ok = true;\n");
   await writeFile(path.join(repoRoot, "slides.pptx"), Buffer.from([0x50, 0x4b, 0x03, 0x04, 0x00]));
@@ -628,6 +634,16 @@ test("document API returns readonly payloads for previewable, code, and unsuppor
     assert.match(jsonPayload.text, /"items"/);
     assert.equal(Object.hasOwn(jsonPayload, "source"), false);
     assert.equal(Object.hasOwn(jsonPayload, "html"), false);
+
+    const ndjsonPayload = await getJson(`${baseUrl}/api/document?file=events.ndjson`);
+    assert.equal(ndjsonPayload.kind, "ndjson");
+    assert.equal(ndjsonPayload.editable, false);
+    assert.equal(ndjsonPayload.canEdit, false);
+    assert.equal(
+      ndjsonPayload.text,
+      '{"event":1,"message":"first"}\n{"event":2,"message":"second"}\n',
+    );
+    assert.equal(Object.hasOwn(ndjsonPayload, "source"), false);
 
     const invalidJson = await getJson(`${baseUrl}/api/document?file=invalid.json`);
     assert.equal(invalidJson.parseError, "JSON parsing failed. The original text is shown.");
@@ -2112,6 +2128,7 @@ test("public module assets are served for the browser", async () => {
       "tree-item-tooltip.js",
       "tree-file-title.js",
       "file-capability.js",
+      "ndjson.js",
       "file-actions.js",
       "pointer-resize.js",
       "outline.js",

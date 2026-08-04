@@ -6,6 +6,7 @@ export const IMAGE_EXTENSIONS = new Set([".avif", ".bmp", ".png", ".jpg", ".jpeg
 export const PDF_EXTENSIONS = new Set([".pdf"]);
 export const CSV_EXTENSIONS = new Set([".csv"]);
 export const JSON_EXTENSIONS = new Set([".json"]);
+export const NDJSON_EXTENSIONS = new Set([".ndjson", ".jsonl"]);
 export const YAML_EXTENSIONS = new Set([".yaml", ".yml"]);
 export const TEXT_EXTENSIONS = new Set([".txt"]);
 export const HTML_EXTENSIONS = new Set([".html", ".htm"]);
@@ -85,6 +86,7 @@ export const RAW_ASSET_EXTENSIONS = new Set([
   ...PDF_EXTENSIONS,
   ...CSV_EXTENSIONS,
   ...JSON_EXTENSIONS,
+  ...NDJSON_EXTENSIONS,
   ...YAML_EXTENSIONS,
   ...TEXT_EXTENSIONS,
   ...HTML_EXTENSIONS,
@@ -110,6 +112,9 @@ export function fileTypeForPath(value) {
   }
   if (JSON_EXTENSIONS.has(extension)) {
     return { kind: "json", extension, editable: false, text: true, raw: false };
+  }
+  if (NDJSON_EXTENSIONS.has(extension)) {
+    return { kind: "ndjson", extension, editable: false, text: true, raw: false };
   }
   if (YAML_EXTENSIONS.has(extension)) {
     return { kind: "yaml", extension, editable: false, text: true, raw: false };

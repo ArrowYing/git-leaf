@@ -203,6 +203,20 @@ test("resolveOpenablePath accepts selected readonly preview files", async () => 
   assert.equal(resolved.editable, false);
 });
 
+test("resolveOpenablePath classifies NDJSON and JSONL as readonly structured records", async () => {
+  const repoRoot = await mkdtemp(path.join(tmpdir(), "git-leaf-"));
+  await writeFile(path.join(repoRoot, "events.ndjson"), '{"event":1}\n');
+  await writeFile(path.join(repoRoot, "ledger.jsonl"), '{"entry":1}\n');
+
+  const ndjson = await resolveOpenablePath(repoRoot, "events.ndjson");
+  const jsonl = await resolveOpenablePath(repoRoot, "ledger.jsonl");
+
+  assert.equal(ndjson.kind, "ndjson");
+  assert.equal(jsonl.kind, "ndjson");
+  assert.equal(ndjson.text, true);
+  assert.equal(ndjson.editable, false);
+});
+
 test("resolveOpenablePath classifies BMP files as readonly image previews", async () => {
   const repoRoot = await mkdtemp(path.join(tmpdir(), "git-leaf-"));
   await writeFile(path.join(repoRoot, "diagram.bmp"), Buffer.from("bmp-image"));

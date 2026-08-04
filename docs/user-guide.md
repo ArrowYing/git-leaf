@@ -426,6 +426,7 @@ Git Leaf keeps the document workflow focused while still making surrounding evid
 | HTML | Read-only rendered preview |
 | CSV | Read-only table preview |
 | JSON | Formatted tree, with text fallback when parsing fails |
+| JSON Lines (`.ndjson`, `.jsonl`) | One collapsible, wrapping JSON tree per line; invalid lines keep their original text |
 | YAML, text, code, and configuration | Read-only text or code preview |
 | Unsupported attachments | Opens them in an appropriate system application when possible |
 

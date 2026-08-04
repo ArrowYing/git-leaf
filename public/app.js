@@ -41,6 +41,7 @@ import {
   shouldShowReadonlyModeStatus,
   treeFileCapability,
 } from "./file-capability.js";
+import { parseNdjsonRecords } from "./ndjson.js";
 import { githubFileUrl } from "./file-actions.js";
 import { hasTreeChanged } from "./tree-refresh.js";
 import { shouldReplaceDocumentHtml } from "./document-refresh.js";
@@ -219,6 +220,7 @@ const SIDEBAR_FAVORITES_STORAGE_KEY = "git-leaf-sidebar-favorites";
 const SIDEBAR_WIDTH_STEP = 24;
 const DOCUMENT_OUTLINE_WIDTH_STEP = 24;
 const SOURCE_SPLIT_STEP = 5;
+const NDJSON_RECORD_BATCH_SIZE = 100;
 const TREE_REFRESH_INTERVAL_MS = 5000;
 const SOURCE_SYNC_DELAY_MS = 500;
 const AUTOMATIC_REMOTE_MERGE_IDLE_MS = 2500;
@@ -5615,6 +5617,10 @@ function readonlyPreviewElement(documentData) {
     return jsonPreviewElement(documentData);
   }
 
+  if (documentData.kind === "ndjson") {
+    return ndjsonPreviewElement(documentData);
+  }
+
   return codePreviewElement({
     text: documentData.text ?? "",
     language: documentData.kind,
@@ -5712,6 +5718,114 @@ function jsonPreviewElement(documentData) {
       notice: documentData.parseError || t("json.parseFallback"),
     });
   }
+}
+
+function ndjsonPreviewElement(documentData) {
+  const { records, invalidCount } = parseNdjsonRecords(documentData.text ?? "");
+  if (records.length === 0) {
+    return readonlyMessage(t("ndjson.emptyTitle"), t("ndjson.emptyDetail"));
+  }
+
+  const container = document.createElement("section");
+  container.className = "file-preview-ndjson";
+
+  const overview = document.createElement("header");
+  overview.className = "ndjson-overview";
+  const total = document.createElement("span");
+  total.textContent = t("ndjson.recordsSummary", {
+    records: records.length,
+    invalid: invalidCount,
+  });
+  const shown = document.createElement("span");
+  shown.className = "ndjson-shown-count";
+  overview.append(total, shown);
+
+  const list = document.createElement("div");
+  list.className = "ndjson-record-list";
+
+  const footer = document.createElement("footer");
+  footer.className = "ndjson-footer";
+  const showMore = document.createElement("button");
+  showMore.type = "button";
+  showMore.className = "ndjson-show-more";
+  footer.append(showMore);
+
+  let renderedCount = 0;
+  const renderNextBatch = () => {
+    const nextCount = Math.min(records.length, renderedCount + NDJSON_RECORD_BATCH_SIZE);
+    for (let index = renderedCount; index < nextCount; index += 1) {
+      list.append(ndjsonRecordElement(records[index], {
+        recordNumber: index + 1,
+        initiallyOpen: index === 0,
+      }));
+    }
+    renderedCount = nextCount;
+    shown.textContent = t("ndjson.showing", {
+      shown: renderedCount,
+      records: records.length,
+    });
+    const remaining = records.length - renderedCount;
+    footer.hidden = remaining === 0;
+    showMore.textContent = t("ndjson.showMore", {
+      count: Math.min(NDJSON_RECORD_BATCH_SIZE, remaining),
+    });
+  };
+
+  showMore.addEventListener("click", renderNextBatch);
+  renderNextBatch();
+  container.append(overview, list, footer);
+  return container;
+}
+
+function ndjsonRecordElement(record, { recordNumber, initiallyOpen = false } = {}) {
+  const details = document.createElement("details");
+  details.className = "ndjson-record";
+  details.open = initiallyOpen;
+
+  const summary = document.createElement("summary");
+  summary.className = "ndjson-record-summary";
+  const identity = document.createElement("span");
+  identity.className = "ndjson-record-identity";
+  identity.textContent = t("ndjson.record", { record: recordNumber });
+  const line = document.createElement("span");
+  line.className = "ndjson-record-line";
+  line.textContent = t("ndjson.line", { line: record.line });
+  summary.append(identity, line);
+
+  if (!record.valid) {
+    const invalid = document.createElement("span");
+    invalid.className = "ndjson-record-invalid";
+    invalid.textContent = t("ndjson.invalid");
+    summary.append(invalid);
+  }
+  details.append(summary);
+
+  let hydrated = false;
+  const hydrate = () => {
+    if (hydrated || !details.open) {
+      return;
+    }
+    hydrated = true;
+    const body = document.createElement("div");
+    body.className = "ndjson-record-body";
+    if (record.valid) {
+      body.append(jsonTreeNode(record.value, {
+        label: "root",
+        depth: 0,
+        root: true,
+      }));
+    } else {
+      const source = document.createElement("pre");
+      source.className = "ndjson-invalid-source";
+      source.textContent = record.raw;
+      body.append(source);
+    }
+    details.append(body);
+  };
+
+  details.addEventListener("toggle", hydrate);
+  hydrate();
+  return details;
 }
 
 function jsonTreeNode(value, { label, depth = 0, root = false } = {}) {

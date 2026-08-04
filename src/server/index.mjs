@@ -86,6 +86,8 @@ const CONTENT_TYPES = new Map([
   [".jpeg", "image/jpeg"],
   [".jpg", "image/jpeg"],
   [".json", "application/json; charset=utf-8"],
+  [".jsonl", "application/x-ndjson; charset=utf-8"],
+  [".ndjson", "application/x-ndjson; charset=utf-8"],
   [".pdf", "application/pdf"],
   [".png", "image/png"],
   [".svg", "image/svg+xml"],
@@ -225,6 +227,7 @@ async function handleRequest(request, response, context) {
     requestUrl.pathname === "/tree-item-tooltip.js" ||
     requestUrl.pathname === "/tree-file-title.js" ||
     requestUrl.pathname === "/file-capability.js" ||
+    requestUrl.pathname === "/ndjson.js" ||
     requestUrl.pathname === "/file-actions.js" ||
     requestUrl.pathname === "/pointer-resize.js" ||
     requestUrl.pathname === "/outline.js" ||
