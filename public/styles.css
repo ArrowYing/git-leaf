@@ -3407,15 +3407,18 @@ summary.has-operation-feedback {
 
 .mermaid-diagram-viewport {
   position: relative;
-  height: clamp(320px, 48vw, 560px);
+  height: var(--mermaid-viewport-height, clamp(280px, 36vw, 480px));
+  min-height: 240px;
   overflow: hidden;
   touch-action: none;
   background-color: var(--panel);
-  background-image:
-    linear-gradient(var(--panel-border-soft) 1px, transparent 1px),
-    linear-gradient(90deg, var(--panel-border-soft) 1px, transparent 1px);
-  background-position: -1px -1px;
-  background-size: 24px 24px;
+  background-image: radial-gradient(
+    circle,
+    var(--panel-border-soft) 0.8px,
+    transparent 0.9px
+  );
+  background-position: 0 0;
+  background-size: 18px 18px;
 }
 
 .mermaid-diagram-canvas {
@@ -3460,7 +3463,8 @@ summary.has-operation-feedback {
 .mermaid-diagram-source {
   box-sizing: border-box;
   width: 100%;
-  height: clamp(320px, 48vw, 560px);
+  height: var(--mermaid-viewport-height, clamp(280px, 36vw, 480px));
+  min-height: 240px;
   max-height: none;
   margin: 0 !important;
   border: 0 !important;

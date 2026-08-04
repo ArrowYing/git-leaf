@@ -119,6 +119,12 @@ blocks. The diagram toolbar can fit, zoom, and pan a dense graph, while `</>` ex
 source. Git Leaf does not load a remote diagram service, and an invalid diagram remains available as
 source instead of replacing the document with a second visual model.
 
+Git Leaf preserves the layout expressed by the document instead of guessing a new topology. Use an
+automatic `flowchart` for a short directional process. For an architecture overview with many stages
+or feedback edges, use Mermaid `block-beta` with explicit columns, rows, and intentional `space`
+blocks. Keep the stage labels short, then move detailed paths into smaller follow-up diagrams. Fit and
+zoom help inspect a diagram; they do not make an overlong topology understandable by themselves.
+
 Git Leaf supports Markdown and a controlled subset of MDX so structured data can stay directly in the
 document instead of being trapped in a screenshot or a separate dashboard. Chart series, table rows,
 timelines, headline metrics, decisions, and flows can be written as readable CSV, TSV, JSON, or

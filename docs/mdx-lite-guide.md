@@ -631,6 +631,11 @@ Use fenced Mermaid for swimlanes, many branches, deep architecture, or layout-se
 Leaf renders a standard `mermaid` fence locally in Preview and inactive Live blocks, with fit, zoom,
 pan, and an explicit `</>` source fallback; the saved content remains ordinary Markdown.
 
+Within Mermaid, prefer an automatic `flowchart` for a short directional process. Prefer `block-beta`
+with explicit columns, rows, and `space` blocks for an architecture overview whose feedback edges would
+otherwise make the automatic graph extremely wide or tall. Keep overview labels short, and split
+overview from detail when one diagram would need more than a small number of semantic stages.
+
 ## Unsupported examples
 
 Arbitrary JSX is rejected:

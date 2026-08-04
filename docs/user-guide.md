@@ -166,6 +166,12 @@ temporary reading state and never rewrite the file. Dark and light appearance re
 the active theme. If the syntax is invalid or too large, the card reports the error and keeps `</>`
 available for inspection.
 
+Diagram comprehension starts in the source. Use an automatic `flowchart` for a short, directional
+process. For a system overview with many stages or feedback edges, use `block-beta` to place a limited
+number of short semantic stages explicitly, including `space` blocks for real breathing room, and move
+detailed paths into smaller follow-up diagrams. Git Leaf adapts the viewport to the rendered aspect
+ratio but does not silently reinterpret the author's relationships.
+
 ## Keep data readable to agents and visual for people
 
 An `.mdx` document can keep chart series, table rows, metrics, timelines, decisions, and flows as

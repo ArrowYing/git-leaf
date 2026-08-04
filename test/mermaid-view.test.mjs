@@ -10,6 +10,7 @@ import {
 import {
   clampMermaidViewState,
   initialMermaidViewState,
+  mermaidViewportHeight,
   mermaidViewStateAfterAction,
 } from "../public/mermaid-view.js";
 
@@ -77,4 +78,26 @@ test("Mermaid view controls clamp zoom and reset pan when returning to fit", () 
   }
   assert.equal(state.scale, 0.75);
   assert.deepEqual({ x: state.x, y: state.y }, { x: 0, y: 0 });
+});
+
+test("Mermaid viewport follows the rendered aspect ratio without becoming too flat or tall", () => {
+  assert.equal(mermaidViewportHeight({
+    viewportWidth: 1_000,
+    viewBoxWidth: 3_200,
+    viewBoxHeight: 240,
+  }), 240);
+
+  assert.equal(mermaidViewportHeight({
+    viewportWidth: 1_000,
+    viewBoxWidth: 1_200,
+    viewBoxHeight: 600,
+  }), 518);
+
+  assert.equal(mermaidViewportHeight({
+    viewportWidth: 1_000,
+    viewBoxWidth: 600,
+    viewBoxHeight: 1_800,
+  }), 560);
+
+  assert.equal(mermaidViewportHeight({ viewportWidth: 1_000 }), 360);
 });

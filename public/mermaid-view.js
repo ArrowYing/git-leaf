@@ -2,6 +2,10 @@ const DIAGRAM_SELECTOR = "[data-mermaid-diagram]";
 const MIN_SCALE = 0.75;
 const MAX_SCALE = 3;
 const SCALE_STEP = 0.25;
+const DEFAULT_VIEWPORT_HEIGHT = 360;
+const MIN_VIEWPORT_HEIGHT = 240;
+const MAX_VIEWPORT_HEIGHT = 560;
+const VIEWPORT_PADDING = 36;
 
 let rendererModulePromise = null;
 
@@ -18,13 +22,26 @@ export function attachMermaidDiagrams(
 
   const states = new WeakMap();
   const requests = new WeakMap();
+  const measuredWidths = new WeakMap();
   let drag = null;
+
+  const resizeObserver = typeof ResizeObserver === "function"
+    ? new ResizeObserver((entries) => {
+        for (const entry of entries) {
+          const width = Math.round(entry.contentRect?.width ?? 0);
+          if (width <= 0 || measuredWidths.get(entry.target) === width) continue;
+          measuredWidths.set(entry.target, width);
+          updateMermaidViewportLayout(entry.target, { viewportWidth: width });
+        }
+      })
+    : null;
 
   const hydrate = (scope = root, { force = false } = {}) => {
     for (const diagram of diagramsWithin(scope)) {
       if (!force && diagram.dataset.mermaidHydrated === "true") continue;
       diagram.dataset.mermaidHydrated = "true";
       states.set(diagram, states.get(diagram) ?? initialMermaidViewState());
+      resizeObserver?.observe(diagram);
       updateMermaidView(diagram, states.get(diagram));
       void hydrateDiagram(diagram, {
         render,
@@ -111,6 +128,7 @@ export function attachMermaidDiagrams(
     },
     destroy() {
       observer?.disconnect();
+      resizeObserver?.disconnect();
       root.removeEventListener("click", handleClick);
       root.removeEventListener("pointerdown", handlePointerDown);
       root.removeEventListener("pointermove", handlePointerMove);
@@ -164,6 +182,36 @@ export function clampMermaidViewState(state, { width = 0, height = 0 } = {}) {
   };
 }
 
+export function mermaidViewportHeight({
+  viewportWidth,
+  viewBoxWidth,
+  viewBoxHeight,
+  padding = VIEWPORT_PADDING,
+  minHeight = MIN_VIEWPORT_HEIGHT,
+  maxHeight = MAX_VIEWPORT_HEIGHT,
+  fallbackHeight = DEFAULT_VIEWPORT_HEIGHT,
+} = {}) {
+  const width = Number(viewportWidth);
+  const diagramWidth = Number(viewBoxWidth);
+  const diagramHeight = Number(viewBoxHeight);
+  if (
+    !Number.isFinite(width)
+    || !Number.isFinite(diagramWidth)
+    || !Number.isFinite(diagramHeight)
+    || width <= 0
+    || diagramWidth <= 0
+    || diagramHeight <= 0
+  ) {
+    return fallbackHeight;
+  }
+
+  const inset = Math.max(0, Number(padding) || 0);
+  const lowerBound = Math.max(0, Number(minHeight) || 0);
+  const upperBound = Math.max(lowerBound, Number(maxHeight) || lowerBound);
+  const fittedHeight = Math.max(0, width - inset) * diagramHeight / diagramWidth + inset;
+  return Math.round(Math.max(lowerBound, Math.min(upperBound, fittedHeight)));
+}
+
 async function hydrateDiagram(diagram, { render, theme, requests }) {
   const source = diagram.querySelector("[data-mermaid-source]")?.textContent ?? "";
   const canvas = diagram.querySelector("[data-mermaid-canvas]");
@@ -181,6 +229,7 @@ async function hydrateDiagram(diagram, { render, theme, requests }) {
     const { svg } = await render(source, { theme });
     if (requests.get(diagram) !== requestId || diagram.isConnected === false) return;
     canvas.innerHTML = svg;
+    updateMermaidViewportLayout(diagram);
     canvas.setAttribute("aria-busy", "false");
     status.hidden = true;
     diagram.dataset.mermaidState = "ready";
@@ -192,6 +241,24 @@ async function hydrateDiagram(diagram, { render, theme, requests }) {
     status.textContent = diagram.dataset.mermaidErrorMessage || "Diagram could not be rendered.";
     diagram.dataset.mermaidState = "error";
   }
+}
+
+function updateMermaidViewportLayout(diagram, { viewportWidth } = {}) {
+  const viewport = diagram.querySelector?.("[data-mermaid-viewport]");
+  const svg = diagram.querySelector?.("[data-mermaid-canvas] svg");
+  const viewBox = svg?.getAttribute?.("viewBox")?.trim().split(/[\s,]+/).map(Number);
+  if (!viewport || viewBox?.length !== 4 || !viewBox.every(Number.isFinite)) return;
+
+  const width = Number(viewportWidth)
+    || viewport.getBoundingClientRect?.().width
+    || diagram.getBoundingClientRect?.().width
+    || 0;
+  const height = mermaidViewportHeight({
+    viewportWidth: width,
+    viewBoxWidth: viewBox[2],
+    viewBoxHeight: viewBox[3],
+  });
+  diagram.style?.setProperty("--mermaid-viewport-height", `${height}px`);
 }
 
 function updateMermaidView(diagram, state) {
