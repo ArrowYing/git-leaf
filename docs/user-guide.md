@@ -1,5 +1,5 @@
 ---
-last_updated: 2026-08-02
+last_updated: 2026-08-04
 ---
 
 # Git Leaf user guide
@@ -160,17 +160,24 @@ A standard fenced `mermaid` block stays ordinary Markdown source and renders loc
 Live it renders whenever the cursor is outside that complete block; move the cursor into the block to
 edit the original syntax.
 
-Use **Fit width** to return to the complete diagram, `+` and `−` to zoom, and drag the canvas after
+Use **Fit width** to return to the current complete view, `+` and `−` to zoom, and drag the canvas after
 zooming in. The `</>` button switches the card to the exact Mermaid source and back. These controls are
 temporary reading state and never rewrite the file. Dark and light appearance rerender the diagram for
 the active theme. If the syntax is invalid or too large, the card reports the error and keeps `</>`
 available for inspection.
 
-Diagram comprehension starts in the source. Use an automatic `flowchart` for a short, directional
-process. For a system overview with many stages or feedback edges, use `block-beta` to place a limited
-number of short semantic stages explicitly, including `space` blocks for real breathing room, and move
-detailed paths into smaller follow-up diagrams. Git Leaf adapts the viewport to the rendered aspect
-ratio but does not silently reinterpret the author's relationships.
+For a dense `flowchart`, **Smart view** first tests whether the author direction or its alternate can
+show the complete graph with readable fitted text and no overlapping nodes. A candidate is rejected if
+its node, relationship, or cluster counts differ from the original. If neither complete orientation is
+readable, Git Leaf opens a guided one-hop view: the selected node plus its direct predecessors and
+successors. The node picker and node clicks continue the path; the summary states how many of the total
+nodes and relationships are visible. Choose **All nodes** for the full graph, or turn off **Smart view**
+for the author's original rendering.
+
+This decision uses only graph structure and measured geometry, not labels or domain-specific rules.
+An author-selected Mermaid layout is never overridden. Use an automatic `flowchart` for a directional
+process; use an explicit layout or `block-beta` when intentional placement matters. Keep overview labels
+short and move detail into follow-up diagrams when the concepts themselves remain too numerous.
 
 ## Keep data readable to agents and visual for people
 

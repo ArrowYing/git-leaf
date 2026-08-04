@@ -3,7 +3,7 @@ title: Git Leaf system architecture
 domain: ai
 type: architecture
 owner: maintainer
-last_updated: 2026-08-02
+last_updated: 2026-08-04
 source: git-leaf
 canonical: true
 ai_snippet: "[Architecture] Git Leaf | human desktop interface for shared context repositories | local HTTP service | Git worktrees | Preview Source Live | CodeMirror 6 | guarded Git sync"
@@ -311,9 +311,26 @@ A fenced code block whose language is exactly `mermaid` is a portable Markdown d
 MDX-lite component. The synchronous Markdown renderer emits only an inert shell, escaped source, and
 its source-line range. Preview and inactive Live blocks hydrate that shell with the checked-in browser
 bundle built from `src/client/mermaid-renderer.mjs`; no CDN or remote rendering endpoint is involved.
-The active Live block remains source-editable. Fit, zoom, pan, and source visibility are transient view
-state and never write the document. Appearance changes rerender the SVG for the active light or dark
-theme.
+The active Live block remains source-editable. Fit, zoom, pan, source visibility, Smart view, and node
+focus are transient view state and never write the document. Appearance changes rerender the SVG for
+the active light or dark theme.
+
+Smart view is a generic presentation decision for bounded flowcharts, not a semantic summarizer. An
+explicit author layout disables exploration. Otherwise the client may render the source direction and
+one alternate primary direction, measure their fitted text size, aspect ratio, and node geometry, and
+select an alternate only when all of these invariants hold:
+
+- node, edge, and cluster counts exactly match the source rendering;
+- no measured node rectangles overlap;
+- the candidate provides a material fitted-scale or text-size improvement.
+
+If the best complete rendering still falls below the reading threshold, the client derives a temporary
+one-hop flowchart from the parsed topology. The starting node is selected deterministically from graph
+degree and source order; labels never influence that decision. A focused view contains the selected
+node, every direct predecessor and successor, and every incident relationship. It reports visible versus
+total nodes, lets the reader move to any node, and keeps **All nodes** as an explicit path back to the
+complete topology. The derived source exists only in memory. The stored Mermaid fence and the original
+complete rendering remain authoritative and accessible, including through the `</>` source control.
 
 Mermaid runs with strict security, disabled automatic startup, and a 100,000-character source limit.
 The client accepts only an SVG result without executable elements, event-handler attributes, or
@@ -625,7 +642,7 @@ The following files are key seams, not an exhaustive module inventory:
 | `src/content/markdown.mjs`, `src/content/mdx-lite.mjs` | Markdown shells, allowlisted MDX-lite rendering, and inert dataset view declarations |
 | `src/content/dataset-query.mjs`, `src/server/dataset-loader.mjs` | Bounded period aggregation and repository-contained typed dataset loading |
 | `public/dataset-view.js` | Preview and Live dataset hydration plus transient interval controls |
-| `src/client/mermaid-renderer.mjs`, `public/mermaid-view.js` | Bundled Mermaid rendering and shared Preview/Live diagram interaction state |
+| `src/client/mermaid-renderer.mjs`, `public/mermaid-layout.js`, `public/mermaid-view.js` | Bundled Mermaid rendering, topology-safe layout decisions, and shared Preview/Live diagram interaction state |
 | `src/client/source-editor.mjs` | Shared CodeMirror Source/Live editing model |
 | `src/server/git-sync.mjs` | Guarded repository-wide sync |
 | `src/server/git-remote-sync.mjs` | Periodic remote status and down-only merge transaction |

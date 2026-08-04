@@ -3,7 +3,7 @@ title: Git Leaf MDX-lite renderer reference
 domain: ai
 type: guide
 owner: maintainer
-last_updated: 2026-08-01
+last_updated: 2026-08-04
 source: git-leaf
 canonical: true
 ai_snippet: "[AI Reference] Git Leaf MDX-lite renderer | inline data and repository-local dataset views | DataTable Timeline Chart DecisionBox MetricGrid FlowDiagram"
@@ -629,12 +629,14 @@ comma-separated list of multiple successors.
 
 Use fenced Mermaid for swimlanes, many branches, deep architecture, or layout-sensitive diagrams. Git
 Leaf renders a standard `mermaid` fence locally in Preview and inactive Live blocks, with fit, zoom,
-pan, and an explicit `</>` source fallback; the saved content remains ordinary Markdown.
+pan, Smart view, node focus, and an explicit `</>` source fallback; the saved content remains ordinary
+Markdown. For a dense flowchart, Smart view may choose a topology-equivalent direction or open a
+temporary one-hop reading view. **All nodes** and `</>` always return to the complete graph and source.
 
-Within Mermaid, prefer an automatic `flowchart` for a short directional process. Prefer `block-beta`
-with explicit columns, rows, and `space` blocks for an architecture overview whose feedback edges would
-otherwise make the automatic graph extremely wide or tall. Keep overview labels short, and split
-overview from detail when one diagram would need more than a small number of semantic stages.
+Within Mermaid, prefer an automatic `flowchart` for a directional process. Use an explicit Mermaid
+layout or `block-beta` with columns, rows, and `space` blocks when placement itself is part of the
+meaning; Smart view respects that author choice. Keep overview labels short, and split overview from
+detail when one diagram would still need too many semantic stages.
 
 ## Unsupported examples
 

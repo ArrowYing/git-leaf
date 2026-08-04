@@ -2119,6 +2119,7 @@ test("public module assets are served for the browser", async () => {
       "document-refresh.js",
       "chart-tooltip.js",
       "dataset-view.js",
+      "mermaid-layout.js",
       "mermaid-view.js",
       "mermaid-renderer.bundle.js",
       "source-sync.js",

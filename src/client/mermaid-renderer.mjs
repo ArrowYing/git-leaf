@@ -1,11 +1,16 @@
 import mermaid from "mermaid";
 
+import {
+  mermaidFlowchartSourceInfo,
+  mermaidSourceWithFlowchartDirection,
+} from "../../public/mermaid-layout.js";
+
 export const MERMAID_MAX_SOURCE_LENGTH = 100_000;
 
 let diagramCounter = 0;
 let renderQueue = Promise.resolve();
 
-export function mermaidConfiguration(theme = "light") {
+export function mermaidConfiguration(theme = "light", { layout } = {}) {
   const dark = String(theme).toLowerCase() === "dark";
   const palette = dark
     ? {
@@ -27,7 +32,7 @@ export function mermaidConfiguration(theme = "light") {
         tertiary: "#fff7ed",
       };
 
-  return {
+  const configuration = {
     startOnLoad: false,
     securityLevel: "strict",
     suppressErrorRendering: true,
@@ -63,9 +68,17 @@ export function mermaidConfiguration(theme = "light") {
       fontSize: "14px",
     },
   };
+
+  if (layout) configuration.layout = layout;
+  return configuration;
 }
 
-export function renderMermaidDiagram(source, { theme = "light" } = {}) {
+export function renderMermaidDiagram(source, {
+  theme = "light",
+  layout,
+  direction,
+  includeGraph = true,
+} = {}) {
   const text = String(source ?? "").trim();
   if (!text) {
     return Promise.reject(new Error("Mermaid source is empty."));
@@ -75,19 +88,67 @@ export function renderMermaidDiagram(source, { theme = "light" } = {}) {
   }
 
   const run = async () => {
-    mermaid.initialize(mermaidConfiguration(theme));
-    const parsed = await mermaid.parse(text, { suppressErrors: true });
+    const flowchart = mermaidFlowchartSourceInfo(text);
+    const renderedSource = direction && flowchart && !flowchart.explicitLayout
+      ? mermaidSourceWithFlowchartDirection(text, direction)
+      : text;
+    const renderedLayout = flowchart?.explicitLayout ? undefined : layout;
+    mermaid.initialize(mermaidConfiguration(theme, { layout: renderedLayout }));
+    const parsed = await mermaid.parse(renderedSource, { suppressErrors: true });
     if (!parsed) {
       throw new Error("Mermaid source is invalid.");
     }
+    const graph = includeGraph && flowchart
+      ? await flowchartGraphFromSource(renderedSource)
+      : null;
     const id = `git-leaf-mermaid-${Date.now().toString(36)}-${diagramCounter += 1}`;
-    const { svg } = await mermaid.render(id, text);
-    return { svg: safeMermaidSvg(svg) };
+    const { svg } = await mermaid.render(id, renderedSource);
+    return {
+      svg: safeMermaidSvg(svg),
+      diagramType: flowchart ? "flowchart" : null,
+      flowchart,
+      graph,
+      layout: renderedLayout ?? "source",
+      direction: mermaidFlowchartSourceInfo(renderedSource)?.direction ?? null,
+    };
   };
 
   const result = renderQueue.then(run, run);
   renderQueue = result.then(() => undefined, () => undefined);
   return result;
+}
+
+async function flowchartGraphFromSource(source) {
+  try {
+    const diagram = await mermaid.mermaidAPI.getDiagramFromText(source);
+    const vertices = diagram?.db?.getVertices?.();
+    const edges = diagram?.db?.getEdges?.();
+    if (!(vertices instanceof Map) || !Array.isArray(edges)) return null;
+
+    return {
+      nodes: [...vertices.entries()].map(([id, node]) => ({
+        id: String(id),
+        label: plainMermaidLabel(node?.text, id),
+      })),
+      edges: edges.map((edge, index) => ({
+        id: edge?.id ? String(edge.id) : `edge-${index}`,
+        start: String(edge?.start ?? ""),
+        end: String(edge?.end ?? ""),
+        label: plainMermaidLabel(edge?.text, ""),
+      })),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function plainMermaidLabel(value, fallback) {
+  const text = Array.isArray(value) ? value.join(" ") : String(value ?? fallback ?? "");
+  return text
+    .replace(/<br\s*\/?\s*>/gi, " · ")
+    .replace(/<[^>]*>/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 export function safeMermaidSvg(value) {

@@ -232,6 +232,7 @@ async function handleRequest(request, response, context) {
     requestUrl.pathname === "/document-refresh.js" ||
     requestUrl.pathname === "/chart-tooltip.js" ||
     requestUrl.pathname === "/dataset-view.js" ||
+    requestUrl.pathname === "/mermaid-layout.js" ||
     requestUrl.pathname === "/mermaid-view.js" ||
     requestUrl.pathname === "/mermaid-renderer.bundle.js" ||
     requestUrl.pathname === "/source-sync.js" ||

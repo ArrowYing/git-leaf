@@ -23,6 +23,7 @@ test("Mermaid rendering uses the strict local security boundary in both themes",
   assert.equal(light.suppressErrorRendering, true);
   assert.equal(light.maxTextSize, MERMAID_MAX_SOURCE_LENGTH);
   assert.equal(light.flowchart.useMaxWidth, true);
+  assert.equal(mermaidConfiguration("light", { layout: "dagre" }).layout, "dagre");
   assert.notEqual(light.themeVariables.background, dark.themeVariables.background);
   assert.notEqual(light.themeVariables.primaryTextColor, dark.themeVariables.primaryTextColor);
 });
@@ -55,7 +56,15 @@ test("Mermaid rendering rejects oversized source before invoking the browser ren
 
 test("Mermaid view controls clamp zoom and reset pan when returning to fit", () => {
   let state = initialMermaidViewState();
-  assert.deepEqual(state, { scale: 1, x: 0, y: 0, sourceVisible: false });
+  assert.deepEqual(state, {
+    scale: 1,
+    x: 0,
+    y: 0,
+    sourceVisible: false,
+    smartLayout: true,
+    focusNodeId: "",
+    focusUserSelected: false,
+  });
 
   for (let index = 0; index < 20; index += 1) {
     state = mermaidViewStateAfterAction(state, "zoom-in");
@@ -72,6 +81,10 @@ test("Mermaid view controls clamp zoom and reset pan when returning to fit", () 
   assert.equal(state.sourceVisible, true);
   state = mermaidViewStateAfterAction(state, "fit");
   assert.deepEqual(state, initialMermaidViewState());
+
+  state = mermaidViewStateAfterAction(state, "smart-layout");
+  assert.equal(state.smartLayout, false);
+  assert.equal(state.scale, 1);
 
   for (let index = 0; index < 20; index += 1) {
     state = mermaidViewStateAfterAction(state, "zoom-out");
@@ -98,6 +111,13 @@ test("Mermaid viewport follows the rendered aspect ratio without becoming too fl
     viewBoxWidth: 600,
     viewBoxHeight: 1_800,
   }), 560);
+
+  assert.equal(mermaidViewportHeight({
+    viewportWidth: 3_000,
+    viewBoxWidth: 380,
+    viewBoxHeight: 152,
+    maxScale: 1.6,
+  }), 279);
 
   assert.equal(mermaidViewportHeight({ viewportWidth: 1_000 }), 360);
 });

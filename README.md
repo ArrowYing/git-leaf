@@ -1,5 +1,5 @@
 ---
-last_updated: 2026-08-02
+last_updated: 2026-08-04
 ---
 
 # Git Leaf
@@ -115,15 +115,22 @@ and a repository instruction that teaches an Agent to return these links.
 ## Data for agents, visuals for people
 
 Standard fenced `mermaid` blocks in Markdown or MDX render locally in Preview and in inactive Live
-blocks. The diagram toolbar can fit, zoom, and pan a dense graph, while `</>` exposes the exact portable
+blocks. The diagram toolbar can fit, zoom, and pan a graph, while `</>` exposes the exact portable
 source. Git Leaf does not load a remote diagram service, and an invalid diagram remains available as
 source instead of replacing the document with a second visual model.
 
-Git Leaf preserves the layout expressed by the document instead of guessing a new topology. Use an
-automatic `flowchart` for a short directional process. For an architecture overview with many stages
-or feedback edges, use Mermaid `block-beta` with explicit columns, rows, and intentional `space`
-blocks. Keep the stage labels short, then move detailed paths into smaller follow-up diagrams. Fit and
-zoom help inspect a diagram; they do not make an overlong topology understandable by themselves.
+For a dense `flowchart` without an author-selected layout, **Smart view** measures the rendered result
+instead of relying on document-specific vocabulary. It may compare the other primary direction, but
+accepts that view only when every node, relationship, and cluster remains present, no nodes overlap,
+and fitted text becomes materially easier to read. If neither complete orientation is readable, Git
+Leaf starts with one node and its direct inputs and outputs. Choose any node to continue, or choose
+**All nodes** to restore the complete graph. The toolbar always reports the visible and total node
+counts, and these reading views never rewrite the Mermaid source.
+
+Use an automatic `flowchart` for a directional process. For an architecture overview whose intentional
+placement matters, select a Mermaid layout explicitly or use `block-beta` with explicit columns, rows,
+and `space` blocks; Git Leaf respects that author decision. Keep stage labels short and use smaller
+follow-up diagrams when one overview still carries too many concepts.
 
 Git Leaf supports Markdown and a controlled subset of MDX so structured data can stay directly in the
 document instead of being trapped in a screenshot or a separate dashboard. Chart series, table rows,
