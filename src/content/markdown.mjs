@@ -20,11 +20,31 @@ const MARKDOWN_MESSAGES = Object.freeze({
     "sourceLine.select": "Select line {line}",
     "sourceLine.selectRange": "Select lines {start}-{end}",
     "sourceLine.gutter": "Source line numbers",
+    "mermaid.label": "Mermaid diagram",
+    "mermaid.ariaLabel": "Rendered Mermaid diagram",
+    "mermaid.fit": "Fit width",
+    "mermaid.zoomOut": "Zoom out",
+    "mermaid.zoomIn": "Zoom in",
+    "mermaid.showSource": "Show Mermaid source",
+    "mermaid.showDiagram": "Show diagram",
+    "mermaid.sourceLabel": "Mermaid source",
+    "mermaid.loading": "Rendering diagram…",
+    "mermaid.error": "Diagram could not be rendered. Open the source to inspect it.",
   }),
   "zh-CN": Object.freeze({
     "sourceLine.select": "选择第 {line} 行",
     "sourceLine.selectRange": "选择第 {start}-{end} 行",
     "sourceLine.gutter": "源文件行号",
+    "mermaid.label": "Mermaid 图",
+    "mermaid.ariaLabel": "已渲染的 Mermaid 图",
+    "mermaid.fit": "适应宽度",
+    "mermaid.zoomOut": "缩小",
+    "mermaid.zoomIn": "放大",
+    "mermaid.showSource": "查看 Mermaid 源码",
+    "mermaid.showDiagram": "返回图形",
+    "mermaid.sourceLabel": "Mermaid 源码",
+    "mermaid.loading": "正在渲染 Mermaid 图……",
+    "mermaid.error": "Mermaid 图无法渲染，请打开源码检查。",
   }),
 });
 
@@ -229,6 +249,17 @@ function createRenderer(options) {
   renderer.renderer.rules.fence = (tokens, index, rendererOptions, env, self) => {
     const token = tokens[index];
     const sourceLines = renderedCodeSourceLines(token, env, { fenced: true });
+    if (fenceLanguage(token) === "mermaid") {
+      const range = sourceLines.length > 0
+        ? [{ start: sourceLines[0], end: sourceLines.at(-1) }]
+        : null;
+      return sourceBlockOpen(token, env, {
+        lineLayout: "diagram",
+        ranges: range,
+      }) +
+        renderMermaidShell(token.content, env.translate) +
+        sourceBlockClose();
+    }
     return sourceBlockOpen(token, env, {
       lineLayout: "code",
       lines: sourceLines,
@@ -330,6 +361,41 @@ function createRenderer(options) {
   renderer.renderer.rules.table_close = () => "</table></div></div>" + sourceBlockClose();
 
   return renderer;
+}
+
+function fenceLanguage(token) {
+  return String(token?.info ?? "").trim().split(/\s+/, 1)[0].toLowerCase();
+}
+
+function renderMermaidShell(source, translate) {
+  const t = typeof translate === "function"
+    ? translate
+    : createTranslator(MARKDOWN_MESSAGES, "en");
+  const loading = t("mermaid.loading");
+  const error = t("mermaid.error");
+  const showSource = t("mermaid.showSource");
+  const showDiagram = t("mermaid.showDiagram");
+
+  return [
+    '<figure class="mermaid-diagram" data-mermaid-diagram="true"',
+    ` data-mermaid-loading-message="${escapeAttribute(loading)}"`,
+    ` data-mermaid-error-message="${escapeAttribute(error)}">`,
+    '<figcaption class="mermaid-diagram-toolbar">',
+    `<span class="mermaid-diagram-label">${escapeHtml(t("mermaid.label"))}</span>`,
+    '<span class="mermaid-diagram-actions">',
+    `<button type="button" data-mermaid-action="fit">${escapeHtml(t("mermaid.fit"))}</button>`,
+    `<button type="button" data-mermaid-action="zoom-out" aria-label="${escapeAttribute(t("mermaid.zoomOut"))}" data-ui-tooltip="${escapeAttribute(t("mermaid.zoomOut"))}">−</button>`,
+    '<span class="mermaid-diagram-zoom" data-mermaid-zoom-value>100%</span>',
+    `<button type="button" data-mermaid-action="zoom-in" aria-label="${escapeAttribute(t("mermaid.zoomIn"))}" data-ui-tooltip="${escapeAttribute(t("mermaid.zoomIn"))}">+</button>`,
+    `<button type="button" class="mermaid-diagram-source-button" data-mermaid-action="source" aria-label="${escapeAttribute(showSource)}" aria-pressed="false" data-ui-tooltip="${escapeAttribute(showSource)}" data-mermaid-source-label="${escapeAttribute(showSource)}" data-mermaid-diagram-label="${escapeAttribute(showDiagram)}">&lt;/&gt;</button>`,
+    "</span></figcaption>",
+    '<div class="mermaid-diagram-viewport" data-mermaid-viewport>',
+    `<div class="mermaid-diagram-canvas" data-mermaid-canvas aria-label="${escapeAttribute(t("mermaid.ariaLabel"))}" aria-busy="true"></div>`,
+    `<p class="mermaid-diagram-status" data-mermaid-status role="status">${escapeHtml(loading)}</p>`,
+    "</div>",
+    `<pre class="mermaid-diagram-source" data-mermaid-source-view aria-label="${escapeAttribute(t("mermaid.sourceLabel"))}" hidden><code data-mermaid-source>${escapeHtml(source)}</code></pre>`,
+    "</figure>",
+  ].join("");
 }
 
 function stripFrontmatter(markdown) {

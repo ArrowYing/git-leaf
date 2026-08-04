@@ -91,8 +91,8 @@ make package-win
 Run `npm test` by default after changing Git Leaf core code. It runs only the cross-platform core suite.
 Run the complete local regression suite with `npm run test:all` before a release.
 
-After changing `src/client/source-editor.mjs`, also run `npm run build:client` and commit the generated
-`public/source-editor.bundle.js`.
+After changing `src/client/source-editor.mjs` or `src/client/mermaid-renderer.mjs`, also run
+`npm run build:client` and commit the changed generated editor or Mermaid assets in `public/`.
 
 When changing real UI behavior in Preview or Live Editor, MDX-lite components, the frontmatter dialog,
 line numbers, or keyboard focus, run the Node tests and use `make smoke-dev-mac` on macOS to open a real

@@ -61,6 +61,7 @@ workflow still belongs in a spreadsheet, BI tool, or purpose-built visualization
 | Decision, rationale, tradeoffs, reconsideration | `DecisionBox` |
 | A few headline numbers | `MetricGrid` |
 | Main flow with roughly 5–12 nodes | `FlowDiagram` |
+| Architecture, dependency graph, or many branches | fenced `mermaid` Markdown |
 
 ## Development workflow
 
@@ -626,8 +627,9 @@ Nodes require `id` and `label`. Optional node types are `start`, `end`, `action`
 and `risk`. Edges use `from`, `to`, and optional `label`. CSV may use `next` or `to`; quote a
 comma-separated list of multiple successors.
 
-Use Mermaid, standalone HTML, or a diagramming tool for swimlanes, many branches, deep architecture, or
-layout-sensitive diagrams.
+Use fenced Mermaid for swimlanes, many branches, deep architecture, or layout-sensitive diagrams. Git
+Leaf renders a standard `mermaid` fence locally in Preview and inactive Live blocks, with fit, zoom,
+pan, and an explicit `</>` source fallback; the saved content remains ordinary Markdown.
 
 ## Unsupported examples
 

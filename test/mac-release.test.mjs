@@ -216,6 +216,7 @@ test("mac release package args exclude internal docs, repository tools, and dev-
     "/node_modules/@electron-internal/extract-zip/package.json",
     "/node_modules/@esbuild/darwin-arm64/bin/esbuild",
     "/node_modules/@types/node/index.d.ts",
+    "/node_modules/mermaid/package.json",
     "/node_modules/@lezer/css/test/test-css.js",
     "/node_modules/@lezer/markdown/test-markdown.js",
   ]) {

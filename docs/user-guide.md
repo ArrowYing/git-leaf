@@ -154,6 +154,18 @@ open in a system application. Ordinary read-only files use the full file-tree ro
 after you open one, the mode control shows **Read-only** beside Preview. The tree keeps badges only for
 states that change or defer opening, such as detection, unsupported preview, or a missing file.
 
+### Read Mermaid diagrams without leaving the document
+
+A standard fenced `mermaid` block stays ordinary Markdown source and renders locally in Preview. In
+Live it renders whenever the cursor is outside that complete block; move the cursor into the block to
+edit the original syntax.
+
+Use **Fit width** to return to the complete diagram, `+` and `−` to zoom, and drag the canvas after
+zooming in. The `</>` button switches the card to the exact Mermaid source and back. These controls are
+temporary reading state and never rewrite the file. Dark and light appearance rerender the diagram for
+the active theme. If the syntax is invalid or too large, the card reports the error and keeps `</>`
+available for inspection.
+
 ## Keep data readable to agents and visual for people
 
 An `.mdx` document can keep chart series, table rows, metrics, timelines, decisions, and flows as

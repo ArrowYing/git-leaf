@@ -7,6 +7,10 @@ import test from "node:test";
 const REPO_ROOT = path.resolve(import.meta.dirname, "..");
 const SOURCE_ROOTS = ["public", "src"];
 const BROWSER_LAYERS = new Set(["public", "content", "client"]);
+const GENERATED_BROWSER_BUNDLES = new Set([
+  "mermaid-renderer.bundle.js",
+  "source-editor.bundle.js",
+]);
 const NODE_RUNTIME_MODULES = new Set([
   ...builtinModules,
   ...builtinModules.map((name) => `node:${name}`),
@@ -82,7 +86,7 @@ function collectSourceFiles(directory) {
     } else if (
       entry.isFile()
       && /\.(?:cjs|js|mjs)$/.test(entry.name)
-      && entry.name !== "source-editor.bundle.js"
+      && !GENERATED_BROWSER_BUNDLES.has(entry.name)
     ) {
       files.push(filePath);
     }

@@ -48,8 +48,9 @@ than Obsidian.
 - **Links that share like online documents.** Teammates and agents can send Git Leaf HTTPS links in chat,
   letting recipients open the matching document in their local knowledge base. Git Leaf creates a
   versioned share link only after verifying the published revision.
-- **Agent-readable data, human-readable visuals.** Controlled MDX keeps chart, table, and metric data as
-  readable repository text that agents can edit and Git Leaf can render for people.
+- **Agent-readable data, human-readable visuals.** Standard Mermaid fences and controlled MDX keep
+  diagrams, charts, tables, and metrics as readable repository text that agents can edit and Git Leaf
+  can render for people.
 
 [**Download for macOS**](https://gitleaf.mangofuture.com/download#macos) ·
 [Windows Preview](https://gitleaf.mangofuture.com/download#windows) ·
@@ -112,6 +113,11 @@ The [user guide](docs/user-guide.md#open-the-right-local-document-from-a-url) sh
 and a repository instruction that teaches an Agent to return these links.
 
 ## Data for agents, visuals for people
+
+Standard fenced `mermaid` blocks in Markdown or MDX render locally in Preview and in inactive Live
+blocks. The diagram toolbar can fit, zoom, and pan a dense graph, while `</>` exposes the exact portable
+source. Git Leaf does not load a remote diagram service, and an invalid diagram remains available as
+source instead of replacing the document with a second visual model.
 
 Git Leaf supports Markdown and a controlled subset of MDX so structured data can stay directly in the
 document instead of being trapped in a screenshot or a separate dashboard. Chart series, table rows,
@@ -244,9 +250,10 @@ npm run test:ci:mac
 npm run test:ci:win
 ```
 
-After changing `src/client/source-editor.mjs`, also run `npm run build:client` and commit the generated
-`public/source-editor.bundle.js`. See [Contributing](CONTRIBUTING.md) for the contribution workflow,
-the [documentation index](docs/README.md) for technical references, and [AGENTS.md](AGENTS.md) for
+After changing `src/client/source-editor.mjs` or `src/client/mermaid-renderer.mjs`, also run
+`npm run build:client` and commit the changed generated outputs in `public/`, including the matching
+editor or Mermaid bundle. See [Contributing](CONTRIBUTING.md) for the contribution workflow, the
+[documentation index](docs/README.md) for technical references, and [AGENTS.md](AGENTS.md) for
 UI-specific validation and userData isolation requirements.
 
 ## License

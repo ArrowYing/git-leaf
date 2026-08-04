@@ -294,7 +294,7 @@ sources remain editable in Obsidian even though its toolbar and exact rendering 
 MDX-lite is the explicit interoperability exception. It is a Git Leaf controlled extension and is not
 expected to open as an interactive component in Obsidian.
 
-## Rendering and MDX-lite
+## Rendering, Mermaid, and MDX-lite
 
 MDX-lite keeps structured facts explicit in repository text for agents while presenting the same source
 as human-readable tables, timelines, metrics, decisions, flows, and charts. Small component data remains
@@ -306,6 +306,20 @@ and Source and Live continue to edit the original MDX view definition.
 Markdown uses `markdown-it`. MDX-lite is parsed by Git Leaf before rendering and produces static HTML or
 SVG. It is not a general MDX runtime and cannot execute imports, exports, arbitrary JSX, scripts,
 expressions, or event handlers.
+
+A fenced code block whose language is exactly `mermaid` is a portable Markdown diagram, not an
+MDX-lite component. The synchronous Markdown renderer emits only an inert shell, escaped source, and
+its source-line range. Preview and inactive Live blocks hydrate that shell with the checked-in browser
+bundle built from `src/client/mermaid-renderer.mjs`; no CDN or remote rendering endpoint is involved.
+The active Live block remains source-editable. Fit, zoom, pan, and source visibility are transient view
+state and never write the document. Appearance changes rerender the SVG for the active light or dark
+theme.
+
+Mermaid runs with strict security, disabled automatic startup, and a 100,000-character source limit.
+The client accepts only an SVG result without executable elements, event-handler attributes, or
+JavaScript links, and rendered links are non-interactive. Invalid, unsafe, or oversized input leaves a
+localized error in the shell while the escaped source remains available through the explicit `</>`
+control. The source fence remains authoritative; Git Leaf does not persist SVG or diagram layout state.
 
 An external dataset component remains the existing allowlisted `Chart` or `DataTable`. The synchronous
 browser-safe renderer emits an inert view shell containing a finite JSON request, not data or executable
@@ -608,9 +622,10 @@ The following files are key seams, not an exhaustive module inventory:
 | `src/server/hosted-links.mjs`, `src/server/git-leaf-open-link.mjs` | Hosted HTTPS link validation and generation |
 | `src/desktop/deep-link.mjs` | Local desktop protocol generation and parsing |
 | `src/server/git-share-publish.mjs`, `src/server/git-share-open.mjs` | Sender publication and receiver safety |
-| `src/content/markdown.mjs`, `src/content/mdx-lite.mjs` | Markdown, allowlisted MDX-lite rendering, and inert dataset view declarations |
+| `src/content/markdown.mjs`, `src/content/mdx-lite.mjs` | Markdown shells, allowlisted MDX-lite rendering, and inert dataset view declarations |
 | `src/content/dataset-query.mjs`, `src/server/dataset-loader.mjs` | Bounded period aggregation and repository-contained typed dataset loading |
 | `public/dataset-view.js` | Preview and Live dataset hydration plus transient interval controls |
+| `src/client/mermaid-renderer.mjs`, `public/mermaid-view.js` | Bundled Mermaid rendering and shared Preview/Live diagram interaction state |
 | `src/client/source-editor.mjs` | Shared CodeMirror Source/Live editing model |
 | `src/server/git-sync.mjs` | Guarded repository-wide sync |
 | `src/server/git-remote-sync.mjs` | Periodic remote status and down-only merge transaction |

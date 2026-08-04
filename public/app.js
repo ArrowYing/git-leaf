@@ -46,6 +46,7 @@ import { hasTreeChanged } from "./tree-refresh.js";
 import { shouldReplaceDocumentHtml } from "./document-refresh.js";
 import { attachChartTooltips } from "./chart-tooltip.js";
 import { attachDatasetViews } from "./dataset-view.js";
+import { attachMermaidDiagrams } from "./mermaid-view.js";
 import {
   sourceLineFromPreviewScroll,
   shouldIgnoreWatchedChange,
@@ -522,6 +523,12 @@ const datasetViewOptions = {
 };
 const documentDatasetViewController = attachDatasetViews(documentContent, datasetViewOptions);
 const sourceDatasetViewController = attachDatasetViews(sourceEditorHost, datasetViewOptions);
+const documentMermaidController = attachMermaidDiagrams(documentContent, {
+  getTheme: () => state.theme,
+});
+const sourceMermaidController = attachMermaidDiagrams(sourceEditorHost, {
+  getTheme: () => state.theme,
+});
 const uiTooltipController = createUiTooltip({
   tooltip: uiTooltip,
   eventRoot: appShell,
@@ -2788,6 +2795,8 @@ function applyAppearancePreferences(preferences) {
   document.documentElement.style.setProperty("--document-font-size", `${state.documentFontSize}px`);
   updateThemeToggle();
   state.sourceEditor?.setTheme(state.theme);
+  documentMermaidController.rerender();
+  sourceMermaidController.rerender();
   scheduleAnchoredSourceLineGutterSync();
 }
 
@@ -5189,6 +5198,7 @@ function renderDocumentContent(documentData) {
     enhanceImageLoadStates(documentContent, { locale: state.locale });
     enhanceTables();
     documentDatasetViewController.hydrate(documentContent);
+    documentMermaidController.hydrate(documentContent);
     scheduleAnchoredSourceLineGutterSync();
     renderDocumentOutline();
     return;

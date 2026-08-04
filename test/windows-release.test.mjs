@@ -79,6 +79,7 @@ test("windows release package args exclude internal docs, repository tools, and 
     "/node_modules/@electron/get/package.json",
     "/node_modules/@esbuild/win32-x64/esbuild.exe",
     "/node_modules/@types/node/index.d.ts",
+    "/node_modules/mermaid/package.json",
     "/node_modules/@lezer/css/test/test-css.js",
     "/node_modules/@lezer/markdown/test-markdown.js",
   ]) {

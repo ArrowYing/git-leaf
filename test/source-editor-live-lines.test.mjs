@@ -613,6 +613,65 @@ test("livePreviewBlocksForSource ignores fenced code tables", () => {
   assert.deepEqual(livePreviewBlocksForSource(source), []);
 });
 
+test("livePreviewBlocksForSource renders complete Mermaid fences outside the active block", () => {
+  const source = [
+    "# Architecture",
+    "",
+    "```mermaid",
+    "flowchart LR",
+    "  Source --> Observation --> Evidence",
+    "```",
+    "",
+    "After diagram.",
+  ].join("\n");
+
+  const [block] = livePreviewBlocksForSource(source, { activeLineNumber: 1 });
+  assert.deepEqual(
+    {
+      type: block?.type,
+      startLine: block?.startLine,
+      endLine: block?.endLine,
+      source: block?.source,
+    },
+    {
+      type: "mermaid",
+      startLine: 3,
+      endLine: 6,
+      source: source.split("\n").slice(2, 6).join("\n"),
+    },
+  );
+  assert.deepEqual(livePreviewBlocksForSource(source, { activeLineNumber: 4 }), []);
+
+  const html = livePreviewHtmlForBlock(block.source);
+  assert.match(html, /data-mermaid-diagram="true"/);
+  assert.match(html, /data-mermaid-source>flowchart LR/);
+  assert.doesNotMatch(html, /source-line-gutter/);
+});
+
+test("livePreviewBlocksForSource supports tilde Mermaid fences and ignores incomplete fences", () => {
+  const complete = [
+    "~~~MERMAID",
+    "sequenceDiagram",
+    "  Alice->>Bob: Hello",
+    "~~~",
+  ].join("\n");
+  const incomplete = [
+    "```mermaid",
+    "flowchart LR",
+    "  A --> B",
+  ].join("\n");
+
+  assert.deepEqual(
+    livePreviewBlocksForSource(complete).map(({ type, startLine, endLine }) => ({
+      type,
+      startLine,
+      endLine,
+    })),
+    [{ type: "mermaid", startLine: 1, endLine: 4 }],
+  );
+  assert.deepEqual(livePreviewBlocksForSource(incomplete), []);
+});
+
 test("livePreviewBlocksForSource detects MDX-lite component blocks outside the active block", () => {
   const source = [
     "# Report",
@@ -676,6 +735,7 @@ test("Live routes every MDX preview event through the component interaction", ()
   assert.equal(liveBlockPreviewIgnoresEvent({ type: "table" }, chartSurface), true);
   assert.equal(liveBlockPreviewIgnoresEvent({ type: "mdx" }, intervalButton), true);
   assert.equal(liveBlockPreviewIgnoresEvent({ type: "mdx" }, chartSurface), true);
+  assert.equal(liveBlockPreviewIgnoresEvent({ type: "mermaid" }, chartSurface), true);
   assert.equal(liveBlockPreviewIgnoresEvent({ type: "image" }, chartSurface), false);
   assert.equal(liveMdxTargetIsEmbeddedViewControl(intervalButton), true);
   assert.equal(liveMdxTargetIsEmbeddedViewControl(chartSurface), false);

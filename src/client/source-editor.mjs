@@ -886,6 +886,9 @@ function liveMarkdownThemeForTheme(theme) {
     ".cm-live-block-preview .mdx-component": {
       margin: "0",
     },
+    ".cm-live-block-preview .mermaid-diagram": {
+      margin: "0",
+    },
     ".cm-live-block-preview .mdx-component-title,\n.cm-live-block-preview .mdx-chart figcaption,\n.cm-live-block-preview .mdx-flow-diagram figcaption": {
       color: "var(--text-strong)",
     },
@@ -3977,7 +3980,7 @@ function buildLiveMarkdownDecorations(state, { suppressActiveLine = false } = {}
       inFrontmatter = false;
       continue;
     }
-    if (!inFrontmatter && /^```/.test(trimmed)) {
+    if (!inFrontmatter && /^(?:`{3,}|~{3,})/.test(trimmed)) {
       inCodeBlock = !inCodeBlock;
     }
     if (!inFrontmatter && !inCodeBlock && mdxComponent && !trimmed.endsWith("/>")) {
@@ -4106,7 +4109,7 @@ export function liveClassForLine({
   if (inMdxComponent) {
     return "cm-live-mdx-component";
   }
-  if (/^```/.test(trimmed)) {
+  if (/^(?:`{3,}|~{3,})/.test(trimmed)) {
     return "cm-live-code cm-live-code-fence";
   }
   if (inCodeBlock) {
@@ -4330,7 +4333,24 @@ export function livePreviewBlocksForSource(source, { activeLineNumber = null } =
       }
       continue;
     }
-    if (/^```/.test(trimmed)) {
+    if (!inCodeBlock) {
+      const mermaidBlock = liveMermaidPreviewBlockAt(lines, index);
+      if (mermaidBlock) {
+        const startLine = lineNumber;
+        const endLine = mermaidBlock.endIndex + 1;
+        if (!lineNumberInRange(activeLineNumber, startLine, endLine)) {
+          blocks.push({
+            type: "mermaid",
+            startLine,
+            endLine,
+            source: lines.slice(index, mermaidBlock.endIndex + 1).join("\n"),
+          });
+        }
+        index = mermaidBlock.endIndex;
+        continue;
+      }
+    }
+    if (/^(?:`{3,}|~{3,})/.test(trimmed)) {
       inCodeBlock = !inCodeBlock;
       continue;
     }
@@ -4395,7 +4415,7 @@ export function livePreviewHtmlForBlock(source, renderOptions = {}) {
 }
 
 export function liveBlockPreviewIgnoresEvent(block, eventTarget) {
-  return block?.type === "table" || block?.type === "mdx";
+  return block?.type === "table" || block?.type === "mdx" || block?.type === "mermaid";
 }
 
 function liveImagePreviewBlockAt(lines, index) {
@@ -4418,6 +4438,41 @@ function isSafeHtmlImageLine(line) {
 function liveMdxPreviewBlockAt(lines, index) {
   const block = mdxLiteComponentBlockAtLines(lines, index);
   return block;
+}
+
+function liveMermaidPreviewBlockAt(lines, index) {
+  const opening = fencedCodeOpening(lines[index]);
+  if (!opening || opening.language !== "mermaid") {
+    return null;
+  }
+
+  for (let endIndex = index + 1; endIndex < lines.length; endIndex += 1) {
+    if (fencedCodeClosing(lines[endIndex], opening)) {
+      return { endIndex };
+    }
+  }
+  return null;
+}
+
+function fencedCodeOpening(line) {
+  const match = /^\s{0,3}(`{3,}|~{3,})\s*([^\s`~]*)/.exec(String(line ?? ""));
+  if (!match) {
+    return null;
+  }
+  return {
+    character: match[1][0],
+    length: match[1].length,
+    language: String(match[2] ?? "").toLowerCase(),
+  };
+}
+
+function fencedCodeClosing(line, opening) {
+  const match = /^\s{0,3}(`{3,}|~{3,})\s*$/.exec(String(line ?? ""));
+  return Boolean(
+    match
+    && match[1][0] === opening.character
+    && match[1].length >= opening.length,
+  );
 }
 
 function liveMarkdownTableBlockAt(lines, index) {

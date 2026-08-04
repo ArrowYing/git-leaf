@@ -39,6 +39,7 @@ export const RELEASE_PACKAGE_IGNORE_PATTERNS = [
   "^/node_modules/@xmldom($|/)",
   "^/node_modules/electron($|/)",
   "^/node_modules/esbuild($|/)",
+  "^/node_modules/mermaid($|/)",
   "^/node_modules/.+/(test|tests|__tests__)($|/)",
   "^/node_modules/.+/[^/]+\\.(test|spec)\\.(js|mjs|cjs|ts|tsx|jsx)$",
   "^/node_modules/.+/(test[-_][^/]+|[^/]+[-_.]test)\\.(js|mjs|cjs|ts|tsx|jsx)$",

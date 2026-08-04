@@ -69,6 +69,7 @@ test("release package excludes repository tooling and third-party tests from app
     "/README.zh-CN.md",
     "/docs/assets/user-guide/workspace-overview.png",
     "/tools/generate-git-leaf-open-link.mjs",
+    "/node_modules/mermaid/package.json",
     "/node_modules/@lezer/css/test/test-css.js",
     "/node_modules/@lezer/html/tests/fixture.txt",
     "/node_modules/example/__tests__/fixture.js",

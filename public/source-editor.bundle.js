@@ -35753,12 +35753,32 @@ var MARKDOWN_MESSAGES = Object.freeze({
   en: Object.freeze({
     "sourceLine.select": "Select line {line}",
     "sourceLine.selectRange": "Select lines {start}-{end}",
-    "sourceLine.gutter": "Source line numbers"
+    "sourceLine.gutter": "Source line numbers",
+    "mermaid.label": "Mermaid diagram",
+    "mermaid.ariaLabel": "Rendered Mermaid diagram",
+    "mermaid.fit": "Fit width",
+    "mermaid.zoomOut": "Zoom out",
+    "mermaid.zoomIn": "Zoom in",
+    "mermaid.showSource": "Show Mermaid source",
+    "mermaid.showDiagram": "Show diagram",
+    "mermaid.sourceLabel": "Mermaid source",
+    "mermaid.loading": "Rendering diagram\u2026",
+    "mermaid.error": "Diagram could not be rendered. Open the source to inspect it."
   }),
   "zh-CN": Object.freeze({
     "sourceLine.select": "\u9009\u62E9\u7B2C {line} \u884C",
     "sourceLine.selectRange": "\u9009\u62E9\u7B2C {start}-{end} \u884C",
-    "sourceLine.gutter": "\u6E90\u6587\u4EF6\u884C\u53F7"
+    "sourceLine.gutter": "\u6E90\u6587\u4EF6\u884C\u53F7",
+    "mermaid.label": "Mermaid \u56FE",
+    "mermaid.ariaLabel": "\u5DF2\u6E32\u67D3\u7684 Mermaid \u56FE",
+    "mermaid.fit": "\u9002\u5E94\u5BBD\u5EA6",
+    "mermaid.zoomOut": "\u7F29\u5C0F",
+    "mermaid.zoomIn": "\u653E\u5927",
+    "mermaid.showSource": "\u67E5\u770B Mermaid \u6E90\u7801",
+    "mermaid.showDiagram": "\u8FD4\u56DE\u56FE\u5F62",
+    "mermaid.sourceLabel": "Mermaid \u6E90\u7801",
+    "mermaid.loading": "\u6B63\u5728\u6E32\u67D3 Mermaid \u56FE\u2026\u2026",
+    "mermaid.error": "Mermaid \u56FE\u65E0\u6CD5\u6E32\u67D3\uFF0C\u8BF7\u6253\u5F00\u6E90\u7801\u68C0\u67E5\u3002"
   })
 });
 function renderMarkdown(markdown2, options = {}) {
@@ -35870,6 +35890,13 @@ function createRenderer(options) {
   renderer.renderer.rules.fence = (tokens, index, rendererOptions, env, self) => {
     const token = tokens[index];
     const sourceLines = renderedCodeSourceLines(token, env, { fenced: true });
+    if (fenceLanguage(token) === "mermaid") {
+      const range = sourceLines.length > 0 ? [{ start: sourceLines[0], end: sourceLines.at(-1) }] : null;
+      return sourceBlockOpen(token, env, {
+        lineLayout: "diagram",
+        ranges: range
+      }) + renderMermaidShell(token.content, env.translate) + sourceBlockClose();
+    }
     return sourceBlockOpen(token, env, {
       lineLayout: "code",
       lines: sourceLines
@@ -35951,6 +35978,36 @@ function createRenderer(options) {
   };
   renderer.renderer.rules.table_close = () => "</table></div></div>" + sourceBlockClose();
   return renderer;
+}
+function fenceLanguage(token) {
+  return String(token?.info ?? "").trim().split(/\s+/, 1)[0].toLowerCase();
+}
+function renderMermaidShell(source, translate) {
+  const t2 = typeof translate === "function" ? translate : createTranslator(MARKDOWN_MESSAGES, "en");
+  const loading = t2("mermaid.loading");
+  const error2 = t2("mermaid.error");
+  const showSource = t2("mermaid.showSource");
+  const showDiagram = t2("mermaid.showDiagram");
+  return [
+    '<figure class="mermaid-diagram" data-mermaid-diagram="true"',
+    ` data-mermaid-loading-message="${escapeAttribute3(loading)}"`,
+    ` data-mermaid-error-message="${escapeAttribute3(error2)}">`,
+    '<figcaption class="mermaid-diagram-toolbar">',
+    `<span class="mermaid-diagram-label">${escapeHtml4(t2("mermaid.label"))}</span>`,
+    '<span class="mermaid-diagram-actions">',
+    `<button type="button" data-mermaid-action="fit">${escapeHtml4(t2("mermaid.fit"))}</button>`,
+    `<button type="button" data-mermaid-action="zoom-out" aria-label="${escapeAttribute3(t2("mermaid.zoomOut"))}" data-ui-tooltip="${escapeAttribute3(t2("mermaid.zoomOut"))}">\u2212</button>`,
+    '<span class="mermaid-diagram-zoom" data-mermaid-zoom-value>100%</span>',
+    `<button type="button" data-mermaid-action="zoom-in" aria-label="${escapeAttribute3(t2("mermaid.zoomIn"))}" data-ui-tooltip="${escapeAttribute3(t2("mermaid.zoomIn"))}">+</button>`,
+    `<button type="button" class="mermaid-diagram-source-button" data-mermaid-action="source" aria-label="${escapeAttribute3(showSource)}" aria-pressed="false" data-ui-tooltip="${escapeAttribute3(showSource)}" data-mermaid-source-label="${escapeAttribute3(showSource)}" data-mermaid-diagram-label="${escapeAttribute3(showDiagram)}">&lt;/&gt;</button>`,
+    "</span></figcaption>",
+    '<div class="mermaid-diagram-viewport" data-mermaid-viewport>',
+    `<div class="mermaid-diagram-canvas" data-mermaid-canvas aria-label="${escapeAttribute3(t2("mermaid.ariaLabel"))}" aria-busy="true"></div>`,
+    `<p class="mermaid-diagram-status" data-mermaid-status role="status">${escapeHtml4(loading)}</p>`,
+    "</div>",
+    `<pre class="mermaid-diagram-source" data-mermaid-source-view aria-label="${escapeAttribute3(t2("mermaid.sourceLabel"))}" hidden><code data-mermaid-source>${escapeHtml4(source)}</code></pre>`,
+    "</figure>"
+  ].join("");
 }
 function stripFrontmatter(markdown2) {
   const match2 = markdown2.match(FRONT_MATTER_RE);
@@ -38278,6 +38335,9 @@ function liveMarkdownThemeForTheme(theme2) {
       margin: "0"
     },
     ".cm-live-block-preview .mdx-component": {
+      margin: "0"
+    },
+    ".cm-live-block-preview .mermaid-diagram": {
       margin: "0"
     },
     ".cm-live-block-preview .mdx-component-title,\n.cm-live-block-preview .mdx-chart figcaption,\n.cm-live-block-preview .mdx-flow-diagram figcaption": {
@@ -40929,7 +40989,7 @@ function buildLiveMarkdownDecorations(state, { suppressActiveLine = false } = {}
       inFrontmatter = false;
       continue;
     }
-    if (!inFrontmatter && /^```/.test(trimmed)) {
+    if (!inFrontmatter && /^(?:`{3,}|~{3,})/.test(trimmed)) {
       inCodeBlock = !inCodeBlock;
     }
     if (!inFrontmatter && !inCodeBlock && mdxComponent && !trimmed.endsWith("/>")) {
@@ -41038,7 +41098,7 @@ function liveClassForLine({
   if (inMdxComponent) {
     return "cm-live-mdx-component";
   }
-  if (/^```/.test(trimmed)) {
+  if (/^(?:`{3,}|~{3,})/.test(trimmed)) {
     return "cm-live-code cm-live-code-fence";
   }
   if (inCodeBlock) {
@@ -41233,7 +41293,24 @@ function livePreviewBlocksForSource(source, { activeLineNumber = null } = {}) {
       }
       continue;
     }
-    if (/^```/.test(trimmed)) {
+    if (!inCodeBlock) {
+      const mermaidBlock = liveMermaidPreviewBlockAt(lines, index);
+      if (mermaidBlock) {
+        const startLine = lineNumber;
+        const endLine = mermaidBlock.endIndex + 1;
+        if (!lineNumberInRange(activeLineNumber, startLine, endLine)) {
+          blocks.push({
+            type: "mermaid",
+            startLine,
+            endLine,
+            source: lines.slice(index, mermaidBlock.endIndex + 1).join("\n")
+          });
+        }
+        index = mermaidBlock.endIndex;
+        continue;
+      }
+    }
+    if (/^(?:`{3,}|~{3,})/.test(trimmed)) {
       inCodeBlock = !inCodeBlock;
       continue;
     }
@@ -41292,7 +41369,7 @@ function livePreviewHtmlForBlock(source, renderOptions = {}) {
   return removeSourceBlockChrome(renderMarkdown(source, renderOptions)).trim();
 }
 function liveBlockPreviewIgnoresEvent(block2, eventTarget) {
-  return block2?.type === "table" || block2?.type === "mdx";
+  return block2?.type === "table" || block2?.type === "mdx" || block2?.type === "mermaid";
 }
 function liveImagePreviewBlockAt(lines, index) {
   const line = String(lines[index] ?? "").trim();
@@ -41304,6 +41381,35 @@ function isSafeHtmlImageLine(line) {
 function liveMdxPreviewBlockAt(lines, index) {
   const block2 = mdxLiteComponentBlockAtLines(lines, index);
   return block2;
+}
+function liveMermaidPreviewBlockAt(lines, index) {
+  const opening = fencedCodeOpening(lines[index]);
+  if (!opening || opening.language !== "mermaid") {
+    return null;
+  }
+  for (let endIndex = index + 1; endIndex < lines.length; endIndex += 1) {
+    if (fencedCodeClosing(lines[endIndex], opening)) {
+      return { endIndex };
+    }
+  }
+  return null;
+}
+function fencedCodeOpening(line) {
+  const match2 = /^\s{0,3}(`{3,}|~{3,})\s*([^\s`~]*)/.exec(String(line ?? ""));
+  if (!match2) {
+    return null;
+  }
+  return {
+    character: match2[1][0],
+    length: match2[1].length,
+    language: String(match2[2] ?? "").toLowerCase()
+  };
+}
+function fencedCodeClosing(line, opening) {
+  const match2 = /^\s{0,3}(`{3,}|~{3,})\s*$/.exec(String(line ?? ""));
+  return Boolean(
+    match2 && match2[1][0] === opening.character && match2[1].length >= opening.length
+  );
 }
 function liveMarkdownTableBlockAt(lines, index) {
   return markdownTableBlockAtLines(lines, index);

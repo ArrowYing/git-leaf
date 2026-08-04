@@ -240,6 +240,44 @@ third
   assert.match(codeBlock, /data-source-code-line="5"><\/span>/);
 });
 
+test("renderMarkdown turns Mermaid fences into a local diagram shell with source fallback", () => {
+  const html = renderMarkdown(`Before
+
+\`\`\`mermaid
+flowchart LR
+  A["Input <unsafe>"] --> B[Output]
+\`\`\`
+
+After
+`);
+  const diagramBlock = html.match(
+    /<div class="source-block"[^>]*data-source-start="4"[\s\S]*?<\/figure><\/div><\/div>/,
+  )?.[0] ?? "";
+
+  assert.match(diagramBlock, /data-source-end="5"/);
+  assert.match(diagramBlock, /data-source-line-layout="diagram"/);
+  assert.match(diagramBlock, /data-source-line="4"[^>]*data-source-end="5"[^>]*>4–5<\/button>/);
+  assert.equal(diagramBlock.match(/data-source-line="/g)?.length, 1);
+  assert.match(diagramBlock, /data-mermaid-diagram="true"/);
+  assert.match(diagramBlock, /data-mermaid-action="fit"/);
+  assert.match(diagramBlock, /data-mermaid-action="source"/);
+  assert.match(diagramBlock, /data-mermaid-source>flowchart LR/);
+  assert.match(diagramBlock, /Input &lt;unsafe&gt;/);
+  assert.doesNotMatch(diagramBlock, /<pre><code class="language-mermaid">/);
+  assert.doesNotMatch(diagramBlock, /<unsafe>/);
+});
+
+test("renderMarkdown localizes Mermaid controls while preserving portable source", () => {
+  const html = renderMarkdown("~~~Mermaid\nflowchart TD\nA --> B\n~~~\n", {
+    locale: "zh-CN",
+  });
+
+  assert.match(html, />Mermaid 图<\/span>/);
+  assert.match(html, />适应宽度<\/button>/);
+  assert.match(html, /aria-label="查看 Mermaid 源码"/);
+  assert.match(html, /data-mermaid-source>flowchart TD\nA --&gt; B\n<\/code>/);
+});
+
 test("renderMarkdown localizes source line controls without changing document content", () => {
   const html = renderMarkdown("# 用户标题\n", { locale: "zh-CN" });
 

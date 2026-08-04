@@ -40,8 +40,8 @@ Markdown 知识库。
   仓库的全部本地改动。
 - **像在线文档一样发送链接。** 同事或 Agent 可以在聊天中发送 Git Leaf HTTPS 链接，接收者点开后即可在
   本地知识库中打开对应文档。Git Leaf 只会在确认已发布版本后生成可供同事使用的版本化分享链接。
-- **Agent 可读的数据，人可读的图表。** 受控 MDX 把图表、表格和指标的数据保留为仓库中的可读文本，让
-  Agent 直接修改数据，让人通过 Git Leaf 查看可视化结果。
+- **Agent 可读的数据，人可读的图表。** 标准 Mermaid 围栏和受控 MDX 把流程图、图表、表格和指标保留
+  为仓库中的可读文本，让 Agent 直接修改，让人通过 Git Leaf 查看可视化结果。
 
 [**下载 macOS 版**](https://gitleaf.mangofuture.com/download?lang=zh-CN#macos) ·
 [Windows Preview](https://gitleaf.mangofuture.com/download?lang=zh-CN#windows) ·
@@ -95,6 +95,10 @@ AI Agent 可以为 Markdown／MDX 文件返回一个 HTTPS **Open in Git Leaf** 
 Agent 在交付时返回这类链接。
 
 ## 同一份数据，Agent 直接读写，人直接看图表
+
+Markdown 或 MDX 中标准的 `mermaid` 围栏会在 Preview 和 Live 的非活动区块里本地渲染。图形工具栏可以
+让复杂图适应画布、缩放和平移；`</>` 始终返回完全相同、可移植的源码。Git Leaf 不加载远程绘图服务，
+语法错误时也会保留源码入口，不会生成需要另行同步的第二份视觉模型。
 
 Git Leaf 支持 Markdown 和受控的 MDX，让结构化数据直接保存在文档中，而不是藏在截图或独立仪表盘里。
 图表序列、数据表、时间线、关键指标、决策和流程，可以用可读的 CSV、TSV、JSON 或 Markdown 写在
@@ -208,9 +212,10 @@ npm run test:ci:mac
 npm run test:ci:win
 ```
 
-修改 `src/client/source-editor.mjs` 后还必须运行 `npm run build:client` 并提交生成的
-`public/source-editor.bundle.js`。贡献流程见 [CONTRIBUTING.md](CONTRIBUTING.md)，技术文档入口见
-[docs/README.md](docs/README.md)，UI 专项验收与 userData 隔离要求见 [AGENTS.md](AGENTS.md)。
+修改 `src/client/source-editor.mjs` 或 `src/client/mermaid-renderer.mjs` 后，还必须运行
+`npm run build:client`，并提交 `public/` 中对应发生变化的编辑器或 Mermaid 生成文件。贡献流程见
+[CONTRIBUTING.md](CONTRIBUTING.md)，技术文档入口见 [docs/README.md](docs/README.md)，UI 专项验收与
+userData 隔离要求见 [AGENTS.md](AGENTS.md)。
 
 ## License
 
