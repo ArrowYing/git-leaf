@@ -98,6 +98,15 @@ Repository identity and worktree state follow these rules:
   expansion state; entering Sync starts with every changed-file directory ancestry expanded;
 - favorites are scoped to the canonical primary repository and shared by that repository's worktrees.
 
+The desktop shell owns the searchable repository panel. `Command+O` / `Ctrl+O` asks the active renderer
+to display a centered panel containing stable-order display records with opaque, path-derived IDs; the
+renderer does not receive the complete local repository roots. While that modal panel is open, number
+shortcuts select only the visibly numbered results and zero opens the existing directory chooser. Switch
+and removal requests return only the opaque ID to the desktop shell, which resolves it against the current
+`openRepoRoots` list and reuses the normal repository transition or configuration mutation boundary.
+Removing a repository from the panel never deletes its local directory or clears its saved session and
+Favorites. Worktree selection remains a separate, repository-scoped control below the repository identity.
+
 Normal branches are editable. A detached worktree can be read and can enter an editing mode, but the
 first actual write must create a protective local branch named like
 `git-leaf/detached-<commit>-<timestamp>`. If branch creation fails, the write fails without modifying the

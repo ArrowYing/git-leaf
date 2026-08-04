@@ -29,7 +29,9 @@ test("Command-question-mark and Ctrl-question-mark open keyboard shortcut help",
 test("keyboard shortcut help keeps the agreed Git Leaf shortcuts", () => {
   const text = keyboardShortcutsPlainText();
 
-  assert.match(text, /Command\+O\s+Open Git Repository/);
+  assert.match(text, /Command\+O\s+Open Repository Panel/);
+  assert.match(text, /Command\+1\.\.9\s+Switch to Visible Repository 1\.\.9 \(panel open\)/);
+  assert.match(text, /Command\+0\s+Open Another Repository \(panel open\)/);
   assert.match(text, /Command\+Option\+1\.\.9\s+Switch to Repository 1\.\.9/);
   assert.match(text, /Command\+Option\+Left\s+Previous Repository/);
   assert.match(text, /Command\+Option\+Right\s+Next Repository/);
@@ -79,7 +81,7 @@ test("keyboard shortcut help localizes labels without changing key bindings", ()
   );
   assert.equal(chinese[0].title, "仓库");
   assert.match(keyboardShortcutsPlainText("zh-CN"), /键盘快捷键/);
-  assert.match(keyboardShortcutsPlainText("zh-CN"), /打开 Git 仓库/);
+  assert.match(keyboardShortcutsPlainText("zh-CN"), /打开仓库面板/);
 });
 
 test("keyboard shortcut help does not assign a shortcut to closing the repository", () => {

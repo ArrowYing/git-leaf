@@ -171,6 +171,14 @@ import {
 } from "./git-sync-ui.js";
 import { sidebarUpdateView } from "./update-ui.js";
 import {
+  defaultRepositoryPanelSelection,
+  moveRepositoryPanelSelection,
+  normalizeRepositoryPanelItems,
+  repositoryPanelActionUrl,
+  repositoryPanelItemForShortcut,
+  visibleRepositoryPanelItems,
+} from "./repository-panel.js";
+import {
   normalizeTreeDirectoryStates,
   serializeTreeDirectoryState,
   shouldRecordTreeDirectoryToggle,
@@ -400,6 +408,10 @@ const state = {
   fileTreePointerReturnFocus: null,
   documentTabPointerDrag: null,
   activeDialog: null,
+  repositoryPanelItems: [],
+  repositoryPanelVisibleItems: [],
+  repositoryPanelSelectedId: "",
+  repositoryPanelReturnFocus: null,
 };
 
 const queueSidebarFavoriteToggle = createSidebarFavoriteToggleQueue({
@@ -419,6 +431,13 @@ const sidebarSyncCount = document.querySelector("#sidebar-sync-count");
 const treeControls = document.querySelector("#tree-controls");
 const treeSearchRow = document.querySelector("#tree-search-row");
 const repositoryTitle = document.querySelector("#repository-title");
+const repositoryPanelToggle = document.querySelector("#repository-panel-toggle");
+const repositoryPanel = document.querySelector("#repository-panel");
+const repositoryPanelClose = document.querySelector("#repository-panel-close");
+const repositoryPanelSearch = document.querySelector("#repository-panel-search");
+const repositoryPanelList = document.querySelector("#repository-panel-list");
+const repositoryPanelEmpty = document.querySelector("#repository-panel-empty");
+const repositoryPanelOpen = document.querySelector("#repository-panel-open");
 const sidebarToggle = document.querySelector("#sidebar-toggle");
 const historyBackButton = document.querySelector("#history-back");
 const historyForwardButton = document.querySelector("#history-forward");
@@ -621,6 +640,12 @@ documentTabs.addEventListener("wheel", handleDocumentTabsWheel, { passive: false
 documentTabs.addEventListener("contextmenu", handleDocumentTabContextMenu);
 documentNewButton.addEventListener("click", () => promptNewDocument(newDocumentLocationFromCurrent()));
 emptyNewDocument.addEventListener("click", () => promptNewDocument({ directoryPath: "" }));
+repositoryPanelToggle.addEventListener("click", () => requestRepositoryPanelAction("show"));
+repositoryPanelClose.addEventListener("click", () => closeRepositoryPanel());
+repositoryPanelOpen.addEventListener("click", openAnotherRepositoryFromPanel);
+repositoryPanelSearch.addEventListener("input", renderRepositoryPanel);
+repositoryPanel.addEventListener("click", handleRepositoryPanelClick);
+repositoryPanel.addEventListener("keydown", handleRepositoryPanelKeydown);
 documentFavoriteToggle.addEventListener("click", toggleCurrentDocumentFavorite);
 documentActionsMore.addEventListener("click", showCurrentDocumentActionsMenu);
 fileActionMenu.addEventListener("click", handleFileActionMenuClick);
@@ -673,6 +698,7 @@ document.addEventListener("keydown", handleOutlineContentNavigationIntent, true)
 document.addEventListener("keydown", handleToolStatusActivity);
 document.addEventListener("visibilitychange", handleRemoteSyncVisibilityChange);
 window.addEventListener("git-leaf-desktop-shortcut", handleDesktopShortcutEvent);
+window.addEventListener("git-leaf-desktop-repositories", handleDesktopRepositoriesEvent);
 window.addEventListener("git-leaf-desktop-update-status", handleDesktopUpdateStatusEvent);
 window.addEventListener("git-leaf-desktop-preferences", handleDesktopPreferencesEvent);
 window.addEventListener("focus", handleToolStatusActivity);
@@ -803,7 +829,6 @@ async function loadWorktrees() {
   const response = await fetch(apiUrl("/api/worktrees"), { cache: "no-store" });
   if (!response.ok) {
     worktreeSwitcher.hidden = true;
-    repositoryTitle.hidden = false;
     return;
   }
 
@@ -1058,12 +1083,10 @@ function renderWorktreeSwitcher() {
   const current = currentWorktree();
   if (!current || state.worktrees.length <= 1) {
     worktreeSwitcher.hidden = true;
-    repositoryTitle.hidden = false;
     closeWorktreeSwitcher();
     return;
   }
 
-  repositoryTitle.hidden = true;
   worktreeSwitcher.hidden = false;
   worktreeCurrentName.textContent = worktreeDisplayLabel(current);
   worktreeCurrentBranch.textContent = worktreeBranchLabel(current);
@@ -2692,6 +2715,308 @@ async function applyBranchProtectionPayload(payload) {
 function renderRepositoryHeader(repo) {
   const repoName = String(repo?.name || repo?.id || state.currentRepo || "Git Leaf").trim();
   repositoryTitle.textContent = repoName;
+  repositoryPanelToggle.hidden = !state.desktopPreferencesAvailable;
+}
+
+function handleDesktopRepositoriesEvent(event) {
+  event.preventDefault();
+  showRepositoryPanel(event.detail);
+}
+
+function showRepositoryPanel(payload = {}) {
+  const opening = repositoryPanel.hidden;
+  uiTooltipController.hide();
+  closeWorktreeSwitcher();
+  hideFrontmatterFilterPopover();
+  setAgentContextPopoverOpen(false);
+  closeFileActionMenu({ restoreFocus: false });
+  if (state.activeDialog) {
+    closeAppDialog(false);
+  }
+  if (!gitSyncPanel.hidden) {
+    closeGitSyncPanel();
+  }
+  if (opening) {
+    state.repositoryPanelReturnFocus = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : repositoryPanelToggle;
+    repositoryPanelSearch.value = "";
+  }
+
+  state.repositoryPanelItems = normalizeRepositoryPanelItems(payload?.repositories);
+  repositoryPanel.hidden = false;
+  repositoryPanelToggle.setAttribute("aria-expanded", "true");
+  renderRepositoryPanel();
+  if (payload?.notice?.kind === "removed" && payload.notice.repository) {
+    showCopyToast(t("toast.repositoryRemoved", {
+      repository: payload.notice.repository,
+    }));
+  }
+  window.requestAnimationFrame(() => {
+    repositoryPanelSearch.focus({ preventScroll: true });
+    repositoryPanelSearch.select();
+  });
+}
+
+function closeRepositoryPanel({ notifyDesktop = true, restoreFocus = true } = {}) {
+  if (repositoryPanel.hidden) {
+    return;
+  }
+  closeFileActionMenu({ restoreFocus: false });
+  repositoryPanel.hidden = true;
+  repositoryPanelToggle.setAttribute("aria-expanded", "false");
+  repositoryPanelSearch.removeAttribute("aria-activedescendant");
+  state.repositoryPanelItems = [];
+  state.repositoryPanelVisibleItems = [];
+  state.repositoryPanelSelectedId = "";
+  const returnFocus = state.repositoryPanelReturnFocus;
+  state.repositoryPanelReturnFocus = null;
+  if (restoreFocus && returnFocus?.isConnected) {
+    returnFocus.focus({ preventScroll: true });
+  }
+  if (notifyDesktop) {
+    requestRepositoryPanelAction("close");
+  }
+}
+
+function renderRepositoryPanel() {
+  const visibleItems = visibleRepositoryPanelItems(
+    state.repositoryPanelItems,
+    repositoryPanelSearch.value,
+  );
+  state.repositoryPanelVisibleItems = visibleItems;
+  if (!visibleItems.some((item) => item.id === state.repositoryPanelSelectedId)) {
+    state.repositoryPanelSelectedId = defaultRepositoryPanelSelection(visibleItems);
+  }
+
+  repositoryPanelList.replaceChildren(
+    ...visibleItems.map(repositoryPanelRowElement),
+  );
+  repositoryPanelList.hidden = visibleItems.length === 0;
+  repositoryPanelEmpty.hidden = visibleItems.length > 0;
+  const activeOptionId = repositoryPanelOptionId(state.repositoryPanelSelectedId);
+  if (activeOptionId) {
+    repositoryPanelSearch.setAttribute("aria-activedescendant", activeOptionId);
+  } else {
+    repositoryPanelSearch.removeAttribute("aria-activedescendant");
+  }
+}
+
+function repositoryPanelRowElement(item) {
+  const row = document.createElement("div");
+  row.className = "repository-panel-row";
+  row.classList.toggle("is-selected", item.id === state.repositoryPanelSelectedId);
+  row.dataset.repositoryPanelRow = item.id;
+
+  const main = document.createElement("button");
+  main.type = "button";
+  main.id = repositoryPanelOptionId(item.id);
+  main.className = "repository-panel-row-main";
+  main.dataset.repositoryPanelId = item.id;
+  main.setAttribute("role", "option");
+  main.setAttribute("aria-selected", String(item.id === state.repositoryPanelSelectedId));
+  if (item.current) {
+    main.setAttribute("aria-current", "true");
+  }
+
+  const check = document.createElement("span");
+  check.className = "repository-panel-row-check";
+  check.setAttribute("aria-hidden", "true");
+  check.textContent = item.current ? "✓" : "";
+
+  const copy = document.createElement("span");
+  copy.className = "repository-panel-row-copy";
+  const name = document.createElement("span");
+  name.className = "repository-panel-row-name";
+  name.textContent = item.name;
+  copy.append(name);
+  if (item.context) {
+    const context = document.createElement("span");
+    context.className = "repository-panel-row-context";
+    context.textContent = item.context;
+    copy.append(context);
+  }
+
+  const hasShortcut = Number.isInteger(item.shortcut);
+  const key = document.createElement(hasShortcut ? "kbd" : "span");
+  key.className = item.current
+    ? "repository-panel-row-current"
+    : hasShortcut
+      ? "repository-panel-row-shortcut"
+      : "repository-panel-row-key-empty";
+  key.textContent = item.current
+    ? t("repository.current")
+    : hasShortcut
+      ? platformShortcutLabel(`Command+${item.shortcut}`)
+      : "";
+  if (hasShortcut) {
+    key.setAttribute("aria-hidden", "true");
+  }
+  main.append(check, copy, key);
+
+  const actions = document.createElement("button");
+  actions.type = "button";
+  actions.className = "repository-panel-row-action";
+  actions.dataset.repositoryPanelAction = item.id;
+  actions.setAttribute("aria-label", t("repository.actions", { repository: item.name }));
+  actions.setAttribute("aria-haspopup", "menu");
+  actions.setAttribute("aria-expanded", "false");
+  actions.textContent = "···";
+
+  row.append(main, actions);
+  return row;
+}
+
+function repositoryPanelOptionId(repositoryId) {
+  const id = String(repositoryId ?? "").trim();
+  return id ? `repository-panel-option-${id}` : "";
+}
+
+function handleRepositoryPanelClick(event) {
+  if (event.target === repositoryPanel) {
+    closeRepositoryPanel();
+    return;
+  }
+  const actionButton = event.target.closest?.("[data-repository-panel-action]");
+  if (actionButton) {
+    event.stopPropagation();
+    showRepositoryPanelActions(actionButton.dataset.repositoryPanelAction, actionButton);
+    return;
+  }
+  const option = event.target.closest?.("[data-repository-panel-id]");
+  if (!option) {
+    return;
+  }
+  activateRepositoryPanelItem(
+    state.repositoryPanelVisibleItems.find((item) => item.id === option.dataset.repositoryPanelId),
+  );
+}
+
+function handleRepositoryPanelKeydown(event) {
+  if (event.key === "Escape") {
+    event.preventDefault();
+    event.stopPropagation();
+    closeRepositoryPanel();
+    return;
+  }
+  if (["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
+    event.preventDefault();
+    event.stopPropagation();
+    const visibleItems = state.repositoryPanelVisibleItems;
+    if (visibleItems.length === 0) {
+      return;
+    }
+    state.repositoryPanelSelectedId = event.key === "Home"
+      ? visibleItems[0].id
+      : event.key === "End"
+        ? visibleItems.at(-1).id
+        : moveRepositoryPanelSelection(
+            visibleItems,
+            state.repositoryPanelSelectedId,
+            event.key === "ArrowUp" ? -1 : 1,
+          );
+    renderRepositoryPanel();
+    focusRepositoryPanelSelection();
+    return;
+  }
+  if (
+    event.key === "Enter"
+    && !event.isComposing
+    && event.target === repositoryPanelSearch
+  ) {
+    event.preventDefault();
+    event.stopPropagation();
+    activateRepositoryPanelItem(
+      state.repositoryPanelVisibleItems.find(
+        (item) => item.id === state.repositoryPanelSelectedId,
+      ),
+    );
+    return;
+  }
+  if (event.key === "Tab") {
+    trapRepositoryPanelFocus(event);
+  }
+}
+
+function focusRepositoryPanelSelection() {
+  repositoryPanel.querySelector(`#${cssEscape(repositoryPanelOptionId(state.repositoryPanelSelectedId))}`)
+    ?.scrollIntoView({ block: "nearest" });
+  repositoryPanelSearch.focus({ preventScroll: true });
+}
+
+function trapRepositoryPanelFocus(event) {
+  const focusable = [
+    repositoryPanelClose,
+    repositoryPanelSearch,
+    ...repositoryPanelList.querySelectorAll("button"),
+    repositoryPanelOpen,
+  ].filter((element) => !element.hidden && !element.disabled);
+  if (focusable.length === 0) {
+    return;
+  }
+  const currentIndex = focusable.indexOf(document.activeElement);
+  const nextIndex = event.shiftKey
+    ? (currentIndex <= 0 ? focusable.length - 1 : currentIndex - 1)
+    : (currentIndex < 0 || currentIndex === focusable.length - 1 ? 0 : currentIndex + 1);
+  if (
+    (event.shiftKey && currentIndex <= 0)
+    || (!event.shiftKey && (currentIndex < 0 || currentIndex === focusable.length - 1))
+  ) {
+    event.preventDefault();
+    focusable[nextIndex].focus({ preventScroll: true });
+  }
+}
+
+function activateRepositoryPanelItem(item) {
+  if (!item) {
+    return;
+  }
+  if (item.current) {
+    closeRepositoryPanel();
+    return;
+  }
+  flushWorkbenchSessionPreference();
+  closeRepositoryPanel({ notifyDesktop: false, restoreFocus: false });
+  requestRepositoryPanelAction("switch", item.id);
+}
+
+function openAnotherRepositoryFromPanel() {
+  closeRepositoryPanel({ notifyDesktop: false });
+  requestRepositoryPanelAction("open");
+}
+
+function showRepositoryPanelActions(repositoryId, returnFocus) {
+  const item = state.repositoryPanelItems.find((candidate) => candidate.id === repositoryId);
+  if (!item) {
+    return;
+  }
+  const rect = returnFocus.getBoundingClientRect();
+  state.fileActionTarget = {
+    source: "repository",
+    repositoryId: item.id,
+    repositoryCurrent: item.current,
+  };
+  showFileActionMenu([
+    {
+      id: "remove-repository",
+      label: item.current
+        ? t("repository.removeCurrent")
+        : t("repository.remove"),
+    },
+  ], {
+    x: rect.right,
+    y: rect.bottom + 4,
+    alignRight: true,
+    returnFocus,
+  });
+  returnFocus.setAttribute("aria-expanded", "true");
+}
+
+function requestRepositoryPanelAction(action, repositoryId = "") {
+  const url = repositoryPanelActionUrl(action, repositoryId);
+  if (url) {
+    window.location.href = url;
+  }
 }
 
 function renderBranchStatus() {
@@ -2904,6 +3229,9 @@ function handleSystemColorSchemeChange() {
 
 function applyShortcutTooltips() {
   setShortcutTooltip(sidebarToggle, t("action.collapseSidebar"), "Command+B");
+  setShortcutTooltip(repositoryPanelToggle, t("repository.openPanel"), "Command+O");
+  repositoryPanelToggle?.setAttribute("aria-keyshortcuts", "Meta+O Control+O");
+  repositoryPanelOpen.querySelector("kbd").textContent = platformShortcutLabel("Command+0");
   for (const [index, sidebarTab] of SIDEBAR_TABS.entries()) {
     const button = sidebarTabButtons.find(
       (candidate) => candidate.dataset.sidebarTab === sidebarTab,
@@ -4171,12 +4499,19 @@ function closeFileActionMenu({ restoreFocus = true } = {}) {
   fileActionMenu.hidden = true;
   fileActionMenu.replaceChildren();
   documentActionsMore.setAttribute("aria-expanded", "false");
+  returnFocus?.setAttribute?.("aria-expanded", "false");
   if (restoreFocus && returnFocus?.isConnected) {
     returnFocus.focus({ preventScroll: true });
   }
 }
 
 function handleFileActionMenuKeydown(event) {
+  if (event.key === "Escape") {
+    event.preventDefault();
+    event.stopPropagation();
+    closeFileActionMenu();
+    return;
+  }
   if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
     return;
   }
@@ -4254,6 +4589,8 @@ async function handleFileActionMenuClick(event) {
     openGithubUrl(target.githubUrl);
   } else if (action === "open-system") {
     await openPathWithSystem(target.path);
+  } else if (action === "remove-repository" && target.repositoryId) {
+    requestRepositoryPanelAction("remove", target.repositoryId);
   }
 }
 
@@ -6174,7 +6511,7 @@ function handleAppDialogKeydown(event) {
 }
 
 function handleAppShortcutKeydown(event) {
-  if (event.target.closest?.("#app-dialog, #git-sync-panel")) {
+  if (event.target.closest?.("#app-dialog, #git-sync-panel, #repository-panel")) {
     return;
   }
 
@@ -6452,7 +6789,28 @@ async function runAppShortcut(action) {
 
 function handleDesktopShortcutEvent(event) {
   event.preventDefault();
+  if (handleRepositoryPanelDesktopShortcut(event.detail)) {
+    return;
+  }
   void runAppShortcut(event.detail);
+}
+
+function handleRepositoryPanelDesktopShortcut(action) {
+  if (repositoryPanel.hidden) {
+    return false;
+  }
+  if (action?.command === "repository-panel-open-another") {
+    openAnotherRepositoryFromPanel();
+    return true;
+  }
+  if (action?.command !== "repository-panel-switch-shortcut") {
+    return true;
+  }
+  activateRepositoryPanelItem(repositoryPanelItemForShortcut(
+    state.repositoryPanelVisibleItems,
+    action.shortcut,
+  ));
+  return true;
 }
 
 function handleDesktopUpdateStatusEvent(event) {
@@ -7280,6 +7638,9 @@ function sameStringArray(left, right) {
 }
 
 function handleDocumentKeydown(event) {
+  if (!repositoryPanel.hidden) {
+    return;
+  }
   if (event.key === "Escape" && !agentContextPopover.hidden) {
     event.preventDefault();
     closeAgentContextPopoverAndRestoreFocus();

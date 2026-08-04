@@ -248,6 +248,7 @@ async function handleRequest(request, response, context) {
     requestUrl.pathname === "/document-tabs.js" ||
     requestUrl.pathname === "/document-search.js" ||
     requestUrl.pathname === "/keyboard-shortcuts.js" ||
+    requestUrl.pathname === "/repository-panel.js" ||
     requestUrl.pathname === "/help-content.js" ||
     requestUrl.pathname === "/frontmatter-filters.js" ||
     requestUrl.pathname === "/frontmatter-edit.js" ||

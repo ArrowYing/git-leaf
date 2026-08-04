@@ -238,7 +238,27 @@
       <div class="app-workbench">
         <aside id="workspace-sidebar" class="sidebar" aria-label="文件浏览器" data-i18n-aria-label="aria.fileBrowser">
           <div id="workspace-sidebar-header" class="workspace-sidebar-header">
-            <div id="repository-title" class="toolbar-repository">Git Leaf</div>
+            <div class="repository-heading">
+              <div id="repository-title" class="toolbar-repository">Git Leaf</div>
+              <button
+                id="repository-panel-toggle"
+                class="repository-panel-toggle"
+                type="button"
+                aria-label="仓库"
+                data-ui-tooltip="仓库"
+                data-i18n-aria-label="repository.openPanel"
+                data-i18n-data-ui-tooltip="repository.openPanel"
+                aria-haspopup="dialog"
+                aria-controls="repository-panel"
+                aria-expanded="false"
+                hidden
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M4 6.5h16v11H4z"></path>
+                  <path d="M7 3.5h10M7 20.5h10"></path>
+                </svg>
+              </button>
+            </div>
             <div id="worktree-switcher" class="worktree-switcher" hidden>
               <button
                 id="worktree-switcher-toggle"
@@ -511,6 +531,34 @@
       </div>
       <div id="ui-tooltip" class="ui-tooltip" role="tooltip" aria-hidden="true" hidden></div>
       <div id="file-action-menu" class="file-action-menu" role="menu" aria-label="文件操作" data-i18n-aria-label="aria.fileActions" hidden></div>
+      <div id="repository-panel" class="repository-panel" role="dialog" aria-modal="true" aria-labelledby="repository-panel-title" hidden>
+        <section class="repository-panel-card">
+          <header class="repository-panel-header">
+            <h2 id="repository-panel-title" data-i18n="repository.title">仓库</h2>
+            <button id="repository-panel-close" type="button" aria-label="关闭" data-ui-tooltip="关闭" data-i18n-aria-label="action.close" data-i18n-data-ui-tooltip="action.close">×</button>
+          </header>
+          <label class="repository-panel-search">
+            <span class="visually-hidden" data-i18n="repository.searchLabel">搜索仓库</span>
+            <input
+              id="repository-panel-search"
+              type="search"
+              placeholder="搜索仓库…"
+              data-i18n-placeholder="repository.searchPlaceholder"
+              autocomplete="off"
+              spellcheck="false"
+              aria-controls="repository-panel-list"
+            >
+          </label>
+          <div id="repository-panel-list" class="repository-panel-list" role="listbox" aria-label="已打开的仓库" data-i18n-aria-label="repository.openRepositories"></div>
+          <p id="repository-panel-empty" class="repository-panel-empty" data-i18n="repository.empty" hidden>没有匹配的仓库。</p>
+          <footer class="repository-panel-footer">
+            <button id="repository-panel-open" type="button">
+              <span data-i18n="repository.openAnother">打开另一个本机仓库…</span>
+              <kbd aria-hidden="true">⌘0</kbd>
+            </button>
+          </footer>
+        </section>
+      </div>
       <div id="git-sync-panel" class="git-sync-panel" role="dialog" aria-modal="true" aria-labelledby="git-sync-title" hidden>
         <section class="git-sync-dialog">
           <header class="git-sync-header">

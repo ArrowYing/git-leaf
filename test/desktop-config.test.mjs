@@ -766,8 +766,25 @@ test("closeDesktopRepository clears the active repository without selecting anot
   const mangoContent = path.join(tmpdir(), "content-repo");
 
   await saveDesktopRepository({ userDataDir, repoRoot: mangoOs });
-  await saveDesktopPreferences({ userDataDir, preferences: { mode: "source" } });
+  await saveDesktopPreferences({
+    userDataDir,
+    preferences: {
+      mode: "source",
+      workbenchSessions: {
+        "content-repo": {
+          tabs: [{ path: "README.md" }],
+          activeTabPath: "README.md",
+        },
+      },
+    },
+  });
   await saveDesktopRepository({ userDataDir, repoRoot: mangoContent });
+  await mutateDesktopRepositoryFavorites({
+    userDataDir,
+    repositoryRoot: mangoContent,
+    repoRoot: mangoContent,
+    operation: { action: "add", type: "document", path: "README.md" },
+  });
   await closeDesktopRepository({ userDataDir, repoRoot: mangoContent });
 
   assert.deepEqual(await readDesktopConfig({ userDataDir }), {
@@ -775,6 +792,15 @@ test("closeDesktopRepository clears the active repository without selecting anot
     preferences: {
       ...NEW_INSTALL_PREFERENCES,
       mode: "source",
+      workbenchSessions: {
+        "content-repo": {
+          tabs: [{ path: "README.md" }],
+          activeTabPath: "README.md",
+        },
+      },
+    },
+    repositoryFavorites: {
+      [mangoContent]: [{ type: "document", path: "README.md" }],
     },
   });
 
@@ -785,6 +811,15 @@ test("closeDesktopRepository clears the active repository without selecting anot
     preferences: {
       ...NEW_INSTALL_PREFERENCES,
       mode: "source",
+      workbenchSessions: {
+        "content-repo": {
+          tabs: [{ path: "README.md" }],
+          activeTabPath: "README.md",
+        },
+      },
+    },
+    repositoryFavorites: {
+      [mangoContent]: [{ type: "document", path: "README.md" }],
     },
   });
 });

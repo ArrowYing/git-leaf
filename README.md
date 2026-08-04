@@ -159,7 +159,9 @@ JSX, JavaScript, imports, or scripts.
   and MDX files with non-Chinese source names show their document title below the unchanged filename by
   default. The filename is slightly muted so the title is easier to scan; this second line can be turned
   off for a compact tree.
-- Repository and worktree switching with restored tabs, navigation history, scroll positions, and focus.
+- A searchable repository panel for opening, switching, and removing repositories from Git Leaf without
+  deleting local files, plus worktree switching with restored tabs, navigation history, scroll positions,
+  and focus.
 - Read-only previews for images, PDFs, CSV, JSON, YAML, HTML, code, and other repository attachments.
 - Source line references that paste as quoted context, preserve where selected text came from, and leave
   a blank paragraph ready for the user's prompt.

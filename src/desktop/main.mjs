@@ -61,6 +61,12 @@ import {
 import { desktopUpdatesEnabled } from "./development-handoff.mjs";
 import { sidebarFavoritesForScope } from "../../public/sidebar-favorites.js";
 import {
+  REPOSITORY_PANEL_CLOSE_URL,
+  REPOSITORY_PANEL_REMOVE_URL,
+  REPOSITORY_PANEL_SHOW_URL,
+  REPOSITORY_PANEL_SWITCH_URL,
+} from "../../public/repository-panel.js";
+import {
   desktopHomeHtml,
   desktopPageBackgroundColor,
   desktopProgressHtml,
@@ -101,6 +107,11 @@ import {
   repositoryAfterClose,
   repositoryAtIndex,
 } from "./repository-navigation.mjs";
+import {
+  desktopRepositoryPanelItems,
+  desktopRepositoryPanelShortcutFromInput,
+  desktopRepositoryRootForPanelId,
+} from "./repository-panel.mjs";
 import {
   bootstrapWindowsApp,
   confirmWindowsAppLaunch,
@@ -153,6 +164,7 @@ let repositoryTransitionView = null;
 let desktopUpdateStatus = { state: "idle" };
 let isQuitting = false;
 let isRepositoryTransitioning = false;
+let isRepositoryPanelOpen = false;
 let isDesktopReady = false;
 let pendingDesktopOpenRequest = null;
 let telemetryClient = null;
@@ -168,6 +180,10 @@ let desktopRepositoryState = {
 const DESKTOP_OPEN_REPOSITORY_ACTION = new URL(DESKTOP_OPEN_REPOSITORY_URL);
 const DESKTOP_OPEN_WORKTREE_ACTION = new URL(DESKTOP_OPEN_WORKTREE_URL);
 const DESKTOP_INSTALL_UPDATE_ACTION = new URL("git-leaf://install-update");
+const DESKTOP_SHOW_REPOSITORIES_ACTION = new URL(REPOSITORY_PANEL_SHOW_URL);
+const DESKTOP_CLOSE_REPOSITORIES_ACTION = new URL(REPOSITORY_PANEL_CLOSE_URL);
+const DESKTOP_SWITCH_REPOSITORY_ACTION = new URL(REPOSITORY_PANEL_SWITCH_URL);
+const DESKTOP_REMOVE_REPOSITORY_ACTION = new URL(REPOSITORY_PANEL_REMOVE_URL);
 const APP_DISPLAY_NAME = appDisplayName(BUILD_INFO);
 const DESKTOP_UPDATES_ENABLED = desktopUpdatesEnabled({
   buildInfo: BUILD_INFO,
@@ -631,6 +647,7 @@ async function createMainWindow() {
     handleDesktopNavigation(url);
   });
   mainWindow.webContents.on("did-finish-load", () => {
+    isRepositoryPanelOpen = false;
     void syncDesktopUpdateStatus();
   });
   mainWindow.on("focus", () => {
@@ -841,6 +858,15 @@ function installDesktopShortcutBridge(browserWindow) {
       return;
     }
 
+    const repositoryPanelAction = desktopRepositoryPanelShortcutFromInput(input, {
+      open: isRepositoryPanelOpen,
+    });
+    if (repositoryPanelAction) {
+      event.preventDefault();
+      void sendShortcutToRenderer(repositoryPanelAction);
+      return;
+    }
+
     const repositoryAction = desktopRepositoryShortcutFromInput(input);
     if (repositoryAction) {
       event.preventDefault();
@@ -874,6 +900,14 @@ function installSettingsViewShortcutBridge(webContents) {
       void runDesktopShellShortcut(shellAction, mainWindow);
       return;
     }
+    const repositoryPanelAction = desktopRepositoryPanelShortcutFromInput(input, {
+      open: isRepositoryPanelOpen,
+    });
+    if (repositoryPanelAction) {
+      event.preventDefault();
+      void sendShortcutToRenderer(repositoryPanelAction);
+      return;
+    }
     const repositoryAction = desktopRepositoryShortcutFromInput(input);
     if (repositoryAction) {
       event.preventDefault();
@@ -888,6 +922,9 @@ function installSettingsViewShortcutBridge(webContents) {
 
 function desktopShellShortcutFromInput(input) {
   if (input.type && input.type !== "keyDown") {
+    return null;
+  }
+  if (isRepositoryPanelOpen) {
     return null;
   }
   const key = String(input.key || "").toLowerCase();
@@ -956,6 +993,12 @@ function desktopRepositoryShortcutFromInput(input) {
   const alt = input.alt === true;
   const digitMatch = /^Digit([1-9])$/.exec(code);
 
+  if (!alt && !shift && (meta || ctrl) && code === "KeyO") {
+    return { command: "show-repository-panel" };
+  }
+  if (isRepositoryPanelOpen) {
+    return null;
+  }
   if (alt && !shift && (meta || ctrl) && digitMatch) {
     return {
       command: "switch-repository-at-index",
@@ -974,6 +1017,9 @@ function desktopRepositoryShortcutFromInput(input) {
 async function runDesktopRepositoryShortcut(action) {
   if (isRepositoryTransitioning) {
     return false;
+  }
+  if (action?.command === "show-repository-panel") {
+    return showRepositoryPanel();
   }
   const repoRoots = desktopRepositoryState.openRepoRoots ?? [];
   const activeRepositoryRoot = activeServer?.repositoryRoot ?? "";
@@ -1505,7 +1551,24 @@ async function handleDesktopAction(url) {
     return;
   }
   const action = new URL(url);
+  if (action.hostname === DESKTOP_SHOW_REPOSITORIES_ACTION.hostname) {
+    await showRepositoryPanel();
+    return;
+  }
+  if (action.hostname === DESKTOP_CLOSE_REPOSITORIES_ACTION.hostname) {
+    isRepositoryPanelOpen = false;
+    return;
+  }
+  if (action.hostname === DESKTOP_SWITCH_REPOSITORY_ACTION.hostname) {
+    await switchRepositoryFromPanel(action.searchParams.get("id") ?? "");
+    return;
+  }
+  if (action.hostname === DESKTOP_REMOVE_REPOSITORY_ACTION.hostname) {
+    await removeRepositoryFromPanel(action.searchParams.get("id") ?? "");
+    return;
+  }
   if (action.hostname === DESKTOP_OPEN_REPOSITORY_ACTION.hostname) {
+    isRepositoryPanelOpen = false;
     await chooseAndOpenRepository();
     return;
   }
@@ -1522,6 +1585,10 @@ function isDesktopActionUrl(url) {
   try {
     const parsed = new URL(url);
     return parsed.protocol === DESKTOP_OPEN_REPOSITORY_ACTION.protocol && [
+      DESKTOP_SHOW_REPOSITORIES_ACTION.hostname,
+      DESKTOP_CLOSE_REPOSITORIES_ACTION.hostname,
+      DESKTOP_SWITCH_REPOSITORY_ACTION.hostname,
+      DESKTOP_REMOVE_REPOSITORY_ACTION.hostname,
       DESKTOP_OPEN_REPOSITORY_ACTION.hostname,
       DESKTOP_OPEN_WORKTREE_ACTION.hostname,
       DESKTOP_INSTALL_UPDATE_ACTION.hostname,
@@ -1564,6 +1631,7 @@ async function openWorktreeFromAction(requestedRoot) {
 }
 
 async function showHomePage({ errorState = null, closeActiveRepository = true } = {}) {
+  isRepositoryPanelOpen = false;
   await ensureMainWindow();
   settingsCenter?.hide();
   hideRepositoryTransitionView();
@@ -1770,6 +1838,7 @@ async function openRepository(
   { worktreeSwitch = false, showProgress = true } = {},
 ) {
   await ensureMainWindow();
+  isRepositoryPanelOpen = false;
   if (showProgress) {
     await showProgressPage({
       title: activeServer
@@ -1853,6 +1922,77 @@ async function chooseAndOpenRepository() {
   }
 }
 
+async function showRepositoryPanel({ notice = null } = {}) {
+  if (isRepositoryTransitioning) {
+    return false;
+  }
+  if (!activeServer) {
+    return chooseAndOpenRepository();
+  }
+
+  settingsCenter?.hide();
+  mainWindow?.show?.();
+  mainWindow?.focus?.();
+  isRepositoryPanelOpen = true;
+  const handled = await sendRendererEvent("git-leaf-desktop-repositories", {
+    repositories: desktopRepositoryPanelItems(
+      desktopRepositoryState.openRepoRoots,
+      activeServer.repositoryRoot,
+    ),
+    ...(notice ? { notice } : {}),
+  });
+  if (!handled) {
+    isRepositoryPanelOpen = false;
+  }
+  return handled;
+}
+
+async function switchRepositoryFromPanel(repositoryId) {
+  if (isRepositoryTransitioning) {
+    return false;
+  }
+  const targetRoot = desktopRepositoryRootForPanelId(
+    desktopRepositoryState.openRepoRoots,
+    repositoryId,
+  );
+  isRepositoryPanelOpen = false;
+  if (!targetRoot || targetRoot === activeServer?.repositoryRoot) {
+    return false;
+  }
+  return openKnownRepository(targetRoot);
+}
+
+async function removeRepositoryFromPanel(repositoryId) {
+  if (isRepositoryTransitioning) {
+    return false;
+  }
+  const targetRoot = desktopRepositoryRootForPanelId(
+    desktopRepositoryState.openRepoRoots,
+    repositoryId,
+  );
+  if (!targetRoot) {
+    return false;
+  }
+  if (targetRoot === activeServer?.repositoryRoot) {
+    isRepositoryPanelOpen = false;
+    await closeCurrentRepository();
+    return true;
+  }
+
+  desktopRepositoryState = await closeDesktopRepository({
+    userDataDir: userDataDir(),
+    repoRoot: targetRoot,
+    repositoryRoot: targetRoot,
+  });
+  installMenu();
+  return showRepositoryPanel({
+    notice: {
+      kind: "removed",
+      repository: path.basename(targetRoot),
+    },
+  });
+}
+
 async function openKnownRepository(
   repoRoot,
   initialFilePath = "",
@@ -1903,6 +2043,8 @@ async function closeCurrentRepository() {
     return;
   }
 
+  isRepositoryPanelOpen = false;
+
   if (!activeServer) {
     await showHomePage();
     return;
@@ -1945,17 +2087,6 @@ function installMenu() {
   const translate = currentDesktopTranslator();
   const isMac = process.platform === "darwin";
   const hasActiveRepository = Boolean(activeServer) && !isRepositoryTransitioning;
-  const openRepoRoots = desktopRepositoryState.openRepoRoots;
-  const shouldShowOpenRepositories = (
-    openRepoRoots.length >= 2
-    || (!activeServer && openRepoRoots.length === 1)
-  );
-  const openRepositoryItems = shouldShowOpenRepositories
-    ? repositoryMenuItems(openRepoRoots, {
-        markActive: true,
-        enabled: !isRepositoryTransitioning,
-      })
-    : [];
   const template = [
     ...(isMac
       ? [{
@@ -1992,41 +2123,14 @@ function installMenu() {
       label: translate("menu.file"),
       submenu: [
         {
-          label: translate("menu.openRepository"),
+          label: translate("menu.repositories"),
           accelerator: "CmdOrCtrl+O",
           enabled: !isRepositoryTransitioning,
           click: () => {
-            void chooseAndOpenRepository();
+            void showRepositoryPanel();
           },
         },
         { type: "separator" },
-        ...(openRepositoryItems.length > 0
-          ? [
-              ...(openRepoRoots.length >= 2
-                ? [
-                    {
-                      label: translate("menu.previousRepository"),
-                      accelerator: "CmdOrCtrl+Alt+Left",
-                      enabled: !isRepositoryTransitioning,
-                      click: () => {
-                        void runDesktopRepositoryShortcut({ command: "previous-repository" });
-                      },
-                    },
-                    {
-                      label: translate("menu.nextRepository"),
-                      accelerator: "CmdOrCtrl+Alt+Right",
-                      enabled: !isRepositoryTransitioning,
-                      click: () => {
-                        void runDesktopRepositoryShortcut({ command: "next-repository" });
-                      },
-                    },
-                    { type: "separator" },
-                  ]
-                : []),
-              ...openRepositoryItems,
-              { type: "separator" },
-            ]
-          : []),
         {
           label: translate("menu.exportPdf"),
           enabled: hasActiveRepository,
@@ -2036,7 +2140,7 @@ function installMenu() {
         },
         { type: "separator" },
         {
-          label: translate("menu.closeRepository"),
+          label: translate("menu.removeRepository"),
           enabled: hasActiveRepository,
           click: () => {
             void closeCurrentRepository();
@@ -2175,33 +2279,6 @@ function previousTabAccelerator() {
 
 function nextTabAccelerator() {
   return process.platform === "darwin" ? "Cmd+Shift+]" : "Ctrl+Tab";
-}
-
-function repositoryMenuItems(repoRoots, { markActive = false, enabled = true } = {}) {
-  return repoRoots.map((repoRoot, index) => {
-    const isActive = activeServer?.repositoryRoot === repoRoot;
-    return {
-      label: repositoryMenuLabel(repoRoot, repoRoots),
-      ...(index < 9 ? { accelerator: repositoryIndexAccelerator(index) } : {}),
-      ...(markActive ? { type: "checkbox", checked: isActive } : {}),
-      enabled: enabled && !isActive,
-      click: () => {
-        void openKnownRepository(repoRoot);
-      },
-    };
-  });
-}
-
-function repositoryIndexAccelerator(index) {
-  return `CmdOrCtrl+Alt+${index + 1}`;
-}
-
-function repositoryMenuLabel(repoRoot, repoRoots = []) {
-  const name = path.basename(repoRoot);
-  const duplicateName = repoRoots.some(
-    (candidate) => candidate !== repoRoot && path.basename(candidate) === name,
-  );
-  return duplicateName ? `${name} — ${path.basename(path.dirname(repoRoot))}` : name;
 }
 
 async function openInitialRepository() {

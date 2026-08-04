@@ -6,6 +6,8 @@ const SHORTCUT_GROUPS = Object.freeze([
     titleKey: "shortcuts.repository",
     shortcuts: [
       ["Command+O", "shortcut.openRepository"],
+      ["Command+1..9", "shortcut.switchVisibleRepository"],
+      ["Command+0", "shortcut.openAnotherRepository"],
       ["Command+Option+1..9", "shortcut.switchRepositoryNumber"],
       ["Command+Option+Left", "shortcut.previousRepository"],
       ["Command+Option+Right", "shortcut.nextRepository"],
