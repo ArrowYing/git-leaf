@@ -629,14 +629,15 @@ comma-separated list of multiple successors.
 
 Use fenced Mermaid for swimlanes, many branches, deep architecture, or layout-sensitive diagrams. Git
 Leaf renders a standard `mermaid` fence locally in Preview and inactive Live blocks, with fit, zoom,
-pan, Smart view, node focus, and an explicit `</>` source fallback; the saved content remains ordinary
-Markdown. For a dense flowchart, Smart view may choose a topology-equivalent direction or open a
-temporary one-hop reading view. **All nodes** and `</>` always return to the complete graph and source.
+pan, Smart view, and an explicit `</>` source fallback; the saved content remains ordinary Markdown.
+For a dense horizontal flowchart, Smart view may choose a topology-equivalent top-to-bottom view. The
+complete graph stays visible; Git Leaf does not synthesize isolated node lists or one-hop diagrams.
 
 Within Mermaid, prefer an automatic `flowchart` for a directional process. Use an explicit Mermaid
 layout or `block-beta` with columns, rows, and `space` blocks when placement itself is part of the
 meaning; Smart view respects that author choice. Keep overview labels short, and split overview from
-detail when one diagram would still need too many semantic stages.
+detail with explicit subgraphs or follow-up diagrams when one picture would still need too many
+semantic stages.
 
 ## Unsupported examples
 

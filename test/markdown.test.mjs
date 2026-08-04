@@ -260,7 +260,7 @@ After
   assert.equal(diagramBlock.match(/data-source-line="/g)?.length, 1);
   assert.match(diagramBlock, /data-mermaid-diagram="true"/);
   assert.match(diagramBlock, /data-mermaid-action="smart-layout"/);
-  assert.match(diagramBlock, /data-mermaid-focus/);
+  assert.doesNotMatch(diagramBlock, /data-mermaid-focus/);
   assert.match(diagramBlock, /data-mermaid-action="fit"/);
   assert.match(diagramBlock, /data-mermaid-action="source"/);
   assert.match(diagramBlock, /data-mermaid-source>flowchart LR/);
@@ -276,9 +276,7 @@ test("renderMarkdown localizes Mermaid controls while preserving portable source
 
   assert.match(html, />Mermaid 图<\/span>/);
   assert.match(html, />智能阅读<\/button>/);
-  assert.match(html, /aria-label="聚焦节点"/);
-  assert.match(html, />全部节点<\/option>/);
-  assert.match(html, /data-mermaid-focus-summary/);
+  assert.doesNotMatch(html, /聚焦节点|全部节点|data-mermaid-focus/);
   assert.match(html, />适应宽度<\/button>/);
   assert.match(html, /aria-label="查看 Mermaid 源码"/);
   assert.match(html, /data-mermaid-source>flowchart TD\nA --&gt; B\n<\/code>/);

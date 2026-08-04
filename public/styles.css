@@ -3375,43 +3375,6 @@ summary.has-operation-feedback {
   gap: 3px;
 }
 
-.mermaid-diagram-focus {
-  display: inline-flex;
-  align-items: center;
-}
-
-.mermaid-diagram-focus[hidden] {
-  display: none;
-}
-
-.mermaid-diagram-focus select {
-  box-sizing: border-box;
-  max-width: 168px;
-  min-height: 30px;
-  border: 1px solid var(--panel-border);
-  border-radius: 6px;
-  background: var(--panel);
-  color: var(--text);
-  font: inherit;
-  font-size: 13px;
-  padding: 4px 24px 4px 8px;
-}
-
-.mermaid-diagram-focus select:disabled {
-  opacity: 0.42;
-}
-
-.mermaid-diagram-focus-summary {
-  color: var(--muted);
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-.mermaid-diagram-focus-summary[hidden] {
-  display: none;
-}
-
 .mermaid-diagram-actions button {
   min-width: 30px;
   min-height: 30px;
@@ -3482,27 +3445,6 @@ summary.has-operation-feedback {
 
 .mermaid-diagram-canvas svg a {
   pointer-events: none;
-}
-
-.mermaid-diagram.can-mermaid-focus .mermaid-diagram-canvas g.node {
-  cursor: pointer;
-}
-
-.mermaid-diagram-canvas g.node,
-.mermaid-diagram-canvas .flowchart-link {
-  transition: opacity 120ms ease;
-}
-
-.mermaid-diagram-canvas .is-mermaid-muted {
-  opacity: 0.04 !important;
-  pointer-events: none;
-}
-
-.mermaid-diagram-canvas g.node.is-mermaid-selected > rect,
-.mermaid-diagram-canvas g.node.is-mermaid-selected > polygon,
-.mermaid-diagram-canvas g.node.is-mermaid-selected > path {
-  stroke: var(--accent) !important;
-  stroke-width: 2.5px !important;
 }
 
 .mermaid-diagram-status {

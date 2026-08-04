@@ -119,18 +119,17 @@ blocks. The diagram toolbar can fit, zoom, and pan a graph, while `</>` exposes 
 source. Git Leaf does not load a remote diagram service, and an invalid diagram remains available as
 source instead of replacing the document with a second visual model.
 
-For a dense `flowchart` without an author-selected layout, **Smart view** measures the rendered result
-instead of relying on document-specific vocabulary. It may compare the other primary direction, but
-accepts that view only when every node, relationship, and cluster remains present, no nodes overlap,
-and fitted text becomes materially easier to read. If neither complete orientation is readable, Git
-Leaf starts with one node and its direct inputs and outputs. Choose any node to continue, or choose
-**All nodes** to restore the complete graph. The toolbar always reports the visible and total node
-counts, and these reading views never rewrite the Mermaid source.
+For a dense `flowchart` without an author-selected layout, **Smart view** uses top-to-bottom as the
+document-reading default instead of relying on document-specific vocabulary. A horizontal source may
+be presented vertically only when every node, relationship, and cluster remains present and no nodes
+overlap; an already vertical source is never turned horizontal automatically. The complete graph always
+remains visible: Git Leaf does not derive isolated node lists or one-hop subgraphs that discard context.
+These reading views never rewrite the Mermaid source.
 
 Use an automatic `flowchart` for a directional process. For an architecture overview whose intentional
 placement matters, select a Mermaid layout explicitly or use `block-beta` with explicit columns, rows,
 and `space` blocks; Git Leaf respects that author decision. Keep stage labels short and use smaller
-follow-up diagrams when one overview still carries too many concepts.
+follow-up diagrams or explicit Mermaid subgraphs when one overview still carries too many concepts.
 
 Git Leaf supports Markdown and a controlled subset of MDX so structured data can stay directly in the
 document instead of being trapped in a screenshot or a separate dashboard. Chart series, table rows,

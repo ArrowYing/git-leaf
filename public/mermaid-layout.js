@@ -6,7 +6,6 @@ export const MERMAID_SMART_LAYOUT_NODE_THRESHOLD = 7;
 export const MERMAID_SMART_LAYOUT_EDGE_THRESHOLD = 8;
 export const MERMAID_SMART_LAYOUT_MAX_NODES = 80;
 export const MERMAID_SMART_LAYOUT_MAX_EDGES = 160;
-export const MERMAID_READABLE_FONT_SIZE = 10.5;
 
 export function mermaidFlowchartSourceInfo(source) {
   const text = String(source ?? "");
@@ -87,15 +86,16 @@ export function mermaidShouldExploreSmartLayouts(info, metrics) {
 export function mermaidSmartLayoutCandidateOptions(info, metrics = {}) {
   if (!mermaidShouldExploreSmartLayouts(info, metrics)) return [];
   const direction = normalizeFlowchartDirection(info.direction);
-  const alternateDirection = direction === "LR" || direction === "RL" ? "TB" : "LR";
+  if (direction === "TB" || direction === "BT") return [];
 
   return [
     {
-      id: `dagre-${alternateDirection.toLowerCase()}`,
+      id: "dagre-tb",
       layout: "dagre",
-      direction: alternateDirection,
+      direction: "TB",
       family: "layered",
       purpose: "overview",
+      readingPriority: true,
     },
   ];
 }
@@ -151,7 +151,7 @@ export function selectMermaidSmartLayout(original, candidates, { viewportWidth =
 
   const comparable = [sourceCandidate];
   for (const candidate of candidates ?? []) {
-    if (!candidate?.svg || candidate.purpose === "focus") continue;
+    if (!candidate?.svg) continue;
     const metrics = candidate.metrics ?? mermaidSvgMetrics(candidate.svg);
     if (!sameMermaidTopology(originalMetrics, metrics)) continue;
     comparable.push({
@@ -164,7 +164,10 @@ export function selectMermaidSmartLayout(original, candidates, { viewportWidth =
     });
   }
 
-  const best = comparable.reduce((selected, candidate) => (
+  const readingPriority = comparable.find((candidate) => (
+    candidate.readingPriority && Number.isFinite(candidate.presentation.score)
+  ));
+  const best = readingPriority ?? comparable.reduce((selected, candidate) => (
     candidate.presentation.score > selected.presentation.score ? candidate : selected
   ), sourceCandidate);
   if (best.id === sourceCandidate.id) {
@@ -175,7 +178,8 @@ export function selectMermaidSmartLayout(original, candidates, { viewportWidth =
   const scaleRatio = sourceCandidate.presentation.scale > 0
     ? best.presentation.scale / sourceCandidate.presentation.scale
     : Number.POSITIVE_INFINITY;
-  const materiallyBetter = fontGain >= 0.75
+  const materiallyBetter = best.readingPriority
+    || fontGain >= 0.75
     || scaleRatio >= 1.12
     || (sourceCandidate.presentation.fontSize < 9 && fontGain >= 0.4);
 
@@ -187,42 +191,6 @@ export function selectMermaidSmartLayout(original, candidates, { viewportWidth =
   };
 }
 
-export function mermaidShouldGuideReading(selection, { graph, info } = {}) {
-  if (info?.explicitLayout || !mermaidShouldOfferFocus(graph)) return false;
-  const selected = selection?.selected;
-  const fontSize = Number(selected?.presentation?.fontSize) || 0;
-  const aspectRatio = Number(selected?.metrics?.aspectRatio) || 0;
-  return fontSize < MERMAID_READABLE_FONT_SIZE
-    || aspectRatio >= 5
-    || (aspectRatio > 0 && aspectRatio <= 0.3);
-}
-
-export function mermaidGraphEntryNode(graph) {
-  const nodes = Array.isArray(graph?.nodes) ? graph.nodes : [];
-  if (nodes.length === 0) return "";
-  const degree = new Map(nodes.map((node, index) => [String(node.id), {
-    id: String(node.id),
-    index,
-    incoming: 0,
-    outgoing: 0,
-  }]));
-  for (const edge of graph?.edges ?? []) {
-    const start = degree.get(String(edge.start ?? ""));
-    const end = degree.get(String(edge.end ?? ""));
-    if (start) start.outgoing += 1;
-    if (end) end.incoming += 1;
-  }
-
-  const roots = [...degree.values()].filter((node) => node.incoming === 0 && node.outgoing > 0);
-  if (roots.length > 0) return roots.sort((a, b) => a.index - b.index)[0].id;
-
-  return [...degree.values()].sort((a, b) => (
-    (b.outgoing - b.incoming) - (a.outgoing - a.incoming)
-    || b.outgoing - a.outgoing
-    || a.index - b.index
-  ))[0]?.id ?? "";
-}
-
 export function mermaidNodeOverlapCount(nodeBounds, nodeIds) {
   const entries = normalizedNodeBounds(nodeBounds, nodeIds);
   let count = 0;
@@ -232,73 +200,6 @@ export function mermaidNodeOverlapCount(nodeBounds, nodeIds) {
     }
   }
   return count;
-}
-
-export function mermaidFocusDiagram(graph, nodeId, { direction = "LR" } = {}) {
-  const focus = mermaidGraphFocus(graph, nodeId);
-  const selectedId = String(nodeId ?? "");
-  if (!selectedId || !focus.nodeIds.has(selectedId)) return null;
-  const nodes = (graph?.nodes ?? []).filter((node) => focus.nodeIds.has(String(node.id)));
-  const aliasByNodeId = new Map(nodes.map((node, index) => [String(node.id), `F${index}`]));
-  const nodeIdByAlias = Object.fromEntries(
-    [...aliasByNodeId.entries()].map(([originalId, alias]) => [alias, originalId]),
-  );
-  const lines = [`flowchart ${normalizeFlowchartDirection(direction)}`];
-  for (const node of nodes) {
-    const id = String(node.id);
-    const label = escapeMermaidFocusLabel(node.label || id);
-    lines.push(`    ${aliasByNodeId.get(id)}["${label}"]`);
-  }
-  for (const edge of graph?.edges ?? []) {
-    const start = String(edge.start ?? "");
-    const end = String(edge.end ?? "");
-    if (start !== selectedId && end !== selectedId) continue;
-    const startAlias = aliasByNodeId.get(start);
-    const endAlias = aliasByNodeId.get(end);
-    if (!startAlias || !endAlias) continue;
-    const label = escapeMermaidFocusEdgeLabel(edge.label);
-    lines.push(label
-      ? `    ${startAlias} -->|${label}| ${endAlias}`
-      : `    ${startAlias} --> ${endAlias}`);
-  }
-
-  return {
-    source: lines.join("\n"),
-    focus,
-    nodeIdByAlias,
-  };
-}
-
-export function mermaidGraphFocus(graph, nodeId) {
-  const selectedId = String(nodeId ?? "");
-  const nodeIds = new Set((graph?.nodes ?? []).map((node) => String(node.id)));
-  if (!selectedId || !nodeIds.has(selectedId)) {
-    return { nodeIds: new Set(nodeIds), edgeIds: new Set(), incoming: 0, outgoing: 0 };
-  }
-
-  const focusedNodeIds = new Set([selectedId]);
-  const edgeIds = new Set();
-  let incoming = 0;
-  let outgoing = 0;
-  for (const edge of graph?.edges ?? []) {
-    const start = String(edge.start ?? "");
-    const end = String(edge.end ?? "");
-    if (start !== selectedId && end !== selectedId) continue;
-    if (start === selectedId) outgoing += 1;
-    if (end === selectedId) incoming += 1;
-    focusedNodeIds.add(start);
-    focusedNodeIds.add(end);
-    if (edge.id) edgeIds.add(String(edge.id));
-  }
-
-  return { nodeIds: focusedNodeIds, edgeIds, incoming, outgoing };
-}
-
-export function mermaidShouldOfferFocus(graph) {
-  return Array.isArray(graph?.nodes)
-    && graph.nodes.length >= MERMAID_SMART_LAYOUT_NODE_THRESHOLD
-    && Array.isArray(graph?.edges)
-    && graph.edges.length > 0;
 }
 
 function mermaidFrontmatter(source) {
@@ -350,20 +251,4 @@ function rectanglesOverlap(left, right) {
     && right.x + right.width > left.x + epsilon
     && left.y + left.height > right.y + epsilon
     && right.y + right.height > left.y + epsilon;
-}
-
-function escapeMermaidFocusLabel(value) {
-  return String(value ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll('"', "&quot;")
-    .replace(/[\r\n]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function escapeMermaidFocusEdgeLabel(value) {
-  return escapeMermaidFocusLabel(value)
-    .replaceAll("|", "&#124;")
-    .replaceAll("[", "&#91;")
-    .replaceAll("]", "&#93;");
 }

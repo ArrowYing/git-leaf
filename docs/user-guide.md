@@ -166,18 +166,18 @@ temporary reading state and never rewrite the file. Dark and light appearance re
 the active theme. If the syntax is invalid or too large, the card reports the error and keeps `</>`
 available for inspection.
 
-For a dense `flowchart`, **Smart view** first tests whether the author direction or its alternate can
-show the complete graph with readable fitted text and no overlapping nodes. A candidate is rejected if
-its node, relationship, or cluster counts differ from the original. If neither complete orientation is
-readable, Git Leaf opens a guided one-hop view: the selected node plus its direct predecessors and
-successors. The node picker and node clicks continue the path; the summary states how many of the total
-nodes and relationships are visible. Choose **All nodes** for the full graph, or turn off **Smart view**
-for the author's original rendering.
+For a dense `flowchart`, **Smart view** treats top-to-bottom as the document-reading direction. A
+horizontal source is presented vertically only after Git Leaf confirms that its node, relationship, and
+cluster counts still match and no nodes overlap. An already vertical graph is never rotated horizontal
+automatically. The complete vertical graph stays visible. Git Leaf does not replace it with a node list
+or a synthetic one-hop diagram; turn off **Smart view** whenever the author's original rendering is the
+better reference.
 
 This decision uses only graph structure and measured geometry, not labels or domain-specific rules.
 An author-selected Mermaid layout is never overridden. Use an automatic `flowchart` for a directional
 process; use an explicit layout or `block-beta` when intentional placement matters. Keep overview labels
-short and move detail into follow-up diagrams when the concepts themselves remain too numerous.
+short and use explicit subgraphs or follow-up diagrams when the concepts themselves remain too
+numerous.
 
 ## Keep data readable to agents and visual for people
 

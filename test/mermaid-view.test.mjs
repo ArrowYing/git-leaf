@@ -62,8 +62,6 @@ test("Mermaid view controls clamp zoom and reset pan when returning to fit", () 
     y: 0,
     sourceVisible: false,
     smartLayout: true,
-    focusNodeId: "",
-    focusUserSelected: false,
   });
 
   for (let index = 0; index < 20; index += 1) {
@@ -111,13 +109,6 @@ test("Mermaid viewport follows the rendered aspect ratio without becoming too fl
     viewBoxWidth: 600,
     viewBoxHeight: 1_800,
   }), 560);
-
-  assert.equal(mermaidViewportHeight({
-    viewportWidth: 3_000,
-    viewBoxWidth: 380,
-    viewBoxHeight: 152,
-    maxScale: 1.6,
-  }), 279);
 
   assert.equal(mermaidViewportHeight({ viewportWidth: 1_000 }), 360);
 });

@@ -311,26 +311,25 @@ A fenced code block whose language is exactly `mermaid` is a portable Markdown d
 MDX-lite component. The synchronous Markdown renderer emits only an inert shell, escaped source, and
 its source-line range. Preview and inactive Live blocks hydrate that shell with the checked-in browser
 bundle built from `src/client/mermaid-renderer.mjs`; no CDN or remote rendering endpoint is involved.
-The active Live block remains source-editable. Fit, zoom, pan, source visibility, Smart view, and node
-focus are transient view state and never write the document. Appearance changes rerender the SVG for
-the active light or dark theme.
+The active Live block remains source-editable. Fit, zoom, pan, source visibility, and Smart view are
+transient view state and never write the document. Appearance changes rerender the SVG for the active
+light or dark theme.
 
 Smart view is a generic presentation decision for bounded flowcharts, not a semantic summarizer. An
-explicit author layout disables exploration. Otherwise the client may render the source direction and
-one alternate primary direction, measure their fitted text size, aspect ratio, and node geometry, and
-select an alternate only when all of these invariants hold:
+explicit author layout disables exploration. Otherwise top-to-bottom is the document-reading priority:
+the client may render a horizontal source as a vertical candidate, but never rotates a vertical source
+horizontal automatically. It measures fitted text size, aspect ratio, and node geometry, and accepts
+the vertical candidate only when all of these invariants hold:
 
 - node, edge, and cluster counts exactly match the source rendering;
-- no measured node rectangles overlap;
-- the candidate provides a material fitted-scale or text-size improvement.
+- no measured node rectangles overlap.
 
-If the best complete rendering still falls below the reading threshold, the client derives a temporary
-one-hop flowchart from the parsed topology. The starting node is selected deterministically from graph
-degree and source order; labels never influence that decision. A focused view contains the selected
-node, every direct predecessor and successor, and every incident relationship. It reports visible versus
-total nodes, lets the reader move to any node, and keeps **All nodes** as an explicit path back to the
-complete topology. The derived source exists only in memory. The stored Mermaid fence and the original
-complete rendering remain authoritative and accessible, including through the `</>` source control.
+The complete topology remains the only graph rendered by Smart view. The client does not derive node
+lists, semantic groups, or one-hop subgraphs from labels or graph degree: those transformations remove
+context without having enough domain information to replace it. When one complete overview still
+carries too many concepts, grouping and follow-up diagrams remain author-owned Mermaid source. The
+stored fence and the original rendering remain authoritative and accessible, including through the
+`</>` source control.
 
 Mermaid runs with strict security, disabled automatic startup, and a 100,000-character source limit.
 The client accepts only an SVG result without executable elements, event-handler attributes, or
