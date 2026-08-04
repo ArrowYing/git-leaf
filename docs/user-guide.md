@@ -407,7 +407,8 @@ The row action can remove a repository from Git Leaf. This removes it only from 
 list: Git Leaf does not delete the local directory, Git files, branches, or unpublished changes. Opening
 the same repository again restores its saved workspace state and Favorites.
 
-When a repository has multiple Git worktrees, a selector appears below the repository identity. Each worktree keeps
+When a repository has multiple Git worktrees, the worktree selector replaces the repeated repository
+name in the sidebar header while the repository-panel button remains separate. Each worktree keeps
 separate tabs, folder state, reading position, and local changes. Favorites are shared across the
 repository. Most people should remain in the primary working directory unless a repository maintainer
 or AI agent has asked them to use another worktree.

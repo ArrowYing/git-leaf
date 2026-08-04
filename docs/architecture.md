@@ -105,7 +105,9 @@ shortcuts select only the visibly numbered results and zero opens the existing d
 and removal requests return only the opaque ID to the desktop shell, which resolves it against the current
 `openRepoRoots` list and reuses the normal repository transition or configuration mutation boundary.
 Removing a repository from the panel never deletes its local directory or clears its saved session and
-Favorites. Worktree selection remains a separate, repository-scoped control below the repository identity.
+Favorites. Worktree selection remains a separate, repository-scoped control; when a repository has
+multiple worktrees, that selector replaces the repeated standalone repository name while the repository
+panel button remains independent.
 
 Normal branches are editable. A detached worktree can be read and can enter an editing mode, but the
 first actual write must create a protective local branch named like

@@ -175,6 +175,7 @@ import {
   moveRepositoryPanelSelection,
   normalizeRepositoryPanelItems,
   repositoryPanelActionUrl,
+  repositoryHeaderUsesWorktreeSelector,
   repositoryPanelItemForShortcut,
   visibleRepositoryPanelItems,
 } from "./repository-panel.js";
@@ -828,7 +829,8 @@ async function loadRepositories() {
 async function loadWorktrees() {
   const response = await fetch(apiUrl("/api/worktrees"), { cache: "no-store" });
   if (!response.ok) {
-    worktreeSwitcher.hidden = true;
+    state.worktrees = [];
+    renderWorktreeSwitcher();
     return;
   }
 
@@ -1081,7 +1083,12 @@ function currentWorktree() {
 
 function renderWorktreeSwitcher() {
   const current = currentWorktree();
-  if (!current || state.worktrees.length <= 1) {
+  const showWorktreeSelector = repositoryHeaderUsesWorktreeSelector({
+    currentWorktree: current,
+    worktreeCount: state.worktrees.length,
+  });
+  repositoryTitle.hidden = showWorktreeSelector;
+  if (!showWorktreeSelector) {
     worktreeSwitcher.hidden = true;
     closeWorktreeSwitcher();
     return;

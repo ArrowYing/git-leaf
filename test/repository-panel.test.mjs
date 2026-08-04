@@ -6,6 +6,7 @@ import {
   moveRepositoryPanelSelection,
   normalizeRepositoryPanelItems,
   repositoryPanelActionUrl,
+  repositoryHeaderUsesWorktreeSelector,
   repositoryPanelItemForShortcut,
   visibleRepositoryPanelItems,
 } from "../public/repository-panel.js";
@@ -20,6 +21,21 @@ const PANEL_ITEMS = [
   { id: "leaf", name: "git-leaf", context: "", current: true },
   { id: "content", name: "mango-content", context: "Projects", current: false },
 ];
+
+test("repository header replaces the repeated title only for multiple worktrees", () => {
+  assert.equal(repositoryHeaderUsesWorktreeSelector({
+    currentWorktree: { id: "main" },
+    worktreeCount: 2,
+  }), true);
+  assert.equal(repositoryHeaderUsesWorktreeSelector({
+    currentWorktree: { id: "main" },
+    worktreeCount: 1,
+  }), false);
+  assert.equal(repositoryHeaderUsesWorktreeSelector({
+    currentWorktree: null,
+    worktreeCount: 2,
+  }), false);
+});
 
 test("repository panel preserves stable order without numbering the current repository", () => {
   const visible = visibleRepositoryPanelItems(PANEL_ITEMS);

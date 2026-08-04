@@ -6,6 +6,13 @@ export const REPOSITORY_PANEL_OPEN_URL = "git-leaf://open-repository";
 
 const REPOSITORY_PANEL_SHORTCUT_LIMIT = 9;
 
+export function repositoryHeaderUsesWorktreeSelector({
+  currentWorktree = null,
+  worktreeCount = 0,
+} = {}) {
+  return Boolean(currentWorktree) && Number(worktreeCount) > 1;
+}
+
 export function normalizeRepositoryPanelItems(items) {
   if (!Array.isArray(items)) {
     return [];

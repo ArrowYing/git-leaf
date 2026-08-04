@@ -240,6 +240,30 @@
           <div id="workspace-sidebar-header" class="workspace-sidebar-header">
             <div class="repository-heading">
               <div id="repository-title" class="toolbar-repository">Git Leaf</div>
+              <div id="worktree-switcher" class="worktree-switcher" hidden>
+                <button
+                  id="worktree-switcher-toggle"
+                  class="worktree-switcher-toggle"
+                  type="button"
+                  aria-haspopup="listbox"
+                  aria-expanded="false"
+                  aria-controls="worktree-switcher-menu"
+                >
+                  <span class="worktree-switcher-current">
+                    <span id="worktree-current-name" class="worktree-current-name"></span>
+                    <span id="worktree-current-branch" class="worktree-current-branch"></span>
+                  </span>
+                  <span class="worktree-switcher-chevron" aria-hidden="true">⌄</span>
+                </button>
+                <div
+                  id="worktree-switcher-menu"
+                  class="worktree-switcher-menu"
+                  role="listbox"
+                  aria-label="Git 工作树"
+                  data-i18n-aria-label="aria.gitWorktrees"
+                  hidden
+                ></div>
+              </div>
               <button
                 id="repository-panel-toggle"
                 class="repository-panel-toggle"
@@ -258,30 +282,6 @@
                   <path d="M7 3.5h10M7 20.5h10"></path>
                 </svg>
               </button>
-            </div>
-            <div id="worktree-switcher" class="worktree-switcher" hidden>
-              <button
-                id="worktree-switcher-toggle"
-                class="worktree-switcher-toggle"
-                type="button"
-                aria-haspopup="listbox"
-                aria-expanded="false"
-                aria-controls="worktree-switcher-menu"
-              >
-                <span class="worktree-switcher-current">
-                  <span id="worktree-current-name" class="worktree-current-name"></span>
-                  <span id="worktree-current-branch" class="worktree-current-branch"></span>
-                </span>
-                <span class="worktree-switcher-chevron" aria-hidden="true">⌄</span>
-              </button>
-              <div
-                id="worktree-switcher-menu"
-                class="worktree-switcher-menu"
-                role="listbox"
-                aria-label="Git 工作树"
-                data-i18n-aria-label="aria.gitWorktrees"
-                hidden
-              ></div>
             </div>
           </div>
           <div
