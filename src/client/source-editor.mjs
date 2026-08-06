@@ -9,6 +9,7 @@ import { markdown } from "@codemirror/lang-markdown";
 import { bracketMatching, indentOnInput } from "@codemirror/language";
 import { highlightSelectionMatches } from "@codemirror/search";
 import {
+  Annotation,
   Compartment,
   EditorState,
   EditorSelection,
@@ -58,6 +59,7 @@ import { createTranslator } from "../../public/i18n.js";
 
 const livePreviewEnterEffect = StateEffect.define();
 const livePreviewExitEffect = StateEffect.define();
+const preserveEditorContextAnnotation = Annotation.define();
 const sourceEditorSetup = [
   minimalSetup,
   lineNumbers(),
@@ -976,6 +978,7 @@ export function createSourceEditor({
 
   view = new EditorView({
     doc,
+    dispatchTransactions: dispatchEditorTransactions,
     extensions: [
       sourceEditorSetup,
       markdown(),
@@ -1213,7 +1216,7 @@ export function createSourceEditor({
           };
       suppressChange = true;
       try {
-        view.dispatch({
+        view.dispatch(preserveEditorContext({
           changes,
           effects: remoteMergeHighlightEffect.of(
             highlightChanges
@@ -1223,7 +1226,7 @@ export function createSourceEditor({
                 }
               : null,
           ),
-        });
+        }, preserveSelection));
       } finally {
         suppressChange = false;
       }
@@ -1340,14 +1343,14 @@ export function createSourceEditor({
           to: line.to,
           insert: String(text ?? ""),
         },
-        scrollIntoView: true,
+        scrollIntoView: !preserveSelection,
       };
       if (!preserveSelection) {
         transaction.selection = {
           anchor: line.from + String(text ?? "").length,
         };
       }
-      view.dispatch(transaction);
+      view.dispatch(preserveEditorContext(transaction, preserveSelection));
       return true;
     },
     lineRect(lineNumber) {
@@ -1405,19 +1408,26 @@ export function createSourceEditor({
         ].join(""),
       );
     },
-    replaceDocument(value) {
+    replaceDocument(value, { preserveSelection = true } = {}) {
       const nextValue = String(value ?? "");
-      view.dispatch({
-        changes: {
-          from: 0,
-          to: view.state.doc.length,
-          insert: nextValue,
-        },
-        scrollIntoView: true,
-      });
+      const currentValue = view.state.doc.toString();
+      if (currentValue === nextValue) {
+        return false;
+      }
+      const changes = preserveSelection
+        ? minimalDocumentChange(currentValue, nextValue)
+        : {
+            from: 0,
+            to: view.state.doc.length,
+            insert: nextValue,
+          };
+      view.dispatch(preserveEditorContext({
+        changes,
+        scrollIntoView: !preserveSelection,
+      }, preserveSelection));
       return true;
     },
-    deleteLine(lineNumber) {
+    deleteLine(lineNumber, { preserveSelection = true } = {}) {
       if (!Number.isInteger(lineNumber) || lineNumber < 1 || lineNumber > view.state.doc.lines) {
         return false;
       }
@@ -1426,10 +1436,10 @@ export function createSourceEditor({
       const to = lineNumber < view.state.doc.lines
         ? view.state.doc.line(lineNumber + 1).from
         : line.to;
-      view.dispatch({
+      view.dispatch(preserveEditorContext({
         changes: { from: line.from, to },
-        scrollIntoView: true,
-      });
+        scrollIntoView: !preserveSelection,
+      }, preserveSelection));
       return true;
     },
     destroy() {
@@ -1469,6 +1479,52 @@ export function createSourceEditor({
       globalThis.removeEventListener?.("resize", componentInteraction.refreshPositions);
       view.destroy();
     },
+  };
+}
+
+export function dispatchEditorTransactions(transactions, view) {
+  if (!editorTransactionsPreserveContext(transactions)) {
+    view.update(transactions);
+    return;
+  }
+
+  let scrollSnapshot = view.scrollSnapshot();
+  for (const transaction of transactions) {
+    scrollSnapshot = scrollSnapshot?.map(transaction.changes);
+  }
+  const finalState = transactions.at(-1)?.state;
+  if (!scrollSnapshot || !finalState) {
+    view.update(transactions);
+    return;
+  }
+
+  view.update([
+    ...transactions,
+    finalState.update({ effects: scrollSnapshot }),
+  ]);
+}
+
+export function editorTransactionsPreserveContext(transactions = []) {
+  return transactions.some((transaction) => (
+    transaction.annotation(preserveEditorContextAnnotation) === true ||
+    transaction.isUserEvent("undo") ||
+    transaction.isUserEvent("redo")
+  ));
+}
+
+export function preserveEditorContext(spec, preserve = true) {
+  if (!preserve) {
+    return spec;
+  }
+  const annotations = spec.annotations === undefined
+    ? []
+    : (Array.isArray(spec.annotations) ? spec.annotations : [spec.annotations]);
+  return {
+    ...spec,
+    annotations: [
+      ...annotations,
+      preserveEditorContextAnnotation.of(true),
+    ],
   };
 }
 
@@ -1772,9 +1828,9 @@ export function createLiveMdxComponentInteraction({
     if (nextSource === source) {
       return false;
     }
-    view.dispatch({
+    view.dispatch(preserveEditorContext({
       changes: { from: start.from, to: end.to, insert: nextSource },
-    });
+    }));
     scheduleRefresh();
     return true;
   };
@@ -2085,13 +2141,13 @@ export function createLiveTableInteraction({
       scheduleRefresh();
       return false;
     }
-    view.dispatch({
+    view.dispatch(preserveEditorContext({
       changes: {
         from: block.from,
         to: block.to,
         insert: nextSource,
       },
-    });
+    }));
     scheduleRefresh();
     return true;
   };
