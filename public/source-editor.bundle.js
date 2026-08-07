@@ -33464,6 +33464,7 @@ var CONTROLLED_TABLE_STYLE_SPAN = /^<span\s+style=(["'])([^"'\n]*)\1\s*>([^\n]*?
 var MARKDOWN_TABLE_TEXT_STYLES = /* @__PURE__ */ new Set([
   "bold",
   "italic",
+  "underline",
   "strikethrough"
 ]);
 function normalizeMarkdownTableTextColor(value) {
@@ -33480,12 +33481,20 @@ function controlledTableStyleSpanAt(source) {
     return null;
   }
   const declarations = match2[2].split(";").map((declaration2) => declaration2.trim()).filter(Boolean);
-  if (declarations.length === 0 || declarations.length > 2) {
+  if (declarations.length === 0 || declarations.length > 3) {
     return null;
   }
   let color = null;
   let backgroundColor = null;
+  let underline = false;
   for (const declaration2 of declarations) {
+    if (/^text-decoration\s*:\s*underline$/i.test(declaration2)) {
+      if (underline) {
+        return null;
+      }
+      underline = true;
+      continue;
+    }
     const property = declaration2.match(
       /^(color|background-color)\s*:\s*(#[0-9a-fA-F]{6,8})$/i
     );
@@ -33510,12 +33519,13 @@ function controlledTableStyleSpanAt(source) {
       return null;
     }
   }
-  if (!color && !backgroundColor) {
+  if (!color && !backgroundColor && !underline) {
     return null;
   }
   return {
     color,
     backgroundColor,
+    underline,
     content: match2[3],
     length: match2[0].length,
     source: match2[0]
@@ -33681,6 +33691,7 @@ function parseMarkdownTableCellFormat(content2) {
     content: inner,
     bold: false,
     italic: false,
+    underline: false,
     strikethrough: false,
     color: null,
     backgroundColor: null
@@ -33695,6 +33706,9 @@ function parseMarkdownTableCellFormat(content2) {
       }
       if (span.backgroundColor) {
         format2.backgroundColor = span.backgroundColor;
+      }
+      if (span.underline) {
+        format2.underline = true;
       }
       inner = span.content;
       changed = true;
@@ -33738,7 +33752,8 @@ function serializeMarkdownTableCellFormat(format2) {
   }
   const declarations = [
     normalized.color ? `color: ${normalized.color}` : "",
-    normalized.backgroundColor ? `background-color: ${normalized.backgroundColor}` : ""
+    normalized.backgroundColor ? `background-color: ${normalized.backgroundColor}` : "",
+    normalized.underline ? "text-decoration: underline" : ""
   ].filter(Boolean);
   if (declarations.length > 0) {
     content2 = `<span style="${declarations.join("; ")};">${content2}</span>`;
@@ -33805,6 +33820,7 @@ function clearMarkdownTableTextFormatting(source, selection) {
   return applyMarkdownTableCellFormat(source, selection, {
     bold: false,
     italic: false,
+    underline: false,
     strikethrough: false,
     color: null,
     backgroundColor: null
@@ -33866,6 +33882,7 @@ function markdownTableSelectionFormatState(source, selection) {
   return {
     bold: uniformValue(formats.map((format2) => format2.bold)),
     italic: uniformValue(formats.map((format2) => format2.italic)),
+    underline: uniformValue(formats.map((format2) => format2.underline)),
     strikethrough: uniformValue(
       formats.map((format2) => format2.strikethrough)
     ),
@@ -33997,7 +34014,7 @@ function normalizeMarkdownTableCellFormat(format2) {
   if (/[\r\n]/.test(content2)) {
     return null;
   }
-  const booleans = ["bold", "italic", "strikethrough"];
+  const booleans = ["bold", "italic", "underline", "strikethrough"];
   if (booleans.some((property) => typeof format2[property] !== "boolean")) {
     return null;
   }
@@ -34010,6 +34027,7 @@ function normalizeMarkdownTableCellFormat(format2) {
     content: content2,
     bold: format2.bold,
     italic: format2.italic,
+    underline: format2.underline,
     strikethrough: format2.strikethrough,
     color,
     backgroundColor
@@ -34022,6 +34040,7 @@ function normalizeMarkdownTableFormatPatch(patch) {
   const allowedProperties = /* @__PURE__ */ new Set([
     "bold",
     "italic",
+    "underline",
     "strikethrough",
     "color",
     "backgroundColor"
@@ -35832,14 +35851,16 @@ function createRenderer(options) {
   renderer.renderer.rules.safe_image_html_inline = (tokens, index) => renderSafeImageHtml(tokens[index].content, options, { inline: true });
   renderer.renderer.rules.safe_html_break_inline = () => "<br>";
   renderer.renderer.rules.safe_table_style_span = (tokens, index, rendererOptions, env, self) => {
-    const { color, backgroundColor } = tokens[index].meta;
+    const { color, backgroundColor, underline } = tokens[index].meta;
     const classes = [
       color ? "git-leaf-text-color" : "",
-      backgroundColor ? "git-leaf-text-highlight" : ""
+      backgroundColor ? "git-leaf-text-highlight" : "",
+      underline ? "git-leaf-text-underline" : ""
     ].filter(Boolean);
     const declarations = [
       color ? `color:${color}` : "",
-      backgroundColor ? `background-color:${backgroundColor}` : ""
+      backgroundColor ? `background-color:${backgroundColor}` : "",
+      underline ? "text-decoration:underline" : ""
     ].filter(Boolean);
     return [
       `<span class="${classes.join(" ")}" style="${declarations.join(";")}">`,
@@ -36085,7 +36106,8 @@ function safeTextColorSpanInlineRule(state, silent) {
     const token = state.push("safe_table_style_span", "span", 0);
     token.meta = {
       color: span.color,
-      backgroundColor: span.backgroundColor
+      backgroundColor: span.backgroundColor,
+      underline: span.underline
     };
     token.children = [];
     state.md.inline.parse(span.content, state.md, state.env, token.children);
@@ -36583,6 +36605,7 @@ function markdownTextSelectionFormatState(source, selection) {
   return {
     bold: uniformValue2(formats.map((format2) => format2.bold)),
     italic: uniformValue2(formats.map((format2) => format2.italic)),
+    underline: uniformValue2(formats.map((format2) => format2.underline)),
     strikethrough: uniformValue2(
       formats.map((format2) => format2.strikethrough)
     ),
@@ -36658,7 +36681,8 @@ function controlledMarkdownStyleSpansForLine(source) {
       contentFrom: openEnd,
       contentTo: closeStart,
       color: span.color,
-      backgroundColor: span.backgroundColor
+      backgroundColor: span.backgroundColor,
+      underline: span.underline
     });
     cursor = to;
   }
@@ -36685,7 +36709,8 @@ function formatMarkdownTextSegmentContent(source, patch) {
   }
   const declarations = [
     format2.color ? `color: ${format2.color}` : "",
-    format2.backgroundColor ? `background-color: ${format2.backgroundColor}` : ""
+    format2.backgroundColor ? `background-color: ${format2.backgroundColor}` : "",
+    format2.underline ? "text-decoration: underline" : ""
   ].filter(Boolean);
   return declarations.length > 0 ? `<span style="${declarations.join("; ")};">${content2}</span>` : content2;
 }
@@ -37335,6 +37360,7 @@ var WORKBENCH_MESSAGES = Object.freeze({
     "shortcuts.repository": "Repository",
     "shortcuts.title": "Keyboard Shortcuts",
     "shortcuts.documents": "Documents",
+    "shortcuts.editing": "Text Editing",
     "shortcuts.viewModes": "View Modes",
     "shortcuts.navigation": "Navigation",
     "shortcuts.help": "Help",
@@ -37377,7 +37403,12 @@ var WORKBENCH_MESSAGES = Object.freeze({
     "shortcut.toggleFolder": "Collapse or Expand Folder",
     "shortcut.openSelected": "Open Selected File",
     "shortcut.openSettings": "Open Settings",
-    "shortcut.openShortcuts": "Open Keyboard Shortcuts"
+    "shortcut.openShortcuts": "Open Keyboard Shortcuts",
+    "shortcut.bold": "Bold Selected Text",
+    "shortcut.italic": "Italicize Selected Text",
+    "shortcut.underline": "Underline Selected Text",
+    "shortcut.strikethrough": "Strikethrough Selected Text",
+    "shortcut.unassigned": "Unassigned"
   }),
   "zh-CN": Object.freeze({
     "loading.title": "\u6B63\u5728\u6253\u5F00\u4ED3\u5E93",
@@ -37797,6 +37828,7 @@ var WORKBENCH_MESSAGES = Object.freeze({
     "shortcuts.repository": "\u4ED3\u5E93",
     "shortcuts.title": "\u952E\u76D8\u5FEB\u6377\u952E",
     "shortcuts.documents": "\u6587\u6863",
+    "shortcuts.editing": "\u6587\u5B57\u7F16\u8F91",
     "shortcuts.viewModes": "\u663E\u793A\u6A21\u5F0F",
     "shortcuts.navigation": "\u5BFC\u822A",
     "shortcuts.help": "\u5E2E\u52A9",
@@ -37839,7 +37871,12 @@ var WORKBENCH_MESSAGES = Object.freeze({
     "shortcut.toggleFolder": "\u6298\u53E0\u6216\u5C55\u5F00\u6587\u4EF6\u5939",
     "shortcut.openSelected": "\u6253\u5F00\u9009\u4E2D\u6587\u4EF6",
     "shortcut.openSettings": "\u6253\u5F00\u8BBE\u7F6E",
-    "shortcut.openShortcuts": "\u6253\u5F00\u952E\u76D8\u5FEB\u6377\u952E"
+    "shortcut.openShortcuts": "\u6253\u5F00\u952E\u76D8\u5FEB\u6377\u952E",
+    "shortcut.bold": "\u52A0\u7C97\u9009\u4E2D\u6587\u5B57",
+    "shortcut.italic": "\u5C06\u9009\u4E2D\u6587\u5B57\u8BBE\u4E3A\u659C\u4F53",
+    "shortcut.underline": "\u4E3A\u9009\u4E2D\u6587\u5B57\u6DFB\u52A0\u4E0B\u5212\u7EBF",
+    "shortcut.strikethrough": "\u4E3A\u9009\u4E2D\u6587\u5B57\u6DFB\u52A0\u5220\u9664\u7EBF",
+    "shortcut.unassigned": "\u672A\u8BBE\u7F6E"
   })
 });
 
@@ -37908,6 +37945,411 @@ function imageSourceLabel(source, alt, t2) {
 }
 function isRemoteImageSource(source) {
   return /^(?:https?:)?\/\//i.test(String(source ?? "").trim());
+}
+
+// public/keyboard-shortcuts.js
+var SHORTCUT_ACTION_DEFINITIONS = Object.freeze({
+  "repository.open": shortcutDefinition("Mod+O", "shortcut.openRepository"),
+  "repository.previous": shortcutDefinition(
+    "Mod+Alt+Left",
+    "shortcut.previousRepository"
+  ),
+  "repository.next": shortcutDefinition(
+    "Mod+Alt+Right",
+    "shortcut.nextRepository"
+  ),
+  "document.close-tab": shortcutDefinition("Mod+W", "shortcut.closeTab"),
+  "document.find": shortcutDefinition("Mod+F", "shortcut.findDocument"),
+  "document.favorite": shortcutDefinition("Mod+D", "shortcut.toggleFavorite"),
+  "document.copy-path": shortcutDefinition(
+    "Mod+Shift+C",
+    "shortcut.copyDocumentPath"
+  ),
+  "document.copy-share": shortcutDefinition(
+    "Mod+Shift+L",
+    "shortcut.copyShareLink"
+  ),
+  "document.open-github": shortcutDefinition(
+    "Mod+Shift+G",
+    "shortcut.openGitHub"
+  ),
+  "document.open-source": shortcutDefinition(
+    "Mod+Shift+O",
+    "shortcut.openSource"
+  ),
+  "document.reveal": shortcutDefinition(
+    "Mod+Shift+R",
+    "shortcut.revealFile"
+  ),
+  "view.preview": shortcutDefinition("Mod+P", "shortcut.preview"),
+  "view.source": shortcutDefinition("Mod+S", "shortcut.source"),
+  "view.live": shortcutDefinition("Mod+L", "shortcut.live"),
+  "navigation.toggle-sidebar": shortcutDefinition(
+    "Mod+\\",
+    "shortcut.toggleSidebar"
+  ),
+  "navigation.toggle-outline": shortcutDefinition(
+    "Mod+Shift+B",
+    "shortcut.toggleOutline"
+  ),
+  "navigation.back": shortcutDefinition("Mod+[", "shortcut.back"),
+  "navigation.forward": shortcutDefinition("Mod+]", "shortcut.forward"),
+  "navigation.focus-search": shortcutDefinition("Mod+K", "shortcut.focusSearch"),
+  "navigation.focus-tree": shortcutDefinition(
+    "Mod+Shift+E",
+    "shortcut.focusTree"
+  ),
+  "help.settings": shortcutDefinition("Mod+,", "shortcut.openSettings"),
+  "help.shortcuts": shortcutDefinition("Mod+Shift+/", "shortcut.openShortcuts"),
+  "editor.bold": shortcutDefinition("Mod+B", "shortcut.bold"),
+  "editor.italic": shortcutDefinition("Mod+I", "shortcut.italic"),
+  "editor.underline": shortcutDefinition("Mod+U", "shortcut.underline"),
+  "editor.strikethrough": shortcutDefinition(
+    "Mod+Shift+X",
+    "shortcut.strikethrough"
+  )
+});
+var SHORTCUT_GROUPS = Object.freeze([
+  Object.freeze({
+    titleKey: "shortcuts.repository",
+    shortcuts: Object.freeze([
+      actionShortcut("repository.open"),
+      fixedShortcut("Command+1..9", "shortcut.switchVisibleRepository"),
+      fixedShortcut("Command+0", "shortcut.openAnotherRepository"),
+      fixedShortcut("Command+Option+1..9", "shortcut.switchRepositoryNumber"),
+      actionShortcut("repository.previous"),
+      actionShortcut("repository.next")
+    ])
+  }),
+  Object.freeze({
+    titleKey: "shortcuts.documents",
+    shortcuts: Object.freeze([
+      fixedShortcut("Command+1..8", "shortcut.switchTabNumber"),
+      fixedShortcut("Command+9", "shortcut.switchLastTab"),
+      fixedShortcut("Command+Shift+[", "shortcut.previousTab"),
+      fixedShortcut("Command+Shift+]", "shortcut.nextTab"),
+      fixedShortcut("Ctrl+Shift+Tab", "shortcut.previousTabWindows"),
+      fixedShortcut("Ctrl+Tab", "shortcut.nextTabWindows"),
+      actionShortcut("document.close-tab"),
+      actionShortcut("document.find"),
+      actionShortcut("document.favorite"),
+      actionShortcut("document.copy-path"),
+      actionShortcut("document.copy-share"),
+      actionShortcut("document.open-github"),
+      actionShortcut("document.open-source"),
+      actionShortcut("document.reveal"),
+      fixedShortcut("Command+Click", "shortcut.activeTab"),
+      fixedShortcut("Command+Enter", "shortcut.activeTab")
+    ])
+  }),
+  Object.freeze({
+    titleKey: "shortcuts.editing",
+    shortcuts: Object.freeze([
+      actionShortcut("editor.bold"),
+      actionShortcut("editor.italic"),
+      actionShortcut("editor.underline"),
+      actionShortcut("editor.strikethrough")
+    ])
+  }),
+  Object.freeze({
+    titleKey: "shortcuts.viewModes",
+    shortcuts: Object.freeze([
+      actionShortcut("view.preview"),
+      actionShortcut("view.source"),
+      actionShortcut("view.live")
+    ])
+  }),
+  Object.freeze({
+    titleKey: "shortcuts.navigation",
+    shortcuts: Object.freeze([
+      actionShortcut("navigation.toggle-sidebar"),
+      fixedShortcut("Option+1", "shortcut.showAllView"),
+      fixedShortcut("Option+2", "shortcut.showFavoritesView"),
+      fixedShortcut("Option+3", "shortcut.showSyncView"),
+      actionShortcut("navigation.toggle-outline"),
+      actionShortcut("navigation.back"),
+      actionShortcut("navigation.forward"),
+      actionShortcut("navigation.focus-search"),
+      actionShortcut("navigation.focus-tree"),
+      fixedShortcut("Escape", "shortcut.focusTreeFromSearch"),
+      fixedShortcut("ArrowUp/Down", "shortcut.moveTree"),
+      fixedShortcut("ArrowLeft/Right", "shortcut.toggleFolder"),
+      fixedShortcut("Enter", "shortcut.openSelected")
+    ])
+  }),
+  Object.freeze({
+    titleKey: "shortcuts.help",
+    shortcuts: Object.freeze([
+      actionShortcut("help.settings"),
+      actionShortcut("help.shortcuts")
+    ])
+  })
+]);
+var SHORTCUT_MODIFIER_ORDER = Object.freeze([
+  "Mod",
+  "Ctrl",
+  "Meta",
+  "Alt",
+  "Shift"
+]);
+var SHORTCUT_KEY_ALIASES = Object.freeze({
+  "?": "/",
+  arrowleft: "Left",
+  arrowright: "Right",
+  arrowup: "Up",
+  arrowdown: "Down",
+  backspace: "Backspace",
+  delete: "Delete",
+  end: "End",
+  enter: "Enter",
+  escape: "Escape",
+  home: "Home",
+  left: "Left",
+  pagedown: "PageDown",
+  pageup: "PageUp",
+  right: "Right",
+  space: "Space",
+  tab: "Tab",
+  up: "Up",
+  down: "Down"
+});
+var CODE_KEYS = Object.freeze({
+  Backslash: "\\",
+  BracketLeft: "[",
+  BracketRight: "]",
+  Comma: ",",
+  Equal: "=",
+  Minus: "-",
+  Period: ".",
+  Quote: "'",
+  Semicolon: ";",
+  Slash: "/"
+});
+var SHORTCUT_PUNCTUATION = /* @__PURE__ */ new Set(["\\", "[", "]", ",", ".", "/", ";", "'", "-", "="]);
+var KEYBOARD_SHORTCUT_ACTION_IDS = Object.freeze(
+  Object.keys(SHORTCUT_ACTION_DEFINITIONS)
+);
+function normalizeKeyboardShortcut(value) {
+  const raw = String(value ?? "").trim();
+  if (!raw) {
+    return "";
+  }
+  const parts = raw.split("+").map((part) => part.trim()).filter(Boolean);
+  if (parts.length < 2) {
+    return "";
+  }
+  const rawKey = parts.pop();
+  const modifiers2 = /* @__PURE__ */ new Set();
+  for (const part of parts) {
+    const modifier = normalizeShortcutModifier(part);
+    if (!modifier || modifiers2.has(modifier)) {
+      return "";
+    }
+    modifiers2.add(modifier);
+  }
+  if (!modifiers2.has("Mod") && !modifiers2.has("Ctrl") && !modifiers2.has("Meta") && !modifiers2.has("Alt")) {
+    return "";
+  }
+  const key = normalizeShortcutKey(rawKey);
+  if (!key) {
+    return "";
+  }
+  return [
+    ...SHORTCUT_MODIFIER_ORDER.filter((modifier) => modifiers2.has(modifier)),
+    key
+  ].join("+");
+}
+function normalizeKeyboardShortcutOverrides(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
+  const overrides2 = {};
+  for (const id2 of KEYBOARD_SHORTCUT_ACTION_IDS) {
+    if (!Object.hasOwn(value, id2)) {
+      continue;
+    }
+    if (value[id2] === null || value[id2] === "") {
+      overrides2[id2] = null;
+      continue;
+    }
+    const shortcut = normalizeKeyboardShortcut(value[id2]);
+    if (shortcut) {
+      overrides2[id2] = shortcut;
+    }
+  }
+  return overrides2;
+}
+function keyboardShortcutBinding(id2, overrides2 = {}) {
+  const definition = SHORTCUT_ACTION_DEFINITIONS[id2];
+  if (!definition) {
+    return null;
+  }
+  const normalized = normalizeKeyboardShortcutOverrides(overrides2);
+  return Object.hasOwn(normalized, id2) ? normalized[id2] : definition.defaultBinding;
+}
+function keyboardShortcutFromEvent(event = {}, { platform } = {}) {
+  if (event.isComposing) {
+    return "";
+  }
+  const key = shortcutKeyFromEvent(event);
+  if (!key) {
+    return "";
+  }
+  const resolvedPlatform = normalizeShortcutPlatform(platform);
+  const meta2 = event.metaKey === true || event.meta === true;
+  const ctrl = event.ctrlKey === true || event.control === true;
+  const modifiers2 = [];
+  if (resolvedPlatform === "darwin" ? meta2 : ctrl) {
+    modifiers2.push("Mod");
+  }
+  if (ctrl && resolvedPlatform === "darwin") {
+    modifiers2.push("Ctrl");
+  }
+  if (meta2 && resolvedPlatform !== "darwin") {
+    modifiers2.push("Meta");
+  }
+  if (event.altKey === true || event.alt === true) {
+    modifiers2.push("Alt");
+  }
+  if (event.shiftKey === true || event.shift === true) {
+    modifiers2.push("Shift");
+  }
+  return normalizeKeyboardShortcut([...modifiers2, key].join("+"));
+}
+function keyboardShortcutMatches(event, id2, overrides2 = {}, options = {}) {
+  const binding = keyboardShortcutBinding(id2, overrides2);
+  return Boolean(binding) && keyboardShortcutFromEvent(event, options) === binding;
+}
+function keyboardShortcutDisplay(binding, { platform } = {}) {
+  const shortcut = normalizeKeyboardShortcut(binding);
+  if (!shortcut) {
+    return "";
+  }
+  const resolvedPlatform = normalizeShortcutPlatform(platform);
+  return shortcut.split("+").map((part) => {
+    if (part === "Mod") {
+      return resolvedPlatform === "darwin" ? "Command" : "Ctrl";
+    }
+    if (part === "Alt") {
+      return resolvedPlatform === "darwin" ? "Option" : "Alt";
+    }
+    return part;
+  }).join("+");
+}
+function getKeyboardShortcutGroups(locale = "en", options = {}) {
+  const t2 = createTranslator(WORKBENCH_MESSAGES, locale);
+  const overrides2 = normalizeKeyboardShortcutOverrides(options.bindings);
+  const platform = normalizeShortcutPlatform(options.platform);
+  return SHORTCUT_GROUPS.map((group) => ({
+    title: t2(group.titleKey),
+    shortcuts: group.shortcuts.map((shortcut) => {
+      if (!shortcut.actionId) {
+        return {
+          keys: fixedShortcutDisplay(shortcut.keys, platform),
+          action: t2(shortcut.actionKey),
+          customizable: false
+        };
+      }
+      const definition = SHORTCUT_ACTION_DEFINITIONS[shortcut.actionId];
+      const binding = keyboardShortcutBinding(shortcut.actionId, overrides2);
+      return {
+        id: shortcut.actionId,
+        binding,
+        defaultBinding: definition.defaultBinding,
+        keys: keyboardShortcutDisplay(binding, { platform }) || t2("shortcut.unassigned"),
+        defaultKeys: keyboardShortcutDisplay(definition.defaultBinding, { platform }),
+        action: t2(definition.actionKey),
+        customizable: true
+      };
+    })
+  }));
+}
+var KEYBOARD_SHORTCUT_GROUPS = getKeyboardShortcutGroups("en");
+function shortcutDefinition(defaultBinding, actionKey) {
+  return Object.freeze({
+    defaultBinding,
+    actionKey
+  });
+}
+function actionShortcut(actionId) {
+  return Object.freeze({ actionId });
+}
+function fixedShortcut(keys2, actionKey) {
+  return Object.freeze({ keys: keys2, actionKey });
+}
+function normalizeShortcutModifier(value) {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  if (["mod", "command", "cmd", "cmdorctrl", "ctrlorcmd"].includes(normalized)) {
+    return "Mod";
+  }
+  if (["ctrl", "control"].includes(normalized)) {
+    return "Ctrl";
+  }
+  if (["meta", "super"].includes(normalized)) {
+    return "Meta";
+  }
+  if (["alt", "option", "opt"].includes(normalized)) {
+    return "Alt";
+  }
+  if (normalized === "shift") {
+    return "Shift";
+  }
+  return "";
+}
+function normalizeShortcutKey(value) {
+  const raw = String(value ?? "").trim();
+  if (/^[a-z]$/i.test(raw)) {
+    return raw.toUpperCase();
+  }
+  if (/^[0-9]$/.test(raw) || SHORTCUT_PUNCTUATION.has(raw)) {
+    return raw;
+  }
+  if (/^f(?:[1-9]|1[0-2])$/i.test(raw)) {
+    return raw.toUpperCase();
+  }
+  return SHORTCUT_KEY_ALIASES[raw.toLowerCase()] ?? "";
+}
+function shortcutKeyFromEvent(event) {
+  const code3 = String(event.code ?? "");
+  if (/^Key[A-Z]$/.test(code3)) {
+    return code3.slice(3);
+  }
+  if (/^Digit[0-9]$/.test(code3)) {
+    return code3.slice(5);
+  }
+  if (/^F(?:[1-9]|1[0-2])$/.test(code3)) {
+    return code3;
+  }
+  if (CODE_KEYS[code3]) {
+    return CODE_KEYS[code3];
+  }
+  return normalizeShortcutKey(event.key);
+}
+function normalizeShortcutPlatform(value) {
+  const explicit = String(value ?? "").toLowerCase();
+  if (explicit === "darwin" || explicit.includes("mac")) {
+    return "darwin";
+  }
+  if (explicit === "win32" || explicit.includes("win")) {
+    return "win32";
+  }
+  if (explicit) {
+    return explicit;
+  }
+  const detected = String(globalThis.navigator?.platform ?? "").toLowerCase();
+  if (detected.includes("mac")) {
+    return "darwin";
+  }
+  if (detected.includes("win")) {
+    return "win32";
+  }
+  return detected || "darwin";
+}
+function fixedShortcutDisplay(keys2, platform) {
+  if (platform === "darwin") {
+    return keys2;
+  }
+  return String(keys2).replaceAll("Command", "Ctrl").replaceAll("Option", "Alt");
 }
 
 // src/client/source-editor.mjs
@@ -38028,6 +38470,7 @@ var SOURCE_EDITOR_TABLE_MESSAGES = {
     "textToolbar.close": "Close text tools",
     "format.bold": "Bold",
     "format.italic": "Italic",
+    "format.underline": "Underline",
     "format.strikethrough": "Strikethrough",
     "format.clear": "Clear text formatting",
     "palette.textColor": "Text color",
@@ -38058,6 +38501,7 @@ var SOURCE_EDITOR_TABLE_MESSAGES = {
     "textToolbar.close": "\u5173\u95ED\u6587\u5B57\u5DE5\u5177\u680F",
     "format.bold": "\u7C97\u4F53",
     "format.italic": "\u659C\u4F53",
+    "format.underline": "\u4E0B\u5212\u7EBF",
     "format.strikethrough": "\u5220\u9664\u7EBF",
     "format.clear": "\u6E05\u9664\u6587\u5B57\u683C\u5F0F",
     "palette.textColor": "\u6587\u5B57\u989C\u8272",
@@ -38455,13 +38899,17 @@ function sourceEditorThemeForTheme(theme2) {
       textAlign: "right"
     },
     ".cm-activeLine": {
-      backgroundColor: "var(--panel-weak)"
+      backgroundColor: "var(--git-leaf-active-line-bg, var(--panel-weak))"
     },
     ".cm-activeLineGutter": {
       backgroundColor: "var(--panel-weak)"
     },
     ".cm-selectionBackground, &.cm-focused .cm-selectionBackground": {
-      backgroundColor: isDarkTheme(theme2) ? "rgba(122, 162, 247, 0.35)" : "rgba(37, 99, 235, 0.18)"
+      backgroundColor: `var(--git-leaf-selection-bg, ${isDarkTheme(theme2) ? "rgba(122, 162, 247, 0.35)" : "rgba(37, 99, 235, 0.18)"})`
+    },
+    "&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground": {
+      // Match CodeMirror's focused-selection specificity instead of losing to its base theme.
+      backgroundColor: `var(--git-leaf-selection-bg, ${isDarkTheme(theme2) ? "rgba(122, 162, 247, 0.35)" : "rgba(37, 99, 235, 0.18)"})`
     },
     ".cm-cursor": {
       borderLeftColor: "var(--text)"
@@ -38493,7 +38941,9 @@ function liveMarkdownThemeForTheme(theme2) {
   return EditorView.theme({
     "&.cm-editor": {
       backgroundColor: "var(--panel)",
-      color: "var(--text)"
+      color: "var(--text)",
+      "--git-leaf-active-line-bg": "transparent",
+      "--git-leaf-selection-bg": isDarkTheme(theme2) ? "#31557f" : "#b9d5ff"
     },
     ".cm-content": {
       color: "var(--text)",
@@ -38526,12 +38976,16 @@ function liveMarkdownThemeForTheme(theme2) {
       backgroundColor: "transparent"
     },
     "&.cm-focused .cm-activeLine": {
-      backgroundColor: "var(--panel-weak)"
+      // Keep CodeMirror's selection layer visible across wrapped active lines.
+      backgroundColor: "transparent"
     },
     ".cm-selectionBackground, &.cm-focused .cm-selectionBackground": {
-      backgroundColor: isDarkTheme(theme2) ? "rgba(122, 162, 247, 0.46)" : "rgba(37, 99, 235, 0.30)",
+      backgroundColor: isDarkTheme(theme2) ? "#31557f" : "#b9d5ff",
       borderRadius: "2px",
-      boxShadow: isDarkTheme(theme2) ? "inset 0 0 0 1px rgba(191, 219, 254, 0.42)" : "inset 0 0 0 1px rgba(37, 99, 235, 0.28)"
+      boxShadow: isDarkTheme(theme2) ? "inset 0 0 0 1px #79aef2" : "inset 0 0 0 1px #5b9cf5"
+    },
+    ".cm-content ::selection": {
+      backgroundColor: "var(--git-leaf-selection-bg)"
     },
     ".cm-gutters": {
       backgroundColor: "transparent",
@@ -38638,6 +39092,10 @@ function liveMarkdownThemeForTheme(theme2) {
     },
     ".cm-live-strikethrough": {
       textDecoration: "line-through"
+    },
+    ".cm-live-underline": {
+      textDecoration: "underline",
+      textUnderlineOffset: "0.14em"
     },
     ".cm-live-controlled-style": {
       borderRadius: "3px"
@@ -38749,6 +39207,19 @@ function liveMarkdownThemeForTheme(theme2) {
     }
   }, { dark: isDarkTheme(theme2) });
 }
+function keyboardTextStyleFromEvent(event, shortcuts = {}) {
+  for (const [id2, style] of [
+    ["editor.bold", "bold"],
+    ["editor.italic", "italic"],
+    ["editor.underline", "underline"],
+    ["editor.strikethrough", "strikethrough"]
+  ]) {
+    if (keyboardShortcutMatches(event, id2, shortcuts)) {
+      return style;
+    }
+  }
+  return null;
+}
 function createSourceEditor({
   parent,
   doc: doc2 = "",
@@ -38770,6 +39241,7 @@ function createSourceEditor({
   theme: theme2 = "light",
   getDocumentPath = () => "",
   getRenderOptions = () => ({}),
+  getKeyboardShortcuts = () => ({}),
   onBeforeSlashCommand = async () => true
 }) {
   let suppressChange = false;
@@ -38868,7 +39340,7 @@ function createSourceEditor({
         }
         onChange?.(update.state.doc.toString());
       }),
-      EditorView.domEventHandlers({
+      Prec.highest(EditorView.domEventHandlers({
         keydown(event, eventView) {
           if ((currentMode === "source" || currentMode === "live") && event.key === "/" && !event.metaKey && !event.ctrlKey && !event.altKey) {
             setTimeout(() => startCompletion(eventView), 0);
@@ -38881,11 +39353,18 @@ function createSourceEditor({
             }
             return false;
           }
-          if (currentMode === "live" && (event.metaKey || event.ctrlKey) && !event.altKey && ["b", "i"].includes(event.key.toLowerCase()) && textSelectionInteraction.hasSelection()) {
+          const textStyle = keyboardTextStyleFromEvent(
+            event,
+            getKeyboardShortcuts()
+          );
+          if (currentMode === "live" && textStyle && tableInteraction.hasSelection()) {
             event.preventDefault();
-            textSelectionInteraction.applyTextStyle(
-              event.key.toLowerCase() === "b" ? "bold" : "italic"
-            );
+            tableInteraction.applyTextStyle(textStyle);
+            return true;
+          }
+          if (currentMode === "live" && textStyle && textSelectionInteraction.hasSelection()) {
+            event.preventDefault();
+            textSelectionInteraction.applyTextStyle(textStyle);
             return true;
           }
           if (currentMode !== "live" || event.key !== "Escape") {
@@ -38937,7 +39416,7 @@ function createSourceEditor({
           void pasteImageIntoEditor(eventView, imageFile, onPasteImage);
           return true;
         }
-      })
+      }))
     ],
     parent
   });
@@ -39924,7 +40403,7 @@ function createLiveTextSelectionInteraction({
   };
   const applyTextStyle = (style) => {
     const state = currentFormatState();
-    if (!state || !["bold", "italic", "strikethrough"].includes(style)) {
+    if (!state || !["bold", "italic", "underline", "strikethrough"].includes(style)) {
       return false;
     }
     return applyPatch({ [style]: state[style] !== true });
@@ -39982,6 +40461,7 @@ function createLiveTextSelectionInteraction({
         applyPatch({
           bold: false,
           italic: false,
+          underline: false,
           strikethrough: false,
           color: null,
           backgroundColor: null
@@ -40795,6 +41275,7 @@ function createLiveTableInteraction({
     refreshPositions,
     hasSelection: () => Boolean(selection),
     clearSelection,
+    applyTextStyle,
     commitEditor,
     cancelEditor,
     destroy
@@ -40832,10 +41313,10 @@ function prepareLiveTablePreview(container, block2, translate) {
   toolbar.setAttribute("role", "toolbar");
   toolbar.setAttribute("aria-label", translate("toolbar.label"));
   toolbar.hidden = true;
-  for (const style of ["bold", "italic", "strikethrough"]) {
+  for (const style of ["bold", "italic", "underline", "strikethrough"]) {
     const button = createLiveTableToolbarButton(
       translate(`format.${style}`),
-      style === "bold" ? "B" : style === "italic" ? "I" : "S",
+      style === "bold" ? "B" : style === "italic" ? "I" : style === "underline" ? "U" : "S",
       `is-${style}`
     );
     button.dataset.liveTableFormatAction = style;
@@ -40908,10 +41389,10 @@ function createLiveTextFormatToolbar(documentRoot, translate) {
   toolbar.setAttribute("role", "toolbar");
   toolbar.setAttribute("aria-label", translate("textToolbar.label"));
   toolbar.hidden = true;
-  for (const style of ["bold", "italic", "strikethrough"]) {
+  for (const style of ["bold", "italic", "underline", "strikethrough"]) {
     const button = createLiveTableToolbarButton(
       translate(`format.${style}`),
-      style === "bold" ? "B" : style === "italic" ? "I" : "S",
+      style === "bold" ? "B" : style === "italic" ? "I" : style === "underline" ? "U" : "S",
       `is-${style}`,
       documentRoot
     );
@@ -41981,7 +42462,8 @@ function liveInlineRangesForLine(text2) {
   for (const span of controlledMarkdownStyleSpansForLine(text2)) {
     const declarations = [
       span.color ? `color: ${span.color}` : "",
-      span.backgroundColor ? `background-color: ${span.backgroundColor}` : ""
+      span.backgroundColor ? `background-color: ${span.backgroundColor}` : "",
+      span.underline ? "text-decoration: underline" : ""
     ].filter(Boolean);
     push(span.from, span.contentFrom, "cm-live-marker");
     push(
@@ -42465,6 +42947,7 @@ export {
   isLiveBlankClick,
   isMarkdownDocumentPath,
   isVerticalTableColumnSelection,
+  keyboardTextStyleFromEvent,
   listItemIndentChange,
   liveBlockPreviewIgnoresEvent,
   liveClassForLine,

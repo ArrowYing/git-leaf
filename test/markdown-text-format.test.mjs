@@ -105,7 +105,7 @@ test("ordinary text formatting skips native Markdown tables and fenced code", ()
 
 test("controlled Live style spans expose only approved colors and content bounds", () => {
   const source =
-    '前 <span style="color: #dc2626; background-color: #d9770633;">重点</span> 后';
+    '前 <span style="color: #dc2626; background-color: #d9770633; text-decoration: underline;">重点</span> 后';
   assert.deepEqual(
     controlledMarkdownStyleSpansForLine(source),
     [
@@ -116,6 +116,7 @@ test("controlled Live style spans expose only approved colors and content bounds
         contentTo: source.indexOf("重点") + "重点".length,
         color: "#dc2626",
         backgroundColor: "#d9770633",
+        underline: true,
       },
     ],
   );

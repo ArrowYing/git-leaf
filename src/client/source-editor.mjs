@@ -14,6 +14,7 @@ import {
   EditorState,
   EditorSelection,
   Facet,
+  Prec,
   RangeSetBuilder,
   StateEffect,
   StateField,
@@ -61,6 +62,7 @@ import {
 import { findTextMatches } from "../../public/document-search.js";
 import { enhanceImageLoadStates } from "../../public/image-preview.js";
 import { createTranslator } from "../../public/i18n.js";
+import { keyboardShortcutMatches } from "../../public/keyboard-shortcuts.js";
 
 const livePreviewEnterEffect = StateEffect.define();
 const livePreviewExitEffect = StateEffect.define();
@@ -181,6 +183,7 @@ const SOURCE_EDITOR_TABLE_MESSAGES = {
     "textToolbar.close": "Close text tools",
     "format.bold": "Bold",
     "format.italic": "Italic",
+    "format.underline": "Underline",
     "format.strikethrough": "Strikethrough",
     "format.clear": "Clear text formatting",
     "palette.textColor": "Text color",
@@ -211,6 +214,7 @@ const SOURCE_EDITOR_TABLE_MESSAGES = {
     "textToolbar.close": "关闭文字工具栏",
     "format.bold": "粗体",
     "format.italic": "斜体",
+    "format.underline": "下划线",
     "format.strikethrough": "删除线",
     "format.clear": "清除文字格式",
     "palette.textColor": "文字颜色",
@@ -630,15 +634,25 @@ function sourceEditorThemeForTheme(theme) {
       textAlign: "right",
     },
     ".cm-activeLine": {
-      backgroundColor: "var(--panel-weak)",
+      backgroundColor: "var(--git-leaf-active-line-bg, var(--panel-weak))",
     },
     ".cm-activeLineGutter": {
       backgroundColor: "var(--panel-weak)",
     },
     ".cm-selectionBackground, &.cm-focused .cm-selectionBackground": {
-      backgroundColor: isDarkTheme(theme)
-        ? "rgba(122, 162, 247, 0.35)"
-        : "rgba(37, 99, 235, 0.18)",
+      backgroundColor: `var(--git-leaf-selection-bg, ${
+        isDarkTheme(theme)
+          ? "rgba(122, 162, 247, 0.35)"
+          : "rgba(37, 99, 235, 0.18)"
+      })`,
+    },
+    "&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground": {
+      // Match CodeMirror's focused-selection specificity instead of losing to its base theme.
+      backgroundColor: `var(--git-leaf-selection-bg, ${
+        isDarkTheme(theme)
+          ? "rgba(122, 162, 247, 0.35)"
+          : "rgba(37, 99, 235, 0.18)"
+      })`,
     },
     ".cm-cursor": {
       borderLeftColor: "var(--text)",
@@ -673,6 +687,8 @@ function liveMarkdownThemeForTheme(theme) {
     "&.cm-editor": {
       backgroundColor: "var(--panel)",
       color: "var(--text)",
+      "--git-leaf-active-line-bg": "transparent",
+      "--git-leaf-selection-bg": isDarkTheme(theme) ? "#31557f" : "#b9d5ff",
     },
     ".cm-content": {
       color: "var(--text)",
@@ -706,16 +722,20 @@ function liveMarkdownThemeForTheme(theme) {
       backgroundColor: "transparent",
     },
     "&.cm-focused .cm-activeLine": {
-      backgroundColor: "var(--panel-weak)",
+      // Keep CodeMirror's selection layer visible across wrapped active lines.
+      backgroundColor: "transparent",
     },
     ".cm-selectionBackground, &.cm-focused .cm-selectionBackground": {
       backgroundColor: isDarkTheme(theme)
-        ? "rgba(122, 162, 247, 0.46)"
-        : "rgba(37, 99, 235, 0.30)",
+        ? "#31557f"
+        : "#b9d5ff",
       borderRadius: "2px",
       boxShadow: isDarkTheme(theme)
-        ? "inset 0 0 0 1px rgba(191, 219, 254, 0.42)"
-        : "inset 0 0 0 1px rgba(37, 99, 235, 0.28)",
+        ? "inset 0 0 0 1px #79aef2"
+        : "inset 0 0 0 1px #5b9cf5",
+    },
+    ".cm-content ::selection": {
+      backgroundColor: "var(--git-leaf-selection-bg)",
     },
     ".cm-gutters": {
       backgroundColor: "transparent",
@@ -825,6 +845,10 @@ function liveMarkdownThemeForTheme(theme) {
     },
     ".cm-live-strikethrough": {
       textDecoration: "line-through",
+    },
+    ".cm-live-underline": {
+      textDecoration: "underline",
+      textUnderlineOffset: "0.14em",
     },
     ".cm-live-controlled-style": {
       borderRadius: "3px",
@@ -941,6 +965,20 @@ function liveMarkdownThemeForTheme(theme) {
   }, { dark: isDarkTheme(theme) });
 }
 
+export function keyboardTextStyleFromEvent(event, shortcuts = {}) {
+  for (const [id, style] of [
+    ["editor.bold", "bold"],
+    ["editor.italic", "italic"],
+    ["editor.underline", "underline"],
+    ["editor.strikethrough", "strikethrough"],
+  ]) {
+    if (keyboardShortcutMatches(event, id, shortcuts)) {
+      return style;
+    }
+  }
+  return null;
+}
+
 export function createSourceEditor({
   parent,
   doc = "",
@@ -961,6 +999,7 @@ export function createSourceEditor({
   theme = "light",
   getDocumentPath = () => "",
   getRenderOptions = () => ({}),
+  getKeyboardShortcuts = () => ({}),
   onBeforeSlashCommand = async () => true,
 }) {
   let suppressChange = false;
@@ -1062,7 +1101,7 @@ export function createSourceEditor({
         }
         onChange?.(update.state.doc.toString());
       }),
-      EditorView.domEventHandlers({
+      Prec.highest(EditorView.domEventHandlers({
         keydown(event, eventView) {
           if (
             (currentMode === "source" || currentMode === "live") &&
@@ -1083,17 +1122,22 @@ export function createSourceEditor({
             return false;
           }
 
+          const textStyle = keyboardTextStyleFromEvent(
+            event,
+            getKeyboardShortcuts(),
+          );
+          if (currentMode === "live" && textStyle && tableInteraction.hasSelection()) {
+            event.preventDefault();
+            tableInteraction.applyTextStyle(textStyle);
+            return true;
+          }
           if (
-            currentMode === "live" &&
-            (event.metaKey || event.ctrlKey) &&
-            !event.altKey &&
-            ["b", "i"].includes(event.key.toLowerCase()) &&
-            textSelectionInteraction.hasSelection()
+            currentMode === "live"
+            && textStyle
+            && textSelectionInteraction.hasSelection()
           ) {
             event.preventDefault();
-            textSelectionInteraction.applyTextStyle(
-              event.key.toLowerCase() === "b" ? "bold" : "italic",
-            );
+            textSelectionInteraction.applyTextStyle(textStyle);
             return true;
           }
 
@@ -1153,7 +1197,7 @@ export function createSourceEditor({
           void pasteImageIntoEditor(eventView, imageFile, onPasteImage);
           return true;
         },
-      }),
+      })),
     ],
     parent,
   });
@@ -2258,7 +2302,7 @@ export function createLiveTextSelectionInteraction({
 
   const applyTextStyle = (style) => {
     const state = currentFormatState();
-    if (!state || !["bold", "italic", "strikethrough"].includes(style)) {
+    if (!state || !["bold", "italic", "underline", "strikethrough"].includes(style)) {
       return false;
     }
     return applyPatch({ [style]: state[style] !== true });
@@ -2325,6 +2369,7 @@ export function createLiveTextSelectionInteraction({
         applyPatch({
           bold: false,
           italic: false,
+          underline: false,
           strikethrough: false,
           color: null,
           backgroundColor: null,
@@ -3293,6 +3338,7 @@ export function createLiveTableInteraction({
     refreshPositions,
     hasSelection: () => Boolean(selection),
     clearSelection,
+    applyTextStyle,
     commitEditor,
     cancelEditor,
     destroy,
@@ -3336,10 +3382,10 @@ function prepareLiveTablePreview(container, block, translate) {
   toolbar.setAttribute("aria-label", translate("toolbar.label"));
   toolbar.hidden = true;
 
-  for (const style of ["bold", "italic", "strikethrough"]) {
+  for (const style of ["bold", "italic", "underline", "strikethrough"]) {
     const button = createLiveTableToolbarButton(
       translate(`format.${style}`),
-      style === "bold" ? "B" : (style === "italic" ? "I" : "S"),
+      style === "bold" ? "B" : (style === "italic" ? "I" : (style === "underline" ? "U" : "S")),
       `is-${style}`,
     );
     button.dataset.liveTableFormatAction = style;
@@ -3420,10 +3466,10 @@ function createLiveTextFormatToolbar(documentRoot, translate) {
   toolbar.setAttribute("aria-label", translate("textToolbar.label"));
   toolbar.hidden = true;
 
-  for (const style of ["bold", "italic", "strikethrough"]) {
+  for (const style of ["bold", "italic", "underline", "strikethrough"]) {
     const button = createLiveTableToolbarButton(
       translate(`format.${style}`),
-      style === "bold" ? "B" : (style === "italic" ? "I" : "S"),
+      style === "bold" ? "B" : (style === "italic" ? "I" : (style === "underline" ? "U" : "S")),
       `is-${style}`,
       documentRoot,
     );
@@ -4711,6 +4757,7 @@ export function liveInlineRangesForLine(text) {
       span.backgroundColor
         ? `background-color: ${span.backgroundColor}`
         : "",
+      span.underline ? "text-decoration: underline" : "",
     ].filter(Boolean);
     push(span.from, span.contentFrom, "cm-live-marker");
     push(
