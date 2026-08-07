@@ -53,6 +53,11 @@ import {
   mdxLiteComponentBlockAtLines,
   mdxLiteComponentOpeningAtLines,
 } from "../content/mdx-lite-syntax.mjs";
+import {
+  controlledMarkdownStyleSpansForLine,
+  formatMarkdownTextSelection,
+  markdownTextSelectionFormatState,
+} from "../content/markdown-text-format.mjs";
 import { findTextMatches } from "../../public/document-search.js";
 import { enhanceImageLoadStates } from "../../public/image-preview.js";
 import { createTranslator } from "../../public/i18n.js";
@@ -172,6 +177,8 @@ const SOURCE_EDITOR_TABLE_MESSAGES = {
   en: {
     "toolbar.label": "Table formatting",
     "toolbar.close": "Close table tools",
+    "textToolbar.label": "Text formatting",
+    "textToolbar.close": "Close text tools",
     "format.bold": "Bold",
     "format.italic": "Italic",
     "format.strikethrough": "Strikethrough",
@@ -200,6 +207,8 @@ const SOURCE_EDITOR_TABLE_MESSAGES = {
   "zh-CN": {
     "toolbar.label": "表格格式",
     "toolbar.close": "关闭表格工具栏",
+    "textToolbar.label": "文字格式",
+    "textToolbar.close": "关闭文字工具栏",
     "format.bold": "粗体",
     "format.italic": "斜体",
     "format.strikethrough": "删除线",
@@ -486,11 +495,20 @@ const liveMarkdownDecorations = StateField.define({
     return buildLiveMarkdownDecorations(state);
   },
   update(decorations, transaction) {
-    const selectionChanged = !transaction.startState.selection.eq(transaction.state.selection);
+    const previousSuppression = transaction.startState.field(
+      liveEditingSuppression,
+      false,
+    );
     const activeLineSuppressed = transaction.state.field(liveEditingSuppression, false);
-    const activeLineSuppressionChanged =
-      transaction.startState.field(liveEditingSuppression, false) !== activeLineSuppressed;
-    if (transaction.docChanged || selectionChanged || activeLineSuppressionChanged) {
+    const selectionPresentationChanged =
+      liveMarkdownSelectionPresentation(
+        transaction.startState,
+        previousSuppression,
+      ) !== liveMarkdownSelectionPresentation(
+        transaction.state,
+        activeLineSuppressed,
+      );
+    if (transaction.docChanged || selectionPresentationChanged) {
       return buildLiveMarkdownDecorations(transaction.state, {
         suppressActiveLine: activeLineSuppressed,
       });
@@ -690,6 +708,15 @@ function liveMarkdownThemeForTheme(theme) {
     "&.cm-focused .cm-activeLine": {
       backgroundColor: "var(--panel-weak)",
     },
+    ".cm-selectionBackground, &.cm-focused .cm-selectionBackground": {
+      backgroundColor: isDarkTheme(theme)
+        ? "rgba(122, 162, 247, 0.46)"
+        : "rgba(37, 99, 235, 0.30)",
+      borderRadius: "2px",
+      boxShadow: isDarkTheme(theme)
+        ? "inset 0 0 0 1px rgba(191, 219, 254, 0.42)"
+        : "inset 0 0 0 1px rgba(37, 99, 235, 0.28)",
+    },
     ".cm-gutters": {
       backgroundColor: "transparent",
       borderRightColor: "transparent",
@@ -795,6 +822,12 @@ function liveMarkdownThemeForTheme(theme) {
     },
     ".cm-live-emphasis": {
       fontStyle: "italic",
+    },
+    ".cm-live-strikethrough": {
+      textDecoration: "line-through",
+    },
+    ".cm-live-controlled-style": {
+      borderRadius: "3px",
     },
     ".cm-live-inline-code": {
       borderRadius: "4px",
@@ -941,6 +974,7 @@ export function createSourceEditor({
   const liveModeCompartment = new Compartment();
   const editableCompartment = new Compartment();
   let componentInteraction = null;
+  let textSelectionInteraction = null;
   const tableInteraction = createLiveTableInteraction({
     getView: () => view,
     getMode: () => currentMode,
@@ -949,6 +983,7 @@ export function createSourceEditor({
     documentRoot: editorDocument,
     onSelect: () => {
       componentInteraction?.clearSelection();
+      textSelectionInteraction?.clearSelection();
       onContextToolbarSelect();
     },
   });
@@ -960,6 +995,19 @@ export function createSourceEditor({
     documentRoot: editorDocument,
     onSelect: () => {
       tableInteraction.clearSelection();
+      textSelectionInteraction?.clearSelection();
+      onContextToolbarSelect();
+    },
+  });
+  textSelectionInteraction = createLiveTextSelectionInteraction({
+    getView: () => view,
+    getMode: () => currentMode,
+    isEditable: () => currentEditable,
+    locale: locale ?? language,
+    documentRoot: editorDocument,
+    onSelect: () => {
+      tableInteraction.clearSelection();
+      componentInteraction?.clearSelection();
       onContextToolbarSelect();
     },
   });
@@ -1005,6 +1053,7 @@ export function createSourceEditor({
         icons: false,
       }),
       EditorView.updateListener.of((update) => {
+        textSelectionInteraction?.handleUpdate(update);
         if (update.focusChanged) {
           onFocusChange?.(update.view.hasFocus);
         }
@@ -1034,6 +1083,20 @@ export function createSourceEditor({
             return false;
           }
 
+          if (
+            currentMode === "live" &&
+            (event.metaKey || event.ctrlKey) &&
+            !event.altKey &&
+            ["b", "i"].includes(event.key.toLowerCase()) &&
+            textSelectionInteraction.hasSelection()
+          ) {
+            event.preventDefault();
+            textSelectionInteraction.applyTextStyle(
+              event.key.toLowerCase() === "b" ? "bold" : "italic",
+            );
+            return true;
+          }
+
           if (currentMode !== "live" || event.key !== "Escape") {
             return false;
           }
@@ -1047,6 +1110,12 @@ export function createSourceEditor({
           if (componentInteraction.hasSelection()) {
             event.preventDefault();
             componentInteraction.clearSelection();
+            return true;
+          }
+
+          if (textSelectionInteraction.hasSelection()) {
+            event.preventDefault();
+            textSelectionInteraction.clearSelection();
             return true;
           }
 
@@ -1108,14 +1177,6 @@ export function createSourceEditor({
       return;
     }
 
-    const link = liveMarkdownLinkFromMouseEvent(event, view);
-    if (link) {
-      event.preventDefault();
-      event.stopPropagation();
-      onLinkClick?.({ ...link, event });
-      return;
-    }
-
     const field = liveFrontmatterFieldFromMouseEvent(event, view);
     if (field) {
       event.preventDefault();
@@ -1144,6 +1205,18 @@ export function createSourceEditor({
       onBlankClick?.(event);
     }
   };
+  const handleClick = (event) => {
+    if (currentMode !== "live" || !view.state.selection.main.empty) {
+      return;
+    }
+    const link = liveMarkdownLinkFromMouseEvent(event, view);
+    if (!link) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    onLinkClick?.({ ...link, event });
+  };
   const visibleLine = () => {
     const scrollRect = view.scrollDOM.getBoundingClientRect();
     const pos = view.posAtCoords({
@@ -1155,6 +1228,7 @@ export function createSourceEditor({
   const handleScroll = () => {
     tableInteraction.refreshPositions();
     componentInteraction.refreshPositions();
+    textSelectionInteraction.refreshPositions();
     const line = visibleLine();
     onScroll?.({
       scrollTop: view.scrollDOM.scrollTop,
@@ -1190,9 +1264,11 @@ export function createSourceEditor({
   );
   view.dom.addEventListener("keydown", tableInteraction.handleKeyDown, true);
   view.dom.addEventListener("mousedown", handleMouseDown, true);
+  view.dom.addEventListener("click", handleClick, true);
   view.scrollDOM.addEventListener("scroll", handleScroll);
   globalThis.addEventListener?.("resize", tableInteraction.refreshPositions);
   globalThis.addEventListener?.("resize", componentInteraction.refreshPositions);
+  globalThis.addEventListener?.("resize", textSelectionInteraction.refreshPositions);
 
   return {
     getValue() {
@@ -1274,6 +1350,7 @@ export function createSourceEditor({
         tableInteraction.commitEditor();
         tableInteraction.clearSelection({ commit: false });
         componentInteraction.clearSelection();
+        textSelectionInteraction.clearSelection();
       }
       currentMode = mode;
       view.dispatch({
@@ -1288,6 +1365,7 @@ export function createSourceEditor({
       if (!nextEditable) {
         tableInteraction.commitEditor();
         componentInteraction.clearSelection();
+        textSelectionInteraction.clearSelection();
       }
       currentEditable = nextEditable;
       view.dispatch({
@@ -1330,6 +1408,7 @@ export function createSourceEditor({
     clearLiveContextSelection() {
       tableInteraction.clearSelection();
       componentInteraction.clearSelection();
+      textSelectionInteraction.clearSelection();
     },
     replaceLine(lineNumber, text, { preserveSelection = false } = {}) {
       if (!Number.isInteger(lineNumber) || lineNumber < 1 || lineNumber > view.state.doc.lines) {
@@ -1447,6 +1526,7 @@ export function createSourceEditor({
       tableInteraction.commitEditor();
       tableInteraction.destroy();
       componentInteraction.destroy();
+      textSelectionInteraction.destroy();
       view.dom.removeEventListener("pointerdown", componentInteraction.handlePointerDown, true);
       view.dom.removeEventListener("pointerdown", tableInteraction.handlePointerDown, true);
       view.dom.removeEventListener("pointermove", tableInteraction.handlePointerMove, true);
@@ -1474,9 +1554,14 @@ export function createSourceEditor({
       );
       view.dom.removeEventListener("keydown", tableInteraction.handleKeyDown, true);
       view.dom.removeEventListener("mousedown", handleMouseDown, true);
+      view.dom.removeEventListener("click", handleClick, true);
       view.scrollDOM.removeEventListener("scroll", handleScroll);
       globalThis.removeEventListener?.("resize", tableInteraction.refreshPositions);
       globalThis.removeEventListener?.("resize", componentInteraction.refreshPositions);
+      globalThis.removeEventListener?.(
+        "resize",
+        textSelectionInteraction.refreshPositions,
+      );
       view.destroy();
     },
   };
@@ -2074,6 +2159,220 @@ export function liveMdxTargetIsEmbeddedViewControl(target) {
     "[data-table-freeze]",
     "[data-table-copy]",
   ].some((selector) => Boolean(closestElement(target, selector)));
+}
+
+export function createLiveTextSelectionInteraction({
+  getView,
+  getMode,
+  isEditable,
+  locale,
+  documentRoot = globalThis.document,
+  onSelect = () => {},
+}) {
+  const translate = createTranslator(SOURCE_EDITOR_TABLE_MESSAGES, locale);
+  const toolbar = createLiveTextFormatToolbar(documentRoot, translate);
+  let refreshHandle = null;
+  let selectionActive = false;
+
+  const currentFormatState = () => {
+    const view = getView();
+    if (
+      !view ||
+      getMode() !== "live" ||
+      !isEditable() ||
+      !view.hasFocus
+    ) {
+      return null;
+    }
+    return markdownTextSelectionFormatState(
+      view.state.doc.toString(),
+      view.state.selection.main,
+    );
+  };
+
+  const refreshNow = () => {
+    const view = getView();
+    const state = currentFormatState();
+    if (!view || !state) {
+      selectionActive = false;
+      toolbar.hidden = true;
+      closeLiveTableToolbarMenus(toolbar);
+      return;
+    }
+
+    if (!selectionActive) {
+      selectionActive = true;
+      onSelect(state.selection);
+    }
+    updateLiveTableToolbar(toolbar, state);
+    toolbar.hidden = false;
+    const anchorRect = liveTextSelectionAnchorRect(view);
+    if (!anchorRect) {
+      toolbar.hidden = true;
+      return;
+    }
+    positionFloatingControl(toolbar, anchorRect, {
+      placement: "above",
+      offset: 10,
+      documentRoot,
+    });
+  };
+
+  const scheduleRefresh = () => {
+    if (refreshHandle !== null) {
+      return;
+    }
+    const schedule = globalThis.requestAnimationFrame ??
+      ((callback) => globalThis.setTimeout(callback, 0));
+    refreshHandle = schedule(() => {
+      refreshHandle = null;
+      refreshNow();
+    });
+  };
+
+  const applyPatch = (patch) => {
+    const view = getView();
+    if (!view || !currentFormatState()) {
+      return false;
+    }
+    const result = formatMarkdownTextSelection(
+      view.state.doc.toString(),
+      view.state.selection.main,
+      patch,
+    );
+    if (!result) {
+      return false;
+    }
+    closeLiveTableToolbarMenus(toolbar);
+    if (result.changed) {
+      view.dispatch(preserveEditorContext({
+        changes: result.changes,
+        selection: result.selection,
+      }));
+    } else {
+      scheduleRefresh();
+    }
+    view.focus();
+    return true;
+  };
+
+  const applyTextStyle = (style) => {
+    const state = currentFormatState();
+    if (!state || !["bold", "italic", "strikethrough"].includes(style)) {
+      return false;
+    }
+    return applyPatch({ [style]: state[style] !== true });
+  };
+
+  const clearSelection = () => {
+    const view = getView();
+    closeLiveTableToolbarMenus(toolbar);
+    toolbar.hidden = true;
+    selectionActive = false;
+    if (!view || view.state.selection.main.empty) {
+      return false;
+    }
+    view.dispatch(preserveEditorContext({
+      selection: { anchor: view.state.selection.main.head },
+    }));
+    return true;
+  };
+
+  const handleToolbarClick = (event) => {
+    const closeButton = closestElement(
+      event.target,
+      "[data-live-text-toolbar-close]",
+    );
+    const menuButton = closestElement(
+      event.target,
+      "[data-live-table-menu-toggle]",
+    );
+    const formatButton = closestElement(
+      event.target,
+      "[data-live-table-format-action]",
+    );
+    const colorButton = closestElement(
+      event.target,
+      "[data-live-table-color-action]",
+    );
+    const highlightButton = closestElement(
+      event.target,
+      "[data-live-table-highlight-action]",
+    );
+    if (
+      !closeButton &&
+      !menuButton &&
+      !formatButton &&
+      !colorButton &&
+      !highlightButton
+    ) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (closeButton) {
+      clearSelection();
+      return;
+    }
+    if (menuButton) {
+      toggleLiveFormatToolbarMenu(menuButton);
+      return;
+    }
+    if (formatButton) {
+      const action = formatButton.dataset.liveTableFormatAction;
+      if (action === "clear") {
+        applyPatch({
+          bold: false,
+          italic: false,
+          strikethrough: false,
+          color: null,
+          backgroundColor: null,
+        });
+      } else {
+        applyTextStyle(action);
+      }
+      return;
+    }
+    if (colorButton) {
+      const action = colorButton.dataset.liveTableColorAction;
+      applyPatch({ color: action === "clear" ? null : action });
+      return;
+    }
+    const action = highlightButton.dataset.liveTableHighlightAction;
+    applyPatch({ backgroundColor: action === "clear" ? null : action });
+  };
+
+  const keepEditorSelection = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+  };
+  toolbar.addEventListener("pointerdown", keepEditorSelection);
+  toolbar.addEventListener("mousedown", keepEditorSelection);
+  toolbar.addEventListener("click", handleToolbarClick);
+  (documentRoot?.body ?? documentRoot?.documentElement)?.append(toolbar);
+
+  const destroy = () => {
+    if (refreshHandle !== null) {
+      const cancel = globalThis.cancelAnimationFrame ?? globalThis.clearTimeout;
+      cancel?.(refreshHandle);
+      refreshHandle = null;
+    }
+    toolbar.removeEventListener("pointerdown", keepEditorSelection);
+    toolbar.removeEventListener("mousedown", keepEditorSelection);
+    toolbar.removeEventListener("click", handleToolbarClick);
+    toolbar.remove();
+    selectionActive = false;
+  };
+
+  return {
+    handleUpdate: scheduleRefresh,
+    refreshPositions: scheduleRefresh,
+    hasSelection: () => Boolean(currentFormatState()),
+    clearSelection,
+    applyTextStyle,
+    destroy,
+  };
 }
 
 export function createLiveTableInteraction({
@@ -3109,8 +3408,79 @@ function prepareLiveTablePreview(container, block, translate) {
   return true;
 }
 
-function createLiveTableToolbarButton(label, text = "", modifier = "") {
-  const button = document.createElement("button");
+function createLiveTextFormatToolbar(documentRoot, translate) {
+  const toolbar = documentRoot.createElement("div");
+  toolbar.className = [
+    "live-edit-toolbar",
+    "cm-live-table-format-toolbar",
+    "cm-live-table-color-toolbar",
+    "cm-live-text-format-toolbar",
+  ].join(" ");
+  toolbar.setAttribute("role", "toolbar");
+  toolbar.setAttribute("aria-label", translate("textToolbar.label"));
+  toolbar.hidden = true;
+
+  for (const style of ["bold", "italic", "strikethrough"]) {
+    const button = createLiveTableToolbarButton(
+      translate(`format.${style}`),
+      style === "bold" ? "B" : (style === "italic" ? "I" : "S"),
+      `is-${style}`,
+      documentRoot,
+    );
+    button.dataset.liveTableFormatAction = style;
+    button.setAttribute("aria-pressed", "false");
+    toolbar.append(button);
+  }
+
+  toolbar.append(createLiveTableToolbarSeparator(documentRoot));
+  toolbar.append(
+    createLiveTablePaletteControl({
+      kind: "text-color",
+      label: translate("palette.textColor"),
+      clearLabel: translate("color.clear"),
+      palette: MARKDOWN_TABLE_TEXT_COLORS,
+      translateColor: (name) => translate(`color.${name}`),
+      documentRoot,
+    }),
+    createLiveTablePaletteControl({
+      kind: "highlight",
+      label: translate("palette.highlight"),
+      clearLabel: translate("highlight.clear"),
+      palette: MARKDOWN_TABLE_HIGHLIGHT_COLORS,
+      translateColor: (name) => translate(`highlight.${name}`),
+      documentRoot,
+    }),
+  );
+
+  toolbar.append(createLiveTableToolbarSeparator(documentRoot));
+  const clearButton = createLiveTableToolbarButton(
+    translate("format.clear"),
+    "Tx",
+    "is-clear-format",
+    documentRoot,
+  );
+  clearButton.dataset.liveTableFormatAction = "clear";
+  toolbar.append(clearButton);
+
+  const closeButton = createLiveTableToolbarButton(
+    translate("textToolbar.close"),
+    "×",
+    "cm-live-table-toolbar-close",
+    documentRoot,
+  );
+  closeButton.dataset.liveTextToolbarClose = "true";
+  closeButton.classList.add("live-edit-toolbar-close");
+  toolbar.append(closeButton);
+  return toolbar;
+}
+
+function createLiveTableToolbarButton(
+  label,
+  text = "",
+  modifier = "",
+  documentRoot = globalThis.document,
+) {
+  const button = documentRoot.createElement("button");
   button.type = "button";
   button.className = "live-edit-toolbar-button cm-live-table-format-button";
   if (modifier) {
@@ -3119,7 +3489,7 @@ function createLiveTableToolbarButton(label, text = "", modifier = "") {
   button.setAttribute("aria-label", label);
   button.title = label;
   if (text) {
-    const symbol = document.createElement("span");
+    const symbol = documentRoot.createElement("span");
     symbol.className = "cm-live-table-format-symbol";
     symbol.setAttribute("aria-hidden", "true");
     symbol.textContent = text;
@@ -3128,8 +3498,8 @@ function createLiveTableToolbarButton(label, text = "", modifier = "") {
   return button;
 }
 
-function createLiveTableToolbarSeparator() {
-  const separator = document.createElement("span");
+function createLiveTableToolbarSeparator(documentRoot = globalThis.document) {
+  const separator = documentRoot.createElement("span");
   separator.className = "live-edit-toolbar-separator cm-live-table-format-separator";
   separator.setAttribute("aria-hidden", "true");
   return separator;
@@ -3141,27 +3511,28 @@ function createLiveTablePaletteControl({
   clearLabel,
   palette,
   translateColor,
+  documentRoot = globalThis.document,
 }) {
-  const wrapper = document.createElement("span");
+  const wrapper = documentRoot.createElement("span");
   wrapper.className = "cm-live-table-palette-control";
 
-  const trigger = createLiveTableToolbarButton(label);
+  const trigger = createLiveTableToolbarButton(label, "", "", documentRoot);
   trigger.classList.add("cm-live-table-palette-trigger", `is-${kind}`);
   trigger.dataset.liveTableMenuToggle = kind;
   trigger.setAttribute("aria-haspopup", "menu");
   trigger.setAttribute("aria-expanded", "false");
 
-  const symbol = document.createElement("span");
+  const symbol = documentRoot.createElement("span");
   symbol.className = "cm-live-table-palette-symbol";
   symbol.setAttribute("aria-hidden", "true");
   symbol.textContent = "A";
-  const chevron = document.createElement("span");
+  const chevron = documentRoot.createElement("span");
   chevron.className = "cm-live-table-palette-chevron";
   chevron.setAttribute("aria-hidden", "true");
   chevron.textContent = "▾";
   trigger.append(symbol, chevron);
 
-  const menu = document.createElement("span");
+  const menu = documentRoot.createElement("span");
   menu.className = `cm-live-table-palette is-${kind}`;
   menu.dataset.liveTablePalette = kind;
   menu.setAttribute("role", "menu");
@@ -3169,7 +3540,7 @@ function createLiveTablePaletteControl({
   menu.hidden = true;
 
   for (const color of palette) {
-    const button = document.createElement("button");
+    const button = documentRoot.createElement("button");
     button.type = "button";
     button.className = "cm-live-table-swatch-button";
     if (kind === "text-color") {
@@ -3185,7 +3556,7 @@ function createLiveTablePaletteControl({
     menu.append(button);
   }
 
-  const clearButton = document.createElement("button");
+  const clearButton = documentRoot.createElement("button");
   clearButton.type = "button";
   clearButton.className =
     "cm-live-table-swatch-button cm-live-table-swatch-clear";
@@ -3228,6 +3599,26 @@ function closeLiveTableToolbarMenus(root) {
   ) ?? []) {
     trigger.setAttribute("aria-expanded", "false");
   }
+}
+
+function toggleLiveFormatToolbarMenu(button) {
+  const toolbar = button?.closest?.(".cm-live-table-format-toolbar");
+  const menuName = button?.dataset?.liveTableMenuToggle;
+  const menu = toolbar?.querySelector(
+    `[data-live-table-palette="${menuName}"]`,
+  );
+  if (!toolbar || !menu) {
+    return false;
+  }
+
+  const shouldOpen = menu.hidden;
+  closeLiveTableToolbarMenus(toolbar);
+  if (shouldOpen) {
+    menu.hidden = false;
+    button.setAttribute("aria-expanded", "true");
+    positionLiveTablePalette(menu);
+  }
+  return true;
 }
 
 function positionLiveTablePalette(menu) {
@@ -3356,6 +3747,53 @@ function positionFloatingControl(
   element.style.left = `${Math.round(left)}px`;
   element.style.top = `${Math.round(top)}px`;
   element.style.visibility = "";
+}
+
+function liveTextSelectionAnchorRect(view) {
+  const viewport = view?.scrollDOM?.getBoundingClientRect?.();
+  const rects = [
+    ...(view?.dom?.querySelectorAll?.(".cm-selectionBackground") ?? []),
+  ]
+    .map((element) => element.getBoundingClientRect())
+    .filter((rect) => (
+      rect.width > 0 &&
+      rect.height > 0 &&
+      (!viewport || (rect.bottom >= viewport.top && rect.top <= viewport.bottom))
+    ));
+  if (rects.length > 0) {
+    const top = Math.min(...rects.map((rect) => rect.top));
+    const firstRow = rects.filter((rect) => Math.abs(rect.top - top) < 3);
+    const left = Math.min(...firstRow.map((rect) => rect.left));
+    const right = Math.max(...firstRow.map((rect) => rect.right));
+    const bottom = Math.max(...firstRow.map((rect) => rect.bottom));
+    return {
+      left,
+      right,
+      top,
+      bottom,
+      width: Math.max(1, right - left),
+      height: Math.max(1, bottom - top),
+    };
+  }
+
+  const range = view?.state?.selection?.main;
+  const start = range ? view.coordsAtPos(range.from) : null;
+  const end = range ? view.coordsAtPos(range.to) : null;
+  if (!start && !end) {
+    return null;
+  }
+  const left = Math.min(start?.left ?? end.left, end?.left ?? start.left);
+  const right = Math.max(start?.right ?? end.right, end?.right ?? start.right);
+  const top = Math.min(start?.top ?? end.top, end?.top ?? start.top);
+  const bottom = Math.max(start?.bottom ?? end.bottom, end?.bottom ?? start.bottom);
+  return {
+    left,
+    right,
+    top,
+    bottom,
+    width: Math.max(1, right - left),
+    height: Math.max(1, bottom - top),
+  };
 }
 
 export function minimalDocumentChange(currentValue, nextValue) {
@@ -3888,6 +4326,16 @@ export function nextLiveEditingSuppression(
   return isSuppressed;
 }
 
+export function liveMarkdownSelectionPresentation(
+  state,
+  suppressActiveLine = false,
+) {
+  if (!state || suppressActiveLine || !state.selection.main.empty) {
+    return null;
+  }
+  return state.doc.lineAt(state.selection.main.head).number;
+}
+
 export function listItemIndentChange(text, direction, { step = 2 } = {}) {
   const match = /^(\s*)([-*+]|\d+\.)(?:\s+|$)/.exec(text);
   if (!match) {
@@ -3926,9 +4374,10 @@ function buildLiveMarkdownDecorations(state, { suppressActiveLine = false } = {}
   let inFrontmatter = false;
   let inCodeBlock = false;
   let mdxComponentName = null;
-  const activeLineNumber = suppressActiveLine
-    ? null
-    : state.doc.lineAt(state.selection.main.head).number;
+  const activeLineNumber = liveMarkdownSelectionPresentation(
+    state,
+    suppressActiveLine,
+  );
   const previewBlocks = livePreviewBlocksForSource(state.doc.toString(), {
     activeLineNumber,
   });
@@ -4229,11 +4678,49 @@ export function liveInlineRangesForLine(text) {
   });
   addDelimitedRanges({
     text,
+    regex: /~~([^~]+)~~/g,
+    delimiterLength: 2,
+    contentClassName: "cm-live-strikethrough",
+    ranges,
+  });
+  addDelimitedRanges({
+    text,
+    regex: /(?<!_)_([^_\n]+)_(?!_)/g,
+    delimiterLength: 1,
+    contentClassName: "cm-live-emphasis",
+    ranges,
+  });
+  addDelimitedRanges({
+    text,
+    regex: /(?<!\*)\*([^*\n]+)\*(?!\*)/g,
+    delimiterLength: 1,
+    contentClassName: "cm-live-emphasis",
+    ranges,
+  });
+  addDelimitedRanges({
+    text,
     regex: /`([^`]+)`/g,
     delimiterLength: 1,
     contentClassName: "cm-live-inline-code",
     ranges,
   });
+
+  for (const span of controlledMarkdownStyleSpansForLine(text)) {
+    const declarations = [
+      span.color ? `color: ${span.color}` : "",
+      span.backgroundColor
+        ? `background-color: ${span.backgroundColor}`
+        : "",
+    ].filter(Boolean);
+    push(span.from, span.contentFrom, "cm-live-marker");
+    push(
+      span.contentFrom,
+      span.contentTo,
+      "cm-live-controlled-style",
+      { style: declarations.join("; ") },
+    );
+    push(span.contentTo, span.to, "cm-live-marker");
+  }
 
   for (const link of liveMarkdownLinksForLine(text)) {
     push(link.from, link.textFrom, "cm-live-marker");
@@ -4569,7 +5056,7 @@ export function liveVisualRangesForLine(text, { isActiveLine = false } = {}) {
     }));
   const allReplacements = [...readableReplacements, ...inlineMarkerReplacements];
   const visibleInlineRanges = liveInlineRangesForLine(text)
-    .filter((range) => !allReplacements.some((replacement) => rangesOverlap(range, replacement)))
+    .flatMap((range) => subtractReplacementRanges(range, allReplacements))
     .map((range) => ({
       type: "mark",
       ...range,
@@ -4581,6 +5068,26 @@ export function liveVisualRangesForLine(text, { isActiveLine = false } = {}) {
 
 function rangesOverlap(left, right) {
   return left.from < right.to && right.from < left.to;
+}
+
+function subtractReplacementRanges(range, replacements) {
+  let segments = [{ ...range }];
+  for (const replacement of replacements) {
+    segments = segments.flatMap((segment) => {
+      if (!rangesOverlap(segment, replacement)) {
+        return [segment];
+      }
+      const next = [];
+      if (segment.from < replacement.from) {
+        next.push({ ...segment, to: replacement.from });
+      }
+      if (replacement.to < segment.to) {
+        next.push({ ...segment, from: replacement.to });
+      }
+      return next;
+    });
+  }
+  return segments.filter((segment) => segment.to > segment.from);
 }
 
 export function liveReadableReplacementsForLine(text) {
