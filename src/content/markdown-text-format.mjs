@@ -29,6 +29,7 @@ export function markdownTextSelectionFormatState(source, selection) {
   return {
     bold: uniformValue(formats.map((format) => format.bold)),
     italic: uniformValue(formats.map((format) => format.italic)),
+    underline: uniformValue(formats.map((format) => format.underline)),
     strikethrough: uniformValue(
       formats.map((format) => format.strikethrough),
     ),
@@ -112,6 +113,7 @@ export function controlledMarkdownStyleSpansForLine(source) {
       contentTo: closeStart,
       color: span.color,
       backgroundColor: span.backgroundColor,
+      underline: span.underline,
     });
     cursor = to;
   }
@@ -143,6 +145,7 @@ function formatMarkdownTextSegmentContent(source, patch) {
     format.backgroundColor
       ? `background-color: ${format.backgroundColor}`
       : "",
+    format.underline ? "text-decoration: underline" : "",
   ].filter(Boolean);
   return declarations.length > 0
     ? `<span style="${declarations.join("; ")};">${content}</span>`

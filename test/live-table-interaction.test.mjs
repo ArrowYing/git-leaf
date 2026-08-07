@@ -445,6 +445,7 @@ test("an ordinary Live text selection reuses the formatting toolbar and stays se
   assert.equal(toolbar.hidden, false);
 
   const boldButton = toolbar.querySelector('[data-live-table-format-action="bold"]');
+  assert.ok(toolbar.querySelector('[data-live-table-format-action="underline"]'));
   toolbar.dispatchEvent(pointerEvent(boldButton, { type: "click" }));
   interaction.handleUpdate();
   await nextTask();

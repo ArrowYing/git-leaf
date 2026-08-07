@@ -7,6 +7,7 @@ import {
   pastedImageInsertionText,
   imageLineAttributes,
   imageLineForAction,
+  keyboardTextStyleFromEvent,
   pastedTextLinkCandidate,
   closestElement,
   liveClassForLine,
@@ -34,6 +35,31 @@ import {
   slashCommandsForLocale,
   slashCommandTemplate,
 } from "../src/client/source-editor.mjs";
+
+test("Live text formatting shortcuts use defaults and user overrides", () => {
+  assert.equal(
+    keyboardTextStyleFromEvent({ code: "KeyB", metaKey: true }),
+    "bold",
+  );
+  assert.equal(
+    keyboardTextStyleFromEvent({ code: "KeyU", metaKey: true }),
+    "underline",
+  );
+  assert.equal(
+    keyboardTextStyleFromEvent(
+      { code: "KeyB", metaKey: true },
+      { "editor.bold": "Mod+Alt+B" },
+    ),
+    null,
+  );
+  assert.equal(
+    keyboardTextStyleFromEvent(
+      { code: "KeyB", metaKey: true, altKey: true },
+      { "editor.bold": "Mod+Alt+B" },
+    ),
+    "bold",
+  );
+});
 
 test("minimalDocumentChange preserves unchanged editor ranges around a remote update", () => {
   const current = "local first\nmiddle\nlast\n";
