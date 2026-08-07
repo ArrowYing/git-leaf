@@ -4679,6 +4679,10 @@ tr:last-child td {
   max-width: calc(100vw - 16px);
 }
 
+.cm-live-text-format-toolbar {
+  z-index: 47;
+}
+
 .cm-live-table-format-toolbar[hidden],
 .cm-live-table-column-handle[hidden] {
   display: none;
