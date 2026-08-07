@@ -375,6 +375,13 @@ that legacy package's defective privileged Helper path. Its mandatory `finally` 
 state owned by that run. It then proves the real Profile and real ShipIt cache fingerprints did not change.
 A failure never creates passing evidence.
 
+The first public release after the internal migration bridge is one bounded exception to same-track
+baseline validation: physical `stable` still contains the exact `1.11.3 + internal + stable` bridge.
+The harness may use only that exact identity as the historical public-stable baseline, must install it
+through the nonprivileged `Contents` bridge, and records the baseline track and channel in its evidence.
+Every other cross-track baseline fails closed. After the first public stable publication, normal public
+releases again require a `public + stable` baseline.
+
 Changes to the development handoff additionally require the strictly newer-version isolated regression:
 
 ```bash

@@ -45,6 +45,7 @@ export const SQUIRREL_DIRECT_CONTENTS_WRITE_KEY =
 const PLATFORM_KEY = "darwin-universal";
 const DEFAULT_BASE_URL = "https://updates.mangofuture.com/git-leaf";
 const FIRST_NONPRIVILEGED_ONLY_VERSION = "1.12.3";
+const LEGACY_INTERNAL_STABLE_BRIDGE_VERSION = "1.11.3";
 const MAX_HTTP_REDIRECTS = 5;
 const MAX_MANIFEST_BYTES = 1024 * 1024;
 
@@ -88,11 +89,19 @@ export function validateUpdateRegressionManifest(manifest, {
   track,
   expectedVersion,
   expectedCommit,
+  allowLegacyPublicStableBridge = false,
 } = {}) {
+  const matchesRequestedIdentity = manifest?.releaseTrack === track
+    && manifest?.channel === channel;
+  const matchesLegacyPublicStableBridge = allowLegacyPublicStableBridge
+    && track === "public"
+    && channel === "stable"
+    && manifest?.releaseTrack === "internal"
+    && manifest?.channel === "stable"
+    && manifest?.version === LEGACY_INTERNAL_STABLE_BRIDGE_VERSION;
   if (
     !manifest
-    || manifest.releaseTrack !== track
-    || manifest.channel !== channel
+    || (!matchesRequestedIdentity && !matchesLegacyPublicStableBridge)
     || manifest.platform !== PLATFORM_KEY
   ) {
     throw new Error(
@@ -699,7 +708,11 @@ async function runHarness({
       `${baseUrl.replace(/\/+$/, "")}/${channels.candidate}/${PLATFORM_KEY}/latest.json`;
     const stableManifest = validateUpdateRegressionManifest(
       await fetchJson(stableManifestUrl),
-      { channel: channels.stable, track },
+      {
+        channel: channels.stable,
+        track,
+        allowLegacyPublicStableBridge: true,
+      },
     );
     const candidateManifest = validateUpdateRegressionManifest(
       await fetchJson(candidateManifestUrl),
@@ -849,12 +862,14 @@ async function runHarness({
     }
 
     passedEvidence = {
-      schemaVersion: 2,
+      schemaVersion: 3,
       source: "git-leaf-macos-update-regression",
       status: "passed",
       track,
       platform: PLATFORM_KEY,
       fromVersion: stableManifest.version,
+      fromTrack: stableManifest.releaseTrack,
+      fromChannel: stableManifest.channel,
       toVersion: candidateManifest.version,
       commit: expectedCommit,
       buildId: candidateManifest.buildId,

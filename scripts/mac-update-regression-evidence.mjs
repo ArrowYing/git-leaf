@@ -1,3 +1,22 @@
+const LEGACY_INTERNAL_STABLE_BRIDGE_VERSION = "1.11.3";
+
+function hasValidBaselineIdentity(evidence, track) {
+  const expectedStableChannel = track === "public"
+    ? "stable"
+    : "internal-stable";
+  if (
+    evidence.fromTrack === track
+    && evidence.fromChannel === expectedStableChannel
+  ) {
+    return true;
+  }
+  return track === "public"
+    && evidence.fromTrack === "internal"
+    && evidence.fromChannel === "stable"
+    && evidence.fromVersion === LEGACY_INTERNAL_STABLE_BRIDGE_VERSION
+    && evidence.installMode === "contents-bridge";
+}
+
 export function validateMacUpdateRegressionEvidence(evidence, {
   track,
   version,
@@ -5,11 +24,12 @@ export function validateMacUpdateRegressionEvidence(evidence, {
   buildId,
 } = {}) {
   if (
-    evidence?.schemaVersion !== 2
+    evidence?.schemaVersion !== 3
     || evidence.source !== "git-leaf-macos-update-regression"
     || evidence.status !== "passed"
     || evidence.track !== track
     || evidence.platform !== "darwin-universal"
+    || !hasValidBaselineIdentity(evidence, track)
     || evidence.toVersion !== version
     || evidence.commit !== commit
     || !String(evidence.buildId || "").startsWith(String(buildId || "missing"))

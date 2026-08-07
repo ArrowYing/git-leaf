@@ -96,12 +96,14 @@ function completedPublish(platform, phase, track = "public") {
 function macosUpdateEvidence(state, overrides = {}) {
   const fingerprint = { sha256: "a".repeat(64), fileCount: 3 };
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     source: "git-leaf-macos-update-regression",
     status: "passed",
     track: state.track,
     platform: "darwin-universal",
     fromVersion: "1.10.0",
+    fromTrack: state.track,
+    fromChannel: physicalUpdateChannel({ track: state.track, phase: "stable" }),
     toVersion: state.version,
     commit: state.commit,
     buildId: `${state.buildId}.${state.track}`,

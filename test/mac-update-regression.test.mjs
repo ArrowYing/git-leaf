@@ -177,15 +177,70 @@ test("mac update regression validates candidate identity and ZIP contract", () =
   );
 });
 
+test("mac update regression accepts only the exact internal 1.11.3 public stable bridge", () => {
+  const bridgeManifest = {
+    releaseTrack: "internal",
+    channel: "stable",
+    platform: "darwin-universal",
+    version: "1.11.3",
+    commit: "9a7baa0cb6d3",
+    files: {
+      zip: {
+        name: "GitLeaf-1.11.3-internal-darwin-universal.zip",
+        url: "https://updates.example.test/GitLeaf-1.11.3.zip",
+        sha256: "b".repeat(64),
+        size: 2048,
+      },
+    },
+  };
+
+  assert.equal(validateUpdateRegressionManifest(bridgeManifest, {
+    channel: "stable",
+    track: "public",
+    allowLegacyPublicStableBridge: true,
+  }), bridgeManifest);
+  assert.throws(
+    () => validateUpdateRegressionManifest(bridgeManifest, {
+      channel: "stable",
+      track: "public",
+    }),
+    /identity does not match/,
+  );
+  assert.throws(
+    () => validateUpdateRegressionManifest({
+      ...bridgeManifest,
+      version: "1.11.4",
+    }, {
+      channel: "stable",
+      track: "public",
+      allowLegacyPublicStableBridge: true,
+    }),
+    /identity does not match/,
+  );
+  assert.throws(
+    () => validateUpdateRegressionManifest({
+      ...bridgeManifest,
+      channel: "candidate",
+    }, {
+      channel: "stable",
+      track: "public",
+      allowLegacyPublicStableBridge: true,
+    }),
+    /identity does not match/,
+  );
+});
+
 test("mac update regression evidence binds installation and cleanup to the frozen release", () => {
   const fingerprint = { sha256: "a".repeat(64), fileCount: 3 };
   const evidence = {
-    schemaVersion: 2,
+    schemaVersion: 3,
     source: "git-leaf-macos-update-regression",
     status: "passed",
     track: "internal",
     platform: "darwin-universal",
     fromVersion: "1.11.4",
+    fromTrack: "internal",
+    fromChannel: "internal-stable",
     toVersion: "1.12.1",
     commit: "0123456789abcdef0123456789abcdef01234567",
     buildId: "0123456789ab.20260726T120000Z.internal",
@@ -223,6 +278,44 @@ test("mac update regression evidence binds installation and cleanup to the froze
       cleanup: { ...evidence.cleanup, userShipItJobAbsent: false },
     }, {
       track: "internal",
+      version: "1.12.1",
+      commit: evidence.commit,
+      buildId: "0123456789ab.20260726T120000Z",
+    }),
+    /mandatory cleanup contract/,
+  );
+  const publicBridgeEvidence = {
+    ...evidence,
+    track: "public",
+    fromVersion: "1.11.3",
+    fromTrack: "internal",
+    fromChannel: "stable",
+    buildId: "0123456789ab.20260726T120000Z.public",
+  };
+  assert.equal(validateMacUpdateRegressionEvidence(publicBridgeEvidence, {
+    track: "public",
+    version: "1.12.1",
+    commit: evidence.commit,
+    buildId: "0123456789ab.20260726T120000Z",
+  }), publicBridgeEvidence);
+  assert.throws(
+    () => validateMacUpdateRegressionEvidence({
+      ...publicBridgeEvidence,
+      fromVersion: "1.11.4",
+    }, {
+      track: "public",
+      version: "1.12.1",
+      commit: evidence.commit,
+      buildId: "0123456789ab.20260726T120000Z",
+    }),
+    /mandatory cleanup contract/,
+  );
+  assert.throws(
+    () => validateMacUpdateRegressionEvidence({
+      ...publicBridgeEvidence,
+      installMode: "in-app-update",
+    }, {
+      track: "public",
       version: "1.12.1",
       commit: evidence.commit,
       buildId: "0123456789ab.20260726T120000Z",
