@@ -71,12 +71,14 @@ function fakeAutoUpdater() {
     listeners,
     feedUrls: [],
     checked: false,
+    checkCount: 0,
     installed: false,
     setFeedURL: ({ url }) => {
       autoUpdater.feedUrls.push(url);
     },
     checkForUpdates: () => {
       autoUpdater.checked = true;
+      autoUpdater.checkCount += 1;
     },
     quitAndInstall: () => {
       autoUpdater.installed = true;
@@ -88,7 +90,7 @@ function fakeAutoUpdater() {
   return autoUpdater;
 }
 
-test("desktop updater configures Squirrel.Mac only after the user starts an update", async () => {
+test("desktop updater configures Squirrel.Mac and starts downloading after discovery", async () => {
   const feedUrls = [];
   let checked = false;
   const fetch = fakeMacManifestFetch();
@@ -108,11 +110,7 @@ test("desktop updater configures Squirrel.Mac only after the user starts an upda
     channel: "stable",
   });
 
-  assert.equal(await controller.checkForUpdates({ manual: true }), "available");
-
-  assert.deepEqual(feedUrls, []);
-  assert.equal(checked, false);
-  assert.equal(await controller.handleUpdateAction(), "downloading");
+  assert.equal(await controller.checkForUpdates({ manual: true }), "downloading");
 
   assert.deepEqual(feedUrls, [
     "https://updates.mangofuture.com/git-leaf/stable/darwin-universal/releases/0.1.1",
@@ -145,8 +143,7 @@ test("packaged internal builds ignore environment channel overrides", async () =
     },
   });
 
-  assert.equal(await controller.checkForUpdates({ manual: true }), "available");
-  assert.equal(await controller.handleUpdateAction(), "downloading");
+  assert.equal(await controller.checkForUpdates({ manual: true }), "downloading");
   assert.deepEqual(fetch.urls, [
     "https://updates.mangofuture.com/git-leaf/internal-stable/darwin-universal/latest.json",
   ]);
@@ -220,7 +217,7 @@ test("packaged source development builds ignore an equal-version internal releas
   assert.deepEqual(autoUpdater.feedUrls, []);
 });
 
-test("packaged source development builds can choose a newer internal handoff", async () => {
+test("packaged source development builds automatically prepare a newer internal handoff", async () => {
   const autoUpdater = fakeAutoUpdater();
   const fetch = fakeMacManifestFetch({
     version: "1.16.1",
@@ -265,12 +262,11 @@ test("packaged source development builds can choose a newer internal handoff", a
     },
   });
 
-  assert.equal(await controller.checkForUpdates({ manual: true }), "available");
+  assert.equal(await controller.checkForUpdates({ manual: true }), "downloaded");
   assert.equal(autoUpdater.checked, false);
   assert.deepEqual(fetch.urls, [
     "https://updates.mangofuture.com/git-leaf/internal-stable/darwin-universal/latest.json",
   ]);
-  assert.equal(await controller.handleUpdateAction(), "downloaded");
   assert.deepEqual(operations, ["save", "prepare"]);
   assert.deepEqual(savedHandoffs, [{
     kind: "dev-to-internal",
@@ -340,12 +336,10 @@ test("development handoff download is blocked when its receipt cannot be saved",
     },
   });
 
-  assert.equal(await controller.checkForUpdates({ manual: true }), "available");
-  assert.equal(await controller.handleUpdateAction(), "error");
+  assert.equal(await controller.checkForUpdates({ manual: false }), "error");
   assert.equal(autoUpdater.checked, false);
   assert.deepEqual(autoUpdater.feedUrls, []);
-  assert.match(dialog.calls.at(-1)[0].message, /save the update choice/i);
-  assert.equal(dialog.calls.at(-1)[0].detail, "config is read-only");
+  assert.equal(dialog.calls.length, 0);
 });
 
 test("a saved identity-bound development handoff resumes without another choice", async () => {
@@ -361,6 +355,7 @@ test("a saved identity-bound development handoff resumes without another choice"
   };
   let saveCalls = 0;
   let prepareCalls = 0;
+  let cleanupCalls = 0;
   const controller = createDesktopUpdateController({
     autoUpdater,
     buildInfo: {
@@ -388,12 +383,17 @@ test("a saved identity-bound development handoff resumes without another choice"
       prepareCalls += 1;
       return { readyFile: "/tmp/internal-ready.json" };
     },
+    cleanupMacUpdateCache: async () => {
+      cleanupCalls += 1;
+    },
   });
 
   assert.equal(await controller.restoreKnownUpdate(), true);
   assert.equal(await controller.checkForUpdates({ manual: false }), "downloaded");
   assert.equal(saveCalls, 0);
   assert.equal(prepareCalls, 1);
+  assert.equal(await controller.checkForUpdates({ manual: false }), "downloaded");
+  assert.equal(cleanupCalls, 0);
   assert.equal(autoUpdater.checked, false);
   assert.deepEqual(autoUpdater.feedUrls, []);
 });
@@ -464,7 +464,6 @@ test("development handoff launches the prepared bridge instead of Squirrel", asy
   });
 
   await controller.checkForUpdates({ manual: true });
-  await controller.handleUpdateAction();
 
   assert.equal(await controller.installPendingUpdateOnQuit(), false);
   assert.deepEqual(operations, [
@@ -505,7 +504,6 @@ test("development handoff refuses installation when the bridge cannot launch", a
   });
 
   await controller.checkForUpdates({ manual: true });
-  await controller.handleUpdateAction();
 
   assert.equal(await controller.installPendingUpdateOnQuit(), false);
   assert.equal(autoUpdater.installed, false);
@@ -624,7 +622,6 @@ test("desktop updater does not show transient macOS errors before a downloaded u
   });
 
   await controller.checkForUpdates({ manual: true });
-  await controller.handleUpdateAction();
   autoUpdater.listeners.get("error")(
     new Error("文件夹“GitLeaf-1.2.1-darwin-arm64.zip”不存在。：该文件夹不存在。"),
   );
@@ -653,7 +650,6 @@ test("desktop updater reports macOS manual update progress", async () => {
   });
 
   await controller.checkForUpdates({ manual: true });
-  await controller.handleUpdateAction();
   autoUpdater.listeners.get("update-available")();
   autoUpdater.listeners.get("update-downloaded")();
 
@@ -683,7 +679,6 @@ test("desktop updater reports low-cardinality lifecycle telemetry", async () => 
   });
 
   await controller.checkForUpdates({ manual: true });
-  await controller.handleUpdateAction();
   autoUpdater.listeners.get("update-downloaded")();
   await controller.installPendingUpdateOnQuit();
 
@@ -717,7 +712,6 @@ test("desktop updater eventually reports terminal macOS update errors", async ()
   });
 
   await controller.checkForUpdates({ manual: true });
-  await controller.handleUpdateAction();
   autoUpdater.listeners.get("error")(new Error("network failed"));
 
   assert.equal(dialog.calls.length, 0);
@@ -763,7 +757,7 @@ test("a previously requested macOS download retries quietly after restart", asyn
   assert.equal(await controller.checkForUpdates({ manual: false }), "downloading");
 });
 
-test("legacy skipped versions no longer hide the persistent update action", async () => {
+test("legacy skipped versions no longer suppress automatic update preparation", async () => {
   const autoUpdater = fakeAutoUpdater();
   const dialog = fakeDialog();
   const statuses = [];
@@ -783,9 +777,9 @@ test("legacy skipped versions no longer hide the persistent update action", asyn
 
   const result = await controller.checkForUpdates({ manual: true });
 
-  assert.equal(result, "available");
-  assert.equal(autoUpdater.checked, false);
-  assert.deepEqual(statuses.map((status) => status.state), ["checking", "available"]);
+  assert.equal(result, "downloading");
+  assert.equal(autoUpdater.checked, true);
+  assert.deepEqual(statuses.map((status) => status.state), ["checking", "available", "downloading"]);
   assert.deepEqual(savedPreferences, [
     { updateAvailableVersion: "1.2.1" },
     { promptedUpdateVersion: "", skippedUpdateVersion: "" },
@@ -807,7 +801,6 @@ test("desktop updater does not show a native choice prompt after download", asyn
   });
 
   await controller.checkForUpdates({ manual: true });
-  await controller.handleUpdateAction();
   autoUpdater.listeners.get("update-downloaded")();
 
   assert.equal(dialog.calls.length, 0);
@@ -827,7 +820,6 @@ test("desktop updater installs a downloaded macOS update on normal quit", async 
   });
 
   await controller.checkForUpdates({ manual: true });
-  await controller.handleUpdateAction();
   autoUpdater.listeners.get("update-downloaded")();
 
   assert.equal(autoUpdater.installed, false);
@@ -852,7 +844,6 @@ test("clicking a prepared macOS update requests a controlled app shutdown", asyn
   });
 
   await controller.checkForUpdates({ manual: true });
-  await controller.handleUpdateAction();
   autoUpdater.listeners.get("update-downloaded")();
 
   assert.equal(await controller.handleUpdateAction(), "install-now");
@@ -862,7 +853,7 @@ test("clicking a prepared macOS update requests a controlled app shutdown", asyn
   assert.equal(autoUpdater.installed, true);
 });
 
-test("legacy prompted versions do not suppress the persistent update action", async () => {
+test("legacy prompted versions do not suppress automatic update preparation", async () => {
   const autoUpdater = fakeAutoUpdater();
   const dialog = fakeDialog();
   const savedPreferences = [];
@@ -878,18 +869,18 @@ test("legacy prompted versions do not suppress the persistent update action", as
     saveUpdatePreferences: async (preferences) => savedPreferences.push(preferences),
   });
 
-  assert.equal(await controller.checkForUpdates({ manual: false }), "available");
+  assert.equal(await controller.checkForUpdates({ manual: false }), "downloading");
 
   assert.equal(dialog.calls.length, 0);
   assert.deepEqual(savedPreferences, [
     { updateAvailableVersion: "1.2.1" },
     { promptedUpdateVersion: "", skippedUpdateVersion: "" },
   ]);
-  assert.equal(autoUpdater.checked, false);
+  assert.equal(autoUpdater.checked, true);
   assert.equal(autoUpdater.installed, false);
 });
 
-test("desktop updater prepares Windows after a click and launches it on quit", async () => {
+test("desktop updater automatically prepares Windows and launches it on quit", async () => {
   const preparedManifests = [];
   const launched = [];
   const dialog = fakeDialog({ response: 0 });
@@ -924,8 +915,7 @@ test("desktop updater prepares Windows after a click and launches it on quit", a
     showUpdateStatus: async (status) => statuses.push(status),
   });
 
-  await controller.checkForUpdates({ manual: true });
-  await controller.handleUpdateAction();
+  assert.equal(await controller.checkForUpdates({ manual: true }), "downloaded");
 
   assert.deepEqual(statuses.map((status) => status.state), ["checking", "available", "downloading", "downloaded"]);
   assert.equal(dialog.calls.length, 0);
@@ -967,7 +957,7 @@ test("desktop updater reports current Windows builds as up to date on manual che
   assert.match(dialog.calls[0][0].message, /up to date/);
 });
 
-test("automatic macOS checks only expose an available update without downloading it", async () => {
+test("automatic macOS checks start downloading without an action", async () => {
   const autoUpdater = fakeAutoUpdater();
   const statuses = [];
   const controller = createDesktopUpdateController({
@@ -981,13 +971,105 @@ test("automatic macOS checks only expose an available update without downloading
     showUpdateStatus: async (status) => statuses.push(status),
   });
 
-  assert.equal(await controller.checkForUpdates({ manual: false }), "available");
-  assert.equal(autoUpdater.checked, false);
-  assert.deepEqual(statuses.map((status) => status.state), ["available"]);
+  assert.equal(await controller.checkForUpdates({ manual: false }), "downloading");
+  assert.equal(autoUpdater.checked, true);
+  assert.deepEqual(statuses.map((status) => status.state), ["available", "downloading"]);
   assert.equal(statuses[0].version, "1.9.0");
 });
 
-test("a known available update is restored before the network check", async () => {
+test("a newer macOS release replaces the downloaded update and prunes the old package", async () => {
+  const autoUpdater = fakeAutoUpdater();
+  const cleanupVersions = [];
+  const statuses = [];
+  let releaseFirstCleanup;
+  const firstCleanupCanFinish = new Promise((resolve) => {
+    releaseFirstCleanup = resolve;
+  });
+  let version = "1.9.0";
+  const controller = createDesktopUpdateController({
+    autoUpdater,
+    buildInfo: { version: "1.8.1" },
+    dialog: fakeDialog(),
+    fetch: async () => ({
+      ok: true,
+      json: async () => ({
+        releaseTrack: "public",
+        channel: "stable",
+        platform: "darwin-universal",
+        version,
+        autoUpdater: { name: `Git Leaf ${version}` },
+        files: {
+          zip: {
+            url: `https://updates.example/GitLeaf-${version}-darwin-universal.zip`,
+          },
+        },
+      }),
+    }),
+    isPackaged: true,
+    platform: "darwin",
+    arch: "arm64",
+    cleanupMacUpdateCache: async () => {
+      cleanupVersions.push(version);
+      if (cleanupVersions.length === 1) {
+        await firstCleanupCanFinish;
+      }
+    },
+    showUpdateStatus: async (status) => statuses.push(status),
+  });
+
+  assert.equal(await controller.checkForUpdates({ manual: false }), "downloading");
+  autoUpdater.listeners.get("update-downloaded")();
+  await flushUpdatePrompt();
+  assert.deepEqual(cleanupVersions, ["1.9.0"]);
+
+  version = "1.10.0";
+  const newerCheck = controller.checkForUpdates({ manual: false });
+  await flushUpdatePrompt();
+  assert.equal(autoUpdater.checkCount, 1);
+  releaseFirstCleanup();
+  assert.equal(await newerCheck, "downloading");
+  autoUpdater.listeners.get("update-downloaded")();
+  await flushUpdatePrompt();
+
+  assert.deepEqual(cleanupVersions, ["1.9.0", "1.10.0"]);
+  assert.equal(autoUpdater.checkCount, 2);
+  assert.equal(await controller.checkForUpdates({ manual: false }), "downloaded");
+  assert.equal(autoUpdater.checkCount, 2);
+  assert.equal(statuses.at(-1).state, "downloaded");
+  assert.equal(statuses.at(-1).version, "1.10.0");
+});
+
+test("a downloaded macOS update retries transient cache cleanup on the next check", async () => {
+  const autoUpdater = fakeAutoUpdater();
+  let cleanupCalls = 0;
+  const controller = createDesktopUpdateController({
+    autoUpdater,
+    buildInfo: { version: "1.8.1" },
+    dialog: fakeDialog(),
+    fetch: fakeMacManifestFetch({ version: "1.9.0" }),
+    isPackaged: true,
+    platform: "darwin",
+    arch: "arm64",
+    cleanupMacUpdateCache: async () => {
+      cleanupCalls += 1;
+      if (cleanupCalls === 1) {
+        throw new Error("cache temporarily busy");
+      }
+      return { complete: true };
+    },
+  });
+
+  assert.equal(await controller.checkForUpdates({ manual: false }), "downloading");
+  autoUpdater.listeners.get("update-downloaded")();
+  await flushUpdatePrompt();
+  assert.equal(cleanupCalls, 1);
+
+  assert.equal(await controller.checkForUpdates({ manual: false }), "downloaded");
+  assert.equal(cleanupCalls, 2);
+  assert.equal(autoUpdater.checkCount, 1);
+});
+
+test("a known available update is restored before automatic preparation", async () => {
   const autoUpdater = fakeAutoUpdater();
   const fetch = fakeMacManifestFetch({ version: "1.9.0" });
   const statuses = [];
@@ -1010,13 +1092,13 @@ test("a known available update is restored before the network check", async () =
   assert.equal(statuses.at(-1).state, "available");
   assert.equal(statuses.at(-1).version, "1.9.0");
 
-  assert.equal(await controller.handleUpdateAction(), "downloading");
+  assert.equal(await controller.checkForUpdates({ manual: false }), "downloading");
   assert.equal(fetch.urls.length, 1);
   assert.equal(autoUpdater.checked, true);
-  assert.deepEqual(savedPreferences, [{ updateRequestedVersion: "1.9.0" }]);
+  assert.deepEqual(savedPreferences, []);
 });
 
-test("a restored update action survives a temporary network failure", async () => {
+test("a restored available indicator survives temporary automatic network failures", async () => {
   const statuses = [];
   const controller = createDesktopUpdateController({
     autoUpdater: fakeAutoUpdater(),
@@ -1033,10 +1115,10 @@ test("a restored update action survives a temporary network failure", async () =
   });
 
   assert.equal(await controller.restoreKnownUpdate(), true);
-  assert.equal(await controller.handleUpdateAction(), "error");
-  assert.equal(statuses.at(-1).state, "error");
+  assert.equal(await controller.checkForUpdates({ manual: false }), "error");
+  assert.equal(statuses.at(-1).state, "available");
   assert.equal(statuses.at(-1).version, "1.9.0");
-  assert.equal(await controller.handleUpdateAction(), "error");
+  assert.equal(await controller.checkForUpdates({ manual: false }), "error");
   assert.equal(statuses.at(-1).version, "1.9.0");
 });
 
@@ -1072,7 +1154,7 @@ test("a current build clears durable update discovery and request state", async 
   assert.equal(await controller.restoreKnownUpdate(), false);
 });
 
-test("clicking an available macOS update starts one persisted download", async () => {
+test("discovering an available macOS update starts one automatic download", async () => {
   const autoUpdater = fakeAutoUpdater();
   const savedPreferences = [];
   const statuses = [];
@@ -1088,13 +1170,9 @@ test("clicking an available macOS update starts one persisted download", async (
     showUpdateStatus: async (status) => statuses.push(status),
   });
 
-  await controller.checkForUpdates({ manual: false });
-  assert.equal(await controller.handleUpdateAction(), "downloading");
+  assert.equal(await controller.checkForUpdates({ manual: false }), "downloading");
   assert.equal(autoUpdater.checked, true);
-  assert.deepEqual(savedPreferences, [
-    { updateAvailableVersion: "1.9.0" },
-    { updateRequestedVersion: "1.9.0" },
-  ]);
+  assert.deepEqual(savedPreferences, [{ updateAvailableVersion: "1.9.0" }]);
   assert.deepEqual(statuses.map((status) => status.state), ["available", "downloading"]);
 });
 
@@ -1119,7 +1197,7 @@ test("a requested macOS update resumes after restart and installs on normal quit
   assert.equal(autoUpdater.installed, true);
 });
 
-test("automatic Windows checks wait for a click before preparing and install on quit", async () => {
+test("automatic Windows checks prepare immediately and install on quit", async () => {
   const prepared = [];
   const launched = [];
   const controller = createDesktopUpdateController({
@@ -1151,9 +1229,7 @@ test("automatic Windows checks wait for a click before preparing and install on 
     launchWindowsUpdate: (pending) => launched.push(pending),
   });
 
-  assert.equal(await controller.checkForUpdates({ manual: false }), "available");
-  assert.deepEqual(prepared, []);
-  assert.equal(await controller.handleUpdateAction(), "downloaded");
+  assert.equal(await controller.checkForUpdates({ manual: false }), "downloaded");
   assert.deepEqual(prepared, ["1.9.0"]);
   assert.equal(await controller.installPendingUpdateOnQuit(), false);
   assert.equal(launched.length, 1);
@@ -1175,7 +1251,6 @@ test("late macOS available events cannot move a downloaded update backwards", as
   });
 
   await controller.checkForUpdates({ manual: false });
-  await controller.handleUpdateAction();
   autoUpdater.listeners.get("update-downloaded")();
   autoUpdater.listeners.get("update-available")();
 
@@ -1183,7 +1258,7 @@ test("late macOS available events cannot move a downloaded update backwards", as
   assert.equal(await controller.installPendingUpdateOnQuit(), true);
 });
 
-test("a failed update-intent write blocks the download with a retryable state", async () => {
+test("a failed discovery-state write does not block the automatic download", async () => {
   const autoUpdater = fakeAutoUpdater();
   const statuses = [];
   const dialog = fakeDialog();
@@ -1201,14 +1276,11 @@ test("a failed update-intent write blocks the download with a retryable state", 
     showUpdateStatus: async (status) => statuses.push(status),
   });
 
-  await controller.checkForUpdates({ manual: false });
-  assert.equal(await controller.handleUpdateAction(), "error");
-  assert.equal(autoUpdater.checked, false);
-  assert.equal(statuses.at(-1).state, "error");
+  assert.equal(await controller.checkForUpdates({ manual: false }), "downloading");
+  assert.equal(autoUpdater.checked, true);
+  assert.equal(statuses.at(-1).state, "downloading");
   assert.equal(statuses.at(-1).version, "1.9.0");
-  assert.equal(statuses.at(-1).detail, "disk full");
-  assert.match(dialog.calls[0][0].message, /Could not save the update choice/);
-  assert.equal(dialog.calls[0][0].detail, "disk full");
+  assert.equal(dialog.calls.length, 0);
 });
 
 test("a synchronous macOS updater launch failure keeps a retryable update action", async () => {
@@ -1228,8 +1300,7 @@ test("a synchronous macOS updater launch failure keeps a retryable update action
     showUpdateStatus: async (status) => statuses.push(status),
   });
 
-  assert.equal(await controller.checkForUpdates({ manual: false }), "available");
-  assert.equal(await controller.handleUpdateAction(), "error");
+  assert.equal(await controller.checkForUpdates({ manual: false }), "error");
   assert.equal(statuses.at(-1).state, "error");
   assert.equal(statuses.at(-1).version, "1.9.0");
 });
@@ -1299,7 +1370,6 @@ test("install lifecycle is recorded at the real entry and entry failures are exp
   });
 
   await controller.checkForUpdates({ manual: false });
-  await controller.handleUpdateAction();
   assert.equal(updates.some((update) => update.state === "install_started"), false);
   assert.equal(controller.preparePendingUpdateOnQuit(), true);
   assert.equal(updates.some((update) => update.state === "install_started"), false);

@@ -184,15 +184,17 @@ manual download. Eligibility is fixed to:
 - current build: packaged `dev=true, distribution=source, releaseTrack=source`;
 - target: `distribution=official, releaseTrack=internal`, channel `internal-stable`;
 - version rule: target version strictly greater than the current development version;
+- preparation: automatic after validated discovery;
 - installation: user-selected, nonprivileged direct-`Contents` replacement at the same App path.
 
 No environment variable may select another packaged target. Community builds with `dev=false`, public
 or candidate channels, Windows source packages, and unpackaged desktop runs remain ineligible.
 
 Discovery validates the manifest track, channel, platform, semantic version, build ID, and commit. The
-user's choice persists that complete target identity before download. The development App downloads the
-manifest's exact internal ZIP directly, verifies its size and SHA-256, extracts it into a private update
-cache, and verifies its official Bundle ID, Developer ID team, version, and embedded build identity.
+development App persists that complete target identity before automatically downloading the manifest's
+exact internal ZIP. It verifies the ZIP's size and SHA-256, extracts it into a private update cache, and
+verifies its official Bundle ID, Developer ID team, version, and embedded build identity. Preparing a
+different target first removes the previous private cache, so only one complete handoff package remains.
 Ordinary Squirrel feeds remain strictly newer-version-only.
 
 When the package is ready and the user chooses installation, normal shutdown launches a detached

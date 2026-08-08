@@ -3,7 +3,7 @@ title: Git Leaf system architecture
 domain: ai
 type: architecture
 owner: maintainer
-last_updated: 2026-08-04
+last_updated: 2026-08-08
 source: git-leaf
 canonical: true
 ai_snippet: "[Architecture] Git Leaf | human desktop interface for shared context repositories | local HTTP service | Git worktrees | Preview Source Live | CodeMirror 6 | guarded Git sync"
@@ -595,9 +595,18 @@ URL and SHA-256 already named by the internal manifest. Equal or older targets r
 enter the handoff path.
 
 Official update checks read metadata only on launch, hourly, after reactivation, and after sleep. A
-package download starts only after the user chooses Update or a previously persisted update intent is
-resumed. The app saves state and shuts down its local service and windows before launching the platform
-installer. Failed preparation remains retryable and must not masquerade as an active download.
+valid newer package starts downloading and preparing automatically; the sidebar becomes actionable only
+after the package is ready. Choosing **Restart now** or quitting normally installs that ready package.
+Checks continue while a package is waiting, and a newer target supersedes it. Windows and development
+handoff preparation replace their whole private update cache before writing the new target; after
+Squirrel stages a newer official macOS target, Git Leaf removes every orphaned `update.*` directory while
+preserving the one referenced by `ShipItState.plist`. The steady state therefore contains at most one
+complete downloaded-but-uninstalled package. Failed preparation remains retryable and must not
+masquerade as an active download.
+
+Windows coordinates preparation and cleanup per update-cache root. A valid cached package is reusable
+only after its sibling entries are removed, and startup cleanup removes current, older, invalid, and
+loose cache entries while preserving at most the newest version that is still newer than the running App.
 
 For a development handoff, the client verifies the extracted App's complete embedded build identity,
 official Bundle ID, and Developer ID team before offering installation. Shutdown starts a detached,

@@ -21,6 +21,7 @@ import {
   normalizeDevelopmentHandoffReceipt,
   sameDevelopmentHandoffReceipt,
 } from "./development-handoff.mjs";
+import { pruneObsoleteMacUpdatePackages } from "./mac-update-cache.mjs";
 
 const DEFAULT_UPDATE_TRANSLATE = createDesktopTranslator({ language: "en" });
 
@@ -59,6 +60,9 @@ export function createDesktopUpdateController({
   launchWindowsUpdate = () => {
     throw new Error("Windows update launch is unavailable.");
   },
+  cleanupMacUpdateCache = () => pruneObsoleteMacUpdatePackages({
+    homeDir: app?.getPath?.("home") || "",
+  }),
   requestQuitForUpdate = async () => {},
   translate = DEFAULT_UPDATE_TRANSLATE,
 } = {}) {
@@ -69,6 +73,7 @@ export function createDesktopUpdateController({
   let pendingMacErrorManual = false;
   let pendingMacUpdate = null;
   let pendingWindowsUpdate = null;
+  let macUpdateCacheCleanupPromise = Promise.resolve(false);
   let installStartedForVersion = "";
   const platformKey = appUpdatePlatformKey({ platform, arch });
   const handoffTarget = developmentHandoffTarget({
@@ -154,6 +159,8 @@ export function createDesktopUpdateController({
         version: pendingMacUpdate.version || "",
         message: text("updates.downloaded"),
       });
+      macUpdateCacheCleanupPromise = macUpdateCacheCleanupPromise
+        .then(() => pruneMacUpdatePackages(cleanupMacUpdateCache));
     });
   }
 
@@ -273,9 +280,6 @@ export function createDesktopUpdateController({
       return "busy";
     }
     const existingUpdate = pendingMacUpdate || pendingWindowsUpdate;
-    if (existingUpdate?.state === "downloaded") {
-      return "downloaded";
-    }
     if (existingUpdate?.state === "downloading") {
       return "busy";
     }
@@ -292,6 +296,17 @@ export function createDesktopUpdateController({
       from_version: buildInfo?.version,
     });
     try {
+      if (
+        platform === "darwin"
+        && existingUpdate?.state === "downloaded"
+        && !existingUpdate.handoff
+      ) {
+        const cleanupComplete = await macUpdateCacheCleanupPromise;
+        if (!cleanupComplete) {
+          macUpdateCacheCleanupPromise = pruneMacUpdatePackages(cleanupMacUpdateCache);
+          await macUpdateCacheCleanupPromise;
+        }
+      }
       return await discoverUpdate({ manual });
     } finally {
       isChecking = false;
@@ -336,31 +351,24 @@ export function createDesktopUpdateController({
       pendingMacUpdate = null;
       pendingWindowsUpdate = null;
       const result = await checkForUpdates({ manual: true });
-      if (result !== "available") {
-        if (result === "error") {
-          restoredUpdate.state = "error";
-          if (restoredUpdate.platform === "darwin") {
-            pendingMacUpdate = restoredUpdate;
-          } else {
-            pendingWindowsUpdate = restoredUpdate;
-          }
-          await notifyUpdateStatus(showUpdateStatus, {
-            state: "error",
-            version: restoredUpdate.version,
-            manual: true,
-            message: text("updates.checkIncomplete"),
-          });
+      if (result === "error") {
+        restoredUpdate.state = "error";
+        if (restoredUpdate.platform === "darwin") {
+          pendingMacUpdate = restoredUpdate;
+        } else {
+          pendingWindowsUpdate = restoredUpdate;
         }
-        return result;
+        await notifyUpdateStatus(showUpdateStatus, {
+          state: "error",
+          version: restoredUpdate.version,
+          manual: true,
+          message: text("updates.checkIncomplete"),
+        });
       }
-      update = pendingMacUpdate || pendingWindowsUpdate;
+      return result;
     }
     if (!update) {
-      const result = await checkForUpdates({ manual: true });
-      if (result !== "available") {
-        return result;
-      }
-      return startPendingDownload({ trigger: "manual", persistIntent: true });
+      return checkForUpdates({ manual: true });
     }
     if (update.state === "downloading") {
       return "busy";
@@ -370,7 +378,10 @@ export function createDesktopUpdateController({
       return "install-now";
     }
     if (update.state === "available" || update.state === "error") {
-      return startPendingDownload({ trigger: "manual", persistIntent: true });
+      return startPendingDownload({
+        trigger: "manual",
+        persistIntent: Boolean(update.handoff),
+      });
     }
     return "unavailable";
   }
@@ -425,6 +436,7 @@ export function createDesktopUpdateController({
   }
 
   async function discoverUpdate({ manual = false } = {}) {
+    const existingUpdate = pendingMacUpdate || pendingWindowsUpdate;
     if (platform !== "darwin" && platform !== "win32") {
       if (manual) {
         await showUpdateInfo("updates.unsupportedPlatform");
@@ -576,6 +588,27 @@ export function createDesktopUpdateController({
       return "error";
     }
 
+    if (
+      existingUpdate?.state === "downloaded"
+      && existingUpdate.version
+      && compareAppVersions(existingUpdate.version, manifest.version) >= 0
+    ) {
+      notifyUpdateTelemetry(recordUpdateState, {
+        state: "downloaded",
+        trigger: manual ? "manual" : "automatic",
+        from_version: buildInfo?.version,
+        to_version: existingUpdate.version,
+      });
+      if (manual) {
+        await notifyUpdateStatus(showUpdateStatus, {
+          state: "downloaded",
+          version: existingUpdate.version,
+          message: text("updates.downloaded"),
+        });
+      }
+      return "downloaded";
+    }
+
     const pending = {
       version: String(manifest.version || "").trim(),
       name: manifest?.autoUpdater?.name || `Git Leaf ${manifest.version}`,
@@ -610,26 +643,19 @@ export function createDesktopUpdateController({
     }
     await clearLegacyUpdatePreferences();
 
-    if (
-      pending.handoff
-      && sameDevelopmentHandoffReceipt(
-        getDevelopmentHandoff(),
-        pending.handoff,
-      )
-    ) {
-      return startPendingDownload({
-        trigger: "automatic",
-        persistIntent: false,
-      });
-    }
-    const preferences = normalizedUpdatePreferences(getUpdatePreferences());
-    if (sameVersion(preferences.updateRequestedVersion, pending.version)) {
-      return startPendingDownload({ trigger: "automatic", persistIntent: false });
-    }
-    return "available";
+    return startPendingDownload({
+      trigger: pending.trigger,
+      persistIntent: Boolean(
+        pending.handoff
+        && !sameDevelopmentHandoffReceipt(
+          normalizeDevelopmentHandoffReceipt(getDevelopmentHandoff()),
+          pending.handoff,
+        )
+      ),
+    });
   }
 
-  async function startPendingDownload({ trigger = "manual", persistIntent = true } = {}) {
+  async function startPendingDownload({ trigger = "automatic", persistIntent = false } = {}) {
     const pending = pendingMacUpdate || pendingWindowsUpdate;
     if (!pending || !["available", "error"].includes(pending.state)) {
       return pending?.state === "downloading" ? "busy" : "unavailable";
@@ -645,31 +671,15 @@ export function createDesktopUpdateController({
         await notifyUpdateStatus(showUpdateStatus, {
           state: "error",
           version: pending.version,
-          manual: true,
+          manual: trigger === "manual",
           message,
           detail: errorDetail(error),
         });
-        await showUpdateInfo("updates.saveChoiceFailed", {
-          detail: errorDetail(error),
-        });
-        return "error";
-      }
-    } else if (persistIntent && pending.version) {
-      try {
-        await saveUpdatePreferences({ updateRequestedVersion: pending.version });
-      } catch (error) {
-        pending.state = "error";
-        const message = text("updates.saveChoiceFailedRetry");
-        await notifyUpdateStatus(showUpdateStatus, {
-          state: "error",
-          version: pending.version,
-          manual: true,
-          message,
-          detail: errorDetail(error),
-        });
-        await showUpdateInfo("updates.saveChoiceFailed", {
-          detail: errorDetail(error),
-        });
+        if (trigger === "manual") {
+          await showUpdateInfo("updates.saveChoiceFailed", {
+            detail: errorDetail(error),
+          });
+        }
         return "error";
       }
     }
@@ -864,6 +874,19 @@ export function createDesktopUpdateController({
         // Legacy preferences must not hide or block an available update.
       }
     }
+  }
+}
+
+async function pruneMacUpdatePackages(cleanupMacUpdateCache) {
+  if (typeof cleanupMacUpdateCache !== "function") {
+    return false;
+  }
+  try {
+    const result = await cleanupMacUpdateCache();
+    return result?.complete !== false;
+  } catch {
+    // The prepared update remains valid. A later download retries bounded cache cleanup.
+    return false;
   }
 }
 

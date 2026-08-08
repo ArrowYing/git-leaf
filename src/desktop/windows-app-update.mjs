@@ -18,6 +18,8 @@ import { compareAppVersions } from "./app-updates.mjs";
 
 const WINDOWS_UPDATE_WAIT_ARGUMENT = "--git-leaf-update-wait-pid=";
 const WINDOWS_EXECUTABLE = "Git Leaf.exe";
+const activePreparations = new Map();
+const activeCleanups = new Map();
 
 export function windowsUpdateCachePaths({ localAppData, version } = {}) {
   const updateRoot = path.join(localAppData, "GitLeaf", "updates");
@@ -32,20 +34,58 @@ export function windowsUpdateCachePaths({ localAppData, version } = {}) {
   };
 }
 
-export async function prepareWindowsAppUpdate({
-  manifest,
-  localAppData = process.env.LOCALAPPDATA,
-  fetchFn = globalThis.fetch,
-  extractArchive = extractZip,
-  pathExists = existsSync,
-} = {}) {
-  const artifact = windowsUpdateArtifact(manifest);
+export async function prepareWindowsAppUpdate(options = {}) {
+  const artifact = windowsUpdateArtifact(options.manifest);
+  const localAppData = options.localAppData ?? process.env.LOCALAPPDATA;
   if (!localAppData) {
     throw new Error("Windows update cache is unavailable because LOCALAPPDATA is missing.");
   }
   const paths = windowsUpdateCachePaths({ localAppData, version: artifact.version });
+  const activeCleanup = activeCleanups.get(paths.updateRoot);
+  if (activeCleanup) {
+    return activeCleanup
+      .catch(() => {})
+      .then(() => prepareWindowsAppUpdate(options));
+  }
+  const identity = JSON.stringify(artifact);
+  const active = activePreparations.get(paths.updateRoot);
+  if (active) {
+    if (active.identity === identity) {
+      return active.promise;
+    }
+    return active.promise
+      .catch(() => {})
+      .then(() => prepareWindowsAppUpdate(options));
+  }
+
+  let tracked;
+  tracked = prepareWindowsAppUpdateOnce({
+    ...options,
+    artifact,
+    localAppData,
+    paths,
+  }).finally(() => {
+    if (activePreparations.get(paths.updateRoot)?.promise === tracked) {
+      activePreparations.delete(paths.updateRoot);
+    }
+  });
+  activePreparations.set(paths.updateRoot, { identity, promise: tracked });
+  return tracked;
+}
+
+async function prepareWindowsAppUpdateOnce({
+  artifact,
+  paths,
+  fetchFn = globalThis.fetch,
+  extractArchive = extractZip,
+  pathExists = existsSync,
+} = {}) {
   const cached = await readPreparedUpdate({ paths, artifact, pathExists });
   if (cached) {
+    await pruneWindowsUpdateRoot({
+      updateRoot: paths.updateRoot,
+      preservedVersionRoot: paths.versionRoot,
+    });
     return cached;
   }
 
@@ -111,20 +151,71 @@ export async function cleanupWindowsUpdateCache({
     return false;
   }
   const updateRoot = path.join(localAppData, "GitLeaf", "updates");
+  const activeCleanup = activeCleanups.get(updateRoot);
+  if (activeCleanup) {
+    return activeCleanup;
+  }
+  const activePreparation = activePreparations.get(updateRoot);
+  if (activePreparation) {
+    return activePreparation.promise
+      .catch(() => {})
+      .then(() => cleanupWindowsUpdateCache({ localAppData, currentVersion }));
+  }
+
+  let tracked;
+  tracked = cleanupWindowsUpdateCacheOnce({
+    updateRoot,
+    currentVersion,
+  }).finally(() => {
+    if (activeCleanups.get(updateRoot) === tracked) {
+      activeCleanups.delete(updateRoot);
+    }
+  });
+  activeCleanups.set(updateRoot, tracked);
+  return tracked;
+}
+
+async function cleanupWindowsUpdateCacheOnce({ updateRoot, currentVersion }) {
   try {
     if (!currentVersion) {
       await rm(updateRoot, { recursive: true, force: true });
       return true;
     }
+    if (!validSemanticVersion(currentVersion)) {
+      return false;
+    }
     const entries = await readdir(updateRoot, { withFileTypes: true });
-    await Promise.all(entries
+    const preservedName = entries
       .filter((entry) => entry.isDirectory())
-      .filter((entry) => compareAppVersions(entry.name, currentVersion) <= 0)
-      .map((entry) => rm(path.join(updateRoot, entry.name), { recursive: true, force: true })));
-    return true;
-  } catch {
-    return false;
+      .filter((entry) => validSemanticVersion(entry.name))
+      .filter((entry) => compareAppVersions(entry.name, currentVersion) > 0)
+      .map((entry) => entry.name)
+      .sort(compareVersionDirectoryNames)
+      .at(-1) || "";
+    const removals = entries
+      .filter((entry) => entry.name !== preservedName)
+      .map((entry) => rm(path.join(updateRoot, entry.name), {
+        recursive: true,
+        force: true,
+      }));
+    const results = await Promise.allSettled(removals);
+    return results.every((result) => result.status === "fulfilled");
+  } catch (error) {
+    return error?.code === "ENOENT";
   }
+}
+
+async function pruneWindowsUpdateRoot({ updateRoot, preservedVersionRoot }) {
+  const resolvedRoot = path.resolve(updateRoot);
+  const resolvedPreserved = path.resolve(preservedVersionRoot);
+  if (path.dirname(resolvedPreserved) !== resolvedRoot) {
+    throw new Error("Invalid Windows update cache path.");
+  }
+  const entries = await readdir(resolvedRoot, { withFileTypes: true });
+  await Promise.all(entries
+    .map((entry) => path.join(resolvedRoot, entry.name))
+    .filter((entryPath) => entryPath !== resolvedPreserved)
+    .map((entryPath) => rm(entryPath, { recursive: true, force: true })));
 }
 
 export function windowsUpdateWaitProcessId(args = []) {
@@ -230,4 +321,19 @@ function safeVersion(value) {
     throw new Error("Invalid Windows update version.");
   }
   return version;
+}
+
+function validSemanticVersion(value) {
+  if (typeof value !== "string" || value.length > 40) return false;
+  const match = value.match(
+    /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/,
+  );
+  if (!match) return false;
+  return !String(match[4] ?? "").split(".").some((identifier) =>
+    /^\d+$/.test(identifier) && identifier.length > 1 && identifier.startsWith("0")
+  );
+}
+
+function compareVersionDirectoryNames(left, right) {
+  return compareAppVersions(left, right) || left.localeCompare(right, "en");
 }

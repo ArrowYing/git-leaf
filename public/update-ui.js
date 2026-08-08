@@ -9,9 +9,9 @@ export function sidebarUpdateView(status = {}, locale = "zh-CN") {
     return {
       hidden: false,
       title,
-      detail: t("update.availableDetail"),
-      actionLabel: t("update.action"),
-      actionDisabled: false,
+      detail: t("update.preparingDetail"),
+      actionLabel: "",
+      actionDisabled: true,
     };
   }
   if (status?.state === "downloading" || status?.state === "preparing") {

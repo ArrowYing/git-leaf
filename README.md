@@ -1,5 +1,5 @@
 ---
-last_updated: 2026-08-04
+last_updated: 2026-08-08
 ---
 
 # Git Leaf
@@ -230,8 +230,14 @@ Settings identifies source, official public, official internal, and development 
 effective usage-analytics state. There are still only two official release tracks—public and
 internal—and two macOS Bundle IDs. An installed source development build is not a third release: it may
 only switch to the latest official internal package after that package's version becomes strictly newer
-than the development version and the user chooses Update. An equal or older official version is treated
-as current. A Community package without the development marker remains disconnected from official feeds.
+than the development version. The verified package downloads automatically, while installation still
+waits for a normal quit or **Restart now**. An equal or older official version is treated as current. A
+Community package without the development marker remains disconnected from official feeds.
+
+Official builds automatically download and prepare a newly discovered version. Until it is ready, the
+sidebar shows progress without a download button; afterward it offers **Restart now**, and a normal quit
+also installs it. If another version appears first, it replaces the waiting package. Git Leaf keeps at
+most one complete downloaded-but-uninstalled package in its update cache.
 
 A build default is normally used only for first-time initialization, and ordinary updates preserve an
 existing `usageAnalyticsEnabled` value. The source-dev-to-internal identity handoff is the bounded

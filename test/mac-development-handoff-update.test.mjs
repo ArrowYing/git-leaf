@@ -2,9 +2,11 @@ import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
 import { Readable } from "node:stream";
 import {
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  readdirSync,
   rmSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -15,6 +17,7 @@ import {
   extractMacDevelopmentHandoffArchive,
   installPreparedMacDevelopmentHandoff,
   launchMacDevelopmentHandoffUpdate,
+  macDevelopmentHandoffCachePaths,
   prepareMacDevelopmentHandoffUpdate,
 } from "../src/desktop/mac-development-handoff-update.mjs";
 
@@ -46,15 +49,15 @@ function manifest() {
   };
 }
 
-function inspectedTarget() {
+function inspectedTarget(receipt = RECEIPT) {
   return {
     bundleId: "com.mangofuture.gitleaf",
     teamIdentifier: "HN6X79BUSR",
-    version: RECEIPT.version,
+    version: receipt.version,
     buildInfo: {
       distribution: "official",
       usageAnalyticsDefault: true,
-      ...RECEIPT,
+      ...receipt,
     },
   };
 }
@@ -119,6 +122,60 @@ test("mac development handoff prepares only the exact signed internal target", {
     assert.equal(ready.sourceAppPath.endsWith("Git Leaf.app"), true);
     assert.equal(ready.targetAppPath, targetAppPath);
     assert.deepEqual(ready.handoff, RECEIPT);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("a newer development handoff removes the older uninstalled package", {
+  skip: process.platform === "win32" && "preparation uses macOS-native removal",
+}, async () => {
+  const root = mkdtempSync(path.join(tmpdir(), "git-leaf-mac-handoff-replace."));
+  try {
+    const userDataDir = path.join(root, "user-data");
+    const targetAppPath = path.join(root, "installed", "Git Leaf.app");
+    mkdirSync(targetAppPath, { recursive: true });
+    const replacement = {
+      ...RECEIPT,
+      version: "1.17.0",
+      buildId: "3d4f9e9dfdfc.20260808T010000Z.internal",
+      commit: "3d4f9e9dfdfc",
+    };
+    const prepare = (handoff) => prepareMacDevelopmentHandoffUpdate({
+      manifest: {
+        ...manifest(),
+        ...handoff,
+        files: {
+          zip: {
+            ...manifest().files.zip,
+            name: `GitLeaf-${handoff.version}-internal-darwin-universal.zip`,
+          },
+        },
+      },
+      handoff,
+      userDataDir,
+      targetAppPath,
+      fetchFn: async () => ({
+        ok: true,
+        status: 200,
+        body: Readable.from([ARCHIVE]),
+      }),
+      extractArchive: async (_archivePath, { dir }) => {
+        mkdirSync(path.join(dir, "Git Leaf.app"), { recursive: true });
+      },
+      inspectApp: () => inspectedTarget(handoff),
+    });
+
+    const first = await prepare(RECEIPT);
+    const second = await prepare(replacement);
+    const updateRoot = macDevelopmentHandoffCachePaths({
+      userDataDir,
+      handoff: replacement,
+    }).updateRoot;
+
+    assert.deepEqual(readdirSync(updateRoot), [replacement.buildId]);
+    assert.equal(existsSync(first.readyFile), false);
+    assert.equal(existsSync(second.readyFile), true);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

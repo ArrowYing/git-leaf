@@ -1,5 +1,5 @@
 ---
-last_updated: 2026-08-04
+last_updated: 2026-08-08
 ---
 
 # Git Leaf user guide
@@ -445,6 +445,11 @@ Open Settings and Help with `Command+,` on macOS or `Ctrl+,` on Windows. From th
 - document font and text size;
 - Content files or All repository files;
 - build, update, and usage-analytics settings available for the installed distribution.
+
+Official builds download a valid newer version automatically. The lower-left update card shows
+preparation without a download button, then offers **Restart now** when the package is ready; quitting
+normally installs it too. If a still newer version appears first, it replaces the waiting package, and
+the update cache keeps at most one complete downloaded-but-uninstalled package.
 
 The same screen contains Git Leaf Help, supported file types, environment and repository status, and
 the complete keyboard-shortcut list. Open shortcuts directly with `Command+?` on macOS or `Ctrl+?` on

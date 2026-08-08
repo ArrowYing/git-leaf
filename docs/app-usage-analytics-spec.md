@@ -1,5 +1,5 @@
 ---
-last_updated: 2026-08-03
+last_updated: 2026-08-08
 status: normative
 ---
 
@@ -227,8 +227,9 @@ Common properties:
 | `failed` | A stable error code was recorded | Analyze by stage and app capability |
 | `skipped` | Reserved | Not a core metric |
 
-`automatic` can resume a previously persisted user intent. `completed` currently uses `automatic`; it
-must not be attributed as an automatic update.
+`automatic` includes scheduled discovery and automatic package preparation. `completed` currently uses
+`automatic`; it must not be attributed as an automatic installation because installation still begins
+only when the user quits or chooses the ready action.
 
 For current clients:
 

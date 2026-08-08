@@ -117,15 +117,15 @@ export const DESKTOP_MESSAGES = Object.freeze({
     "updates.checking": "Checking for updates…",
     "updates.downloading": "Downloading and preparing the new version…",
     "updates.downloaded": "The new version is ready and will install after Git Leaf quits.",
-    "updates.available": "A new version is available. Choose Update to start downloading.",
+    "updates.available": "A new version is available and is downloading automatically.",
     "updates.current": "Git Leaf is up to date.",
     "updates.error": "Could not check for updates.",
     "updates.packageUnavailable":
       "The update package is temporarily unavailable. Choose Retry.",
     "updates.availableVersion":
-      "Git Leaf {version} is available. Choose Update to start downloading.",
+      "Git Leaf {version} is available and is downloading automatically.",
     "updates.handoffAvailableVersion":
-      "Switch to the internal Git Leaf {version} release. Choose Update to start downloading.",
+      "The internal Git Leaf {version} release is available and is downloading automatically.",
     "updates.disabledDevBuild":
       "Only a packaged Git Leaf dev installation can switch to the internal release.",
     "updates.disabledSourceBuild":
@@ -147,8 +147,8 @@ export const DESKTOP_MESSAGES = Object.freeze({
     "updates.manifestVersionInvalid": "The update manifest contains an invalid version.",
     "updates.packageUrlMissing":
       "A new version is available, but its update package URL is missing.",
-    "updates.saveChoiceFailedRetry": "Could not save the update choice. Choose Retry.",
-    "updates.saveChoiceFailed": "Could not save the update choice.",
+    "updates.saveChoiceFailedRetry": "Could not save the verified update target. Choose Retry.",
+    "updates.saveChoiceFailed": "Could not save the verified update target.",
     "updates.prepareFailedRetry": "Could not prepare the update. Choose Retry.",
     "updates.prepareFailed": "Could not prepare the update.",
   }),
@@ -262,13 +262,13 @@ export const DESKTOP_MESSAGES = Object.freeze({
     "updates.checking": "正在检查更新…",
     "updates.downloading": "正在下载并准备新版本…",
     "updates.downloaded": "新版本已准备好，退出 Git Leaf 后自动安装。",
-    "updates.available": "发现新版本，点击更新后开始下载。",
+    "updates.available": "发现新版本，正在自动下载。",
     "updates.current": "Git Leaf 已经是最新版本。",
     "updates.error": "检查更新失败。",
     "updates.packageUnavailable": "更新包暂不可用，点击重试。",
-    "updates.availableVersion": "Git Leaf {version} 可用，点击更新后开始下载。",
+    "updates.availableVersion": "Git Leaf {version} 可用，正在自动下载。",
     "updates.handoffAvailableVersion":
-      "可切换到 Git Leaf {version} 内部正式版，点击更新后开始下载。",
+      "Git Leaf {version} 内部正式版可用，正在自动下载。",
     "updates.disabledDevBuild":
       "只有已打包安装的 Git Leaf dev 才能切换到内部正式版。",
     "updates.disabledSourceBuild":
@@ -286,8 +286,8 @@ export const DESKTOP_MESSAGES = Object.freeze({
     "updates.manifestPlatformMismatch": "更新清单的平台与当前构建不匹配。",
     "updates.manifestVersionInvalid": "更新清单中的版本号无效。",
     "updates.packageUrlMissing": "发现新版本，但更新包地址缺失。",
-    "updates.saveChoiceFailedRetry": "无法保存更新选择，点击重试。",
-    "updates.saveChoiceFailed": "无法保存更新选择。",
+    "updates.saveChoiceFailedRetry": "无法保存已验证的更新目标，点击重试。",
+    "updates.saveChoiceFailed": "无法保存已验证的更新目标。",
     "updates.prepareFailedRetry": "准备更新失败，点击重试。",
     "updates.prepareFailed": "准备更新失败。",
   }),
