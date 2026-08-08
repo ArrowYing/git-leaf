@@ -52,6 +52,7 @@ import {
   closeDesktopRepository,
   mutateDesktopRepositoryFavorites,
   readDesktopConfig,
+  reorderDesktopRepositories,
   saveDesktopDevelopmentHandoff,
   saveDesktopPreferences,
   saveDesktopRepository,
@@ -63,6 +64,7 @@ import { sidebarFavoritesForScope } from "../../public/sidebar-favorites.js";
 import {
   REPOSITORY_PANEL_CLOSE_URL,
   REPOSITORY_PANEL_REMOVE_URL,
+  REPOSITORY_PANEL_REORDER_URL,
   REPOSITORY_PANEL_SHOW_URL,
   REPOSITORY_PANEL_SWITCH_URL,
 } from "../../public/repository-panel.js";
@@ -111,6 +113,7 @@ import {
   desktopRepositoryPanelItems,
   desktopRepositoryPanelShortcutFromInput,
   desktopRepositoryRootForPanelId,
+  desktopRepositoryRootsForPanelOrder,
 } from "./repository-panel.mjs";
 import {
   bootstrapWindowsApp,
@@ -184,6 +187,7 @@ const DESKTOP_SHOW_REPOSITORIES_ACTION = new URL(REPOSITORY_PANEL_SHOW_URL);
 const DESKTOP_CLOSE_REPOSITORIES_ACTION = new URL(REPOSITORY_PANEL_CLOSE_URL);
 const DESKTOP_SWITCH_REPOSITORY_ACTION = new URL(REPOSITORY_PANEL_SWITCH_URL);
 const DESKTOP_REMOVE_REPOSITORY_ACTION = new URL(REPOSITORY_PANEL_REMOVE_URL);
+const DESKTOP_REORDER_REPOSITORIES_ACTION = new URL(REPOSITORY_PANEL_REORDER_URL);
 const APP_DISPLAY_NAME = appDisplayName(BUILD_INFO);
 const DESKTOP_UPDATES_ENABLED = desktopUpdatesEnabled({
   buildInfo: BUILD_INFO,
@@ -1567,6 +1571,10 @@ async function handleDesktopAction(url) {
     await removeRepositoryFromPanel(action.searchParams.get("id") ?? "");
     return;
   }
+  if (action.hostname === DESKTOP_REORDER_REPOSITORIES_ACTION.hostname) {
+    await reorderRepositoriesFromPanel(action.searchParams.getAll("id"));
+    return;
+  }
   if (action.hostname === DESKTOP_OPEN_REPOSITORY_ACTION.hostname) {
     isRepositoryPanelOpen = false;
     await chooseAndOpenRepository();
@@ -1589,6 +1597,7 @@ function isDesktopActionUrl(url) {
       DESKTOP_CLOSE_REPOSITORIES_ACTION.hostname,
       DESKTOP_SWITCH_REPOSITORY_ACTION.hostname,
       DESKTOP_REMOVE_REPOSITORY_ACTION.hostname,
+      DESKTOP_REORDER_REPOSITORIES_ACTION.hostname,
       DESKTOP_OPEN_REPOSITORY_ACTION.hostname,
       DESKTOP_OPEN_WORKTREE_ACTION.hostname,
       DESKTOP_INSTALL_UPDATE_ACTION.hostname,
@@ -1991,6 +2000,26 @@ async function removeRepositoryFromPanel(repositoryId) {
       repository: path.basename(targetRoot),
     },
   });
+}
+
+async function reorderRepositoriesFromPanel(repositoryIds) {
+  if (isRepositoryTransitioning || !isRepositoryPanelOpen) {
+    return false;
+  }
+  const orderedRoots = desktopRepositoryRootsForPanelOrder(
+    desktopRepositoryState.openRepoRoots,
+    repositoryIds,
+  );
+  if (!orderedRoots) {
+    return false;
+  }
+
+  desktopRepositoryState = await reorderDesktopRepositories({
+    userDataDir: userDataDir(),
+    openRepoRoots: orderedRoots,
+  });
+  installMenu();
+  return true;
 }
 
 async function openKnownRepository(

@@ -175,9 +175,11 @@ import {
   defaultRepositoryPanelSelection,
   moveRepositoryPanelSelection,
   normalizeRepositoryPanelItems,
+  reorderRepositoryPanelItems,
   repositoryPanelActionUrl,
   repositoryHeaderUsesWorktreeSelector,
   repositoryPanelItemForShortcut,
+  repositoryPanelReorderUrl,
   visibleRepositoryPanelItems,
 } from "./repository-panel.js";
 import {
@@ -414,6 +416,8 @@ const state = {
   repositoryPanelItems: [],
   repositoryPanelVisibleItems: [],
   repositoryPanelSelectedId: "",
+  repositoryPanelDraggingId: "",
+  repositoryPanelPointerDrag: null,
   repositoryPanelReturnFocus: null,
 };
 
@@ -649,6 +653,10 @@ repositoryPanelOpen.addEventListener("click", openAnotherRepositoryFromPanel);
 repositoryPanelSearch.addEventListener("input", renderRepositoryPanel);
 repositoryPanel.addEventListener("click", handleRepositoryPanelClick);
 repositoryPanel.addEventListener("keydown", handleRepositoryPanelKeydown);
+repositoryPanelList.addEventListener("pointerdown", handleRepositoryPanelPointerDown);
+repositoryPanelList.addEventListener("pointermove", handleRepositoryPanelPointerMove);
+repositoryPanelList.addEventListener("pointerup", handleRepositoryPanelPointerUp);
+repositoryPanelList.addEventListener("pointercancel", handleRepositoryPanelPointerCancel);
 documentFavoriteToggle.addEventListener("click", toggleCurrentDocumentFavorite);
 documentActionsMore.addEventListener("click", showCurrentDocumentActionsMenu);
 fileActionMenu.addEventListener("click", handleFileActionMenuClick);
@@ -2778,6 +2786,7 @@ function closeRepositoryPanel({ notifyDesktop = true, restoreFocus = true } = {}
   state.repositoryPanelItems = [];
   state.repositoryPanelVisibleItems = [];
   state.repositoryPanelSelectedId = "";
+  clearRepositoryPanelDrag();
   const returnFocus = state.repositoryPanelReturnFocus;
   state.repositoryPanelReturnFocus = null;
   if (restoreFocus && returnFocus?.isConnected) {
@@ -2816,6 +2825,15 @@ function repositoryPanelRowElement(item) {
   row.className = "repository-panel-row";
   row.classList.toggle("is-selected", item.id === state.repositoryPanelSelectedId);
   row.dataset.repositoryPanelRow = item.id;
+
+  const dragHandle = document.createElement("button");
+  dragHandle.type = "button";
+  dragHandle.className = "repository-panel-row-drag";
+  dragHandle.dataset.repositoryPanelDrag = item.id;
+  dragHandle.setAttribute("aria-label", t("repository.reorder", { repository: item.name }));
+  dragHandle.setAttribute("aria-keyshortcuts", "ArrowUp ArrowDown");
+  dragHandle.setAttribute("data-ui-tooltip", t("repository.reorderHint"));
+  dragHandle.textContent = "⠿";
 
   const main = document.createElement("button");
   main.type = "button";
@@ -2872,8 +2890,167 @@ function repositoryPanelRowElement(item) {
   actions.setAttribute("aria-expanded", "false");
   actions.textContent = "···";
 
-  row.append(main, actions);
+  row.append(dragHandle, main, actions);
   return row;
+}
+
+function handleRepositoryPanelPointerDown(event) {
+  const handle = event.target.closest?.("[data-repository-panel-drag]");
+  if (!handle || event.button !== 0 || state.repositoryPanelItems.length < 2) {
+    return;
+  }
+  const repositoryId = handle.dataset.repositoryPanelDrag;
+  if (!state.repositoryPanelItems.some((item) => item.id === repositoryId)) {
+    return;
+  }
+
+  event.preventDefault();
+  handle.focus({ preventScroll: true });
+  handle.setPointerCapture?.(event.pointerId);
+  state.repositoryPanelPointerDrag = {
+    id: repositoryId,
+    pointerId: event.pointerId,
+    startY: event.clientY,
+    dragging: false,
+  };
+}
+
+function handleRepositoryPanelPointerMove(event) {
+  const pointerDrag = state.repositoryPanelPointerDrag;
+  if (!pointerDrag || pointerDrag.pointerId !== event.pointerId) {
+    return;
+  }
+  event.preventDefault();
+  if (!pointerDrag.dragging) {
+    if (Math.abs(event.clientY - pointerDrag.startY) < 4) {
+      return;
+    }
+    pointerDrag.dragging = true;
+    state.repositoryPanelDraggingId = pointerDrag.id;
+    state.repositoryPanelSelectedId = pointerDrag.id;
+    repositoryPanelList
+      .querySelector(`[data-repository-panel-row="${cssEscape(pointerDrag.id)}"]`)
+      ?.classList.add("is-dragging");
+  }
+  autoScrollRepositoryPanelDuringDrag(event.clientY);
+  showRepositoryPanelDropTarget(repositoryPanelDropTarget(event.clientY));
+}
+
+function handleRepositoryPanelPointerUp(event) {
+  finishRepositoryPanelPointerDrag(event, { cancelled: false });
+}
+
+function handleRepositoryPanelPointerCancel(event) {
+  finishRepositoryPanelPointerDrag(event, { cancelled: true });
+}
+
+function finishRepositoryPanelPointerDrag(event, { cancelled }) {
+  const pointerDrag = state.repositoryPanelPointerDrag;
+  if (!pointerDrag || pointerDrag.pointerId !== event.pointerId) {
+    return;
+  }
+  if (pointerDrag.dragging) {
+    event.preventDefault();
+  }
+  const handle = repositoryPanelList.querySelector(
+    `[data-repository-panel-drag="${cssEscape(pointerDrag.id)}"]`,
+  );
+  if (handle?.hasPointerCapture?.(event.pointerId)) {
+    handle.releasePointerCapture(event.pointerId);
+  }
+  const dropTarget = pointerDrag.dragging && !cancelled
+    ? repositoryPanelDropTarget(event.clientY)
+    : null;
+  clearRepositoryPanelDrag();
+  if (!dropTarget) {
+    return;
+  }
+  applyRepositoryPanelReorder(pointerDrag.id, dropTarget.id, dropTarget.placement);
+}
+
+function repositoryPanelDropTarget(clientY) {
+  const rows = [...repositoryPanelList.querySelectorAll("[data-repository-panel-row]")]
+    .filter((row) => row.dataset.repositoryPanelRow !== state.repositoryPanelDraggingId);
+  if (rows.length === 0) {
+    return null;
+  }
+  const targetRow = rows.find((row) => clientY < row.getBoundingClientRect().bottom) ?? rows.at(-1);
+  const rect = targetRow.getBoundingClientRect();
+  return {
+    id: targetRow.dataset.repositoryPanelRow,
+    placement: clientY < rect.top + rect.height / 2 ? "before" : "after",
+  };
+}
+
+function showRepositoryPanelDropTarget(dropTarget) {
+  for (const row of repositoryPanelList.querySelectorAll("[data-repository-panel-row]")) {
+    row.classList.remove("is-drop-before", "is-drop-after");
+  }
+  if (!dropTarget) {
+    return;
+  }
+  repositoryPanelList
+    .querySelector(`[data-repository-panel-row="${cssEscape(dropTarget.id)}"]`)
+    ?.classList.add(dropTarget.placement === "after" ? "is-drop-after" : "is-drop-before");
+}
+
+function autoScrollRepositoryPanelDuringDrag(clientY) {
+  const rect = repositoryPanelList.getBoundingClientRect();
+  const edgeSize = 32;
+  if (clientY < rect.top + edgeSize) {
+    repositoryPanelList.scrollTop -= 16;
+  } else if (clientY > rect.bottom - edgeSize) {
+    repositoryPanelList.scrollTop += 16;
+  }
+}
+
+function clearRepositoryPanelDrag() {
+  const pointerDrag = state.repositoryPanelPointerDrag;
+  const handle = pointerDrag
+    ? repositoryPanelList.querySelector(
+        `[data-repository-panel-drag="${cssEscape(pointerDrag.id)}"]`,
+      )
+    : null;
+  if (handle?.hasPointerCapture?.(pointerDrag.pointerId)) {
+    handle.releasePointerCapture(pointerDrag.pointerId);
+  }
+  state.repositoryPanelDraggingId = "";
+  state.repositoryPanelPointerDrag = null;
+  for (const row of repositoryPanelList.querySelectorAll("[data-repository-panel-row]")) {
+    row.classList.remove("is-dragging", "is-drop-before", "is-drop-after");
+  }
+}
+
+function applyRepositoryPanelReorder(
+  movedId,
+  targetId,
+  placement,
+  { restoreDragFocus = false } = {},
+) {
+  const previousIds = state.repositoryPanelItems.map((item) => item.id);
+  const reorderedItems = reorderRepositoryPanelItems(
+    state.repositoryPanelItems,
+    movedId,
+    targetId,
+    placement,
+  );
+  const reorderedIds = reorderedItems.map((item) => item.id);
+  if (reorderedIds.every((id, index) => id === previousIds[index])) {
+    return false;
+  }
+
+  state.repositoryPanelItems = reorderedItems;
+  state.repositoryPanelSelectedId = movedId;
+  renderRepositoryPanel();
+  requestRepositoryPanelOrder(reorderedIds);
+  if (restoreDragFocus) {
+    window.requestAnimationFrame(() => {
+      repositoryPanelList
+        .querySelector(`[data-repository-panel-drag="${cssEscape(movedId)}"]`)
+        ?.focus({ preventScroll: true });
+    });
+  }
+  return true;
 }
 
 function repositoryPanelOptionId(repositoryId) {
@@ -2906,6 +3083,24 @@ function handleRepositoryPanelKeydown(event) {
     event.preventDefault();
     event.stopPropagation();
     closeRepositoryPanel();
+    return;
+  }
+  const dragHandle = event.target.closest?.("[data-repository-panel-drag]");
+  if (dragHandle && ["ArrowDown", "ArrowUp"].includes(event.key)) {
+    event.preventDefault();
+    event.stopPropagation();
+    const movedId = dragHandle.dataset.repositoryPanelDrag;
+    const currentIndex = state.repositoryPanelVisibleItems.findIndex((item) => item.id === movedId);
+    const direction = event.key === "ArrowUp" ? -1 : 1;
+    const target = state.repositoryPanelVisibleItems[currentIndex + direction];
+    if (target) {
+      applyRepositoryPanelReorder(
+        movedId,
+        target.id,
+        direction < 0 ? "before" : "after",
+        { restoreDragFocus: true },
+      );
+    }
     return;
   }
   if (["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
@@ -3023,6 +3218,13 @@ function showRepositoryPanelActions(repositoryId, returnFocus) {
 
 function requestRepositoryPanelAction(action, repositoryId = "") {
   const url = repositoryPanelActionUrl(action, repositoryId);
+  if (url) {
+    window.location.href = url;
+  }
+}
+
+function requestRepositoryPanelOrder(repositoryIds) {
+  const url = repositoryPanelReorderUrl(repositoryIds);
   if (url) {
     window.location.href = url;
   }

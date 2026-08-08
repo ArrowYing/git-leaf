@@ -88,7 +88,8 @@ Repository identity and worktree state follow these rules:
 
 - the repository is the stable top-level identity;
 - worktrees are working directories within that repository;
-- the desktop repository list preserves first-open order and does not reorder on use;
+- the desktop repository list preserves the explicit user order, appends newly opened repositories, and
+  does not reorder merely because a repository is used;
 - the worktree selector is hidden when only the primary worktree exists;
 - available worktrees come from `git worktree list --porcelain -z`, with the tested line-oriented
   fallback used only when the installed Git explicitly rejects `-z`;
@@ -104,6 +105,9 @@ renderer does not receive the complete local repository roots. While that modal 
 shortcuts select only the visibly numbered results and zero opens the existing directory chooser. Switch
 and removal requests return only the opaque ID to the desktop shell, which resolves it against the current
 `openRepoRoots` list and reuses the normal repository transition or configuration mutation boundary.
+Drag reordering sends an exact permutation of those opaque IDs; the desktop shell rejects missing,
+duplicate, or unknown IDs before persisting the new `openRepoRoots` order, so local paths remain outside
+the renderer contract. Visible number shortcuts are recalculated from the reordered and filtered list.
 Removing a repository from the panel never deletes its local directory or clears its saved session and
 Favorites. Worktree selection remains a separate, repository-scoped control; when a repository has
 multiple worktrees, that selector replaces the repeated standalone repository name while the repository

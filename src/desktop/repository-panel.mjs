@@ -28,6 +28,26 @@ export function desktopRepositoryRootForPanelId(repoRoots, repositoryId) {
   ) ?? "";
 }
 
+export function desktopRepositoryRootsForPanelOrder(repoRoots, repositoryIds) {
+  const roots = normalizedRepositoryRoots(repoRoots);
+  const ids = Array.isArray(repositoryIds)
+    ? repositoryIds.map((repositoryId) => String(repositoryId ?? "").trim())
+    : [];
+  if (
+    ids.length !== roots.length
+    || new Set(ids).size !== ids.length
+    || ids.some((id) => !/^[a-f0-9]{16}$/u.test(id))
+  ) {
+    return null;
+  }
+
+  const rootById = new Map(
+    roots.map((repoRoot) => [desktopRepositoryPanelId(repoRoot), repoRoot]),
+  );
+  const orderedRoots = ids.map((id) => rootById.get(id));
+  return orderedRoots.every(Boolean) ? orderedRoots : null;
+}
+
 export function desktopRepositoryPanelShortcutFromInput(input, { open = false } = {}) {
   if (!open || (input?.type && input.type !== "keyDown")) {
     return null;

@@ -5,15 +5,18 @@ import {
   defaultRepositoryPanelSelection,
   moveRepositoryPanelSelection,
   normalizeRepositoryPanelItems,
+  reorderRepositoryPanelItems,
   repositoryPanelActionUrl,
   repositoryHeaderUsesWorktreeSelector,
   repositoryPanelItemForShortcut,
+  repositoryPanelReorderUrl,
   visibleRepositoryPanelItems,
 } from "../public/repository-panel.js";
 import {
   desktopRepositoryPanelItems,
   desktopRepositoryPanelShortcutFromInput,
   desktopRepositoryRootForPanelId,
+  desktopRepositoryRootsForPanelOrder,
 } from "../src/desktop/repository-panel.mjs";
 
 const PANEL_ITEMS = [
@@ -98,6 +101,21 @@ test("repository panel selection wraps across the visible result set", () => {
   assert.equal(moveRepositoryPanelSelection([], "", 1), "");
 });
 
+test("repository panel reorders one item before or after another without losing metadata", () => {
+  assert.deepEqual(
+    reorderRepositoryPanelItems(PANEL_ITEMS, "content", "mango", "before"),
+    [PANEL_ITEMS[2], PANEL_ITEMS[0], PANEL_ITEMS[1]],
+  );
+  assert.deepEqual(
+    reorderRepositoryPanelItems(PANEL_ITEMS, "mango", "content", "after"),
+    [PANEL_ITEMS[1], PANEL_ITEMS[2], PANEL_ITEMS[0]],
+  );
+  assert.deepEqual(
+    reorderRepositoryPanelItems(PANEL_ITEMS, "missing", "content", "after"),
+    PANEL_ITEMS,
+  );
+});
+
 test("repository panel normalization rejects incomplete and duplicate display items", () => {
   assert.deepEqual(normalizeRepositoryPanelItems([
     { id: "one", name: "One" },
@@ -114,6 +132,16 @@ test("repository panel action URLs carry only the opaque repository id", () => {
   );
   assert.equal(repositoryPanelActionUrl("open"), "git-leaf://open-repository");
   assert.equal(repositoryPanelActionUrl("unknown"), "");
+});
+
+test("repository panel reorder URLs carry one validated opaque id per repository", () => {
+  assert.equal(
+    repositoryPanelReorderUrl(["0123456789abcdef", "fedcba9876543210"]),
+    "git-leaf://reorder-repositories?id=0123456789abcdef&id=fedcba9876543210",
+  );
+  assert.equal(repositoryPanelReorderUrl(["0123456789abcdef"]), "");
+  assert.equal(repositoryPanelReorderUrl(["0123456789abcdef", "0123456789abcdef"]), "");
+  assert.equal(repositoryPanelReorderUrl(["/Users/person/Projects/docs", "fedcba9876543210"]), "");
 });
 
 test("desktop repository panel disambiguates duplicate names without exposing local roots", () => {
@@ -133,6 +161,18 @@ test("desktop repository panel disambiguates duplicate names without exposing lo
   assert.equal(JSON.stringify(items).includes("/Users/person"), false);
   assert.equal(desktopRepositoryRootForPanelId(repoRoots, items[1].id), repoRoots[1]);
   assert.equal(desktopRepositoryRootForPanelId(repoRoots, "../Archive/docs"), "");
+  assert.deepEqual(
+    desktopRepositoryRootsForPanelOrder(repoRoots, [items[2].id, items[0].id, items[1].id]),
+    [repoRoots[2], repoRoots[0], repoRoots[1]],
+  );
+  assert.equal(
+    desktopRepositoryRootsForPanelOrder(repoRoots, [items[0].id, items[1].id]),
+    null,
+  );
+  assert.equal(
+    desktopRepositoryRootsForPanelOrder(repoRoots, [items[0].id, items[1].id, "0123456789abcdef"]),
+    null,
+  );
 });
 
 test("desktop repository panel owns Command-number shortcuts only while it is open", () => {

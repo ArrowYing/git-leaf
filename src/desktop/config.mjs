@@ -66,6 +66,35 @@ export async function saveDesktopRepository({ userDataDir, repoRoot, repositoryR
   });
 }
 
+export async function reorderDesktopRepositories({ userDataDir, openRepoRoots }) {
+  return queueDesktopConfigMutation({
+    userDataDir,
+    mutation: async () => {
+      const current = await readDesktopConfig({ userDataDir });
+      const requestedValues = arrayOfStrings(openRepoRoots);
+      const requestedRoots = uniqueRepoRoots(requestedValues);
+      if (
+        !Array.isArray(openRepoRoots)
+        || requestedValues.length !== openRepoRoots.length
+        || requestedRoots.length !== requestedValues.length
+        || !sameStringSet(current.openRepoRoots, requestedRoots)
+      ) {
+        return current;
+      }
+      if (current.openRepoRoots.every((repoRoot, index) => repoRoot === requestedRoots[index])) {
+        return current;
+      }
+
+      const next = normalizeDesktopConfig({
+        ...current,
+        openRepoRoots: requestedRoots,
+      });
+      await writeDesktopConfig({ userDataDir, config: next });
+      return next;
+    },
+  });
+}
+
 export async function saveDesktopWindowState({ userDataDir, windowState, repoRoot = "" }) {
   return queueDesktopConfigMutation({
     userDataDir,
@@ -623,4 +652,8 @@ function nonEmptyString(value) {
 
 function uniqueRepoRoots(values) {
   return [...new Set(values)];
+}
+
+function sameStringSet(left, right) {
+  return left.length === right.length && left.every((value) => right.includes(value));
 }

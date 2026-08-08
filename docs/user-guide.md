@@ -393,8 +393,8 @@ The HTTPS handoff is hosted by Mango Future. Read
 
 ## Work with repositories and worktrees
 
-Git Leaf can keep several repositories open. Their order remains stable, and each one restores its own
-tabs and navigation state.
+Git Leaf can keep several repositories open. Their saved order remains stable until you rearrange it, and
+each one restores its own tabs and navigation state.
 
 Choose the repository button beside the current repository name, or press `Command+O` on macOS and
 `Ctrl+O` on Windows, to open the centered repository panel. Type to filter the stable repository list,
@@ -402,6 +402,10 @@ use the arrow keys and `Enter`, or choose a visible row directly. While the pane
 through `Command+9` on macOS (`Ctrl+1` through `Ctrl+9` on Windows) select the numbered visible
 repositories; `Command+0` or `Ctrl+0` opens another local Git repository. These number keys keep their
 normal document-tab and zoom behavior after the panel closes.
+
+Drag the grip at the left of a repository row up or down to change the saved order. You can also focus
+the grip and use the Up or Down arrow key. The visible number shortcuts update immediately to follow the
+new order.
 
 The row action can remove a repository from Git Leaf. This removes it only from the open repository
 list: Git Leaf does not delete the local directory, Git files, branches, or unpublished changes. Opening
