@@ -2438,6 +2438,14 @@ summary.has-operation-feedback {
   padding-left: 32px;
 }
 
+.outline-link.depth-4 {
+  padding-left: 44px;
+}
+
+.outline-link.depth-5 {
+  padding-left: 56px;
+}
+
 .outline-link-label {
   display: block;
   overflow: hidden;

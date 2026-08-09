@@ -6164,7 +6164,7 @@ function formatBytes(value) {
 function renderDocumentOutline() {
   uiTooltipController.hide();
   outlineClickViewportGuard.end();
-  const headings = [...documentContent.querySelectorAll("h1, h2, h3")].map((heading) => {
+  const headings = [...documentContent.querySelectorAll("h1, h2, h3, h4, h5")].map((heading) => {
     const sourceLine = Number(heading.closest(".source-block")?.dataset.sourceStart);
     return {
       id: heading.id,

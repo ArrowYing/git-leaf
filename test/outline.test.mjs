@@ -12,7 +12,7 @@ test("outlineItemsFromHeadings hides a sole leading document title and rebases b
       { id: "intro", text: " Intro ", tagName: "H1" },
       { id: "", text: "Missing id", tagName: "H2" },
       { id: "empty", text: " ", tagName: "H2" },
-      { id: "deep", text: "Deep", tagName: "H4" },
+      { id: "unsupported", text: "Unsupported", tagName: "H6" },
       { id: "goal", text: "Goal", tagName: "H2", sourceLine: 12 },
       { id: "detail", text: "Detail", tagName: "H3", sourceLine: 18 },
     ]),
@@ -43,7 +43,59 @@ test("outlineItemsFromHeadings starts H2 at the baseline when a document has no 
   );
 });
 
-test("outlineItemsFromHeadings preserves full hierarchy for multiple or misplaced H1 headings", () => {
+test("outlineItemsFromHeadings compresses H2, H4, and H5 into consecutive navigation depths", () => {
+  assert.deepEqual(
+    outlineItemsFromHeadings([
+      { id: "scope", text: "Scope", tagName: "H2", sourceLine: 4 },
+      { id: "workflow", text: "Workflow", tagName: "H4", sourceLine: 9 },
+      { id: "step", text: "Step", tagName: "H5", sourceLine: 14 },
+      { id: "too-deep", text: "Too deep", tagName: "H6", sourceLine: 18 },
+    ]),
+    [
+      { id: "scope", title: "Scope", level: 2, sourceLine: 4, depth: 1 },
+      { id: "workflow", title: "Workflow", level: 4, sourceLine: 9, depth: 2 },
+      { id: "step", title: "Step", level: 5, sourceLine: 14, depth: 3 },
+    ],
+  );
+});
+
+test("outlineItemsFromHeadings compresses H3 and H5 into two navigation depths", () => {
+  assert.deepEqual(
+    outlineItemsFromHeadings([
+      { id: "topic", text: "Topic", tagName: "H3" },
+      { id: "detail", text: "Detail", tagName: "H5" },
+    ]),
+    [
+      { id: "topic", title: "Topic", level: 3, depth: 1 },
+      { id: "detail", title: "Detail", level: 5, depth: 2 },
+    ],
+  );
+});
+
+test("outlineItemsFromHeadings restores relative ancestors after skipped heading levels", () => {
+  assert.deepEqual(
+    outlineItemsFromHeadings([
+      { id: "root", text: "Root", tagName: "H2" },
+      { id: "branch", text: "Branch", tagName: "H4" },
+      { id: "leaf", text: "Leaf", tagName: "H5" },
+      { id: "sibling", text: "Sibling", tagName: "H4" },
+      { id: "explicit-section", text: "Explicit section", tagName: "H3" },
+      { id: "nested-after-section", text: "Nested after section", tagName: "H5" },
+      { id: "next-root", text: "Next root", tagName: "H2" },
+    ]),
+    [
+      { id: "root", title: "Root", level: 2, depth: 1 },
+      { id: "branch", title: "Branch", level: 4, depth: 2 },
+      { id: "leaf", title: "Leaf", level: 5, depth: 3 },
+      { id: "sibling", title: "Sibling", level: 4, depth: 2 },
+      { id: "explicit-section", title: "Explicit section", level: 3, depth: 2 },
+      { id: "nested-after-section", title: "Nested after section", level: 5, depth: 3 },
+      { id: "next-root", title: "Next root", level: 2, depth: 1 },
+    ],
+  );
+});
+
+test("outlineItemsFromHeadings uses relative hierarchy for multiple or misplaced H1 headings", () => {
   assert.deepEqual(
     outlineItemsFromHeadings([
       { id: "part-one", text: "Part one", tagName: "H1" },
@@ -63,7 +115,7 @@ test("outlineItemsFromHeadings preserves full hierarchy for multiple or misplace
       { id: "late-title", text: "Late title", tagName: "H1" },
     ]),
     [
-      { id: "goal", title: "Goal", level: 2, depth: 2 },
+      { id: "goal", title: "Goal", level: 2, depth: 1 },
       { id: "late-title", title: "Late title", level: 1, depth: 1 },
     ],
   );

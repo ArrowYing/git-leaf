@@ -45,7 +45,7 @@ The app window has four main areas:
 | --- | --- |
 | Top bar | Open document tabs, Preview / Source / Live modes, sharing, and document actions |
 | Left sidebar | Repository folders, search, All / Favorites / Sync views, and Agent Context |
-| Document navigation | Headings from the current document; it can be hidden when more space is needed |
+| Document navigation | H1–H5 headings from the current document, with skipped levels compacted; it can be hidden when more space is needed |
 | Main area | The current document, editor, or read-only file preview |
 
 Git Leaf restores open repositories and the working state of each repository on later launches,
@@ -103,9 +103,12 @@ instead of replacing them.
 
 ### Read with source references
 
-Preview renders the document and keeps its original source line numbers. The outline follows headings
-in the document. Internal document links stay inside Git Leaf; use Command-click on macOS or Ctrl-click
-on Windows to open a link in another tab.
+Preview renders the document and keeps its original source line numbers. The outline follows H1–H5
+headings in the document. A sole leading H1 acts as the document title and stays out of the outline.
+Skipped heading levels do not create empty indentation: for example, a document that uses H3 followed
+by H5 shows those headings at two consecutive navigation depths. H6 remains available in the document
+but stays out of the outline. Internal document links stay inside Git Leaf; use Command-click on macOS
+or Ctrl-click on Windows to open a link in another tab.
 
 Source-backed line numbers are also useful when you need to show an AI agent exactly where a question
 or correction came from.

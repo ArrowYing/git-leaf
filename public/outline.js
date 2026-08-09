@@ -9,17 +9,23 @@ export function outlineItemsFromHeadings(headings) {
         ...(Number.isInteger(sourceLine) ? { sourceLine } : {}),
       };
     })
-    .filter((item) => item.id && item.title && item.level >= 1 && item.level <= 3);
+    .filter((item) => item.id && item.title && item.level >= 1 && item.level <= 5);
 
   const levelOneItems = items.filter((item) => item.level === 1);
   const hasDocumentTitle = levelOneItems.length === 1 && items[0] === levelOneItems[0];
   const visibleItems = hasDocumentTitle ? items.slice(1) : items;
-  const baseLevel = hasDocumentTitle || levelOneItems.length === 0 ? 2 : 1;
+  const levelStack = [];
 
-  return visibleItems.map((item) => ({
-    ...item,
-    depth: Math.max(1, item.level - baseLevel + 1),
-  }));
+  return visibleItems.map((item) => {
+    while (levelStack.length > 0 && item.level <= levelStack[levelStack.length - 1]) {
+      levelStack.pop();
+    }
+    levelStack.push(item.level);
+    return {
+      ...item,
+      depth: levelStack.length,
+    };
+  });
 }
 
 export function activeOutlineIdForSourceLine(sourceLine, outlineItems) {

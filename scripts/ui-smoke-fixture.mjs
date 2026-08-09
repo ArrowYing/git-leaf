@@ -18,6 +18,15 @@ export const TREE_TOOLTIP_SMOKE_RELATIVE_FILE = [
 export const DOCUMENT_OUTLINE_SMOKE_HEADING =
   "这是一个明显超过文档导航最小宽度并且必须通过快速自绘浮层才能完整阅读的二级标题";
 
+export const DOCUMENT_OUTLINE_SMOKE_H4_HEADING =
+  "H4 跳级标题应显示为第二级导航";
+
+export const DOCUMENT_OUTLINE_SMOKE_H5_HEADING =
+  "H5 标题应显示为第三级导航";
+
+export const DOCUMENT_OUTLINE_SMOKE_ACCEPTANCE =
+  `文档导航必须显示 ${DOCUMENT_OUTLINE_SMOKE_H4_HEADING} 与 ${DOCUMENT_OUTLINE_SMOKE_H5_HEADING}，并把 H2、H4、H5 压缩为连续的三级缩进。`;
+
 export const TREE_TOOLTIP_SMOKE_SEARCH_TERM = "boundary";
 
 export const TREE_TOOLTIP_SMOKE_DOCUMENT_TITLE =
@@ -107,9 +116,19 @@ export function createTreeTooltipSmokeFixture({
         "",
         TREE_TOOLTIP_SMOKE_ACCEPTANCE,
         "",
+        DOCUMENT_OUTLINE_SMOKE_ACCEPTANCE,
+        "",
         `## ${DOCUMENT_OUTLINE_SMOKE_HEADING}`,
         "",
         "The outline item is intentionally long so the isolated app exposes truncation.",
+        "",
+        `#### ${DOCUMENT_OUTLINE_SMOKE_H4_HEADING}`,
+        "",
+        "This skipped heading level must still appear one navigation depth below H2.",
+        "",
+        `##### ${DOCUMENT_OUTLINE_SMOKE_H5_HEADING}`,
+        "",
+        "This heading must appear one navigation depth below H4.",
         "",
       ].join("\n"),
       "utf8",
@@ -128,7 +147,7 @@ export function createTreeTooltipSmokeFixture({
       file: TREE_TOOLTIP_SMOKE_RELATIVE_FILE,
       readonlyFile: TREE_TOOLTIP_SMOKE_READONLY_FILE,
       rootFile: TREE_TOOLTIP_SMOKE_ROOT_FILE,
-      acceptance: TREE_TOOLTIP_SMOKE_ACCEPTANCE,
+      acceptance: `${TREE_TOOLTIP_SMOKE_ACCEPTANCE} ${DOCUMENT_OUTLINE_SMOKE_ACCEPTANCE}`,
       searchTerm: TREE_TOOLTIP_SMOKE_SEARCH_TERM,
     };
   } catch (error) {

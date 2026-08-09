@@ -154,7 +154,9 @@ The front end has four stable areas:
 - a top bar with repository identity, document tabs, modes, and document actions;
 - a left sidebar with worktree selection, All/Favorites/Sync views, search, frontmatter filtering, and
   the Agent Context entry;
-- an optional document outline synchronized with the content scroll position;
+- an optional document outline synchronized with the content scroll position; it includes H1–H5,
+  omits a sole leading H1 used as the document title, and derives indentation from the relative heading
+  stack so skipped Markdown levels do not create empty navigation depths;
 - the main content area for Preview, Source, Live, and read-only file viewers.
 
 Sidebar, outline, and content have independent scrolling. Transient feedback uses a fixed toast below
