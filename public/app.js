@@ -103,6 +103,7 @@ import {
   closeDocumentTab,
   closeDocumentTabsToRight,
   closeOtherDocumentTabs,
+  createBlankDocumentTab,
   documentTabBehaviorFromModifiers,
   documentTabHistoryAvailability,
   isTreeDocumentNewTabShortcut,
@@ -452,6 +453,7 @@ const sidebarToggle = document.querySelector("#sidebar-toggle");
 const historyBackButton = document.querySelector("#history-back");
 const historyForwardButton = document.querySelector("#history-forward");
 const documentTabs = document.querySelector("#document-tabs");
+const documentTabNewButton = document.querySelector("#document-tab-new");
 const documentNewButton = document.querySelector("#document-new");
 const floatingDocumentActions = document.querySelector("#floating-document-actions");
 const documentFavoriteToggle = document.querySelector("#document-favorite-toggle");
@@ -659,6 +661,7 @@ sidebarTreeTabs.addEventListener("click", handleSidebarTabClick);
 sidebarTreeTabs.addEventListener("keydown", handleSidebarTabKeydown);
 documentTabs.addEventListener("wheel", handleDocumentTabsWheel, { passive: false });
 documentTabs.addEventListener("contextmenu", handleDocumentTabContextMenu);
+documentTabNewButton.addEventListener("click", () => runAppShortcut("new-document-tab"));
 documentNewButton.addEventListener("click", () => promptNewDocument(newDocumentLocationFromCurrent()));
 emptyNewDocument.addEventListener("click", () => promptNewDocument({ directoryPath: "" }));
 repositoryPanelToggle.addEventListener("click", () => requestRepositoryPanelAction("show"));
@@ -812,7 +815,7 @@ try {
   if (state.currentFile) {
     await loadDocumentLocation(state.currentFile, { applySavedMode: true });
   } else {
-    showNoDocumentSelected();
+    showNoDocumentSelected({ preserveTabs: state.documentTabs.length > 0 });
   }
   setMode(state.mode, { persist: false, focus: false });
   resetTreePolling();
@@ -2045,6 +2048,9 @@ async function navigateDocumentLocation(
   if (repoId !== state.currentRepo) {
     return false;
   }
+  const openingFromBlankTab = behavior === "current" && state.documentTabs.some(
+    (tab) => tab.id === state.activeTabId && tab.blank,
+  );
 
   if (behavior === "background") {
     const nextTabs = navigateDocumentTab({
@@ -2083,7 +2089,7 @@ async function navigateDocumentLocation(
   });
   applyLoadedDocumentData(documentData, {
     hash,
-    applySavedMode,
+    applySavedMode: applySavedMode || openingFromBlankTab,
     restoreScrollTop: nextTabs.location?.scrollTop ?? 0,
   });
   return true;
@@ -2136,6 +2142,8 @@ function sameDocumentLocation(left, right) {
 }
 
 async function activateDocumentTabAndLoad(targetTabId) {
+  const openingFromBlankTab = activeDocumentTabIsBlank();
+  captureActiveDocumentLocation();
   const nextTabs = activateDocumentTab({
     tabs: state.documentTabs,
     activeTabId: state.activeTabId,
@@ -2143,14 +2151,25 @@ async function activateDocumentTabAndLoad(targetTabId) {
   });
   const location = nextTabs.location;
   if (!location) {
-    return false;
+    const targetTab = nextTabs.tabs.find((tab) => tab.id === nextTabs.activeTabId);
+    if (!targetTab?.blank) {
+      return false;
+    }
+    if (nextTabs.activeTabId === state.activeTabId && !state.currentDocument) {
+      return true;
+    }
+    applyDocumentTabState(nextTabs, {
+      render: true,
+      persist: true,
+      revealActive: true,
+    });
+    showNoDocumentSelected({ pushState: true, preserveTabs: true });
+    return true;
   }
   if (nextTabs.activeTabId === state.activeTabId && location.path === state.currentFile) {
     focusActiveDocumentSurface();
     return true;
   }
-
-  captureActiveDocumentLocation();
   const requestId = ++state.documentNavigationRequestId;
   const documentData = await fetchDocumentData(location.path, { repoId: state.currentRepo });
   if (!documentData || requestId !== state.documentNavigationRequestId) {
@@ -2166,18 +2185,21 @@ async function activateDocumentTabAndLoad(targetTabId) {
   });
   applyLoadedDocumentData(documentData, {
     hash: location.hash,
+    applySavedMode: openingFromBlankTab,
     restoreScrollTop: location.scrollTop,
   });
   focusActiveDocumentSurface();
   return true;
 }
 
-function showNoDocumentSelected({ pushState = false } = {}) {
+function showNoDocumentSelected({ pushState = false, preserveTabs = false } = {}) {
   state.documentNavigationRequestId += 1;
   closeDocumentSearch({ restoreFocus: false });
   state.currentFile = "";
   state.currentDocument = null;
-  applyDocumentTabState({ tabs: [], activeTabId: "" });
+  if (!preserveTabs) {
+    applyDocumentTabState({ tabs: [], activeTabId: "" });
+  }
   state.selectedLines = new Set();
   state.selectionAnchor = null;
   clearActiveImage();
@@ -3488,6 +3510,11 @@ function applyShortcutTooltips() {
   }
   setShortcutTooltip(historyBackButton, t("action.back"), configuredShortcutLabel("navigation.back"));
   setShortcutTooltip(historyForwardButton, t("action.forward"), configuredShortcutLabel("navigation.forward"));
+  setShortcutTooltip(
+    documentTabNewButton,
+    t("action.newTab"),
+    configuredShortcutLabel("document.new-tab"),
+  );
   setUiTooltip(documentNewButton, t("action.newDocument"));
   setShortcutButtonLabel(
     copyShareLinkButton,
@@ -4228,12 +4255,14 @@ function replaceOpenDocumentTabPath(fromPath, toPath) {
 function renderDocumentTabs() {
   uiTooltipController.hide();
   documentTabs.innerHTML = "";
-  for (const { id, path } of state.documentTabs) {
+  for (const { id, path, blank = false } of state.documentTabs) {
     const isActive = id === state.activeTabId;
+    const tabTitle = blank ? t("tabs.new") : tabTitleFromPath(path);
     const tab = document.createElement("div");
     tab.className = isActive ? "document-tab is-active" : "document-tab";
     tab.dataset.documentTabId = id;
     tab.dataset.documentTabPath = path;
+    tab.dataset.documentTabBlank = String(blank);
     tab.addEventListener("pointerdown", (event) => startDocumentTabPointerDrag(event, id));
     tab.addEventListener("pointermove", handleDocumentTabPointerMove);
     tab.addEventListener("pointerup", finishDocumentTabPointerDrag);
@@ -4242,7 +4271,7 @@ function renderDocumentTabs() {
     const title = document.createElement("button");
     title.type = "button";
     title.className = "document-tab-title";
-    title.textContent = tabTitleFromPath(path);
+    title.textContent = tabTitle;
     title.addEventListener("click", () => openFileFromTab(id));
     tab.append(title);
 
@@ -4251,7 +4280,7 @@ function renderDocumentTabs() {
     close.className = "document-tab-close";
     setShortcutTooltip(close, t("action.closeCurrentTab"), "Command+W");
     close.setAttribute("aria-label", t("action.closeNamedTab", {
-      name: tabTitleFromPath(path),
+      name: tabTitle,
     }));
     close.textContent = "×";
     close.addEventListener("click", (event) => {
@@ -4428,6 +4457,12 @@ function documentTabItemFromEventTarget(target) {
 
 function documentTabTooltipDetails(item) {
   const path = item?.dataset.documentTabPath || "";
+  if (item?.dataset.documentTabBlank === "true") {
+    return {
+      name: t("tabs.new"),
+      path: t("tabs.chooseFile"),
+    };
+  }
   return {
     name: tabTitleFromPath(path),
     path: documentTabDisplayPath(path),
@@ -4456,6 +4491,7 @@ function documentTabDisplayPath(filePath) {
 
 async function closeTab(tabId) {
   const previousActiveTabId = state.activeTabId;
+  const openingFromBlankTab = activeDocumentTabIsBlank();
   captureActiveDocumentLocation();
   const nextTabs = closeDocumentTab({
     tabs: state.documentTabs,
@@ -4466,12 +4502,16 @@ async function closeTab(tabId) {
   applyDocumentTabState(nextTabs, { render: true, persist: true });
 
   if (!nextLocation) {
-    showNoDocumentSelected({ pushState: true });
+    showNoDocumentSelected({
+      pushState: true,
+      preserveTabs: nextTabs.tabs.length > 0,
+    });
     return;
   }
   if (nextTabs.activeTabId !== previousActiveTabId || nextLocation.path !== state.currentFile) {
     await loadDocumentLocation(nextLocation.path, {
       hash: nextLocation.hash,
+      applySavedMode: openingFromBlankTab,
       restoreScrollTop: nextLocation.scrollTop,
     });
   }
@@ -4479,14 +4519,19 @@ async function closeTab(tabId) {
 
 async function applyDocumentTabClosure(createResult) {
   const previousActiveTabId = state.activeTabId;
+  const openingFromBlankTab = activeDocumentTabIsBlank();
   captureActiveDocumentLocation();
   const result = typeof createResult === "function" ? createResult() : createResult;
   applyDocumentTabState(result, { render: true, persist: true });
   if (!result.location) {
-    showNoDocumentSelected({ pushState: true });
+    showNoDocumentSelected({
+      pushState: true,
+      preserveTabs: result.tabs.length > 0,
+    });
   } else if (result.activeTabId !== previousActiveTabId || result.location.path !== state.currentFile) {
     await loadDocumentLocation(result.location.path, {
       hash: result.location.hash,
+      applySavedMode: openingFromBlankTab,
       restoreScrollTop: result.location.scrollTop,
     });
   }
@@ -4500,13 +4545,17 @@ function handleDocumentTabContextMenu(event) {
   event.preventDefault();
   const tabId = tab.dataset.documentTabId;
   const path = tab.dataset.documentTabPath;
+  const blank = tab.dataset.documentTabBlank === "true";
   const targetIndex = state.documentTabs.findIndex((item) => item.id === tabId);
   state.fileActionTarget = { source: "tab", path, tabId };
-  showFileActionMenu([
+  const closeItems = [
     { id: "close-tab", label: t("menu.close"), shortcut: "Command+W" },
     { id: "close-others", label: t("menu.closeOthers"), disabled: state.documentTabs.length < 2 },
     { id: "close-right", label: t("menu.closeRight"), disabled: targetIndex < 0 || targetIndex === state.documentTabs.length - 1 },
     { id: "close-all", label: t("menu.closeAll") },
+  ];
+  showFileActionMenu(blank ? closeItems : [
+    ...closeItems,
     null,
     ...(isMarkdownPath(path) ? [{ id: "copy-share", label: t("action.copyShareLink"), shortcut: "Command+Shift+L" }] : []),
     { id: "copy-path", label: t("menu.copyPath"), shortcut: "Command+Shift+C" },
@@ -4515,6 +4564,23 @@ function handleDocumentTabContextMenu(event) {
     { id: "reveal-finder", label: revealInFileManagerLabel(), shortcut: "Command+Shift+R", disabled: !canEditCurrentRepo() },
     { id: "open-system", label: t("menu.openSystem"), shortcut: "Command+Shift+O", disabled: !canEditCurrentRepo() },
   ], { x: event.clientX, y: event.clientY, returnFocus: tab });
+}
+
+function openBlankDocumentTab() {
+  captureActiveDocumentLocation();
+  const result = createBlankDocumentTab({ tabs: state.documentTabs });
+  applyDocumentTabState(result, {
+    render: true,
+    persist: true,
+    revealActive: true,
+  });
+  showNoDocumentSelected({ pushState: true, preserveTabs: true });
+}
+
+function activeDocumentTabIsBlank() {
+  return state.documentTabs.some(
+    (tab) => tab.id === state.activeTabId && tab.blank,
+  );
 }
 
 function handleFileTreeContextMenu(event) {
@@ -5223,7 +5289,10 @@ async function promptDeletePath({ path: targetPath = "" } = {}) {
           restoreScrollTop: nextTabs.location.scrollTop,
         });
       } else {
-        showNoDocumentSelected({ pushState: true });
+        showNoDocumentSelected({
+          pushState: true,
+          preserveTabs: nextTabs.tabs.length > 0,
+        });
       }
     }
   }
@@ -6976,6 +7045,9 @@ function shortcutActionFromKeyboardEvent(event) {
   if (appShortcutMatches(event, "document.close-tab")) {
     return { command: "close-current-tab" };
   }
+  if (appShortcutMatches(event, "document.new-tab")) {
+    return { command: "new-document-tab" };
+  }
   if (appShortcutMatches(event, "view.preview")) {
     return { command: "set-mode", mode: "preview" };
   }
@@ -7042,6 +7114,9 @@ async function runAppShortcut(action) {
       closeActiveDocumentTab();
       return;
     }
+    case "new-document-tab":
+      openBlankDocumentTab();
+      return;
     case "open-tree-file-new-tab": {
       const target = treeFileNewTabShortcutTarget();
       if (!target) {

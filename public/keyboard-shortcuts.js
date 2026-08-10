@@ -12,6 +12,7 @@ const SHORTCUT_ACTION_DEFINITIONS = Object.freeze({
     "shortcut.nextRepository",
   ),
   "document.close-tab": shortcutDefinition("Mod+W", "shortcut.closeTab"),
+  "document.new-tab": shortcutDefinition("Mod+T", "shortcut.newTab"),
   "document.find": shortcutDefinition("Mod+F", "shortcut.findDocument"),
   "document.favorite": shortcutDefinition("Mod+D", "shortcut.toggleFavorite"),
   "document.copy-path": shortcutDefinition(
@@ -84,6 +85,7 @@ const SHORTCUT_GROUPS = Object.freeze([
       fixedShortcut("Command+Shift+]", "shortcut.nextTab"),
       fixedShortcut("Ctrl+Shift+Tab", "shortcut.previousTabWindows"),
       fixedShortcut("Ctrl+Tab", "shortcut.nextTabWindows"),
+      actionShortcut("document.new-tab"),
       actionShortcut("document.close-tab"),
       actionShortcut("document.find"),
       actionShortcut("document.favorite"),
