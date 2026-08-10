@@ -37,6 +37,8 @@
   --document-blockquote-content-padding: 16px;
   --document-blockquote-inset: calc(var(--document-blockquote-border-width) + var(--document-blockquote-content-padding));
   --document-list-marker-gap: 0.36em;
+  --document-list-level-indent: 1.5em;
+  --document-list-source-space-width: 0.262em;
   --document-list-unordered-marker-font-size: 0.72em;
   --document-list-ordered-marker-font-size: 0.96em;
   --bg: #f6f7f9;
@@ -3726,6 +3728,13 @@ summary.has-operation-feedback {
 .document-content ul,
 .document-content ol {
   padding-left: 1.35em;
+}
+
+.document-content ul ul,
+.document-content ul ol,
+.document-content ol ul,
+.document-content ol ol {
+  padding-left: var(--document-list-level-indent);
 }
 
 .document-content li {

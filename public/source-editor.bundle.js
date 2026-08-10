@@ -37228,11 +37228,14 @@ var WORKBENCH_MESSAGES = Object.freeze({
     "aria.linkActions": "Link actions",
     "aria.frontmatterFieldActions": "Frontmatter field actions",
     "tabs.empty": "No open documents",
+    "tabs.new": "New Tab",
+    "tabs.chooseFile": "Choose a file from the sidebar",
     "action.collapseSidebar": "Collapse sidebar",
     "action.expandSidebar": "Expand sidebar",
     "action.back": "Back",
     "action.forward": "Forward",
     "action.newDocument": "New document",
+    "action.newTab": "New tab",
     "action.switchDark": "Switch to dark mode",
     "action.switchLight": "Switch to light mode",
     "action.filter": "Filter",
@@ -37636,6 +37639,7 @@ var WORKBENCH_MESSAGES = Object.freeze({
     "shortcut.previousTabWindows": "Previous Tab on Windows",
     "shortcut.nextTabWindows": "Next Tab on Windows",
     "shortcut.closeTab": "Close Current Tab",
+    "shortcut.newTab": "New Tab",
     "shortcut.findDocument": "Find in Current Document",
     "shortcut.toggleFavorite": "Add or Remove Favorite",
     "shortcut.copyDocumentPath": "Copy Document Path",
@@ -37697,11 +37701,14 @@ var WORKBENCH_MESSAGES = Object.freeze({
     "aria.linkActions": "\u94FE\u63A5\u64CD\u4F5C",
     "aria.frontmatterFieldActions": "Frontmatter \u5B57\u6BB5\u64CD\u4F5C",
     "tabs.empty": "\u672A\u6253\u5F00\u6587\u6863",
+    "tabs.new": "\u65B0\u6807\u7B7E\u9875",
+    "tabs.chooseFile": "\u4ECE\u5DE6\u4FA7\u76EE\u5F55\u9009\u62E9\u6587\u4EF6",
     "action.collapseSidebar": "\u6536\u8D77\u4FA7\u8FB9\u680F",
     "action.expandSidebar": "\u5C55\u5F00\u4FA7\u8FB9\u680F",
     "action.back": "\u540E\u9000",
     "action.forward": "\u524D\u8FDB",
     "action.newDocument": "\u65B0\u5EFA\u6587\u6863",
+    "action.newTab": "\u65B0\u5EFA\u6807\u7B7E\u9875",
     "action.switchDark": "\u5207\u6362\u5230\u6DF1\u8272\u6A21\u5F0F",
     "action.switchLight": "\u5207\u6362\u5230\u6D45\u8272\u6A21\u5F0F",
     "action.filter": "\u7B5B\u9009",
@@ -38105,6 +38112,7 @@ var WORKBENCH_MESSAGES = Object.freeze({
     "shortcut.previousTabWindows": "Windows \u4E0A\u7684\u4E0A\u4E00\u4E2A\u6807\u7B7E\u9875",
     "shortcut.nextTabWindows": "Windows \u4E0A\u7684\u4E0B\u4E00\u4E2A\u6807\u7B7E\u9875",
     "shortcut.closeTab": "\u5173\u95ED\u5F53\u524D\u6807\u7B7E\u9875",
+    "shortcut.newTab": "\u65B0\u5EFA\u6807\u7B7E\u9875",
     "shortcut.findDocument": "\u5728\u5F53\u524D\u6587\u6863\u4E2D\u67E5\u627E",
     "shortcut.toggleFavorite": "\u6536\u85CF\u6216\u53D6\u6D88\u6536\u85CF",
     "shortcut.copyDocumentPath": "\u590D\u5236\u6587\u6863\u8DEF\u5F84",
@@ -38219,6 +38227,7 @@ var SHORTCUT_ACTION_DEFINITIONS = Object.freeze({
     "shortcut.nextRepository"
   ),
   "document.close-tab": shortcutDefinition("Mod+W", "shortcut.closeTab"),
+  "document.new-tab": shortcutDefinition("Mod+T", "shortcut.newTab"),
   "document.find": shortcutDefinition("Mod+F", "shortcut.findDocument"),
   "document.favorite": shortcutDefinition("Mod+D", "shortcut.toggleFavorite"),
   "document.copy-path": shortcutDefinition(
@@ -38290,6 +38299,7 @@ var SHORTCUT_GROUPS = Object.freeze([
       fixedShortcut("Command+Shift+]", "shortcut.nextTab"),
       fixedShortcut("Ctrl+Shift+Tab", "shortcut.previousTabWindows"),
       fixedShortcut("Ctrl+Tab", "shortcut.nextTabWindows"),
+      actionShortcut("document.new-tab"),
       actionShortcut("document.close-tab"),
       actionShortcut("document.find"),
       actionShortcut("document.favorite"),
@@ -39377,6 +39387,9 @@ function liveMarkdownThemeForTheme(theme2) {
     },
     ".cm-live-replacement-widget": {
       color: "var(--text)"
+    },
+    ".cm-live-list": {
+      paddingLeft: "var(--live-list-indent-extra, 0px)"
     },
     ".cm-live-list-widget": {
       display: "inline-flex",
@@ -43095,9 +43108,11 @@ function buildLiveMarkdownDecorations(state, { suppressActiveLine = false } = {}
     state,
     suppressActiveLine
   );
-  const previewBlocks = livePreviewBlocksForSource(state.doc.toString(), {
+  const source = state.doc.toString();
+  const previewBlocks = livePreviewBlocksForSource(source, {
     activeLineNumber
   });
+  const listIndentation = liveListIndentationForLines(source.split("\n"));
   let previewBlockIndex = 0;
   for (let lineNumber = 1; lineNumber <= state.doc.lines; lineNumber += 1) {
     const previewBlock = previewBlocks[previewBlockIndex];
@@ -43131,13 +43146,17 @@ function buildLiveMarkdownDecorations(state, { suppressActiveLine = false } = {}
       inCodeBlock,
       inMdxComponent
     });
+    const listLineAttributes = className === "cm-live-list" ? liveListLineAttributes(listIndentation[lineNumber - 1]) : {};
     if (className) {
       builder.add(
         line.from,
         line.from,
         Decoration.line({
           class: className,
-          attributes: mdxComponent ? { "data-live-component": `${mdxComponent.name} \xB7 ${mdxComponent.title}` } : {}
+          attributes: {
+            ...mdxComponent ? { "data-live-component": `${mdxComponent.name} \xB7 ${mdxComponent.title}` } : {},
+            ...listLineAttributes
+          }
         })
       );
     }
@@ -43320,6 +43339,50 @@ function liveClassForLine({
     return "cm-live-list";
   }
   return "";
+}
+function liveListIndentationForLines(lines) {
+  const indentStack = [];
+  return Array.from(lines ?? [], (line) => {
+    const text2 = String(line ?? "");
+    const list2 = /^([ \t]*)(?:[-*+]|\d+\.)[ \t]+/.exec(text2);
+    if (!list2) {
+      if (text2.trim() && leadingWhitespaceColumns(text2) === 0) {
+        indentStack.length = 0;
+      }
+      return null;
+    }
+    const sourceColumns = whitespaceColumns(list2[1]);
+    while (indentStack.length > 0 && sourceColumns < indentStack.at(-1)) {
+      indentStack.pop();
+    }
+    if (indentStack.length === 0 || sourceColumns > indentStack.at(-1)) {
+      indentStack.push(sourceColumns);
+    }
+    return {
+      depth: Math.max(0, indentStack.length - 1),
+      sourceColumns
+    };
+  });
+}
+function liveListLineAttributes(indentation) {
+  if (!indentation || indentation.depth < 1) {
+    return {};
+  }
+  const { depth, sourceColumns } = indentation;
+  return {
+    "data-live-list-depth": String(depth),
+    style: `--live-list-indent-extra: max(0px, calc(${depth} * var(--document-list-level-indent) - ${sourceColumns} * var(--document-list-source-space-width)));`
+  };
+}
+function leadingWhitespaceColumns(text2) {
+  return whitespaceColumns(/^[ \t]*/.exec(String(text2 ?? ""))?.[0] ?? "");
+}
+function whitespaceColumns(whitespace) {
+  let columns = 0;
+  for (const character of String(whitespace ?? "")) {
+    columns += character === "	" ? 4 - columns % 4 : 1;
+  }
+  return columns;
 }
 function liveInlineRangesForLine(text2) {
   const ranges = [];
@@ -43917,6 +43980,7 @@ export {
   liveFrontmatterRangesForLine,
   liveHeadingAnchorAdjustment,
   liveInlineRangesForLine,
+  liveListIndentationForLines,
   liveMarkdownLinkAtPosition,
   liveMarkdownLinksForLine,
   liveMarkdownSelectionPresentation,
