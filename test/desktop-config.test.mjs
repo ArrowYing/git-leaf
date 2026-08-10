@@ -36,6 +36,7 @@ const NEW_INSTALL_PREFERENCES = {
   colorMode: "system",
   documentFont: "system-sans",
   documentFontSize: 16,
+  documentMargins: "standard",
   fileTreeMode: "content",
   showDocumentTitles: true,
   gitRemoteCheckIntervalMinutes: 10,
@@ -46,6 +47,7 @@ const LEGACY_PREFERENCES = {
   colorMode: "light",
   documentFont: "system-sans",
   documentFontSize: 16,
+  documentMargins: "standard",
   fileTreeMode: "all",
   showDocumentTitles: true,
   gitRemoteCheckIntervalMinutes: 10,
@@ -332,11 +334,28 @@ test("readDesktopConfig normalizes an invalid document font size", async () => {
       colorMode: "system",
       documentFont: "reading-serif",
       documentFontSize: 16,
+      documentMargins: "standard",
       fileTreeMode: "content",
       showDocumentTitles: true,
       gitRemoteCheckIntervalMinutes: 10,
     },
   });
+});
+
+test("desktop config persists the Feishu margin mode and rejects unknown values", async () => {
+  const userDataDir = await mkdtemp(path.join(tmpdir(), "git-leaf-user-data-"));
+
+  const feishu = await saveDesktopPreferences({
+    userDataDir,
+    preferences: { documentMargins: "feishu" },
+  });
+  assert.equal(feishu.preferences.documentMargins, "feishu");
+
+  const normalized = await saveDesktopPreferences({
+    userDataDir,
+    preferences: { documentMargins: "extra-wide" },
+  });
+  assert.equal(normalized.preferences.documentMargins, "standard");
 });
 
 test("saveDesktopRepository persists the active and open repository paths", async () => {
@@ -551,6 +570,7 @@ test("saveDesktopPreferences persists normalized app preferences across reposito
       colorMode: "dark",
       documentFont: "reading-serif",
       documentFontSize: 18,
+      documentMargins: "feishu",
       fileTreeMode: "content",
       showDocumentTitles: false,
       gitRemoteCheckIntervalMinutes: 60,
@@ -607,6 +627,7 @@ test("saveDesktopPreferences persists normalized app preferences across reposito
       colorMode: "dark",
       documentFont: "reading-serif",
       documentFontSize: 18,
+      documentMargins: "feishu",
       fileTreeMode: "content",
       showDocumentTitles: false,
       gitRemoteCheckIntervalMinutes: 60,
@@ -716,6 +737,7 @@ test("concurrent preference patches merge without dropping independent fields", 
     saveDesktopPreferences({ userDataDir, preferences: { colorMode: "dark" } }),
     saveDesktopPreferences({ userDataDir, preferences: { documentFont: "reading-serif" } }),
     saveDesktopPreferences({ userDataDir, preferences: { documentFontSize: 20 } }),
+    saveDesktopPreferences({ userDataDir, preferences: { documentMargins: "feishu" } }),
     saveDesktopPreferences({ userDataDir, preferences: { fileTreeMode: "all" } }),
     saveDesktopPreferences({
       userDataDir,
@@ -735,6 +757,7 @@ test("concurrent preference patches merge without dropping independent fields", 
       colorMode: "dark",
       documentFont: "reading-serif",
       documentFontSize: 20,
+      documentMargins: "feishu",
       fileTreeMode: "all",
       showDocumentTitles: true,
       gitRemoteCheckIntervalMinutes: 30,
