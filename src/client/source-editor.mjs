@@ -965,14 +965,14 @@ function liveMarkdownThemeForTheme(theme) {
   }, { dark: isDarkTheme(theme) });
 }
 
-export function keyboardTextStyleFromEvent(event, shortcuts = {}) {
+export function keyboardTextStyleFromEvent(event, shortcuts = {}, options = {}) {
   for (const [id, style] of [
     ["editor.bold", "bold"],
     ["editor.italic", "italic"],
     ["editor.underline", "underline"],
     ["editor.strikethrough", "strikethrough"],
   ]) {
-    if (keyboardShortcutMatches(event, id, shortcuts)) {
+    if (keyboardShortcutMatches(event, id, shortcuts, options)) {
       return style;
     }
   }

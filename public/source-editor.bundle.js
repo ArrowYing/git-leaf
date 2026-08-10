@@ -39207,14 +39207,14 @@ function liveMarkdownThemeForTheme(theme2) {
     }
   }, { dark: isDarkTheme(theme2) });
 }
-function keyboardTextStyleFromEvent(event, shortcuts = {}) {
+function keyboardTextStyleFromEvent(event, shortcuts = {}, options = {}) {
   for (const [id2, style] of [
     ["editor.bold", "bold"],
     ["editor.italic", "italic"],
     ["editor.underline", "underline"],
     ["editor.strikethrough", "strikethrough"]
   ]) {
-    if (keyboardShortcutMatches(event, id2, shortcuts)) {
+    if (keyboardShortcutMatches(event, id2, shortcuts, options)) {
       return style;
     }
   }

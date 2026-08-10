@@ -38,17 +38,26 @@ import {
 
 test("Live text formatting shortcuts use defaults and user overrides", () => {
   assert.equal(
-    keyboardTextStyleFromEvent({ code: "KeyB", metaKey: true }),
+    keyboardTextStyleFromEvent(
+      { code: "KeyB", metaKey: true },
+      {},
+      { platform: "darwin" },
+    ),
     "bold",
   );
   assert.equal(
-    keyboardTextStyleFromEvent({ code: "KeyU", metaKey: true }),
+    keyboardTextStyleFromEvent(
+      { code: "KeyU", metaKey: true },
+      {},
+      { platform: "darwin" },
+    ),
     "underline",
   );
   assert.equal(
     keyboardTextStyleFromEvent(
       { code: "KeyB", metaKey: true },
       { "editor.bold": "Mod+Alt+B" },
+      { platform: "darwin" },
     ),
     null,
   );
@@ -56,6 +65,7 @@ test("Live text formatting shortcuts use defaults and user overrides", () => {
     keyboardTextStyleFromEvent(
       { code: "KeyB", metaKey: true, altKey: true },
       { "editor.bold": "Mod+Alt+B" },
+      { platform: "darwin" },
     ),
     "bold",
   );

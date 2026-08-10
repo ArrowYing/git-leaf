@@ -15,7 +15,13 @@ import {
 } from "../public/keyboard-shortcuts.js";
 
 test("Command-question-mark and Ctrl-question-mark open keyboard shortcut help", () => {
-  assert.equal(isKeyboardShortcutsHelpShortcut({ key: "?", metaKey: true, shiftKey: true }), true);
+  assert.equal(
+    isKeyboardShortcutsHelpShortcut(
+      { key: "?", metaKey: true, shiftKey: true },
+      { platform: "darwin" },
+    ),
+    true,
+  );
   assert.equal(
     isKeyboardShortcutsHelpShortcut(
       { code: "Slash", ctrlKey: true, shiftKey: true },
@@ -36,7 +42,7 @@ test("Command-question-mark and Ctrl-question-mark open keyboard shortcut help",
 });
 
 test("keyboard shortcut help keeps the agreed Git Leaf shortcuts", () => {
-  const text = keyboardShortcutsPlainText();
+  const text = keyboardShortcutsPlainText("en", { platform: "darwin" });
 
   assert.match(text, /Command\+O\s+Open Repository Panel/);
   assert.match(text, /Command\+1\.\.9\s+Switch to Visible Repository 1\.\.9 \(panel open\)/);
