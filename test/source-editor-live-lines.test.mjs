@@ -11,6 +11,7 @@ import {
   closestElement,
   liveClassForLine,
   liveListIndentationForLines,
+  liveListMarkerForDepth,
   livePreviewBlocksForSource,
   livePreviewHtmlForBlock,
   liveBlockPreviewIgnoresEvent,
@@ -105,6 +106,22 @@ test("Live list indentation follows semantic nesting instead of raw marker spaci
       null,
       { depth: 0, sourceColumns: 2 },
     ],
+  );
+});
+
+test("Live list markers follow common three-level document styles", () => {
+  assert.equal(liveListMarkerForDepth("-", 0), "\u2022");
+  assert.equal(liveListMarkerForDepth("+", 2), "\u2022");
+  assert.equal(liveListMarkerForDepth("1.", 0), "1.");
+  assert.equal(liveListMarkerForDepth("1.", 1), "a.");
+  assert.equal(liveListMarkerForDepth("2.", 1), "b.");
+  assert.equal(liveListMarkerForDepth("27.", 1), "aa.");
+  assert.equal(liveListMarkerForDepth("1.", 2), "i.");
+  assert.equal(liveListMarkerForDepth("2.", 2), "ii.");
+  assert.equal(liveListMarkerForDepth("3.", 3), "3.");
+  assert.equal(
+    liveReadableReplacementsForLine("  2. Child", { listDepth: 1 })[0].widget,
+    "b.",
   );
 });
 
