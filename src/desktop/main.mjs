@@ -2276,10 +2276,10 @@ function installMenu() {
             },
             {
               type: "radio",
-              label: translate("menu.pageMarginsFeishu"),
-              checked: documentMargins === "feishu",
+              label: translate("menu.pageMarginsWide"),
+              checked: documentMargins === "wide",
               click: () => {
-                void saveDesktopPreferenceValues({ documentMargins: "feishu" });
+                void saveDesktopPreferenceValues({ documentMargins: "wide" });
               },
             },
           ],

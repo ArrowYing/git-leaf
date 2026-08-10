@@ -50,7 +50,7 @@ test("desktop and application translators localize menus, status, and dialogs", 
   assert.equal(chinese("menu.settings"), "设置…");
   assert.equal(english("menu.sidebarViews"), "Sidebar Views");
   assert.equal(chinese("menu.sidebarFavorites"), "收藏");
-  assert.equal(english("menu.pageMarginsFeishu"), "Feishu Style");
+  assert.equal(english("menu.pageMarginsWide"), "Wide");
   assert.equal(chinese("menu.pageMarginsStandard"), "标准（默认）");
   assert.match(
     english("updates.handoffAvailableVersion", { version: "1.16.0" }),

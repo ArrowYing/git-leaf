@@ -342,14 +342,20 @@ test("readDesktopConfig normalizes an invalid document font size", async () => {
   });
 });
 
-test("desktop config persists the Feishu margin mode and rejects unknown values", async () => {
+test("desktop config persists wide margins, migrates the old name, and rejects unknown values", async () => {
   const userDataDir = await mkdtemp(path.join(tmpdir(), "git-leaf-user-data-"));
 
-  const feishu = await saveDesktopPreferences({
+  const wide = await saveDesktopPreferences({
+    userDataDir,
+    preferences: { documentMargins: "wide" },
+  });
+  assert.equal(wide.preferences.documentMargins, "wide");
+
+  const migrated = await saveDesktopPreferences({
     userDataDir,
     preferences: { documentMargins: "feishu" },
   });
-  assert.equal(feishu.preferences.documentMargins, "feishu");
+  assert.equal(migrated.preferences.documentMargins, "wide");
 
   const normalized = await saveDesktopPreferences({
     userDataDir,
@@ -570,7 +576,7 @@ test("saveDesktopPreferences persists normalized app preferences across reposito
       colorMode: "dark",
       documentFont: "reading-serif",
       documentFontSize: 18,
-      documentMargins: "feishu",
+      documentMargins: "wide",
       fileTreeMode: "content",
       showDocumentTitles: false,
       gitRemoteCheckIntervalMinutes: 60,
@@ -627,7 +633,7 @@ test("saveDesktopPreferences persists normalized app preferences across reposito
       colorMode: "dark",
       documentFont: "reading-serif",
       documentFontSize: 18,
-      documentMargins: "feishu",
+      documentMargins: "wide",
       fileTreeMode: "content",
       showDocumentTitles: false,
       gitRemoteCheckIntervalMinutes: 60,
@@ -737,7 +743,7 @@ test("concurrent preference patches merge without dropping independent fields", 
     saveDesktopPreferences({ userDataDir, preferences: { colorMode: "dark" } }),
     saveDesktopPreferences({ userDataDir, preferences: { documentFont: "reading-serif" } }),
     saveDesktopPreferences({ userDataDir, preferences: { documentFontSize: 20 } }),
-    saveDesktopPreferences({ userDataDir, preferences: { documentMargins: "feishu" } }),
+    saveDesktopPreferences({ userDataDir, preferences: { documentMargins: "wide" } }),
     saveDesktopPreferences({ userDataDir, preferences: { fileTreeMode: "all" } }),
     saveDesktopPreferences({
       userDataDir,
@@ -757,7 +763,7 @@ test("concurrent preference patches merge without dropping independent fields", 
       colorMode: "dark",
       documentFont: "reading-serif",
       documentFontSize: 20,
-      documentMargins: "feishu",
+      documentMargins: "wide",
       fileTreeMode: "all",
       showDocumentTitles: true,
       gitRemoteCheckIntervalMinutes: 30,

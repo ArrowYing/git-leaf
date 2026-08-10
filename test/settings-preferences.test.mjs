@@ -82,9 +82,10 @@ test("document margins keep the current layout by default and accept only two mo
   assert.equal(DEFAULT_USER_PREFERENCES.documentMargins, "standard");
   assert.equal(LEGACY_USER_PREFERENCES.documentMargins, "standard");
   assert.equal(normalizeDocumentMargins("standard"), "standard");
-  assert.equal(normalizeDocumentMargins(" FEISHU "), "feishu");
-  assert.equal(normalizeDocumentMargins("wide"), "standard");
-  assert.equal(normalizeDocumentMargins("wide", "feishu"), "feishu");
+  assert.equal(normalizeDocumentMargins(" WIDE "), "wide");
+  assert.equal(normalizeDocumentMargins("feishu"), "wide");
+  assert.equal(normalizeDocumentMargins("extra-wide"), "standard");
+  assert.equal(normalizeDocumentMargins("extra-wide", "feishu"), "wide");
 });
 
 test("Git remote checks accept only the seven persisted interval choices", () => {
@@ -105,8 +106,8 @@ test("preference patches whitelist only the public settings", () => {
     showDocumentTitles: false,
   });
   assert.deepEqual(preferencePatch("documentFontSize", "18"), { documentFontSize: 18 });
-  assert.deepEqual(preferencePatch("documentMargins", "feishu"), {
-    documentMargins: "feishu",
+  assert.deepEqual(preferencePatch("documentMargins", "wide"), {
+    documentMargins: "wide",
   });
   assert.deepEqual(preferencePatch("gitRemoteCheckIntervalMinutes", "60"), {
     gitRemoteCheckIntervalMinutes: 60,
