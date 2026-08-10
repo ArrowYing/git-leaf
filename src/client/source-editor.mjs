@@ -740,11 +740,21 @@ function liveMarkdownThemeForTheme(theme) {
     },
     ".cm-live-code": {
       color: "var(--text)",
-      border: "1px solid var(--panel-border)",
-      borderRadius: "8px",
+      border: "0",
+      borderRadius: "0",
       backgroundColor: "var(--code-bg)",
       fontFamily:
         "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace",
+      fontSize: "0.9em",
+      lineHeight: "1.55",
+    },
+    ".cm-live-code-block-start": {
+      borderRadius: "8px 8px 0 0",
+      paddingTop: "4px",
+    },
+    ".cm-live-code-block-end": {
+      borderRadius: "0 0 8px 8px",
+      paddingBottom: "4px",
     },
     ".cm-live-marker": {
       color: "var(--text-secondary)",
@@ -4132,7 +4142,9 @@ export function liveClassForLine({
     return "cm-live-mdx-component";
   }
   if (/^(?:`{3,}|~{3,})/.test(trimmed)) {
-    return "cm-live-code cm-live-code-fence";
+    return inCodeBlock
+      ? "cm-live-code cm-live-code-fence cm-live-code-block-end"
+      : "cm-live-code cm-live-code-fence cm-live-code-block-start";
   }
   if (inCodeBlock) {
     return "cm-live-code";
