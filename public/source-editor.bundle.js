@@ -33671,6 +33671,25 @@ function reorderMarkdownTableColumnWidths(widths, fromColumn, toColumn) {
   }
   return moveArrayItem(normalized, fromColumn, toColumn);
 }
+function insertMarkdownTableColumnWidth(widths, column, referenceColumn = Math.min(column, widths?.length - 1)) {
+  const normalized = normalizeMarkdownTableColumnWidths(widths);
+  if (!normalized || !Number.isInteger(column) || !Number.isInteger(referenceColumn) || column < 0 || column > normalized.length || referenceColumn < 0 || referenceColumn >= normalized.length) {
+    return null;
+  }
+  const neighbor = normalized[referenceColumn];
+  const next = [...normalized];
+  next.splice(column, 0, neighbor);
+  return next;
+}
+function deleteMarkdownTableColumnWidths(widths, fromColumn, toColumn = fromColumn) {
+  const normalized = normalizeMarkdownTableColumnWidths(widths);
+  if (!normalized || !Number.isInteger(fromColumn) || !Number.isInteger(toColumn) || fromColumn < 0 || toColumn < fromColumn || toColumn >= normalized.length || toColumn - fromColumn + 1 >= normalized.length) {
+    return null;
+  }
+  const next = [...normalized];
+  next.splice(fromColumn, toColumn - fromColumn + 1);
+  return next;
+}
 function controlledTableStyleSpanAt(source) {
   const match2 = CONTROLLED_TABLE_STYLE_SPAN.exec(String(source ?? ""));
   if (!match2) {
@@ -34008,6 +34027,135 @@ function replaceMarkdownTableCell(source, row, column, content2) {
     changed: nextSource !== table2.source,
     row,
     column
+  };
+}
+function insertMarkdownTableRow(source, selection, placement = "below") {
+  const table2 = parseMarkdownTable(source);
+  const normalizedSelection = normalizeMarkdownTableSelection(selection, table2);
+  if (!table2 || !normalizedSelection || !["above", "below"].includes(placement)) {
+    return null;
+  }
+  const insertionRow = placement === "above" ? Math.max(1, normalizedSelection.minRow) : Math.max(1, normalizedSelection.maxRow + 1);
+  const insertionLine = insertionRow >= table2.rowCount ? table2.lines.length : table2.visualRows[insertionRow].lineIndex;
+  const templateRow = table2.rowCount > 1 ? table2.visualRows[Math.min(insertionRow, table2.rowCount - 1)] : table2.visualRows[0];
+  const emptyCells = templateRow.cells.map((cell) => cellRawWithContent(cell, ""));
+  const nextLines = [...table2.lines];
+  nextLines.splice(
+    insertionLine,
+    0,
+    serializeMarkdownTableRow(templateRow, emptyCells)
+  );
+  return {
+    source: nextLines.join(table2.newline),
+    changed: true,
+    insertedRow: insertionRow,
+    selection: {
+      anchorRow: insertionRow,
+      anchorColumn: normalizedSelection.minColumn,
+      focusRow: insertionRow,
+      focusColumn: normalizedSelection.maxColumn
+    }
+  };
+}
+function deleteMarkdownTableRows(source, selection) {
+  const table2 = parseMarkdownTable(source);
+  const normalizedSelection = normalizeMarkdownTableSelection(selection, table2);
+  if (!table2 || !normalizedSelection) {
+    return null;
+  }
+  const firstRow = Math.max(1, normalizedSelection.minRow);
+  const lastRow = normalizedSelection.maxRow;
+  if (lastRow < firstRow) {
+    return null;
+  }
+  const nextLines = [...table2.lines];
+  const lineIndexes = table2.visualRows.slice(firstRow, lastRow + 1).map((row) => row.lineIndex).sort((left, right) => right - left);
+  for (const lineIndex of lineIndexes) {
+    nextLines.splice(lineIndex, 1);
+  }
+  const nextSource = nextLines.join(table2.newline);
+  const nextTable = parseMarkdownTable(nextSource);
+  if (!nextTable) {
+    return null;
+  }
+  const nextRow = nextTable.rowCount > 1 ? Math.min(firstRow, nextTable.rowCount - 1) : 0;
+  return {
+    source: nextSource,
+    changed: true,
+    deletedRows: { from: firstRow, to: lastRow },
+    selection: {
+      anchorRow: nextRow,
+      anchorColumn: normalizedSelection.minColumn,
+      focusRow: nextRow,
+      focusColumn: normalizedSelection.maxColumn
+    }
+  };
+}
+function insertMarkdownTableColumn(source, selection, placement = "right") {
+  const table2 = parseMarkdownTable(source);
+  const normalizedSelection = normalizeMarkdownTableSelection(selection, table2);
+  if (!table2 || !normalizedSelection || !["left", "right"].includes(placement)) {
+    return null;
+  }
+  const insertionColumn = placement === "left" ? normalizedSelection.minColumn : normalizedSelection.maxColumn + 1;
+  const templateColumn = Math.min(insertionColumn, table2.columnCount - 1);
+  const nextLines = [...table2.lines];
+  for (const row of table2.sourceRows) {
+    const nextCells = row.cells.map((cell) => cell.raw);
+    const content2 = row === table2.separator ? "---" : "";
+    nextCells.splice(
+      insertionColumn,
+      0,
+      cellRawWithContent(row.cells[templateColumn], content2)
+    );
+    nextLines[row.lineIndex] = serializeMarkdownTableRow(row, nextCells);
+  }
+  return {
+    source: nextLines.join(table2.newline),
+    changed: true,
+    insertedColumn: insertionColumn,
+    referenceColumn: placement === "left" ? normalizedSelection.minColumn : normalizedSelection.maxColumn,
+    selection: {
+      anchorRow: normalizedSelection.minRow,
+      anchorColumn: insertionColumn,
+      focusRow: normalizedSelection.maxRow,
+      focusColumn: insertionColumn
+    }
+  };
+}
+function deleteMarkdownTableColumns(source, selection) {
+  const table2 = parseMarkdownTable(source);
+  const normalizedSelection = normalizeMarkdownTableSelection(selection, table2);
+  if (!table2 || !normalizedSelection) {
+    return null;
+  }
+  const deletedColumnCount = normalizedSelection.maxColumn - normalizedSelection.minColumn + 1;
+  if (deletedColumnCount >= table2.columnCount) {
+    return null;
+  }
+  const nextLines = [...table2.lines];
+  for (const row of table2.sourceRows) {
+    const nextCells = row.cells.map((cell) => cell.raw);
+    nextCells.splice(normalizedSelection.minColumn, deletedColumnCount);
+    nextLines[row.lineIndex] = serializeMarkdownTableRow(row, nextCells);
+  }
+  const nextColumn = Math.min(
+    normalizedSelection.minColumn,
+    table2.columnCount - deletedColumnCount - 1
+  );
+  return {
+    source: nextLines.join(table2.newline),
+    changed: true,
+    deletedColumns: {
+      from: normalizedSelection.minColumn,
+      to: normalizedSelection.maxColumn
+    },
+    selection: {
+      anchorRow: normalizedSelection.minRow,
+      anchorColumn: nextColumn,
+      focusRow: normalizedSelection.maxRow,
+      focusColumn: nextColumn
+    }
   };
 }
 function applyMarkdownTableTextColor(source, selection, color) {
@@ -38763,7 +38911,15 @@ var SOURCE_EDITOR_TABLE_MESSAGES = {
     "align.right": "Align selected columns right",
     "cell.edit": "Edit table cell source",
     "column.drag": "Drag to reorder the selected column",
-    "column.resize": "Drag to resize column {column}"
+    "column.resize": "Drag to resize column {column}",
+    "structure.label": "Table rows and columns",
+    "structure.insertRowAbove": "Insert row above",
+    "structure.insertRowBelow": "Insert row below",
+    "structure.insertColumnLeft": "Insert column left",
+    "structure.insertColumnRight": "Insert column right",
+    "structure.deleteRows": "Delete selected rows",
+    "structure.deleteColumns": "Delete selected columns",
+    "structure.deleteTable": "Delete table"
   },
   "zh-CN": {
     "toolbar.label": "\u8868\u683C\u683C\u5F0F",
@@ -38795,7 +38951,15 @@ var SOURCE_EDITOR_TABLE_MESSAGES = {
     "align.right": "\u9009\u4E2D\u5217\u53F3\u5BF9\u9F50",
     "cell.edit": "\u7F16\u8F91\u8868\u683C\u5355\u5143\u683C\u6E90\u7801",
     "column.drag": "\u62D6\u52A8\u8C03\u6574\u9009\u4E2D\u5217\u7684\u987A\u5E8F",
-    "column.resize": "\u62D6\u52A8\u8C03\u6574\u7B2C {column} \u5217\u5BBD\u5EA6"
+    "column.resize": "\u62D6\u52A8\u8C03\u6574\u7B2C {column} \u5217\u5BBD\u5EA6",
+    "structure.label": "\u8868\u683C\u884C\u5217\u64CD\u4F5C",
+    "structure.insertRowAbove": "\u5728\u4E0A\u65B9\u63D2\u5165\u884C",
+    "structure.insertRowBelow": "\u5728\u4E0B\u65B9\u63D2\u5165\u884C",
+    "structure.insertColumnLeft": "\u5728\u5DE6\u4FA7\u63D2\u5165\u5217",
+    "structure.insertColumnRight": "\u5728\u53F3\u4FA7\u63D2\u5165\u5217",
+    "structure.deleteRows": "\u5220\u9664\u6240\u9009\u884C",
+    "structure.deleteColumns": "\u5220\u9664\u6240\u9009\u5217",
+    "structure.deleteTable": "\u5220\u9664\u6574\u5F20\u8868\u683C"
   }
 };
 var SOURCE_EDITOR_COMPONENT_MESSAGES = {
@@ -41265,6 +41429,83 @@ ${nextSource}`
   });
   const clearTextFormatting = () => applySelectionTransform((block2) => clearMarkdownTableTextFormatting(block2.source, selection));
   const applyAlignment = (alignment) => applySelectionTransform((block2) => alignMarkdownTableColumns(block2.source, selection, alignment));
+  const applyTableStructure = (action) => {
+    if (!selection || !isEditable()) {
+      return false;
+    }
+    commitEditor();
+    const block2 = currentTableBlock(selection.startLine);
+    const normalized = normalizedSelection(block2);
+    if (!block2 || !normalized) {
+      return false;
+    }
+    if (action === "delete-table") {
+      const view = getView();
+      if (!view) {
+        return false;
+      }
+      let from = Number.isInteger(block2.metadataFrom) ? block2.metadataFrom : block2.from;
+      let to = block2.to;
+      if (to < view.state.doc.length && view.state.doc.sliceString(to, to + 1) === "\n") {
+        to += 1;
+      } else if (from > 0 && view.state.doc.sliceString(from - 1, from) === "\n") {
+        from -= 1;
+      }
+      closeLiveTableToolbarMenus(view.dom);
+      selection = null;
+      view.dispatch(preserveEditorContext({ changes: { from, to, insert: "" } }));
+      scheduleRefresh();
+      focusEditorView();
+      return true;
+    }
+    let result = null;
+    if (action === "insert-row-above") {
+      result = insertMarkdownTableRow(block2.source, selection, "above");
+    } else if (action === "insert-row-below") {
+      result = insertMarkdownTableRow(block2.source, selection, "below");
+    } else if (action === "delete-rows") {
+      result = deleteMarkdownTableRows(block2.source, selection);
+    } else if (action === "insert-column-left") {
+      result = insertMarkdownTableColumn(block2.source, selection, "left");
+    } else if (action === "insert-column-right") {
+      result = insertMarkdownTableColumn(block2.source, selection, "right");
+    } else if (action === "delete-columns") {
+      result = deleteMarkdownTableColumns(block2.source, selection);
+    }
+    if (!result) {
+      scheduleRefresh();
+      return false;
+    }
+    let columnWidths;
+    if (block2.columnWidths && Number.isInteger(result.insertedColumn)) {
+      columnWidths = insertMarkdownTableColumnWidth(
+        block2.columnWidths,
+        result.insertedColumn,
+        result.referenceColumn
+      );
+    } else if (block2.columnWidths && result.deletedColumns) {
+      columnWidths = deleteMarkdownTableColumnWidths(
+        block2.columnWidths,
+        result.deletedColumns.from,
+        result.deletedColumns.to
+      );
+    }
+    if (block2.columnWidths && !columnWidths && (Number.isInteger(result.insertedColumn) || result.deletedColumns)) {
+      scheduleRefresh();
+      return false;
+    }
+    selection = {
+      startLine: block2.startLine,
+      ...result.selection
+    };
+    closeLiveTableToolbarMenus(getView()?.dom);
+    dispatchTableUpdate(block2, {
+      source: result.source,
+      ...columnWidths ? { columnWidths } : {}
+    });
+    focusEditorView();
+    return true;
+  };
   const toggleToolbarMenu = (button) => {
     const toolbar = button.closest(".cm-live-table-format-toolbar");
     const menuName = button.dataset.liveTableMenuToggle;
@@ -41595,6 +41836,18 @@ ${nextSource}`
       event.preventDefault();
       event.stopPropagation();
       toggleToolbarMenu(menuButton);
+      return;
+    }
+    const structureButton = closestElement(
+      event.target,
+      "[data-live-table-structure-action]"
+    );
+    if (structureButton) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (!structureButton.disabled) {
+        applyTableStructure(structureButton.dataset.liveTableStructureAction);
+      }
       return;
     }
     const formatButton = closestElement(
@@ -41943,6 +42196,7 @@ ${nextSource}`
         toolbar,
         markdownTableSelectionFormatState(block2.source, selection)
       );
+      updateLiveTableStructureState(toolbar, block2.table, normalized);
       toolbar.hidden = false;
       const table2 = container.querySelector(".cm-live-table");
       positionFloatingControl(toolbar, table2?.getBoundingClientRect(), {
@@ -42084,6 +42338,8 @@ function prepareLiveTablePreview(container, block2, translate) {
     button.append(createLiveTableAlignmentIcon(alignment));
     toolbar.append(button);
   }
+  toolbar.append(createLiveTableToolbarSeparator());
+  toolbar.append(createLiveTableStructureControl(translate));
   toolbar.append(createLiveTableToolbarSeparator());
   const clearButton = createLiveTableToolbarButton(
     translate("format.clear"),
@@ -42279,6 +42535,64 @@ function createLiveTablePaletteControl({
   wrapper.append(trigger, menu);
   return wrapper;
 }
+function createLiveTableStructureControl(translate, documentRoot = globalThis.document) {
+  const wrapper = documentRoot.createElement("span");
+  wrapper.className = "cm-live-table-palette-control cm-live-table-structure-control";
+  const trigger = createLiveTableToolbarButton(
+    translate("structure.label"),
+    "",
+    "",
+    documentRoot
+  );
+  trigger.classList.add(
+    "cm-live-table-palette-trigger",
+    "cm-live-table-structure-trigger"
+  );
+  trigger.dataset.liveTableMenuToggle = "structure";
+  trigger.setAttribute("aria-haspopup", "menu");
+  trigger.setAttribute("aria-expanded", "false");
+  const symbol = documentRoot.createElement("span");
+  symbol.className = "cm-live-table-structure-symbol";
+  symbol.setAttribute("aria-hidden", "true");
+  symbol.textContent = "\u25A6";
+  const chevron = documentRoot.createElement("span");
+  chevron.className = "cm-live-table-palette-chevron";
+  chevron.setAttribute("aria-hidden", "true");
+  chevron.textContent = "\u25BE";
+  trigger.append(symbol, chevron);
+  const menu = documentRoot.createElement("span");
+  menu.className = "cm-live-table-palette cm-live-table-structure-menu";
+  menu.dataset.liveTablePalette = "structure";
+  menu.setAttribute("role", "menu");
+  menu.setAttribute("aria-label", translate("structure.label"));
+  menu.hidden = true;
+  const actions = [
+    ["insert-row-above", "structure.insertRowAbove"],
+    ["insert-row-below", "structure.insertRowBelow"],
+    ["insert-column-left", "structure.insertColumnLeft"],
+    ["insert-column-right", "structure.insertColumnRight"],
+    ["delete-rows", "structure.deleteRows"],
+    ["delete-columns", "structure.deleteColumns"],
+    ["delete-table", "structure.deleteTable"]
+  ];
+  for (const [action, labelKey] of actions) {
+    const button = documentRoot.createElement("button");
+    button.type = "button";
+    button.className = "cm-live-table-structure-button";
+    if (action === "delete-rows") {
+      button.classList.add("starts-delete-group");
+    }
+    if (action.startsWith("delete-")) {
+      button.classList.add("is-danger");
+    }
+    button.dataset.liveTableStructureAction = action;
+    button.setAttribute("role", "menuitem");
+    button.textContent = translate(labelKey);
+    menu.append(button);
+  }
+  wrapper.append(trigger, menu);
+  return wrapper;
+}
 function createLiveTableAlignmentIcon(alignment) {
   const icon = document.createElement("span");
   icon.className = `cm-live-table-align-icon is-${alignment}`;
@@ -42353,6 +42667,20 @@ function updateLiveTableToolbar(toolbar, state) {
     "highlight",
     state.backgroundColor
   );
+}
+function updateLiveTableStructureState(toolbar, table2, selection) {
+  if (!toolbar || !table2 || !selection) {
+    return;
+  }
+  const selectedColumnCount = selection.maxColumn - selection.minColumn + 1;
+  for (const button of toolbar.querySelectorAll(
+    "[data-live-table-structure-action]"
+  )) {
+    const action = button.dataset.liveTableStructureAction;
+    const disabled = action === "delete-rows" && selection.maxRow < 1 || action === "delete-columns" && selectedColumnCount >= table2.columnCount;
+    button.disabled = disabled;
+    button.setAttribute("aria-disabled", String(disabled));
+  }
 }
 function updateLiveTablePressedState(button, value) {
   const pressed = value === "mixed" ? "mixed" : String(value === true);

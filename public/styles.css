@@ -5028,6 +5028,54 @@ tr:last-child td {
   display: none;
 }
 
+.cm-live-table-structure-trigger {
+  grid-template-columns: 18px 7px;
+  width: 36px;
+}
+
+.cm-live-table-structure-symbol {
+  color: var(--text-secondary);
+  font-size: 17px;
+  line-height: 1;
+}
+
+.cm-live-table-structure-menu {
+  right: 0;
+  left: auto;
+  grid-template-columns: minmax(168px, 1fr);
+  gap: 2px;
+  transform: none;
+}
+
+.cm-live-table-structure-button {
+  display: flex;
+  width: 100%;
+  min-height: 30px;
+  align-items: center;
+  justify-content: flex-start;
+  border-radius: 6px;
+  padding: 0 10px;
+  text-align: left;
+}
+
+.cm-live-table-structure-button.starts-delete-group {
+  margin-top: 4px;
+  box-shadow: 0 -5px 0 -4px var(--panel-border);
+}
+
+.cm-live-table-structure-button.is-danger {
+  color: var(--danger-text);
+}
+
+.cm-live-table-structure-button:disabled {
+  cursor: default;
+  opacity: 0.42;
+}
+
+.cm-live-table-structure-button:disabled:hover {
+  background: transparent;
+}
+
 .cm-live-table-swatch-button {
   position: relative;
   display: inline-grid;
