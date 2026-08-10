@@ -470,6 +470,156 @@ test("the Live table toolbar formats a rectangular range and aligns its columns"
   assert.equal(fixture.boldButton.getAttribute("aria-pressed"), "false");
 });
 
+test("the Live table structure menu inserts and deletes selected rows", async () => {
+  const insertedFixture = liveTableFixture();
+  const selectedCell = insertedFixture.cell(1, 1);
+  insertedFixture.interaction.handlePointerDown(pointerEvent(selectedCell, {
+    pointerId: 81,
+    clientX: 280,
+    clientY: 260,
+  }));
+  insertedFixture.interaction.handlePointerUp(pointerEvent(selectedCell, {
+    type: "pointerup",
+    pointerId: 81,
+    clientX: 280,
+    clientY: 260,
+  }));
+  insertedFixture.interaction.handlePointerDown(pointerEvent(
+    insertedFixture.structureButtons["insert-row-below"],
+  ));
+  await nextTask();
+
+  let parsed = parseMarkdownTable(insertedFixture.view.state.doc.toString());
+  assert.equal(parsed?.rowCount, 5);
+  assert.deepEqual(
+    parsed?.visualRows[2].cells.map((cell) => cell.content),
+    ["", "", ""],
+  );
+
+  const deletedFixture = liveTableFixture();
+  const first = deletedFixture.cell(1, 0);
+  const last = deletedFixture.cell(2, 2);
+  deletedFixture.interaction.handlePointerDown(pointerEvent(first, {
+    pointerId: 82,
+    clientX: 160,
+    clientY: 260,
+  }));
+  deletedFixture.document.pointTarget = last;
+  deletedFixture.interaction.handlePointerMove(pointerEvent(last, {
+    type: "pointermove",
+    pointerId: 82,
+    clientX: 400,
+    clientY: 300,
+  }));
+  deletedFixture.interaction.handlePointerUp(pointerEvent(last, {
+    type: "pointerup",
+    pointerId: 82,
+    clientX: 400,
+    clientY: 300,
+  }));
+  deletedFixture.interaction.handlePointerDown(pointerEvent(
+    deletedFixture.structureButtons["delete-rows"],
+  ));
+  await nextTask();
+
+  parsed = parseMarkdownTable(deletedFixture.view.state.doc.toString());
+  assert.equal(parsed?.rowCount, 2);
+  assert.equal(parsed?.visualRows[1].cells[0].content, "A3");
+});
+
+test("the Live table structure menu keeps persisted widths aligned with columns", async () => {
+  const source = [
+    '[git-leaf-table-widths]: # "100,150,110"',
+    tableSource,
+  ].join("\n");
+  const insertedFixture = liveTableFixture({
+    source,
+    startLine: 2,
+    columnWidths: [100, 150, 110],
+  });
+  const selectedCell = insertedFixture.cell(1, 1);
+  insertedFixture.interaction.handlePointerDown(pointerEvent(selectedCell, {
+    pointerId: 83,
+    clientX: 280,
+    clientY: 260,
+  }));
+  insertedFixture.interaction.handlePointerUp(pointerEvent(selectedCell, {
+    type: "pointerup",
+    pointerId: 83,
+    clientX: 280,
+    clientY: 260,
+  }));
+  insertedFixture.interaction.handlePointerDown(pointerEvent(
+    insertedFixture.structureButtons["insert-column-right"],
+  ));
+  await nextTask();
+
+  let lines = insertedFixture.view.state.doc.toString().split("\n");
+  let block = markdownTableBlockAtLines(lines, 1);
+  assert.equal(block?.table.columnCount, 4);
+  assert.deepEqual(block?.columnWidths, [100, 150, 150, 110]);
+
+  const deletedFixture = liveTableFixture({
+    source,
+    startLine: 2,
+    columnWidths: [100, 150, 110],
+  });
+  const deleteCell = deletedFixture.cell(2, 1);
+  deletedFixture.interaction.handlePointerDown(pointerEvent(deleteCell, {
+    pointerId: 84,
+    clientX: 280,
+    clientY: 300,
+  }));
+  deletedFixture.interaction.handlePointerUp(pointerEvent(deleteCell, {
+    type: "pointerup",
+    pointerId: 84,
+    clientX: 280,
+    clientY: 300,
+  }));
+  deletedFixture.interaction.handlePointerDown(pointerEvent(
+    deletedFixture.structureButtons["delete-columns"],
+  ));
+  await nextTask();
+
+  lines = deletedFixture.view.state.doc.toString().split("\n");
+  block = markdownTableBlockAtLines(lines, 1);
+  assert.equal(block?.table.columnCount, 2);
+  assert.deepEqual(block?.columnWidths, [100, 110]);
+});
+
+test("the Live table structure menu deletes the table and its width metadata", async () => {
+  const source = [
+    "Before",
+    '[git-leaf-table-widths]: # "100,150,110"',
+    tableSource,
+    "After",
+  ].join("\n");
+  const fixture = liveTableFixture({
+    source,
+    startLine: 3,
+    columnWidths: [100, 150, 110],
+  });
+  const selectedCell = fixture.cell(1, 1);
+  fixture.interaction.handlePointerDown(pointerEvent(selectedCell, {
+    pointerId: 85,
+    clientX: 280,
+    clientY: 260,
+  }));
+  fixture.interaction.handlePointerUp(pointerEvent(selectedCell, {
+    type: "pointerup",
+    pointerId: 85,
+    clientX: 280,
+    clientY: 260,
+  }));
+  fixture.interaction.handlePointerDown(pointerEvent(
+    fixture.structureButtons["delete-table"],
+  ));
+  await nextTask();
+
+  assert.equal(fixture.view.state.doc.toString(), "Before\nAfter");
+  assert.equal(fixture.interaction.hasSelection(), false);
+});
+
 test("Escape is scoped to the editor that owns the table selection", async () => {
   const fixture = liveTableFixture();
   const cell = fixture.cell(2, 1);
@@ -627,6 +777,25 @@ function liveTableFixture({
   const clearFormatButton = document.createElement("button");
   clearFormatButton.dataset.liveTableFormatAction = "clear";
   toolbar.append(clearFormatButton);
+  const structureMenu = document.createElement("span");
+  structureMenu.dataset.liveTablePalette = "structure";
+  structureMenu.hidden = true;
+  const structureButtons = {};
+  for (const action of [
+    "insert-row-above",
+    "insert-row-below",
+    "insert-column-left",
+    "insert-column-right",
+    "delete-rows",
+    "delete-columns",
+    "delete-table",
+  ]) {
+    const button = document.createElement("button");
+    button.dataset.liveTableStructureAction = action;
+    structureMenu.append(button);
+    structureButtons[action] = button;
+  }
+  toolbar.append(structureMenu);
   const closeButton = document.createElement("button");
   closeButton.dataset.liveTableToolbarClose = "true";
   toolbar.append(closeButton);
@@ -683,6 +852,7 @@ function liveTableFixture({
     highlightButton,
     alignRightButton,
     clearFormatButton,
+    structureButtons,
     closeButton,
     handle,
     resizeHandles,

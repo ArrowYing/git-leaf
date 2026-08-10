@@ -44,6 +44,12 @@ import {
   applyMarkdownTableTextStyle,
   applyMarkdownTableTextColor,
   clearMarkdownTableTextFormatting,
+  deleteMarkdownTableColumns,
+  deleteMarkdownTableColumnWidths,
+  deleteMarkdownTableRows,
+  insertMarkdownTableColumn,
+  insertMarkdownTableColumnWidth,
+  insertMarkdownTableRow,
   markdownTableBlockAtLines,
   markdownTableSelectionFormatState,
   normalizeMarkdownTableColumnWidths,
@@ -202,6 +208,14 @@ const SOURCE_EDITOR_TABLE_MESSAGES = {
     "cell.edit": "Edit table cell source",
     "column.drag": "Drag to reorder the selected column",
     "column.resize": "Drag to resize column {column}",
+    "structure.label": "Table rows and columns",
+    "structure.insertRowAbove": "Insert row above",
+    "structure.insertRowBelow": "Insert row below",
+    "structure.insertColumnLeft": "Insert column left",
+    "structure.insertColumnRight": "Insert column right",
+    "structure.deleteRows": "Delete selected rows",
+    "structure.deleteColumns": "Delete selected columns",
+    "structure.deleteTable": "Delete table",
   },
   "zh-CN": {
     "toolbar.label": "表格格式",
@@ -231,6 +245,14 @@ const SOURCE_EDITOR_TABLE_MESSAGES = {
     "cell.edit": "编辑表格单元格源码",
     "column.drag": "拖动调整选中列的顺序",
     "column.resize": "拖动调整第 {column} 列宽度",
+    "structure.label": "表格行列操作",
+    "structure.insertRowAbove": "在上方插入行",
+    "structure.insertRowBelow": "在下方插入行",
+    "structure.insertColumnLeft": "在左侧插入列",
+    "structure.insertColumnRight": "在右侧插入列",
+    "structure.deleteRows": "删除所选行",
+    "structure.deleteColumns": "删除所选列",
+    "structure.deleteTable": "删除整张表格",
   },
 };
 
@@ -2525,6 +2547,98 @@ export function createLiveTableInteraction({
     applySelectionTransform((block) =>
       alignMarkdownTableColumns(block.source, selection, alignment));
 
+  const applyTableStructure = (action) => {
+    if (!selection || !isEditable()) {
+      return false;
+    }
+    commitEditor();
+    const block = currentTableBlock(selection.startLine);
+    const normalized = normalizedSelection(block);
+    if (!block || !normalized) {
+      return false;
+    }
+
+    if (action === "delete-table") {
+      const view = getView();
+      if (!view) {
+        return false;
+      }
+      let from = Number.isInteger(block.metadataFrom)
+        ? block.metadataFrom
+        : block.from;
+      let to = block.to;
+      if (
+        to < view.state.doc.length &&
+        view.state.doc.sliceString(to, to + 1) === "\n"
+      ) {
+        to += 1;
+      } else if (
+        from > 0 &&
+        view.state.doc.sliceString(from - 1, from) === "\n"
+      ) {
+        from -= 1;
+      }
+      closeLiveTableToolbarMenus(view.dom);
+      selection = null;
+      view.dispatch(preserveEditorContext({ changes: { from, to, insert: "" } }));
+      scheduleRefresh();
+      focusEditorView();
+      return true;
+    }
+
+    let result = null;
+    if (action === "insert-row-above") {
+      result = insertMarkdownTableRow(block.source, selection, "above");
+    } else if (action === "insert-row-below") {
+      result = insertMarkdownTableRow(block.source, selection, "below");
+    } else if (action === "delete-rows") {
+      result = deleteMarkdownTableRows(block.source, selection);
+    } else if (action === "insert-column-left") {
+      result = insertMarkdownTableColumn(block.source, selection, "left");
+    } else if (action === "insert-column-right") {
+      result = insertMarkdownTableColumn(block.source, selection, "right");
+    } else if (action === "delete-columns") {
+      result = deleteMarkdownTableColumns(block.source, selection);
+    }
+    if (!result) {
+      scheduleRefresh();
+      return false;
+    }
+
+    let columnWidths;
+    if (block.columnWidths && Number.isInteger(result.insertedColumn)) {
+      columnWidths = insertMarkdownTableColumnWidth(
+        block.columnWidths,
+        result.insertedColumn,
+        result.referenceColumn,
+      );
+    } else if (block.columnWidths && result.deletedColumns) {
+      columnWidths = deleteMarkdownTableColumnWidths(
+        block.columnWidths,
+        result.deletedColumns.from,
+        result.deletedColumns.to,
+      );
+    }
+    if (block.columnWidths && !columnWidths && (
+      Number.isInteger(result.insertedColumn) || result.deletedColumns
+    )) {
+      scheduleRefresh();
+      return false;
+    }
+
+    selection = {
+      startLine: block.startLine,
+      ...result.selection,
+    };
+    closeLiveTableToolbarMenus(getView()?.dom);
+    dispatchTableUpdate(block, {
+      source: result.source,
+      ...(columnWidths ? { columnWidths } : {}),
+    });
+    focusEditorView();
+    return true;
+  };
+
   const toggleToolbarMenu = (button) => {
     const toolbar = button.closest(".cm-live-table-format-toolbar");
     const menuName = button.dataset.liveTableMenuToggle;
@@ -2896,6 +3010,19 @@ export function createLiveTableInteraction({
       event.preventDefault();
       event.stopPropagation();
       toggleToolbarMenu(menuButton);
+      return;
+    }
+
+    const structureButton = closestElement(
+      event.target,
+      "[data-live-table-structure-action]",
+    );
+    if (structureButton) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (!structureButton.disabled) {
+        applyTableStructure(structureButton.dataset.liveTableStructureAction);
+      }
       return;
     }
 
@@ -3314,6 +3441,7 @@ export function createLiveTableInteraction({
         toolbar,
         markdownTableSelectionFormatState(block.source, selection),
       );
+      updateLiveTableStructureState(toolbar, block.table, normalized);
       toolbar.hidden = false;
       const table = container.querySelector(".cm-live-table");
       positionFloatingControl(toolbar, table?.getBoundingClientRect(), {
@@ -3473,6 +3601,9 @@ function prepareLiveTablePreview(container, block, translate) {
   }
 
   toolbar.append(createLiveTableToolbarSeparator());
+  toolbar.append(createLiveTableStructureControl(translate));
+
+  toolbar.append(createLiveTableToolbarSeparator());
   const clearButton = createLiveTableToolbarButton(
     translate("format.clear"),
     "Tx",
@@ -3620,6 +3751,74 @@ function createLiveTablePaletteControl({
   return wrapper;
 }
 
+function createLiveTableStructureControl(
+  translate,
+  documentRoot = globalThis.document,
+) {
+  const wrapper = documentRoot.createElement("span");
+  wrapper.className =
+    "cm-live-table-palette-control cm-live-table-structure-control";
+
+  const trigger = createLiveTableToolbarButton(
+    translate("structure.label"),
+    "",
+    "",
+    documentRoot,
+  );
+  trigger.classList.add(
+    "cm-live-table-palette-trigger",
+    "cm-live-table-structure-trigger",
+  );
+  trigger.dataset.liveTableMenuToggle = "structure";
+  trigger.setAttribute("aria-haspopup", "menu");
+  trigger.setAttribute("aria-expanded", "false");
+
+  const symbol = documentRoot.createElement("span");
+  symbol.className = "cm-live-table-structure-symbol";
+  symbol.setAttribute("aria-hidden", "true");
+  symbol.textContent = "▦";
+  const chevron = documentRoot.createElement("span");
+  chevron.className = "cm-live-table-palette-chevron";
+  chevron.setAttribute("aria-hidden", "true");
+  chevron.textContent = "▾";
+  trigger.append(symbol, chevron);
+
+  const menu = documentRoot.createElement("span");
+  menu.className = "cm-live-table-palette cm-live-table-structure-menu";
+  menu.dataset.liveTablePalette = "structure";
+  menu.setAttribute("role", "menu");
+  menu.setAttribute("aria-label", translate("structure.label"));
+  menu.hidden = true;
+
+  const actions = [
+    ["insert-row-above", "structure.insertRowAbove"],
+    ["insert-row-below", "structure.insertRowBelow"],
+    ["insert-column-left", "structure.insertColumnLeft"],
+    ["insert-column-right", "structure.insertColumnRight"],
+    ["delete-rows", "structure.deleteRows"],
+    ["delete-columns", "structure.deleteColumns"],
+    ["delete-table", "structure.deleteTable"],
+  ];
+  for (const [action, labelKey] of actions) {
+    const button = documentRoot.createElement("button");
+    button.type = "button";
+    button.className = "cm-live-table-structure-button";
+    if (action === "delete-rows") {
+      button.classList.add("starts-delete-group");
+    }
+    if (action.startsWith("delete-")) {
+      button.classList.add("is-danger");
+    }
+    button.dataset.liveTableStructureAction = action;
+    button.setAttribute("role", "menuitem");
+    button.textContent = translate(labelKey);
+    menu.append(button);
+  }
+
+  wrapper.append(trigger, menu);
+  return wrapper;
+}
+
 function createLiveTableAlignmentIcon(alignment) {
   const icon = document.createElement("span");
   icon.className = `cm-live-table-align-icon is-${alignment}`;
@@ -3688,6 +3887,26 @@ function updateLiveTableToolbar(toolbar, state) {
     "highlight",
     state.backgroundColor,
   );
+}
+
+function updateLiveTableStructureState(toolbar, table, selection) {
+  if (!toolbar || !table || !selection) {
+    return;
+  }
+  const selectedColumnCount = selection.maxColumn - selection.minColumn + 1;
+  for (const button of toolbar.querySelectorAll(
+    "[data-live-table-structure-action]",
+  )) {
+    const action = button.dataset.liveTableStructureAction;
+    const disabled =
+      (action === "delete-rows" && selection.maxRow < 1) ||
+      (
+        action === "delete-columns" &&
+        selectedColumnCount >= table.columnCount
+      );
+    button.disabled = disabled;
+    button.setAttribute("aria-disabled", String(disabled));
+  }
 }
 
 function updateLiveTablePressedState(button, value) {
