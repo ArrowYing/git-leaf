@@ -22,7 +22,7 @@ export const GIT_REMOTE_CHECK_INTERVAL_MINUTES = Object.freeze([1, 2, 5, 10, 30,
 
 const COLOR_MODES = new Set(["system", "light", "dark"]);
 const DOCUMENT_FONTS = new Set(["system-sans", "reading-serif"]);
-const DOCUMENT_MARGINS = new Set(["standard", "feishu"]);
+const DOCUMENT_MARGINS = new Set(["standard", "wide"]);
 const FILE_TREE_MODES = new Set(["content", "all"]);
 const GIT_REMOTE_CHECK_INTERVALS = new Set(GIT_REMOTE_CHECK_INTERVAL_MINUTES);
 const LANGUAGE_PREFERENCES = new Map([
@@ -87,7 +87,7 @@ export function normalizeDocumentFontSize(value, fallback = DEFAULT_USER_PREFERE
 }
 
 export function normalizeDocumentMargins(value, fallback = DEFAULT_USER_PREFERENCES.documentMargins) {
-  const normalized = String(value ?? "").trim().toLowerCase();
+  const normalized = normalizeDocumentMarginsValue(value);
   return DOCUMENT_MARGINS.has(normalized) ? normalized : normalizeDocumentMarginsFallback(fallback);
 }
 
@@ -213,7 +213,13 @@ function normalizeDocumentFontSizeFallback(value) {
 }
 
 function normalizeDocumentMarginsFallback(value) {
-  return DOCUMENT_MARGINS.has(value) ? value : DEFAULT_USER_PREFERENCES.documentMargins;
+  const normalized = normalizeDocumentMarginsValue(value);
+  return DOCUMENT_MARGINS.has(normalized) ? normalized : DEFAULT_USER_PREFERENCES.documentMargins;
+}
+
+function normalizeDocumentMarginsValue(value) {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  return normalized === "feishu" ? "wide" : normalized;
 }
 
 function normalizeFileTreeModeFallback(value) {

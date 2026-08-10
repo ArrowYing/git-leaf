@@ -103,12 +103,12 @@
   --shadow-toast: 0 14px 30px rgba(15, 23, 42, 0.28);
 }
 
-:root[data-document-margins="feishu"] {
-  /* Match the settled Obsidian layout: 1120px reading width with safe narrow-window gutters. */
-  --document-inline-padding: max(32px, calc(50% - 560px));
+:root[data-document-margins="wide"] {
+  /* Keep a 1072px reading width while retaining safe gutters in narrow windows. */
+  --document-inline-padding: max(56px, calc(50% - 536px));
   --source-line-gutter-inset: max(
-    22px,
-    calc(50% - 560px - var(--source-line-gutter-width) - var(--source-line-gutter-gap))
+    46px,
+    calc(50% - 536px - var(--source-line-gutter-width) - var(--source-line-gutter-gap))
   );
 }
 
