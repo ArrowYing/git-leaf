@@ -124,6 +124,7 @@ import {
   workbenchSessionForRepo,
 } from "./workbench-session.js";
 import {
+  documentTabShortcutFromEvent,
   getKeyboardShortcutGroups,
   keyboardShortcutBinding,
   keyboardShortcutDisplay,
@@ -6909,12 +6910,9 @@ function shortcutActionFromKeyboardEvent(event) {
     return { command: event.shiftKey ? "previous-tab" : "next-tab" };
   }
 
-  if (!event.altKey && !event.shiftKey && isPrimaryShortcut(event) && /^[1-8]$/.test(key)) {
-    return { command: "switch-tab-at-index", index: Number(key) - 1 };
-  }
-
-  if (!event.altKey && !event.shiftKey && isPrimaryShortcut(event) && key === "9") {
-    return { command: "switch-last-tab" };
+  const documentTabAction = documentTabShortcutFromEvent(event);
+  if (documentTabAction) {
+    return documentTabAction;
   }
 
   if (appShortcutMatches(event, "navigation.back")) {

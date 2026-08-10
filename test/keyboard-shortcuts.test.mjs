@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   KEYBOARD_SHORTCUT_GROUPS,
+  documentTabShortcutFromEvent,
   getKeyboardShortcutGroups,
   isKeyboardShortcutsHelpShortcut,
   keyboardShortcutBinding,
@@ -13,6 +14,44 @@ import {
   normalizeKeyboardShortcut,
   normalizeKeyboardShortcutOverrides,
 } from "../public/keyboard-shortcuts.js";
+
+test("document tab shortcuts never intercept unmodified number input", () => {
+  assert.equal(
+    documentTabShortcutFromEvent(
+      { key: "1", code: "Digit1", type: "keyDown" },
+      { platform: "darwin" },
+    ),
+    null,
+  );
+  assert.equal(
+    documentTabShortcutFromEvent(
+      { key: "4", code: "Numpad4", type: "keyDown" },
+      { platform: "darwin" },
+    ),
+    null,
+  );
+  assert.deepEqual(
+    documentTabShortcutFromEvent(
+      { key: "1", code: "Digit1", meta: true, type: "keyDown" },
+      { platform: "darwin" },
+    ),
+    { command: "switch-tab-at-index", index: 0 },
+  );
+  assert.deepEqual(
+    documentTabShortcutFromEvent(
+      { key: "9", code: "Digit9", control: true, type: "keyDown" },
+      { platform: "win32" },
+    ),
+    { command: "switch-last-tab" },
+  );
+  assert.equal(
+    documentTabShortcutFromEvent(
+      { key: "2", code: "Digit2", meta: true, shift: true, type: "keyDown" },
+      { platform: "darwin" },
+    ),
+    null,
+  );
+});
 
 test("Command-question-mark and Ctrl-question-mark open keyboard shortcut help", () => {
   assert.equal(

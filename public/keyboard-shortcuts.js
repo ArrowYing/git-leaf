@@ -298,6 +298,28 @@ export function keyboardShortcutMatches(
   return Boolean(binding) && keyboardShortcutFromEvent(event, options) === binding;
 }
 
+export function documentTabShortcutFromEvent(event = {}, options = {}) {
+  if (
+    event.isComposing ||
+    (event.type && event.type !== "keyDown" && event.type !== "keydown")
+  ) {
+    return null;
+  }
+
+  const shortcut = keyboardShortcutFromEvent(event, options);
+  const numberedTab = /^Mod\+([1-8])$/.exec(shortcut);
+  if (numberedTab) {
+    return {
+      command: "switch-tab-at-index",
+      index: Number(numberedTab[1]) - 1,
+    };
+  }
+  if (shortcut === "Mod+9") {
+    return { command: "switch-last-tab" };
+  }
+  return null;
+}
+
 export function keyboardShortcutDisplay(binding, { platform } = {}) {
   const shortcut = normalizeKeyboardShortcut(binding);
   if (!shortcut) {

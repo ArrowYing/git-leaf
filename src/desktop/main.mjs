@@ -144,6 +144,7 @@ import {
   getGitLeafHelpSections,
 } from "../../public/help-content.js";
 import {
+  documentTabShortcutFromEvent,
   getKeyboardShortcutGroups,
   keyboardShortcutAccelerator,
   keyboardShortcutBinding,
@@ -1152,12 +1153,11 @@ function desktopShortcutActionFromInput(input) {
     return { command: "close-current-tab" };
   }
 
-  if (!shift && /^[1-8]$/.test(key)) {
-    return { command: "switch-tab-at-index", index: Number(key) - 1 };
-  }
-
-  if (!shift && key === "9") {
-    return { command: "switch-last-tab" };
+  const documentTabAction = documentTabShortcutFromEvent(input, {
+    platform: process.platform,
+  });
+  if (documentTabAction) {
+    return documentTabAction;
   }
 
   if (desktopShortcutMatches(input, "view.preview")) {
