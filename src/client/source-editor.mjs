@@ -6,7 +6,14 @@ import {
   startCompletion,
 } from "@codemirror/autocomplete";
 import { markdown } from "@codemirror/lang-markdown";
-import { bracketMatching, indentOnInput } from "@codemirror/language";
+import {
+  bracketMatching,
+  codeFolding,
+  foldedRanges,
+  foldEffect,
+  indentOnInput,
+  unfoldEffect,
+} from "@codemirror/language";
 import { highlightSelectionMatches } from "@codemirror/search";
 import {
   Annotation,
@@ -523,6 +530,22 @@ const liveMarkdownDecorations = StateField.define({
   provide: (field) => EditorView.decorations.from(field),
 });
 
+const liveHeadingFoldDecorations = StateField.define({
+  create(state) {
+    return buildLiveHeadingFoldDecorations(state);
+  },
+  update(decorations, transaction) {
+    if (
+      transaction.docChanged ||
+      foldedRanges(transaction.startState) !== foldedRanges(transaction.state)
+    ) {
+      return buildLiveHeadingFoldDecorations(transaction.state);
+    }
+    return decorations.map(transaction.changes);
+  },
+  provide: (field) => EditorView.decorations.from(field),
+});
+
 const selectedLinesEffect = StateEffect.define();
 const documentSearchEffect = StateEffect.define();
 const remoteMergeHighlightEffect = StateEffect.define();
@@ -767,6 +790,52 @@ function liveMarkdownThemeForTheme(theme) {
       color: "var(--text-strong)",
       fontWeight: "700",
     },
+    ".cm-live-heading-fold": {
+      appearance: "none",
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
+      boxSizing: "border-box",
+      width: "18px",
+      height: "18px",
+      marginLeft: "-22px",
+      marginRight: "4px",
+      border: "0",
+      borderRadius: "5px",
+      backgroundColor: "transparent",
+      color: "var(--text-secondary)",
+      cursor: "pointer",
+      opacity: "0.72",
+      padding: "0",
+      verticalAlign: "0.08em",
+    },
+    ".cm-live-heading-fold:hover": {
+      backgroundColor: "var(--panel-weak)",
+      color: "var(--text)",
+      opacity: "1",
+    },
+    ".cm-live-heading-fold::before": {
+      content: "\"\"",
+      boxSizing: "border-box",
+      width: "7px",
+      height: "7px",
+      borderRight: "1.8px solid currentColor",
+      borderBottom: "1.8px solid currentColor",
+      transform: "translateY(-1px) rotate(45deg)",
+      transformOrigin: "center",
+    },
+    ".cm-live-heading-fold.is-folded::before": {
+      transform: "translateX(-1px) rotate(-45deg)",
+    },
+    ".cm-live-heading-fold-placeholder": {
+      color: "var(--text-secondary)",
+      fontSize: "0.72em",
+      fontWeight: "500",
+      letterSpacing: "0.08em",
+      marginLeft: "0.35em",
+      opacity: "0.62",
+      pointerEvents: "none",
+    },
     ".cm-live-heading-1": {
       fontSize: "var(--document-heading-1-size)",
       lineHeight: "var(--document-heading-line-height)",
@@ -1008,10 +1077,23 @@ export function createSourceEditor({
   let currentEditable = true;
   let remoteMergeHighlightTimer = null;
   let view = null;
+  let liveFoldAnchorPadding = 0;
   const editorDocument = parent?.ownerDocument ?? globalThis.document;
   const themeCompartment = new Compartment();
   const liveModeCompartment = new Compartment();
   const editableCompartment = new Compartment();
+  const setLiveFoldAnchorPadding = (value) => {
+    liveFoldAnchorPadding = Math.max(0, Math.ceil(Number(value) || 0));
+    if (!view?.contentDOM) {
+      return;
+    }
+    if (liveFoldAnchorPadding > 0) {
+      view.contentDOM.style.paddingBottom =
+        `calc(var(--document-bottom-padding) + ${liveFoldAnchorPadding}px)`;
+    } else {
+      view.contentDOM.style.removeProperty("padding-bottom");
+    }
+  };
   let componentInteraction = null;
   let textSelectionInteraction = null;
   const tableInteraction = createLiveTableInteraction({
@@ -1053,11 +1135,13 @@ export function createSourceEditor({
   function liveModeExtensions() {
     return currentMode === "live"
       ? [
+          codeFolding({ placeholderDOM: liveHeadingFoldPlaceholderDOM }),
           liveRenderOptionsFacet.of(getRenderOptions()),
           liveTableInteractionFacet.of(tableInteraction),
           liveMdxComponentInteractionFacet.of(componentInteraction),
           liveEditingSuppression,
           liveMarkdownDecorations,
+          liveHeadingFoldDecorations,
           liveMarkdownThemeForTheme(currentTheme),
         ]
       : [];
@@ -1213,6 +1297,13 @@ export function createSourceEditor({
       return;
     }
 
+    const headingFold = closestElement(event.target, "[data-live-heading-fold]");
+    if (headingFold) {
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+
     const liveTable = closestElement(event.target, ".cm-live-block-preview-table");
     if (liveTable) {
       if (!closestElement(event.target, ".cm-live-table-cell-editor")) {
@@ -1250,7 +1341,21 @@ export function createSourceEditor({
     }
   };
   const handleClick = (event) => {
-    if (currentMode !== "live" || !view.state.selection.main.empty) {
+    if (currentMode !== "live") {
+      return;
+    }
+    const headingFold = closestElement(event.target, "[data-live-heading-fold]");
+    const headingLine = Number(headingFold?.dataset.liveHeadingFold);
+    if (headingFold && Number.isInteger(headingLine)) {
+      event.preventDefault();
+      event.stopPropagation();
+      toggleLiveHeadingFold(view, headingLine, {
+        anchorPadding: liveFoldAnchorPadding,
+        setAnchorPadding: setLiveFoldAnchorPadding,
+      });
+      return;
+    }
+    if (!view.state.selection.main.empty) {
       return;
     }
     const link = liveMarkdownLinkFromMouseEvent(event, view);
@@ -1390,7 +1495,8 @@ export function createSourceEditor({
       });
     },
     setMode(mode) {
-      if (currentMode === "live" && mode !== "live") {
+      const leavingLiveMode = currentMode === "live" && mode !== "live";
+      if (leavingLiveMode) {
         tableInteraction.commitEditor();
         tableInteraction.clearSelection({ commit: false });
         componentInteraction.clearSelection();
@@ -1400,6 +1506,9 @@ export function createSourceEditor({
       view.dispatch({
         effects: liveModeCompartment.reconfigure(liveModeExtensions()),
       });
+      if (leavingLiveMode) {
+        setLiveFoldAnchorPadding(0);
+      }
     },
     setEditable(editable) {
       const nextEditable = editable !== false;
@@ -4418,6 +4527,251 @@ export function listItemIndentChange(text, direction, { step = 2 } = {}) {
   return null;
 }
 
+export function markdownHeadingFoldSections(source) {
+  const lines = String(source ?? "").split(/\r?\n/);
+  const headings = [];
+  const openHeadings = [];
+  let inFrontmatter = false;
+  let codeFence = null;
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
+    const lineNumber = index + 1;
+    const trimmed = line.trim();
+
+    if (index === 0 && trimmed === "---") {
+      inFrontmatter = true;
+      continue;
+    }
+    if (inFrontmatter) {
+      if (trimmed === "---") {
+        inFrontmatter = false;
+      }
+      continue;
+    }
+
+    const fenceMatch = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line);
+    if (codeFence) {
+      if (
+        fenceMatch &&
+        fenceMatch[1][0] === codeFence.marker &&
+        fenceMatch[1].length >= codeFence.length &&
+        fenceMatch[2].trim() === ""
+      ) {
+        codeFence = null;
+      }
+      continue;
+    }
+    if (fenceMatch) {
+      codeFence = {
+        marker: fenceMatch[1][0],
+        length: fenceMatch[1].length,
+      };
+      continue;
+    }
+
+    const headingMatch = /^(#{1,6})(?:[ \t]+|$)/.exec(line);
+    if (!headingMatch) {
+      continue;
+    }
+
+    const heading = {
+      lineNumber,
+      level: headingMatch[1].length,
+      endLine: lines.length,
+    };
+    while (
+      openHeadings.length > 0 &&
+      openHeadings.at(-1).level >= heading.level
+    ) {
+      openHeadings.pop().endLine = lineNumber - 1;
+    }
+    headings.push(heading);
+    openHeadings.push(heading);
+  }
+
+  return headings.filter((heading) => (
+    heading.endLine > heading.lineNumber &&
+    lines
+      .slice(heading.lineNumber, heading.endLine)
+      .some((line) => line.trim() !== "")
+  ));
+}
+
+function liveHeadingFoldSectionsForState(state) {
+  return markdownHeadingFoldSections(state.doc.toString()).map((section) => {
+    const headingLine = state.doc.line(section.lineNumber);
+    const endLine = state.doc.line(section.endLine);
+    return {
+      ...section,
+      headingFrom: headingLine.from,
+      from: headingLine.to,
+      to: endLine.to,
+    };
+  }).filter((section) => section.from < section.to);
+}
+
+function liveFoldedRangeStartingAt(state, position) {
+  let match = null;
+  foldedRanges(state).between(position, state.doc.length, (from, to) => {
+    if (from === position && !match) {
+      match = { from, to };
+    }
+  });
+  return match;
+}
+
+function buildLiveHeadingFoldDecorations(state) {
+  const builder = new RangeSetBuilder();
+  const foldedStarts = new Set();
+  foldedRanges(state).between(0, state.doc.length, (from) => {
+    foldedStarts.add(from);
+  });
+
+  for (const section of liveHeadingFoldSectionsForState(state)) {
+    builder.add(
+      section.headingFrom,
+      section.headingFrom,
+      Decoration.widget({
+        side: -1,
+        widget: new LiveHeadingFoldWidget(
+          section.lineNumber,
+          section.level,
+          foldedStarts.has(section.from),
+        ),
+      }),
+    );
+  }
+  return builder.finish();
+}
+
+function liveHeadingFoldPlaceholderDOM(view) {
+  const placeholder = view.dom.ownerDocument.createElement("span");
+  placeholder.className = "cm-live-heading-fold-placeholder";
+  placeholder.textContent = "...";
+  placeholder.setAttribute("aria-hidden", "true");
+  return placeholder;
+}
+
+function liveHeadingScreenTop(view, lineNumber) {
+  if (
+    !Number.isInteger(lineNumber) ||
+    lineNumber < 1 ||
+    lineNumber > view.state.doc.lines
+  ) {
+    return null;
+  }
+  return view.coordsAtPos(view.state.doc.line(lineNumber).from)?.top ?? null;
+}
+
+function toggleLiveHeadingFold(
+  view,
+  lineNumber,
+  { anchorPadding = 0, setAnchorPadding = () => {} } = {},
+) {
+  const section = liveHeadingFoldSectionsForState(view.state)
+    .find((candidate) => candidate.lineNumber === lineNumber);
+  if (!section) {
+    return false;
+  }
+
+  const folded = liveFoldedRangeStartingAt(view.state, section.from);
+  const beforeTop = liveHeadingScreenTop(view, lineNumber);
+  const temporaryPadding = Math.max(
+    Number(anchorPadding) || 0,
+    view.scrollDOM.clientHeight + 32,
+  );
+  if (Number.isFinite(beforeTop)) {
+    setAnchorPadding(temporaryPadding);
+  }
+
+  view.dispatch({
+    effects: [
+      folded
+        ? unfoldEffect.of(folded)
+        : foldEffect.of({ from: section.from, to: section.to }),
+      view.scrollSnapshot(),
+    ],
+  });
+
+  if (!Number.isFinite(beforeTop)) {
+    return true;
+  }
+
+  scheduleLiveHeadingAnchorCorrection(view, lineNumber, beforeTop, {
+    currentPadding: temporaryPadding,
+    fallbackPadding: anchorPadding,
+    remainingPasses: 1,
+    setAnchorPadding,
+  });
+  return true;
+}
+
+function scheduleLiveHeadingAnchorCorrection(
+  view,
+  lineNumber,
+  beforeTop,
+  {
+    currentPadding,
+    fallbackPadding,
+    remainingPasses,
+    setAnchorPadding,
+  },
+) {
+  const editorWindow = view.dom.ownerDocument.defaultView ?? globalThis;
+  editorWindow.setTimeout(() => {
+    if (!view.dom.isConnected) {
+      return;
+    }
+    const afterTop = liveHeadingScreenTop(view, lineNumber);
+    if (!Number.isFinite(afterTop)) {
+      setAnchorPadding(fallbackPadding);
+      return;
+    }
+    const { targetScrollTop, requiredPadding } = liveHeadingAnchorAdjustment({
+      beforeTop,
+      afterTop,
+      scrollTop: view.scrollDOM.scrollTop,
+      scrollHeight: view.scrollDOM.scrollHeight,
+      clientHeight: view.scrollDOM.clientHeight,
+      currentPadding,
+    });
+    view.scrollDOM.scrollTop = targetScrollTop;
+    setAnchorPadding(requiredPadding);
+    view.scrollDOM.scrollTop = targetScrollTop;
+    if (remainingPasses > 0) {
+      scheduleLiveHeadingAnchorCorrection(view, lineNumber, beforeTop, {
+        currentPadding: requiredPadding,
+        fallbackPadding: requiredPadding,
+        remainingPasses: remainingPasses - 1,
+        setAnchorPadding,
+      });
+    }
+  }, 0);
+}
+
+export function liveHeadingAnchorAdjustment({
+  beforeTop,
+  afterTop,
+  scrollTop,
+  scrollHeight,
+  clientHeight,
+  currentPadding,
+}) {
+  const targetScrollTop = Math.max(0, scrollTop + afterTop - beforeTop);
+  const naturalMaxScroll = Math.max(
+    0,
+    scrollHeight - clientHeight - currentPadding,
+  );
+  return {
+    targetScrollTop,
+    requiredPadding: Math.max(
+      0,
+      Math.ceil(targetScrollTop - naturalMaxScroll + 2),
+    ),
+  };
+}
+
 function buildLiveMarkdownDecorations(state, { suppressActiveLine = false } = {}) {
   const builder = new RangeSetBuilder();
   const renderOptions = state.facet(liveRenderOptionsFacet);
@@ -5218,6 +5572,42 @@ function addDelimitedRanges({
       to: contentEnd + delimiterLength,
       className: "cm-live-marker",
     });
+  }
+}
+
+class LiveHeadingFoldWidget extends WidgetType {
+  constructor(lineNumber, level, folded) {
+    super();
+    this.lineNumber = lineNumber;
+    this.level = level;
+    this.folded = folded;
+  }
+
+  eq(other) {
+    return other.lineNumber === this.lineNumber &&
+      other.level === this.level &&
+      other.folded === this.folded;
+  }
+
+  toDOM(view) {
+    const button = view.dom.ownerDocument.createElement("button");
+    button.type = "button";
+    button.className = [
+      "cm-live-heading-fold",
+      this.folded ? "is-folded" : "",
+    ].filter(Boolean).join(" ");
+    button.dataset.liveHeadingFold = String(this.lineNumber);
+    button.setAttribute("aria-expanded", String(!this.folded));
+    button.setAttribute(
+      "aria-label",
+      this.folded ? "Expand heading content" : "Collapse heading content",
+    );
+    button.title = this.folded ? "Expand" : "Collapse";
+    return button;
+  }
+
+  ignoreEvent() {
+    return true;
   }
 }
 
