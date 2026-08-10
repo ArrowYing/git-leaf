@@ -5,6 +5,7 @@ export const DEFAULT_USER_PREFERENCES = Object.freeze({
   colorMode: "system",
   documentFont: "system-sans",
   documentFontSize: 16,
+  documentMargins: "standard",
   fileTreeMode: "content",
   showDocumentTitles: true,
   gitRemoteCheckIntervalMinutes: 10,
@@ -21,6 +22,7 @@ export const GIT_REMOTE_CHECK_INTERVAL_MINUTES = Object.freeze([1, 2, 5, 10, 30,
 
 const COLOR_MODES = new Set(["system", "light", "dark"]);
 const DOCUMENT_FONTS = new Set(["system-sans", "reading-serif"]);
+const DOCUMENT_MARGINS = new Set(["standard", "feishu"]);
 const FILE_TREE_MODES = new Set(["content", "all"]);
 const GIT_REMOTE_CHECK_INTERVALS = new Set(GIT_REMOTE_CHECK_INTERVAL_MINUTES);
 const LANGUAGE_PREFERENCES = new Map([
@@ -84,6 +86,11 @@ export function normalizeDocumentFontSize(value, fallback = DEFAULT_USER_PREFERE
   return normalizeDocumentFontSizeFallback(fallback);
 }
 
+export function normalizeDocumentMargins(value, fallback = DEFAULT_USER_PREFERENCES.documentMargins) {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  return DOCUMENT_MARGINS.has(normalized) ? normalized : normalizeDocumentMarginsFallback(fallback);
+}
+
 export function normalizeFileTreeMode(value, fallback = DEFAULT_USER_PREFERENCES.fileTreeMode) {
   const normalized = String(value ?? "").trim().toLowerCase();
   return FILE_TREE_MODES.has(normalized) ? normalized : normalizeFileTreeModeFallback(fallback);
@@ -126,6 +133,7 @@ export function normalizeUserPreferences(value, {
     colorMode: normalizeColorMode(source.colorMode || legacyTheme, defaults.colorMode),
     documentFont: normalizeDocumentFont(source.documentFont, defaults.documentFont),
     documentFontSize: normalizeDocumentFontSize(source.documentFontSize, defaults.documentFontSize),
+    documentMargins: normalizeDocumentMargins(source.documentMargins, defaults.documentMargins),
     fileTreeMode: normalizeFileTreeMode(source.fileTreeMode, defaults.fileTreeMode),
     showDocumentTitles: normalizeShowDocumentTitles(
       source.showDocumentTitles,
@@ -162,6 +170,8 @@ export function preferencePatch(key, value) {
       return { documentFont: normalizeDocumentFont(value) };
     case "documentFontSize":
       return { documentFontSize: normalizeDocumentFontSize(value) };
+    case "documentMargins":
+      return { documentMargins: normalizeDocumentMargins(value) };
     case "fileTreeMode":
       return { fileTreeMode: normalizeFileTreeMode(value) };
     case "showDocumentTitles":
@@ -200,6 +210,10 @@ function normalizeDocumentFontSizeFallback(value) {
   return Number.isInteger(value) && value >= 14 && value <= 22
     ? value
     : DEFAULT_USER_PREFERENCES.documentFontSize;
+}
+
+function normalizeDocumentMarginsFallback(value) {
+  return DOCUMENT_MARGINS.has(value) ? value : DEFAULT_USER_PREFERENCES.documentMargins;
 }
 
 function normalizeFileTreeModeFallback(value) {

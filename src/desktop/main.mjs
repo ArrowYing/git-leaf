@@ -150,6 +150,7 @@ import {
   keyboardShortcutMatches,
   normalizeKeyboardShortcutOverrides,
 } from "../../public/keyboard-shortcuts.js";
+import { normalizeDocumentMargins } from "../../public/settings-preferences.js";
 import { sidebarTabFromShortcut } from "../../public/sidebar-navigation.js";
 
 applyDevelopmentUserDataOverride({ app });
@@ -526,6 +527,9 @@ async function recordTelemetryUpdateState(update) {
 
 async function saveDesktopPreferenceValues(preferences, { notifyRenderer = true } = {}) {
   const previousLanguage = currentDesktopTranslator().locale;
+  const previousDocumentMargins = normalizeDocumentMargins(
+    desktopRepositoryState.preferences?.documentMargins,
+  );
   const previousShortcuts = normalizeKeyboardShortcutOverrides(
     desktopRepositoryState.preferences?.keyboardShortcuts,
   );
@@ -552,6 +556,9 @@ async function saveDesktopPreferenceValues(preferences, { notifyRenderer = true 
       desktopRepositoryState.preferences?.keyboardShortcuts,
     ),
   );
+  const documentMarginsChanged = previousDocumentMargins !== normalizeDocumentMargins(
+    desktopRepositoryState.preferences?.documentMargins,
+  );
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.setBackgroundColor(desktopPageBackgroundColor(
       desktopRepositoryState.preferences ?? {},
@@ -575,7 +582,7 @@ async function saveDesktopPreferenceValues(preferences, { notifyRenderer = true 
     if (!activeServer && !isRepositoryTransitioning) {
       await reloadDesktopHomeForLanguage();
     }
-  } else if (shortcutsChanged) {
+  } else if (shortcutsChanged || documentMarginsChanged) {
     installMenu();
   }
   return saved.preferences;
@@ -2130,6 +2137,9 @@ function installMenu() {
   const translate = currentDesktopTranslator();
   const isMac = process.platform === "darwin";
   const hasActiveRepository = Boolean(activeServer) && !isRepositoryTransitioning;
+  const documentMargins = normalizeDocumentMargins(
+    desktopRepositoryState.preferences?.documentMargins,
+  );
   const template = [
     ...(isMac
       ? [{
@@ -2265,6 +2275,27 @@ function installMenu() {
           enabled: hasActiveRepository,
         }),
         { type: "separator" },
+        {
+          label: translate("menu.pageMargins"),
+          submenu: [
+            {
+              type: "radio",
+              label: translate("menu.pageMarginsStandard"),
+              checked: documentMargins === "standard",
+              click: () => {
+                void saveDesktopPreferenceValues({ documentMargins: "standard" });
+              },
+            },
+            {
+              type: "radio",
+              label: translate("menu.pageMarginsFeishu"),
+              checked: documentMargins === "feishu",
+              click: () => {
+                void saveDesktopPreferenceValues({ documentMargins: "feishu" });
+              },
+            },
+          ],
+        },
         {
           label: translate("menu.tabs"),
           submenu: [
