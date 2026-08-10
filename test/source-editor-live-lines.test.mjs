@@ -10,6 +10,7 @@ import {
   pastedTextLinkCandidate,
   closestElement,
   liveClassForLine,
+  liveListIndentationForLines,
   livePreviewBlocksForSource,
   livePreviewHtmlForBlock,
   liveBlockPreviewIgnoresEvent,
@@ -77,6 +78,33 @@ test("liveClassForLine styles common Markdown source lines", () => {
   assert.equal(
     liveClassForLine({ lineNumber: 5, text: "body", inCodeBlock: true }),
     "cm-live-code",
+  );
+});
+
+test("Live list indentation follows semantic nesting instead of raw marker spacing", () => {
+  assert.deepEqual(
+    liveListIndentationForLines([
+      "- Parent",
+      "  - Child",
+      "    - Grandchild",
+      "- Sibling",
+      "1. Ordered parent",
+      "   - Mixed child",
+      "      1. Ordered grandchild",
+      "Paragraph",
+      "  - Standalone indented list",
+    ]),
+    [
+      { depth: 0, sourceColumns: 0 },
+      { depth: 1, sourceColumns: 2 },
+      { depth: 2, sourceColumns: 4 },
+      { depth: 0, sourceColumns: 0 },
+      { depth: 0, sourceColumns: 0 },
+      { depth: 1, sourceColumns: 3 },
+      { depth: 2, sourceColumns: 6 },
+      null,
+      { depth: 0, sourceColumns: 2 },
+    ],
   );
 });
 

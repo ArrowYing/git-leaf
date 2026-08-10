@@ -38266,6 +38266,9 @@ function liveMarkdownThemeForTheme(theme2) {
     ".cm-live-replacement-widget": {
       color: "var(--text)"
     },
+    ".cm-live-list": {
+      paddingLeft: "var(--live-list-indent-extra, 0px)"
+    },
     ".cm-live-list-widget": {
       display: "inline-flex",
       alignItems: "center",
@@ -40943,9 +40946,11 @@ function buildLiveMarkdownDecorations(state, { suppressActiveLine = false } = {}
   let inCodeBlock = false;
   let mdxComponentName = null;
   const activeLineNumber = suppressActiveLine ? null : state.doc.lineAt(state.selection.main.head).number;
-  const previewBlocks = livePreviewBlocksForSource(state.doc.toString(), {
+  const source = state.doc.toString();
+  const previewBlocks = livePreviewBlocksForSource(source, {
     activeLineNumber
   });
+  const listIndentation = liveListIndentationForLines(source.split("\n"));
   let previewBlockIndex = 0;
   for (let lineNumber = 1; lineNumber <= state.doc.lines; lineNumber += 1) {
     const previewBlock = previewBlocks[previewBlockIndex];
@@ -40979,13 +40984,17 @@ function buildLiveMarkdownDecorations(state, { suppressActiveLine = false } = {}
       inCodeBlock,
       inMdxComponent
     });
+    const listLineAttributes = className === "cm-live-list" ? liveListLineAttributes(listIndentation[lineNumber - 1]) : {};
     if (className) {
       builder.add(
         line.from,
         line.from,
         Decoration.line({
           class: className,
-          attributes: mdxComponent ? { "data-live-component": `${mdxComponent.name} \xB7 ${mdxComponent.title}` } : {}
+          attributes: {
+            ...mdxComponent ? { "data-live-component": `${mdxComponent.name} \xB7 ${mdxComponent.title}` } : {},
+            ...listLineAttributes
+          }
         })
       );
     }
@@ -41168,6 +41177,50 @@ function liveClassForLine({
     return "cm-live-list";
   }
   return "";
+}
+function liveListIndentationForLines(lines) {
+  const indentStack = [];
+  return Array.from(lines ?? [], (line) => {
+    const text2 = String(line ?? "");
+    const list2 = /^([ \t]*)(?:[-*+]|\d+\.)[ \t]+/.exec(text2);
+    if (!list2) {
+      if (text2.trim() && leadingWhitespaceColumns(text2) === 0) {
+        indentStack.length = 0;
+      }
+      return null;
+    }
+    const sourceColumns = whitespaceColumns(list2[1]);
+    while (indentStack.length > 0 && sourceColumns < indentStack.at(-1)) {
+      indentStack.pop();
+    }
+    if (indentStack.length === 0 || sourceColumns > indentStack.at(-1)) {
+      indentStack.push(sourceColumns);
+    }
+    return {
+      depth: Math.max(0, indentStack.length - 1),
+      sourceColumns
+    };
+  });
+}
+function liveListLineAttributes(indentation) {
+  if (!indentation || indentation.depth < 1) {
+    return {};
+  }
+  const { depth, sourceColumns } = indentation;
+  return {
+    "data-live-list-depth": String(depth),
+    style: `--live-list-indent-extra: max(0px, calc(${depth} * var(--document-list-level-indent) - ${sourceColumns} * var(--document-list-source-space-width)));`
+  };
+}
+function leadingWhitespaceColumns(text2) {
+  return whitespaceColumns(/^[ \t]*/.exec(String(text2 ?? ""))?.[0] ?? "");
+}
+function whitespaceColumns(whitespace) {
+  let columns = 0;
+  for (const character of String(whitespace ?? "")) {
+    columns += character === "	" ? 4 - columns % 4 : 1;
+  }
+  return columns;
 }
 function liveInlineRangesForLine(text2) {
   const ranges = [];
@@ -41667,6 +41720,7 @@ export {
   liveFrontmatterFieldForLine,
   liveFrontmatterRangesForLine,
   liveInlineRangesForLine,
+  liveListIndentationForLines,
   liveMarkdownLinkAtPosition,
   liveMarkdownLinksForLine,
   liveMdxComponentForLine,
