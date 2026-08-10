@@ -187,6 +187,14 @@ test("liveClassForLine styles common Markdown source lines", () => {
     liveClassForLine({ lineNumber: 5, text: "body", inCodeBlock: true }),
     "cm-live-code",
   );
+  assert.equal(
+    liveClassForLine({ lineNumber: 6, text: "```text" }),
+    "cm-live-code cm-live-code-fence cm-live-code-block-start",
+  );
+  assert.equal(
+    liveClassForLine({ lineNumber: 8, text: "```", inCodeBlock: true }),
+    "cm-live-code cm-live-code-fence cm-live-code-block-end",
+  );
 });
 
 test("Live list indentation follows semantic nesting instead of raw marker spacing", () => {
