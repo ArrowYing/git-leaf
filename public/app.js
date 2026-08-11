@@ -2477,8 +2477,6 @@ function refreshDocumentChangePresentation() {
   if (model.changed) {
     markPreviewDocumentChanges(model);
     if (state.showDeletedChanges && model.hasDeletions) {
-      documentContent.classList.add("is-showing-deleted-changes");
-      applyPreviewComparisonLineNumbers(model);
       renderPreviewDeletedChanges(model);
     }
   }
@@ -2509,7 +2507,6 @@ function updateDocumentDeletionsToggle() {
 }
 
 function resetPreviewDocumentChangePresentation() {
-  documentContent.classList.remove("is-showing-deleted-changes");
   for (const element of documentContent.querySelectorAll("[data-document-deleted-preview]")) {
     element.remove();
   }
@@ -2518,17 +2515,9 @@ function resetPreviewDocumentChangePresentation() {
     delete element.dataset.documentChangePreview;
     delete element.dataset.documentChangeKind;
   }
-  for (const gutter of documentContent.querySelectorAll(".source-line-gutter.is-comparison")) {
-    gutter.classList.remove("is-comparison");
-  }
   for (const button of documentContent.querySelectorAll(".source-line-button")) {
-    button.classList.remove("is-document-change", "is-added", "is-modified", "is-comparison");
+    button.classList.remove("is-document-change", "is-added", "is-modified");
     delete button.dataset.documentChangeKind;
-    delete button.dataset.currentLine;
-    if (button.dataset.documentComparison === "true") {
-      button.textContent = currentSourceLineLabel(button);
-      delete button.dataset.documentComparison;
-    }
   }
 }
 
@@ -2591,49 +2580,6 @@ function documentChangeKindForRange(changedLines, lineStates, start, end) {
   return found ? "added" : "modified";
 }
 
-function applyPreviewComparisonLineNumbers(model) {
-  const lineStates = new Map(model.currentLines.map((line) => [line.line, line]));
-  for (const button of documentContent.querySelectorAll(".source-line-button[data-source-line]")) {
-    const start = Number(button.dataset.sourceLine);
-    const end = Number(button.dataset.sourceEnd ?? start);
-    const baselineLabel = baselineLineLabelForRange(lineStates, start, end);
-    const currentLabel = currentSourceLineLabel(button);
-    const baseline = document.createElement("span");
-    baseline.className = "source-comparison-baseline-line";
-    baseline.textContent = baselineLabel;
-    baseline.setAttribute("aria-hidden", "true");
-    const current = document.createElement("span");
-    current.className = "source-comparison-current-line";
-    current.textContent = currentLabel;
-    current.setAttribute("aria-hidden", "true");
-    button.replaceChildren(baseline, current);
-    button.classList.add("is-comparison");
-    button.dataset.documentComparison = "true";
-    button.dataset.currentLine = String(start);
-    button.closest(".source-line-gutter")?.classList.add("is-comparison");
-  }
-}
-
-function baselineLineLabelForRange(lineStates, start, end) {
-  const lines = [];
-  for (let line = start; line <= end; line += 1) {
-    const baselineLine = lineStates.get(line)?.baselineLine;
-    if (Number.isInteger(baselineLine)) {
-      lines.push(baselineLine);
-    }
-  }
-  if (lines.length === 0) {
-    return "";
-  }
-  return lines[0] === lines.at(-1) ? String(lines[0]) : `${lines[0]}–${lines.at(-1)}`;
-}
-
-function currentSourceLineLabel(button) {
-  const start = Number(button.dataset.sourceLine);
-  const end = Number(button.dataset.sourceEnd ?? start);
-  return end > start ? `${start}–${end}` : String(start);
-}
-
 function renderPreviewDeletedChanges(model) {
   renderPreviewInlineDeletions(model.inlineDeletions);
   for (const deletion of model.lineDeletions) {
@@ -2678,7 +2624,7 @@ function previewDeletedLinesBlock(deletion) {
   block.className = "source-block document-preview-deleted-block";
   block.dataset.documentDeletedPreview = "true";
   const gutter = document.createElement("div");
-  gutter.className = "source-line-gutter is-comparison document-preview-deleted-gutter";
+  gutter.className = "source-line-gutter document-preview-deleted-gutter";
   gutter.setAttribute("aria-label", t("changes.deletionsHint"));
   const content = document.createElement("div");
   content.className = "source-block-content";
@@ -2686,17 +2632,11 @@ function previewDeletedLinesBlock(deletion) {
   rows.className = "document-preview-deleted-lines";
 
   for (const line of deletion.lines) {
-    const lineNumber = document.createElement("span");
-    lineNumber.className = "document-preview-deleted-line-number";
-    lineNumber.setAttribute("aria-label", t("changes.deletedLine", { line: line.number }));
-    const baseline = document.createElement("span");
-    baseline.className = "source-comparison-baseline-line";
-    baseline.textContent = String(line.number);
-    const current = document.createElement("span");
-    current.className = "source-comparison-current-line";
-    current.setAttribute("aria-hidden", "true");
-    lineNumber.append(baseline, current);
-    gutter.append(lineNumber);
+    const marker = document.createElement("span");
+    marker.className = "document-preview-deleted-line-marker";
+    marker.textContent = "−";
+    marker.setAttribute("aria-label", t("changes.deletedLine", { line: line.number }));
+    gutter.append(marker);
 
     const row = document.createElement("div");
     row.className = "document-preview-deleted-line";

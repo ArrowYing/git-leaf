@@ -26,7 +26,6 @@ import {
   highlightActiveLine,
   highlightActiveLineGutter,
   keymap,
-  lineNumberMarkers,
   lineNumberWidgetMarker,
   lineNumbers,
   rectangularSelection,
@@ -104,14 +103,10 @@ const SOURCE_EDITOR_CHANGE_MESSAGES = {
   en: {
     deletedText: "Deleted text: {text}",
     deletedLine: "Deleted line {line}",
-    previousLine: "Previous line {line}",
-    currentLine: "Current line {line}",
   },
   "zh-CN": {
     deletedText: "已删除文本：{text}",
     deletedLine: "已删除第 {line} 行",
-    previousLine: "提交版本第 {line} 行",
-    currentLine: "当前第 {line} 行",
   },
 };
 
@@ -579,12 +574,6 @@ const documentChangesState = StateField.define({
   },
   provide: (field) => [
     EditorView.decorations.from(field, (value) => value.decorations),
-    lineNumberMarkers.from(field, (value) => value.lineNumberMarkers),
-    EditorView.editorAttributes.from(field, (value) => (
-      value.showDeletions
-        ? { class: "cm-show-deleted-changes" }
-        : {}
-    )),
   ],
 });
 
@@ -618,52 +607,6 @@ const selectedLineGutterMarker = new class extends GutterMarker {
   }
 }();
 
-class ComparisonLineNumberMarker extends GutterMarker {
-  elementClass = "cm-comparison-line-number-gutter";
-
-  constructor(baselineLine, currentLine, locale) {
-    super();
-    this.baselineLine = baselineLine;
-    this.currentLine = currentLine;
-    this.locale = locale;
-  }
-
-  eq(other) {
-    return other instanceof ComparisonLineNumberMarker &&
-      other.baselineLine === this.baselineLine &&
-      other.currentLine === this.currentLine &&
-      other.locale === this.locale;
-  }
-
-  toDOM() {
-    const container = document.createElement("span");
-    container.className = "cm-comparison-line-number";
-    container.dataset.currentLine = String(this.currentLine);
-    const baseline = document.createElement("span");
-    baseline.className = "cm-comparison-baseline-line";
-    baseline.textContent = Number.isInteger(this.baselineLine)
-      ? String(this.baselineLine)
-      : "";
-    if (Number.isInteger(this.baselineLine)) {
-      baseline.setAttribute(
-        "aria-label",
-        changeMessage(this.locale, "previousLine", { line: this.baselineLine }),
-      );
-    } else {
-      baseline.setAttribute("aria-hidden", "true");
-    }
-    const current = document.createElement("span");
-    current.className = "cm-comparison-current-line";
-    current.textContent = String(this.currentLine);
-    current.setAttribute(
-      "aria-label",
-      changeMessage(this.locale, "currentLine", { line: this.currentLine }),
-    );
-    container.append(baseline, current);
-    return container;
-  }
-}
-
 class DeletedLinesNumberMarker extends GutterMarker {
   elementClass = "cm-deleted-lines-number-gutter";
 
@@ -685,17 +628,11 @@ class DeletedLinesNumberMarker extends GutterMarker {
     for (const line of this.lines) {
       const row = document.createElement("span");
       row.className = "cm-deleted-line-number-row";
+      row.textContent = "−";
       row.setAttribute(
         "aria-label",
         changeMessage(this.locale, "deletedLine", { line: line.number }),
       );
-      const baseline = document.createElement("span");
-      baseline.className = "cm-comparison-baseline-line";
-      baseline.textContent = String(line.number);
-      const current = document.createElement("span");
-      current.className = "cm-comparison-current-line";
-      current.setAttribute("aria-hidden", "true");
-      row.append(baseline, current);
       container.append(row);
     }
     return container;
@@ -773,10 +710,6 @@ function buildDocumentChangesState(state, config) {
       showDeletions,
       locale: config.locale,
     }),
-    lineNumberMarkers: buildDocumentChangeLineNumberMarkers(state, model, {
-      showDeletions,
-      locale: config.locale,
-    }),
   };
 }
 
@@ -825,24 +758,6 @@ function buildDocumentChangeDecorations(state, model, { showDeletions, locale })
     }
   }
   return Decoration.set(ranges, true);
-}
-
-function buildDocumentChangeLineNumberMarkers(state, model, { showDeletions, locale }) {
-  if (!showDeletions) {
-    return Decoration.none;
-  }
-  const byCurrentLine = new Map(model.currentLines.map((line) => [line.line, line]));
-  const builder = new RangeSetBuilder();
-  for (let lineNumber = 1; lineNumber <= state.doc.lines; lineNumber += 1) {
-    const line = state.doc.line(lineNumber);
-    const mapping = byCurrentLine.get(lineNumber);
-    builder.add(
-      line.from,
-      line.from,
-      new ComparisonLineNumberMarker(mapping?.baselineLine ?? null, lineNumber, locale),
-    );
-  }
-  return builder.finish();
 }
 
 function changeMessage(locale, key, values = {}) {
@@ -4076,11 +3991,6 @@ function lineNumberFromGutterEvent(event, view) {
   const gutter = target?.closest(".cm-gutters");
   if (!gutter) {
     return null;
-  }
-
-  const comparisonLine = Number(target.closest("[data-current-line]")?.dataset.currentLine);
-  if (Number.isInteger(comparisonLine)) {
-    return comparisonLine;
   }
 
   const lineNumberElement = target.closest(".cm-lineNumbers .cm-gutterElement");

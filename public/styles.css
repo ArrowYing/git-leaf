@@ -2127,10 +2127,17 @@ summary.has-operation-feedback {
   white-space: nowrap;
 }
 
-.document-deletions-toggle {
+.floating-document-actions .document-deletions-toggle {
   display: inline-flex;
+  width: 30px;
+  min-width: 30px !important;
+  height: 28px !important;
   align-items: center;
-  gap: 6px;
+  justify-content: center;
+  border-color: transparent !important;
+  background: transparent !important;
+  color: var(--muted);
+  padding: 0 !important;
 }
 
 .document-deletions-toggle[hidden] {
@@ -2138,20 +2145,26 @@ summary.has-operation-feedback {
 }
 
 .document-deletions-toggle-mark {
-  color: var(--danger-text);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-  font-size: 15px;
-  font-weight: 800;
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: -0.06em;
   line-height: 1;
-  text-decoration: underline;
-  text-decoration-thickness: 2px;
-  text-underline-offset: 2px;
+  text-decoration: line-through;
+  text-decoration-thickness: 1.25px;
 }
 
 .document-deletions-toggle[aria-pressed="true"] {
-  border-color: var(--warning-border);
-  background: var(--warning-bg);
-  color: var(--warning-strong);
+  background: var(--panel-weak) !important;
+  box-shadow: inset 0 0 0 1px var(--panel-border-soft);
+  color: var(--text-secondary);
+}
+
+.floating-document-actions .document-deletions-toggle:hover,
+.floating-document-actions .document-deletions-toggle:focus-visible {
+  border-color: transparent;
+  background: var(--row-hover) !important;
+  color: var(--text-secondary);
 }
 
 .document-favorite-toggle {
@@ -2779,49 +2792,11 @@ summary.has-operation-feedback {
   font-weight: 750;
 }
 
-.document-content.is-showing-deleted-changes {
-  --source-line-gutter-width: 82px;
-}
-
-.source-line-gutter.is-comparison {
-  cursor: default;
-}
-
-.source-line-button.is-comparison,
-.document-preview-deleted-line-number,
-.cm-comparison-line-number,
-.cm-deleted-line-number-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 7px;
-  align-items: center;
-  width: 100%;
-}
-
-.source-comparison-baseline-line,
-.source-comparison-current-line,
-.cm-comparison-baseline-line,
-.cm-comparison-current-line {
-  min-width: 0;
-  text-align: right;
-}
-
-.source-comparison-baseline-line,
-.cm-comparison-baseline-line {
-  color: var(--danger-text);
-}
-
-.source-comparison-current-line,
-.cm-comparison-current-line {
-  color: var(--source-line-number-color);
-}
-
 .document-preview-inline-deletions {
   display: flex;
   flex-wrap: wrap;
   gap: 5px;
   margin: 3px 0;
-  color: var(--danger-text);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
   font-size: 0.88em;
   line-height: 1.5;
@@ -2829,25 +2804,18 @@ summary.has-operation-feedback {
 
 .document-preview-inline-deletions::before {
   content: "−";
-  font-weight: 800;
+  font-weight: 650;
 }
 
 .document-preview-deleted-inline,
 .document-preview-deleted-line,
 .cm-document-deleted-inline,
 .cm-document-deleted-line {
-  background: color-mix(in srgb, var(--danger-bg) 72%, transparent);
-  color: var(--danger-text);
-  text-decoration-line: underline;
+  background: transparent;
+  text-decoration-line: line-through;
   text-decoration-color: currentColor;
+  text-decoration-style: solid;
   text-decoration-thickness: 1.5px;
-  text-underline-offset: 3px;
-}
-
-.document-preview-deleted-inline,
-.cm-document-deleted-inline {
-  border-radius: 3px;
-  padding: 0 2px;
 }
 
 .document-preview-deleted-block {
@@ -2858,13 +2826,18 @@ summary.has-operation-feedback {
   gap: 0;
 }
 
-.document-preview-deleted-line-number {
+.document-preview-deleted-line-marker,
+.cm-deleted-line-number-row {
+  display: block;
+  width: 100%;
   box-sizing: border-box;
   min-height: var(--source-line-number-height);
+  color: var(--source-line-number-color);
   padding: 0 var(--source-line-number-padding);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
   font-size: var(--source-line-number-font-size);
   line-height: var(--source-line-number-line-height);
+  text-align: right;
 }
 
 .document-preview-deleted-lines,
@@ -2886,11 +2859,6 @@ summary.has-operation-feedback {
   overflow-wrap: anywhere;
 }
 
-.source-editor .cm-editor.cm-show-deleted-changes {
-  --source-line-gutter-width: 82px;
-}
-
-.source-editor .cm-lineNumbers .cm-gutterElement.cm-comparison-line-number-gutter,
 .source-editor .cm-lineNumbers .cm-gutterElement.cm-deleted-lines-number-gutter {
   padding: 0 var(--source-line-number-padding);
 }

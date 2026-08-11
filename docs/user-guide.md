@@ -127,11 +127,11 @@ lightweight editing trace in Preview, Source, and Live:
 - opening another document and returning reconstructs the same cues from the repository, so there is
   no separate draft marker to maintain.
 
-The top-right **Show deletions** control is available only when text has been removed and starts off.
-Turn it on to show deleted fragments and complete lines as read-only underlined text. At the same time,
-the line-number gutter changes to two columns: the committed version on the left and the current
-document on the right. Turn it off to return to the normal current-document line numbers. These cues do
-not write deleted text back into the file.
+The compact top-right **Show deletions** control is available only when text has been removed and starts
+off. Turn it on to show deleted fragments and complete lines as read-only text with a strikethrough and no
+separate text or background color. The ordinary single current-document line numbers stay exactly as they
+were; a removed whole line uses a non-numbered `−` marker. These cues do not write deleted text back into
+the file.
 
 The committed version means `HEAD`, while the current side is the file now on disk. This includes both
 staged and unstaged local work; a new, untracked document is compared with an empty baseline. The

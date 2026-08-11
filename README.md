@@ -42,8 +42,8 @@ than Obsidian.
   the original files.
 - **Unpublished edits stay easy to find.** Git Leaf highlights current additions and replacements in the
   document, colors the full affected row in document navigation, and offers an off-by-default control
-  for underlined deletions with committed/current line numbers. This is a lightweight editing trace,
-  not a developer-oriented Git diff.
+  for struck-through deletions while the existing current-document line numbers stay unchanged. This is
+  a lightweight editing trace, not a developer-oriented Git diff.
 - **Precise context for agents.** Users can select source-backed lines from one file or combine content
   from multiple files, then copy portable Markdown context for an agent.
 - **Quiet updates, controlled publishing.** Git Leaf applies remote updates automatically when safe;
@@ -89,7 +89,7 @@ part of that repository, but the repository's operational role is broader than h
 2. **Inspect what changed.** Sync shows unpublished local files and remote status. Open the affected
    document to see current edits highlighted in the body and affected sections colored across their
    full navigation row. Changes before the first section appear under **Document start**; an optional
-   top-right control reveals underlined deletions and committed/current line numbers.
+   compact top-right control reveals struck-through deletions without changing the existing line numbers.
 3. **Hand exact context back to an agent.** Select source-backed lines in Preview, Source, or Live and
    collect them as portable Agent Context for an external agent.
 4. **Make a focused edit when that is faster.** Live keeps headings, lists, links, and other content

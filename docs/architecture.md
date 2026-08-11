@@ -310,8 +310,9 @@ full navigation row is colored, but its ordinary heading or document-start navig
 click behavior.
 
 Deleted source is hidden by default. When the user explicitly reveals it, deleted fragments and complete
-lines appear only as read-only underlined widgets, and line gutters widen to show committed numbering on
-the left and current numbering on the right. Toggling this presentation must not mutate source, selection
+lines appear only as read-only, struck-through widgets without a separate text or background color. The
+existing single current-document line-number gutter does not widen or change numbering; deleted whole-line
+widgets use a non-numbered removal marker. Toggling this presentation must not mutate source, selection
 ranges, Git state, or line-reference semantics. Publishing or otherwise committing the current file
 removes the cues when the document refreshes against the new `HEAD`.
 
