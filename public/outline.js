@@ -71,6 +71,38 @@ export function createOutlineClickViewportGuard() {
   };
 }
 
+export function createOutlineActiveViewportState() {
+  let documentPath = "";
+  let activeId;
+
+  return {
+    transition({
+      documentPath: nextDocumentPath = "",
+      activeId: nextActiveId,
+      preserveViewport = false,
+    } = {}) {
+      const previousActiveId = nextDocumentPath === documentPath ? activeId : undefined;
+      documentPath = nextDocumentPath;
+      activeId = nextActiveId;
+
+      if (preserveViewport) {
+        return "preserve";
+      }
+      if (nextActiveId && nextActiveId !== previousActiveId) {
+        return "center";
+      }
+      if (!nextActiveId && previousActiveId) {
+        return "top";
+      }
+      return "preserve";
+    },
+    reset() {
+      documentPath = "";
+      activeId = undefined;
+    },
+  };
+}
+
 function headingLevel(tagName) {
   const match = String(tagName).match(/^H([1-6])$/i);
   return match ? Number(match[1]) : 0;

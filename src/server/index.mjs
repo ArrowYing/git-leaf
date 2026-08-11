@@ -250,6 +250,7 @@ async function handleRequest(request, response, context) {
     requestUrl.pathname === "/file-tree-visibility.js" ||
     requestUrl.pathname === "/document-tabs.js" ||
     requestUrl.pathname === "/document-search.js" ||
+    requestUrl.pathname === "/document-changes.js" ||
     requestUrl.pathname === "/keyboard-shortcuts.js" ||
     requestUrl.pathname === "/repository-panel.js" ||
     requestUrl.pathname === "/help-content.js" ||
@@ -655,6 +656,7 @@ async function handleRequest(request, response, context) {
         includeSource: canEditRepository({ repo, isLocalRequest }),
         canEdit: canEditRepository({ repo, isLocalRequest }),
         locale,
+        gitRunner: context.gitRunner,
       }),
     );
     return;
@@ -1153,6 +1155,7 @@ export async function documentPayload(
     includeSource = true,
     canEdit = true,
     locale = "en",
+    gitRunner = null,
   } = {},
 ) {
   const documentPath = await resolveOpenablePath(repo.root, file);
@@ -1219,9 +1222,41 @@ export async function documentPayload(
     payload.source = source;
     payload.repoRoot = repo.root;
     payload.absolutePath = documentPath.absolutePath;
+    Object.assign(
+      payload,
+      await documentChangeBaselinePayload(repo, documentPath.relativePath, gitRunner),
+    );
   }
 
   return payload;
+}
+
+async function documentChangeBaselinePayload(repo, relativePath, gitRunner) {
+  if (typeof gitRunner !== "function") {
+    return { changeBaselineAvailable: false };
+  }
+
+  try {
+    const result = await gitRunner(repo.root, ["rev-parse", "--is-inside-work-tree"]);
+    if (String(result.stdout ?? "").trim() !== "true") {
+      return { changeBaselineAvailable: false };
+    }
+  } catch {
+    return { changeBaselineAvailable: false };
+  }
+
+  try {
+    const result = await gitRunner(repo.root, ["show", `HEAD:${relativePath}`]);
+    return {
+      changeBaselineAvailable: true,
+      changeBaselineSource: String(result.stdout ?? ""),
+    };
+  } catch {
+    return {
+      changeBaselineAvailable: true,
+      changeBaselineSource: "",
+    };
+  }
 }
 
 async function documentStatusPayload(repo, file, { canEdit = true } = {}) {

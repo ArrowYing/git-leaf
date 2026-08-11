@@ -32,6 +32,7 @@ import { createUiTooltip, elementIsOverflowing } from "./ui-tooltip.js";
 import { attachHorizontalPointerResize } from "./pointer-resize.js";
 import {
   activeOutlineIdForSourceLine,
+  createOutlineActiveViewportState,
   createOutlineClickViewportGuard,
   outlineItemsFromHeadings,
 } from "./outline.js";
@@ -45,6 +46,12 @@ import { parseNdjsonRecords } from "./ndjson.js";
 import { githubFileUrl } from "./file-actions.js";
 import { hasTreeChanged } from "./tree-refresh.js";
 import { shouldReplaceDocumentHtml } from "./document-refresh.js";
+import {
+  changedOutlineTargets,
+  createDocumentChangeModel,
+  emptyDocumentChangeModel,
+  sourceRangeHasChanged,
+} from "./document-changes.js";
 import { attachChartTooltips } from "./chart-tooltip.js";
 import { attachDatasetViews } from "./dataset-view.js";
 import { attachMermaidDiagrams } from "./mermaid-view.js";
@@ -300,6 +307,7 @@ let fileSearchTelemetryActive = false;
 let documentSearchTelemetryActive = false;
 let lastEditingTelemetryAt = 0;
 const outlineClickViewportGuard = createOutlineClickViewportGuard();
+const outlineActiveViewportState = createOutlineActiveViewportState();
 
 const state = {
   tree: [],
@@ -309,6 +317,8 @@ const state = {
   canSwitchWorktrees: false,
   currentFile: initialFile,
   currentDocument: null,
+  documentChangeModel: emptyDocumentChangeModel(),
+  showDeletedChanges: false,
   documentTabs: initialDocumentTabs,
   activeTabId: initialActiveTabId,
   activeTabPath: initialFile || "",
@@ -459,6 +469,7 @@ const documentTabs = document.querySelector("#document-tabs");
 const documentTabNewButton = document.querySelector("#document-tab-new");
 const documentNewButton = document.querySelector("#document-new");
 const floatingDocumentActions = document.querySelector("#floating-document-actions");
+const documentDeletionsToggle = document.querySelector("#document-deletions-toggle");
 const documentFavoriteToggle = document.querySelector("#document-favorite-toggle");
 const copyShareLinkButton = document.querySelector("#copy-share-link");
 const documentActionsMore = document.querySelector("#document-actions-more");
@@ -614,7 +625,7 @@ const uiTooltipController = createUiTooltip({
       container: documentOutline,
       itemFromTarget: outlineItemFromEventTarget,
       details: outlineItemTooltipDetails,
-      key: (item) => item.dataset.outlineTarget,
+      key: (item) => item.dataset.outlineTarget || "document-start",
       shouldShow: (item) => elementIsOverflowing(outlineItemLabelElement(item)),
       anchorElement: outlineItemLabelElement,
       describedElement: (item) => item,
@@ -678,6 +689,7 @@ repositoryPanelList.addEventListener("pointermove", handleRepositoryPanelPointer
 repositoryPanelList.addEventListener("pointerup", handleRepositoryPanelPointerUp);
 repositoryPanelList.addEventListener("pointercancel", handleRepositoryPanelPointerCancel);
 documentFavoriteToggle.addEventListener("click", toggleCurrentDocumentFavorite);
+documentDeletionsToggle.addEventListener("click", toggleDeletedDocumentChanges);
 documentActionsMore.addEventListener("click", showCurrentDocumentActionsMenu);
 fileActionMenu.addEventListener("click", handleFileActionMenuClick);
 fileActionMenu.addEventListener("keydown", handleFileActionMenuKeydown);
@@ -2200,6 +2212,8 @@ function showNoDocumentSelected({ pushState = false, preserveTabs = false } = {}
   closeDocumentSearch({ restoreFocus: false });
   state.currentFile = "";
   state.currentDocument = null;
+  state.documentChangeModel = emptyDocumentChangeModel();
+  state.showDeletedChanges = false;
   if (!preserveTabs) {
     applyDocumentTabState({ tabs: [], activeTabId: "" });
   }
@@ -2215,6 +2229,7 @@ function showNoDocumentSelected({ pushState = false, preserveTabs = false } = {}
   documentOutlineToggle.hidden = true;
   documentOutline.innerHTML = "";
   state.outlineItems = [];
+  outlineActiveViewportState.reset();
   updateDocumentActions(false);
   updateLineSelectionUi();
   renderDocumentTabs();
@@ -2234,6 +2249,7 @@ function showStartupError(error) {
   closeDocumentSearch({ restoreFocus: false });
   const message = error instanceof Error ? error.message : t("error.load");
   state.currentDocument = null;
+  state.documentChangeModel = emptyDocumentChangeModel();
   state.selectedLines = new Set();
   state.selectionAnchor = null;
   hideNoDocumentSurface();
@@ -2243,6 +2259,7 @@ function showStartupError(error) {
   documentOutlineToggle.hidden = true;
   documentOutline.innerHTML = "";
   state.outlineItems = [];
+  outlineActiveViewportState.reset();
   updateDocumentActions(false);
   renderDocumentTabs();
   applyEditCapability();
@@ -2258,6 +2275,7 @@ function showNoDocumentSurface() {
   documentOutlineToggle.hidden = true;
   documentOutline.innerHTML = "";
   state.outlineItems = [];
+  outlineActiveViewportState.reset();
   documentContent.innerHTML = "";
   documentContent.scrollTop = 0;
   sourceSplitter.hidden = true;
@@ -2288,6 +2306,7 @@ function applyDocumentData(
     : null;
   const shouldReplace = forceReplace || shouldReplaceDocumentHtml(state.currentDocument, documentData);
   state.currentDocument = documentData;
+  state.documentChangeModel = documentChangeModelForDocument(documentData);
   state.currentFile = documentData.path;
   hideNoDocumentSurface();
   state.lastWrittenHash = documentData.sourceHash ?? state.lastWrittenHash;
@@ -2339,8 +2358,11 @@ function applyDocumentData(
         highlightChanges: highlightEditorChanges,
       },
     );
+    applySourceEditorDocumentChangeBaseline();
     state.sourceEditor.setMode(state.mode);
   }
+
+  refreshDocumentChangePresentation();
 
   if (Number.isInteger(activeImageLine)) {
     restoreActiveImageSelection(activeImageLine);
@@ -2392,6 +2414,7 @@ function setMode(mode, { persist = true, focus = true } = {}) {
   if (editingMode) {
     ensureSourceEditor();
     state.sourceEditor.setValue(state.currentDocument?.source ?? "");
+    applySourceEditorDocumentChangeBaseline();
     state.sourceEditor.setMode(state.mode);
     updateLineSelectionUi();
     updateSourceSyncStatus("idle");
@@ -2458,6 +2481,225 @@ function canEditDocumentData(documentData) {
 
 function isMarkdownDocument(documentData = state.currentDocument) {
   return (documentData?.kind ?? "markdown") === "markdown";
+}
+
+function documentChangeModelForDocument(documentData) {
+  if (
+    !isMarkdownDocument(documentData) ||
+    documentData?.changeBaselineAvailable !== true ||
+    typeof documentData?.source !== "string"
+  ) {
+    return emptyDocumentChangeModel();
+  }
+  return createDocumentChangeModel({
+    baselineSource: documentData.changeBaselineSource ?? "",
+    currentSource: documentData.source,
+  });
+}
+
+function applySourceEditorDocumentChangeBaseline() {
+  state.sourceEditor?.setDocumentChangeBaseline?.({
+    source: state.currentDocument?.changeBaselineSource ?? "",
+    available: state.currentDocument?.changeBaselineAvailable === true,
+    showDeletions: state.showDeletedChanges,
+  });
+}
+
+function toggleDeletedDocumentChanges() {
+  if (!state.documentChangeModel.hasDeletions) {
+    return;
+  }
+  state.showDeletedChanges = !state.showDeletedChanges;
+  state.sourceEditor?.setShowDeletedChanges?.(state.showDeletedChanges);
+  refreshDocumentChangePresentation();
+}
+
+function refreshDocumentChangePresentation() {
+  resetPreviewDocumentChangePresentation();
+  updateDocumentDeletionsToggle();
+
+  if (!isMarkdownDocument()) {
+    return;
+  }
+
+  const model = state.documentChangeModel;
+  if (model.changed) {
+    markPreviewDocumentChanges(model);
+    if (state.showDeletedChanges && model.hasDeletions) {
+      renderPreviewDeletedChanges(model);
+    }
+  }
+
+  renderDocumentOutline();
+  scheduleAnchoredSourceLineGutterSync();
+}
+
+function updateDocumentDeletionsToggle() {
+  const hasDeletions = Boolean(
+    state.currentDocument &&
+    isMarkdownDocument() &&
+    state.documentChangeModel.hasDeletions
+  );
+  const showing = hasDeletions && state.showDeletedChanges;
+  const label = t(showing ? "action.hideDeletedChanges" : "action.showDeletedChanges");
+  documentDeletionsToggle.hidden = !hasDeletions;
+  documentDeletionsToggle.setAttribute("aria-pressed", String(showing));
+  documentDeletionsToggle.setAttribute("aria-label", label);
+  setUiTooltip(documentDeletionsToggle, label, {
+    detail: t("changes.deletionsHint"),
+    placement: "bottom-end",
+  });
+  const labelElement = documentDeletionsToggle.querySelector("[data-document-deletions-label]");
+  if (labelElement) {
+    labelElement.textContent = label;
+  }
+}
+
+function resetPreviewDocumentChangePresentation() {
+  for (const element of documentContent.querySelectorAll("[data-document-deleted-preview]")) {
+    element.remove();
+  }
+  for (const element of documentContent.querySelectorAll("[data-document-change-preview]")) {
+    element.classList.remove("document-change-content", "is-added", "is-modified");
+    delete element.dataset.documentChangePreview;
+    delete element.dataset.documentChangeKind;
+  }
+  for (const button of documentContent.querySelectorAll(".source-line-button")) {
+    button.classList.remove("is-document-change", "is-added", "is-modified");
+    delete button.dataset.documentChangeKind;
+  }
+}
+
+function markPreviewDocumentChanges(model) {
+  const changedLines = new Set(model.changedLines);
+  const lineStates = new Map(model.currentLines.map((line) => [line.line, line]));
+  for (const button of documentContent.querySelectorAll(".source-line-button[data-source-line]")) {
+    const start = Number(button.dataset.sourceLine);
+    const end = Number(button.dataset.sourceEnd ?? start);
+    if (!sourceRangeHasChanged(model, start, end)) {
+      continue;
+    }
+    const kind = documentChangeKindForRange(changedLines, lineStates, start, end);
+    button.classList.add("is-document-change", `is-${kind}`);
+    button.dataset.documentChangeKind = kind;
+    for (let line = start; line <= end; line += 1) {
+      if (!changedLines.has(line)) {
+        continue;
+      }
+      markPreviewChangeTarget(previewChangeTargetForLine(line, button), kind);
+    }
+  }
+}
+
+function markPreviewChangeTarget(target, kind) {
+  if (!target) {
+    return;
+  }
+  const nextKind = target.dataset.documentChangeKind === "modified" || kind === "modified"
+    ? "modified"
+    : "added";
+  target.classList.remove("is-added", "is-modified");
+  target.classList.add("document-change-content", `is-${nextKind}`);
+  target.dataset.documentChangePreview = "true";
+  target.dataset.documentChangeKind = nextKind;
+}
+
+function previewChangeTargetForLine(line, button = sourceLineButtonForLine(line)) {
+  const block = button?.closest(".source-block");
+  if (!block) {
+    return null;
+  }
+  return block.querySelector(`[data-source-code-line="${line}"]`)
+    || block.querySelector(`[data-source-list-line="${line}"]`)
+    || block.querySelector(`[data-source-table-line="${line}"]`)
+    || block;
+}
+
+function documentChangeKindForRange(changedLines, lineStates, start, end) {
+  let found = false;
+  for (let line = start; line <= end; line += 1) {
+    if (!changedLines.has(line)) {
+      continue;
+    }
+    found = true;
+    if (lineStates.get(line)?.kind !== "added") {
+      return "modified";
+    }
+  }
+  return found ? "added" : "modified";
+}
+
+function renderPreviewDeletedChanges(model) {
+  renderPreviewInlineDeletions(model.inlineDeletions);
+  for (const deletion of model.lineDeletions) {
+    const block = previewDeletedLinesBlock(deletion);
+    const anchorLine = Math.min(deletion.beforeLine, model.currentLines.length);
+    const anchorBlock = sourceLineButtonForLine(anchorLine)?.closest(".source-block");
+    if (anchorBlock && deletion.beforeLine <= model.currentLines.length) {
+      anchorBlock.before(block);
+    } else {
+      documentContent.append(block);
+    }
+  }
+}
+
+function renderPreviewInlineDeletions(deletions) {
+  const hintsByBlock = new Map();
+  for (const deletion of deletions) {
+    const block = sourceLineButtonForLine(deletion.line)?.closest(".source-block");
+    const content = block?.querySelector(".source-block-content");
+    if (!block || !content) {
+      continue;
+    }
+    let hint = hintsByBlock.get(block);
+    if (!hint) {
+      hint = document.createElement("div");
+      hint.className = "document-preview-inline-deletions";
+      hint.dataset.documentDeletedPreview = "true";
+      content.prepend(hint);
+      hintsByBlock.set(block, hint);
+    }
+    const fragment = document.createElement("span");
+    fragment.className = "document-preview-deleted-inline";
+    fragment.dataset.sourceLine = String(deletion.line);
+    fragment.textContent = deletion.text || "\u200b";
+    fragment.setAttribute("aria-label", t("changes.deletedText", { text: deletion.text }));
+    hint.append(fragment);
+  }
+}
+
+function previewDeletedLinesBlock(deletion) {
+  const block = document.createElement("div");
+  block.className = "source-block document-preview-deleted-block";
+  block.dataset.documentDeletedPreview = "true";
+  const gutter = document.createElement("div");
+  gutter.className = "source-line-gutter document-preview-deleted-gutter";
+  gutter.setAttribute("aria-label", t("changes.deletionsHint"));
+  const content = document.createElement("div");
+  content.className = "source-block-content";
+  const rows = document.createElement("div");
+  rows.className = "document-preview-deleted-lines";
+
+  for (const line of deletion.lines) {
+    const marker = document.createElement("span");
+    marker.className = "document-preview-deleted-line-marker";
+    marker.textContent = "−";
+    marker.setAttribute("aria-label", t("changes.deletedLine", { line: line.number }));
+    gutter.append(marker);
+
+    const row = document.createElement("div");
+    row.className = "document-preview-deleted-line";
+    row.textContent = line.text || "\u200b";
+    row.setAttribute(
+      "aria-label",
+      `${t("changes.deletedLine", { line: line.number })}: ${line.text}`,
+    );
+    rows.append(row);
+  }
+
+  content.append(rows);
+  block.append(gutter, content);
+  return block;
 }
 
 function readInitialDesktopPreferences() {
@@ -3362,6 +3604,7 @@ function ensureSourceEditor() {
     onBeforeSlashCommand: ensureSlashCommandAllowed,
     getKeyboardShortcuts: () => state.keyboardShortcuts,
   });
+  applySourceEditorDocumentChangeBaseline();
 }
 
 function applyAppearancePreferences(preferences) {
@@ -4477,7 +4720,7 @@ function documentTabTooltipDetails(item) {
 }
 
 function outlineItemFromEventTarget(target) {
-  const item = target?.closest?.("[data-outline-target]");
+  const item = target?.closest?.("[data-outline-target], [data-outline-document-start]");
   return item && documentOutline.contains(item) ? item : null;
 }
 
@@ -5871,7 +6114,6 @@ function renderDocumentContent(documentData) {
     documentDatasetViewController.hydrate(documentContent);
     documentMermaidController.hydrate(documentContent);
     scheduleAnchoredSourceLineGutterSync();
-    renderDocumentOutline();
     return;
   }
 
@@ -5882,6 +6124,7 @@ function renderDocumentContent(documentData) {
   documentOutline.innerHTML = "";
   documentBody.classList.remove("has-outline");
   state.outlineItems = [];
+  outlineActiveViewportState.reset();
 }
 
 function readonlyPreviewElement(documentData) {
@@ -6297,14 +6540,21 @@ function renderDocumentOutline() {
     };
   });
   state.outlineItems = outlineItemsFromHeadings(headings);
+  const changeTargets = changedOutlineTargets(
+    state.outlineItems,
+    state.documentChangeModel.changedLines,
+  );
+  const changedTargetIds = new Set(changeTargets.targetIds);
+  const hasEntries = state.outlineItems.length > 0 || changeTargets.beforeFirstHeading;
   documentOutline.innerHTML = "";
-  documentOutline.hidden = state.outlineItems.length === 0;
-  documentOutlineResizer.hidden = state.outlineItems.length === 0;
+  documentOutline.hidden = !hasEntries;
+  documentOutlineResizer.hidden = !hasEntries;
   documentOutlineResizer.tabIndex =
-    state.outlineItems.length === 0 || state.documentOutlineCollapsed ? -1 : 0;
-  documentOutlineToggle.hidden = state.outlineItems.length === 0;
-  documentBody.classList.toggle("has-outline", state.outlineItems.length > 0);
-  if (state.outlineItems.length === 0) {
+    !hasEntries || state.documentOutlineCollapsed ? -1 : 0;
+  documentOutlineToggle.hidden = !hasEntries;
+  documentBody.classList.toggle("has-outline", hasEntries);
+  if (!hasEntries) {
+    outlineActiveViewportState.reset();
     return;
   }
 
@@ -6316,6 +6566,23 @@ function renderDocumentOutline() {
   header.append(headerLabel);
   const list = document.createElement("ul");
   list.className = "outline-list";
+  if (changeTargets.beforeFirstHeading) {
+    const listItem = document.createElement("li");
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "outline-link depth-1 document-start has-document-change";
+    button.dataset.outlineDocumentStart = "true";
+    button.setAttribute(
+      "aria-label",
+      `${t("outline.documentStart")}. ${t("changes.documentStartModified")}`,
+    );
+    const label = document.createElement("span");
+    label.className = "outline-link-label";
+    label.textContent = t("outline.documentStart");
+    button.append(label);
+    listItem.append(button);
+    list.append(listItem);
+  }
   for (const item of state.outlineItems) {
     const listItem = document.createElement("li");
     const button = document.createElement("button");
@@ -6324,6 +6591,13 @@ function renderDocumentOutline() {
     button.dataset.outlineTarget = item.id;
     if (Number.isInteger(item.sourceLine)) {
       button.dataset.sourceLine = String(item.sourceLine);
+    }
+    if (changedTargetIds.has(item.id)) {
+      button.classList.add("has-document-change");
+      button.setAttribute(
+        "aria-label",
+        `${item.title}. ${t("changes.sectionModified")}`,
+      );
     }
     const label = document.createElement("span");
     label.className = "outline-link-label";
@@ -6337,8 +6611,19 @@ function renderDocumentOutline() {
 }
 
 function handleOutlineClick(event) {
-  const button = event.target.closest("[data-outline-target]");
+  const button = event.target.closest("[data-outline-target], [data-outline-document-start]");
   if (!button) {
+    return;
+  }
+
+  if (button.dataset.outlineDocumentStart === "true") {
+    outlineClickViewportGuard.begin();
+    if (state.mode === "live" && state.sourceEditor) {
+      state.sourceEditor.scrollToLine(1);
+    } else {
+      documentContent.scrollTo({ top: 0, left: 0 });
+    }
+    updateActiveOutline(undefined, { preserveViewport: true });
     return;
   }
 
@@ -6373,7 +6658,11 @@ function updateActiveOutlineFromContentScroll(activeId) {
 }
 
 function updateActiveOutline(activeId, { preserveViewport = false } = {}) {
-  const previousActiveButton = documentOutline.querySelector(".outline-link.is-active");
+  const viewportAction = outlineActiveViewportState.transition({
+    documentPath: state.currentDocument?.path || "",
+    activeId,
+    preserveViewport,
+  });
   let activeButton;
   for (const button of documentOutline.querySelectorAll("[data-outline-target]")) {
     const isActive = button.dataset.outlineTarget === activeId;
@@ -6382,9 +6671,9 @@ function updateActiveOutline(activeId, { preserveViewport = false } = {}) {
       activeButton = button;
     }
   }
-  if (!preserveViewport && activeButton && activeButton !== previousActiveButton) {
+  if (viewportAction === "center" && activeButton) {
     centerActiveOutlineButton(activeButton);
-  } else if (!preserveViewport && !activeButton && previousActiveButton) {
+  } else if (viewportAction === "top") {
     documentOutline.scrollTo({ top: 0, left: 0 });
   }
 }
@@ -6705,6 +6994,7 @@ async function submitGitSync() {
     showCopyToast(t("toast.syncComplete"));
     await loadTree({ force: true });
     await loadGitStatus();
+    await refreshCurrentDocument();
     state.remoteSync = normalizeRemoteSyncPayload({
       ...state.remoteSync,
       ok: true,
@@ -9100,6 +9390,9 @@ async function publishShareLinkForPath(documentPath) {
       );
       showCopyToast(payload.published ? t("toast.publishedAndCopied") : t("toast.shareCopied"));
       await loadGitStatus();
+      if (payload.published && documentPath === state.currentDocument?.path) {
+        await refreshCurrentDocument();
+      }
       return;
     }
 

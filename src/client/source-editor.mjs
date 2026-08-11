@@ -35,6 +35,7 @@ import {
   highlightActiveLine,
   highlightActiveLineGutter,
   keymap,
+  lineNumberWidgetMarker,
   lineNumbers,
   rectangularSelection,
   WidgetType,
@@ -78,6 +79,10 @@ import {
   markdownTextSelectionFormatState,
 } from "../content/markdown-text-format.mjs";
 import { findTextMatches } from "../../public/document-search.js";
+import {
+  createDocumentChangeModel,
+  emptyDocumentChangeModel,
+} from "../../public/document-changes.js";
 import { enhanceImageLoadStates } from "../../public/image-preview.js";
 import { createTranslator } from "../../public/i18n.js";
 import { keyboardShortcutMatches } from "../../public/keyboard-shortcuts.js";
@@ -121,6 +126,16 @@ const liveMdxComponentInteractionFacet = Facet.define({
 });
 const cursorPlaceholder = "{{cursor}}";
 const imageWidthSteps = [320, 480, 640, 760, 960, 1200];
+const SOURCE_EDITOR_CHANGE_MESSAGES = {
+  en: {
+    deletedText: "Deleted text: {text}",
+    deletedLine: "Deleted line {line}",
+  },
+  "zh-CN": {
+    deletedText: "已删除文本：{text}",
+    deletedLine: "已删除第 {line} 行",
+  },
+};
 
 const SOURCE_EDITOR_SLASH_MESSAGES = {
   en: {
@@ -578,6 +593,7 @@ const liveHeadingFoldDecorations = StateField.define({
 const selectedLinesEffect = StateEffect.define();
 const documentSearchEffect = StateEffect.define();
 const remoteMergeHighlightEffect = StateEffect.define();
+const documentChangesEffect = StateEffect.define();
 
 const documentSearchDecorations = StateField.define({
   create() {
@@ -609,6 +625,40 @@ const remoteMergeHighlightDecorations = StateField.define({
   provide: (field) => EditorView.decorations.from(field),
 });
 
+const documentChangesState = StateField.define({
+  create(state) {
+    return buildDocumentChangesState(state, {
+      available: false,
+      baselineSource: "",
+      showDeletions: false,
+      locale: "en",
+    });
+  },
+  update(value, transaction) {
+    let config = value.config;
+    let changed = transaction.docChanged;
+    for (const effect of transaction.effects) {
+      if (effect.is(documentChangesEffect)) {
+        config = {
+          ...config,
+          ...effect.value,
+        };
+        changed = true;
+      }
+    }
+    return changed ? buildDocumentChangesState(transaction.state, config) : value;
+  },
+  provide: (field) => [
+    EditorView.decorations.from(field, (value) => value.decorations),
+  ],
+});
+
+const deletedLinesLineNumberMarker = lineNumberWidgetMarker.of((_view, widget) => (
+  widget instanceof DeletedLinesWidget
+    ? new DeletedLinesNumberMarker(widget.lines, widget.locale)
+    : null
+));
+
 const selectedLineGutterClasses = StateField.define({
   create() {
     return Decoration.none;
@@ -632,6 +682,168 @@ const selectedLineGutterMarker = new class extends GutterMarker {
     return other === this;
   }
 }();
+
+class DeletedLinesNumberMarker extends GutterMarker {
+  elementClass = "cm-deleted-lines-number-gutter";
+
+  constructor(lines, locale) {
+    super();
+    this.lines = lines;
+    this.locale = locale;
+  }
+
+  eq(other) {
+    return other instanceof DeletedLinesNumberMarker &&
+      other.locale === this.locale &&
+      JSON.stringify(other.lines) === JSON.stringify(this.lines);
+  }
+
+  toDOM() {
+    const container = document.createElement("span");
+    container.className = "cm-deleted-lines-numbers";
+    for (const line of this.lines) {
+      const row = document.createElement("span");
+      row.className = "cm-deleted-line-number-row";
+      row.textContent = "−";
+      row.setAttribute(
+        "aria-label",
+        changeMessage(this.locale, "deletedLine", { line: line.number }),
+      );
+      container.append(row);
+    }
+    return container;
+  }
+}
+
+class DeletedInlineTextWidget extends WidgetType {
+  constructor(text, locale) {
+    super();
+    this.text = text;
+    this.locale = locale;
+  }
+
+  eq(other) {
+    return other instanceof DeletedInlineTextWidget &&
+      other.text === this.text &&
+      other.locale === this.locale;
+  }
+
+  toDOM() {
+    const element = document.createElement("span");
+    element.className = "cm-document-deleted-inline";
+    element.textContent = this.text || "\u200b";
+    element.setAttribute(
+      "aria-label",
+      changeMessage(this.locale, "deletedText", { text: this.text }),
+    );
+    return element;
+  }
+}
+
+class DeletedLinesWidget extends WidgetType {
+  constructor(lines, locale) {
+    super();
+    this.lines = lines;
+    this.locale = locale;
+  }
+
+  eq(other) {
+    return other instanceof DeletedLinesWidget &&
+      other.locale === this.locale &&
+      JSON.stringify(other.lines) === JSON.stringify(this.lines);
+  }
+
+  toDOM() {
+    const container = document.createElement("div");
+    container.className = "cm-document-deleted-lines";
+    for (const line of this.lines) {
+      const row = document.createElement("div");
+      row.className = "cm-document-deleted-line";
+      row.textContent = line.text || "\u200b";
+      row.setAttribute(
+        "aria-label",
+        `${changeMessage(this.locale, "deletedLine", { line: line.number })}: ${line.text}`,
+      );
+      container.append(row);
+    }
+    return container;
+  }
+}
+
+function buildDocumentChangesState(state, config) {
+  const model = config.available
+    ? createDocumentChangeModel({
+        baselineSource: config.baselineSource,
+        currentSource: state.doc.toString(),
+      })
+    : emptyDocumentChangeModel();
+  const showDeletions = config.showDeletions === true && model.hasDeletions;
+  return {
+    config,
+    model,
+    showDeletions,
+    decorations: buildDocumentChangeDecorations(state, model, {
+      showDeletions,
+      locale: config.locale,
+    }),
+  };
+}
+
+function buildDocumentChangeDecorations(state, model, { showDeletions, locale }) {
+  if (!model.changed) {
+    return Decoration.none;
+  }
+  const ranges = [];
+  const lineStateByNumber = new Map(model.currentLines.map((line) => [line.line, line]));
+  for (const lineNumber of model.changedLines) {
+    if (lineNumber < 1 || lineNumber > state.doc.lines) {
+      continue;
+    }
+    const line = state.doc.line(lineNumber);
+    const kind = lineStateByNumber.get(lineNumber)?.kind ?? "modified";
+    ranges.push(Decoration.line({
+      attributes: {
+        class: `cm-document-change-line is-${kind}`,
+      },
+    }).range(line.from));
+  }
+  for (const range of model.textRanges) {
+    const from = Math.max(0, Math.min(state.doc.length, range.from));
+    const to = Math.max(from, Math.min(state.doc.length, range.to));
+    if (to > from) {
+      ranges.push(Decoration.mark({
+        class: `cm-document-change-text is-${range.kind}`,
+      }).range(from, to));
+    }
+  }
+  if (showDeletions) {
+    for (const deletion of model.inlineDeletions) {
+      const at = Math.max(0, Math.min(state.doc.length, deletion.at));
+      ranges.push(Decoration.widget({
+        widget: new DeletedInlineTextWidget(deletion.text, locale),
+        side: -1,
+      }).range(at));
+    }
+    for (const deletion of model.lineDeletions) {
+      const at = Math.max(0, Math.min(state.doc.length, deletion.at));
+      ranges.push(Decoration.widget({
+        widget: new DeletedLinesWidget(deletion.lines, locale),
+        block: true,
+        side: deletion.beforeLine > model.currentLines.length ? 1 : -1,
+      }).range(at));
+    }
+  }
+  return Decoration.set(ranges, true);
+}
+
+function changeMessage(locale, key, values = {}) {
+  const messages = String(locale ?? "").toLowerCase().startsWith("zh")
+    ? SOURCE_EDITOR_CHANGE_MESSAGES["zh-CN"]
+    : SOURCE_EDITOR_CHANGE_MESSAGES.en;
+  return String(messages[key] ?? key).replace(/\{(\w+)\}/g, (_match, name) => (
+    Object.hasOwn(values, name) ? String(values[name]) : ""
+  ));
+}
 
 function themeFromInput(theme) {
   return String(theme ?? "").trim().toLowerCase() === "dark" ? "dark" : "light";
@@ -691,6 +903,8 @@ function sourceEditorThemeForTheme(theme) {
     ".cm-activeLineGutter": {
       backgroundColor: "var(--panel-weak)",
     },
+    // Keep selections visible after the formatting toolbar takes focus, including
+    // over active-line and unpublished-change decorations.
     ".cm-selectionBackground, &.cm-focused .cm-selectionBackground": {
       backgroundColor: `var(--git-leaf-selection-bg, ${
         isDarkTheme(theme)
@@ -698,8 +912,7 @@ function sourceEditorThemeForTheme(theme) {
           : "rgba(37, 99, 235, 0.18)"
       })`,
     },
-    "&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground": {
-      // Match CodeMirror's focused-selection specificity instead of losing to its base theme.
+    "& > .cm-scroller > .cm-selectionLayer .cm-selectionBackground, &.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground": {
       backgroundColor: `var(--git-leaf-selection-bg, ${
         isDarkTheme(theme)
           ? "rgba(122, 162, 247, 0.35)"
@@ -1209,6 +1422,8 @@ export function createSourceEditor({
       selectedLineGutterClasses,
       documentSearchDecorations,
       remoteMergeHighlightDecorations,
+      documentChangesState,
+      deletedLinesLineNumberMarker,
       themeCompartment.of(editorThemeExtensions(currentTheme)),
       liveModeCompartment.of([]),
       editableCompartment.of([
@@ -1474,6 +1689,27 @@ export function createSourceEditor({
   return {
     getValue() {
       return view.state.doc.toString();
+    },
+    setDocumentChangeBaseline({
+      source = "",
+      available = false,
+      showDeletions = false,
+    } = {}) {
+      view.dispatch({
+        effects: documentChangesEffect.of({
+          available: available === true,
+          baselineSource: String(source ?? ""),
+          showDeletions: showDeletions === true,
+          locale: locale ?? language ?? "en",
+        }),
+      });
+    },
+    setShowDeletedChanges(showDeletions) {
+      view.dispatch({
+        effects: documentChangesEffect.of({
+          showDeletions: showDeletions === true,
+        }),
+      });
     },
     setValue(value, { preserveSelection = false, highlightChanges = false } = {}) {
       const nextValue = String(value ?? "");

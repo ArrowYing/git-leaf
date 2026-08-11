@@ -37346,6 +37346,386 @@ function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+// public/document-changes.js
+var EMPTY_CHANGE_MODEL = Object.freeze({
+  available: false,
+  changed: false,
+  hasDeletions: false,
+  changedLines: [],
+  currentLines: [],
+  textRanges: [],
+  inlineDeletions: [],
+  lineDeletions: []
+});
+var MAX_MYERS_DIFF_DEPTH = 512;
+function emptyDocumentChangeModel() {
+  return {
+    ...EMPTY_CHANGE_MODEL,
+    changedLines: [],
+    currentLines: [],
+    textRanges: [],
+    inlineDeletions: [],
+    lineDeletions: []
+  };
+}
+function createDocumentChangeModel({
+  baselineSource = "",
+  currentSource = "",
+  available = true
+} = {}) {
+  if (!available) {
+    return emptyDocumentChangeModel();
+  }
+  const baseline = normalizeSource(baselineSource);
+  const current = normalizeSource(currentSource);
+  const baselineLines = sourceLineRecords(baseline);
+  const currentLines = sourceLineRecords(current);
+  const operations = diffSequence(
+    baselineLines,
+    currentLines,
+    (left, right) => left.text === right.text
+  );
+  const lineStates = Array.from({ length: currentLines.length }, (_, index) => ({
+    line: index + 1,
+    baselineLine: null,
+    kind: "added"
+  }));
+  const changedLines = /* @__PURE__ */ new Set();
+  const textRanges = [];
+  const inlineDeletions = [];
+  const lineDeletions = [];
+  for (let operationIndex = 0; operationIndex < operations.length; ) {
+    const operation = operations[operationIndex];
+    if (operation.type === "equal") {
+      lineStates[operation.afterIndex] = {
+        line: operation.afterIndex + 1,
+        baselineLine: operation.beforeIndex + 1,
+        kind: "unchanged"
+      };
+      operationIndex += 1;
+      continue;
+    }
+    const hunk = [];
+    while (operationIndex < operations.length && operations[operationIndex].type !== "equal") {
+      hunk.push(operations[operationIndex]);
+      operationIndex += 1;
+    }
+    const removed = hunk.filter((item) => item.type === "delete");
+    const inserted = hunk.filter((item) => item.type === "insert");
+    const pairedCount = Math.min(removed.length, inserted.length);
+    for (let pairIndex = 0; pairIndex < pairedCount; pairIndex += 1) {
+      const beforeLine = baselineLines[removed[pairIndex].beforeIndex];
+      const afterLine = currentLines[inserted[pairIndex].afterIndex];
+      const currentLineNumber = inserted[pairIndex].afterIndex + 1;
+      lineStates[inserted[pairIndex].afterIndex] = {
+        line: currentLineNumber,
+        baselineLine: removed[pairIndex].beforeIndex + 1,
+        kind: "modified"
+      };
+      changedLines.add(currentLineNumber);
+      const inline2 = inlineLineChanges(beforeLine.text, afterLine.text, {
+        currentLineNumber,
+        baselineLineNumber: removed[pairIndex].beforeIndex + 1,
+        currentLineStart: afterLine.from
+      });
+      textRanges.push(...inline2.textRanges);
+      inlineDeletions.push(...inline2.deletions);
+    }
+    for (let insertIndex = pairedCount; insertIndex < inserted.length; insertIndex += 1) {
+      const item = inserted[insertIndex];
+      const line = currentLines[item.afterIndex];
+      lineStates[item.afterIndex] = {
+        line: item.afterIndex + 1,
+        baselineLine: null,
+        kind: "added"
+      };
+      changedLines.add(item.afterIndex + 1);
+      if (line.to > line.from) {
+        textRanges.push({
+          from: line.from,
+          to: line.to,
+          line: item.afterIndex + 1,
+          kind: "added"
+        });
+      }
+    }
+    const wholeLineRemovals = removed.slice(pairedCount);
+    if (wholeLineRemovals.length > 0) {
+      const nextInsertedLine = inserted.at(pairedCount)?.afterIndex;
+      const nextEqualLine = operations[operationIndex]?.afterIndex;
+      const beforeLine = Number.isInteger(nextInsertedLine) ? nextInsertedLine + 1 : Number.isInteger(nextEqualLine) ? nextEqualLine + 1 : currentLines.length + 1;
+      const anchorLine = Math.min(Math.max(1, beforeLine), Math.max(1, currentLines.length));
+      changedLines.add(anchorLine);
+      lineDeletions.push({
+        beforeLine,
+        at: documentPositionBeforeLine(current, currentLines, beforeLine),
+        lines: wholeLineRemovals.map((item) => ({
+          number: item.beforeIndex + 1,
+          text: baselineLines[item.beforeIndex].text
+        }))
+      });
+    }
+  }
+  const sortedChangedLines = [...changedLines].sort((left, right) => left - right);
+  const hasDeletions = inlineDeletions.length > 0 || lineDeletions.length > 0;
+  return {
+    available: true,
+    changed: sortedChangedLines.length > 0 || hasDeletions,
+    hasDeletions,
+    changedLines: sortedChangedLines,
+    currentLines: lineStates,
+    textRanges: mergeTextRanges(textRanges),
+    inlineDeletions,
+    lineDeletions
+  };
+}
+function inlineLineChanges(beforeText, afterText, {
+  currentLineNumber,
+  baselineLineNumber,
+  currentLineStart
+}) {
+  const beforeTokens = unicodeTokens(beforeText);
+  const afterTokens = unicodeTokens(afterText);
+  const operations = diffSequence(
+    beforeTokens,
+    afterTokens,
+    (left, right) => left.text === right.text
+  );
+  const textRanges = [];
+  const deletions = [];
+  for (let operationIndex = 0; operationIndex < operations.length; ) {
+    const operation = operations[operationIndex];
+    if (operation.type === "equal") {
+      operationIndex += 1;
+      continue;
+    }
+    if (operation.type === "insert") {
+      const first = operation;
+      let last = operation;
+      operationIndex += 1;
+      while (operationIndex < operations.length && operations[operationIndex].type === "insert") {
+        last = operations[operationIndex];
+        operationIndex += 1;
+      }
+      textRanges.push({
+        from: currentLineStart + afterTokens[first.afterIndex].from,
+        to: currentLineStart + afterTokens[last.afterIndex].to,
+        line: currentLineNumber,
+        kind: "modified"
+      });
+      continue;
+    }
+    const removed = [];
+    const firstAfterIndex = nearestAfterIndex(operations, operationIndex, afterTokens.length);
+    while (operationIndex < operations.length && operations[operationIndex].type === "delete") {
+      removed.push(beforeTokens[operations[operationIndex].beforeIndex].text);
+      operationIndex += 1;
+    }
+    const currentOffset = firstAfterIndex < afterTokens.length ? afterTokens[firstAfterIndex].from : afterText.length;
+    deletions.push({
+      at: currentLineStart + currentOffset,
+      text: removed.join(""),
+      line: currentLineNumber,
+      baselineLine: baselineLineNumber
+    });
+  }
+  return { textRanges, deletions };
+}
+function nearestAfterIndex(operations, operationIndex, fallback) {
+  for (let index = operationIndex + 1; index < operations.length; index += 1) {
+    const operation = operations[index];
+    if (operation.type === "insert" || operation.type === "equal") {
+      return operation.afterIndex;
+    }
+  }
+  return fallback;
+}
+function diffSequence(before, after, equals) {
+  const prefixLength = commonPrefixLength(before, after, equals);
+  const suffixLength = commonSuffixLength(before, after, prefixLength, equals);
+  const operations = [];
+  for (let index = 0; index < prefixLength; index += 1) {
+    operations.push({ type: "equal", beforeIndex: index, afterIndex: index });
+  }
+  const beforeMiddle = before.slice(prefixLength, before.length - suffixLength);
+  const afterMiddle = after.slice(prefixLength, after.length - suffixLength);
+  operations.push(
+    ...myersDiff(beforeMiddle, afterMiddle, equals).map((operation) => ({
+      ...operation,
+      ...Number.isInteger(operation.beforeIndex) ? { beforeIndex: operation.beforeIndex + prefixLength } : {},
+      ...Number.isInteger(operation.afterIndex) ? { afterIndex: operation.afterIndex + prefixLength } : {}
+    }))
+  );
+  for (let index = 0; index < suffixLength; index += 1) {
+    operations.push({
+      type: "equal",
+      beforeIndex: before.length - suffixLength + index,
+      afterIndex: after.length - suffixLength + index
+    });
+  }
+  return operations;
+}
+function myersDiff(before, after, equals) {
+  if (before.length === 0) {
+    return after.map((_value, afterIndex) => ({ type: "insert", afterIndex }));
+  }
+  if (after.length === 0) {
+    return before.map((_value, beforeIndex) => ({ type: "delete", beforeIndex }));
+  }
+  const max = before.length + after.length;
+  const maxDepth = Math.min(max, MAX_MYERS_DIFF_DEPTH);
+  const trace = [];
+  let frontier = /* @__PURE__ */ new Map([[1, 0]]);
+  for (let depth = 0; depth <= maxDepth; depth += 1) {
+    trace.push(new Map(frontier));
+    const next = new Map(frontier);
+    for (let diagonal = -depth; diagonal <= depth; diagonal += 2) {
+      const down = frontier.get(diagonal + 1);
+      const right = frontier.get(diagonal - 1);
+      let x;
+      if (diagonal === -depth || diagonal !== depth && (right ?? Number.NEGATIVE_INFINITY) < (down ?? Number.NEGATIVE_INFINITY)) {
+        x = down ?? 0;
+      } else {
+        x = (right ?? 0) + 1;
+      }
+      let y = x - diagonal;
+      while (x < before.length && y < after.length && equals(before[x], after[y])) {
+        x += 1;
+        y += 1;
+      }
+      next.set(diagonal, x);
+      if (x >= before.length && y >= after.length) {
+        trace.push(next);
+        return backtrackMyers(trace, before.length, after.length);
+      }
+    }
+    frontier = next;
+  }
+  return positionalFallbackDiff(before.length, after.length);
+}
+function positionalFallbackDiff(beforeLength, afterLength) {
+  return [
+    ...Array.from({ length: beforeLength }, (_value, beforeIndex) => ({
+      type: "delete",
+      beforeIndex
+    })),
+    ...Array.from({ length: afterLength }, (_value, afterIndex) => ({
+      type: "insert",
+      afterIndex
+    }))
+  ];
+}
+function backtrackMyers(trace, beforeLength, afterLength) {
+  let x = beforeLength;
+  let y = afterLength;
+  const operations = [];
+  for (let depth = trace.length - 1; depth > 0; depth -= 1) {
+    const frontier = trace[depth - 1];
+    const diagonal = x - y;
+    const down = frontier.get(diagonal + 1);
+    const right = frontier.get(diagonal - 1);
+    const previousDiagonal = diagonal === -(depth - 1) || diagonal !== depth - 1 && (right ?? Number.NEGATIVE_INFINITY) < (down ?? Number.NEGATIVE_INFINITY) ? diagonal + 1 : diagonal - 1;
+    const previousX = frontier.get(previousDiagonal) ?? 0;
+    const previousY = previousX - previousDiagonal;
+    while (x > previousX && y > previousY) {
+      operations.push({ type: "equal", beforeIndex: x - 1, afterIndex: y - 1 });
+      x -= 1;
+      y -= 1;
+    }
+    if (depth === 1 && x === 0 && y === 0) {
+      break;
+    }
+    if (x === previousX) {
+      operations.push({ type: "insert", afterIndex: y - 1 });
+      y -= 1;
+    } else {
+      operations.push({ type: "delete", beforeIndex: x - 1 });
+      x -= 1;
+    }
+  }
+  while (x > 0 && y > 0) {
+    operations.push({ type: "equal", beforeIndex: x - 1, afterIndex: y - 1 });
+    x -= 1;
+    y -= 1;
+  }
+  while (x > 0) {
+    operations.push({ type: "delete", beforeIndex: x - 1 });
+    x -= 1;
+  }
+  while (y > 0) {
+    operations.push({ type: "insert", afterIndex: y - 1 });
+    y -= 1;
+  }
+  return operations.reverse();
+}
+function commonPrefixLength(before, after, equals) {
+  const limit = Math.min(before.length, after.length);
+  let index = 0;
+  while (index < limit && equals(before[index], after[index])) {
+    index += 1;
+  }
+  return index;
+}
+function commonSuffixLength(before, after, prefixLength, equals) {
+  const limit = Math.min(before.length, after.length) - prefixLength;
+  let length = 0;
+  while (length < limit && equals(before[before.length - 1 - length], after[after.length - 1 - length])) {
+    length += 1;
+  }
+  return length;
+}
+function sourceLineRecords(source) {
+  if (source === "") {
+    return [];
+  }
+  const parts = source.split("\n");
+  if (parts.length > 1 && parts.at(-1) === "") {
+    parts.pop();
+  }
+  let offset = 0;
+  return parts.map((text2, index) => {
+    const record = {
+      number: index + 1,
+      text: text2,
+      from: offset,
+      to: offset + text2.length
+    };
+    offset += text2.length + 1;
+    return record;
+  });
+}
+function unicodeTokens(value) {
+  const tokens = [];
+  let offset = 0;
+  for (const text2 of Array.from(value)) {
+    tokens.push({ text: text2, from: offset, to: offset + text2.length });
+    offset += text2.length;
+  }
+  return tokens;
+}
+function documentPositionBeforeLine(source, lines, beforeLine) {
+  if (beforeLine <= lines.length) {
+    return lines[Math.max(0, beforeLine - 1)]?.from ?? 0;
+  }
+  return source.length;
+}
+function mergeTextRanges(ranges) {
+  const sorted = ranges.filter((range) => Number.isInteger(range.from) && range.to > range.from).sort((left, right) => left.from - right.from || left.to - right.to);
+  const merged = [];
+  for (const range of sorted) {
+    const previous = merged.at(-1);
+    if (previous && previous.to === range.from && previous.line === range.line) {
+      previous.to = range.to;
+    } else {
+      merged.push({ ...range });
+    }
+  }
+  return merged;
+}
+function normalizeSource(value) {
+  return String(value ?? "").replace(/\r\n?/g, "\n");
+}
+
 // public/workbench-locales.js
 var WORKBENCH_MESSAGES = Object.freeze({
   en: Object.freeze({
@@ -37411,6 +37791,13 @@ var WORKBENCH_MESSAGES = Object.freeze({
     "action.closeSearchTitle": "Close search (Esc)",
     "action.copyShareLink": "Copy share link",
     "action.moreFileActions": "More file actions",
+    "action.showDeletedChanges": "Show deletions",
+    "action.hideDeletedChanges": "Hide deletions",
+    "changes.deletionsHint": "Text with a strikethrough was removed. Existing line numbers stay unchanged.",
+    "changes.sectionModified": "This section has unpublished changes",
+    "changes.documentStartModified": "The document start has unpublished changes",
+    "changes.deletedText": "Deleted text: {text}",
+    "changes.deletedLine": "Deleted line {line}",
     "action.showOutline": "Show outline",
     "action.hideOutline": "Hide outline",
     "action.copyContent": "Copy content",
@@ -37598,6 +37985,7 @@ var WORKBENCH_MESSAGES = Object.freeze({
     "ndjson.line": "Line {line}",
     "ndjson.invalid": "Invalid JSON",
     "outline.navigation": "Navigation",
+    "outline.documentStart": "Document start",
     "git.added": "Added",
     "git.untracked": "Untracked",
     "git.deleted": "Deleted",
@@ -37884,6 +38272,13 @@ var WORKBENCH_MESSAGES = Object.freeze({
     "action.closeSearchTitle": "\u5173\u95ED\u67E5\u627E\uFF08Esc\uFF09",
     "action.copyShareLink": "\u590D\u5236\u5206\u4EAB\u94FE\u63A5",
     "action.moreFileActions": "\u66F4\u591A\u6587\u4EF6\u64CD\u4F5C",
+    "action.showDeletedChanges": "\u663E\u793A\u5220\u9664\u5185\u5BB9",
+    "action.hideDeletedChanges": "\u9690\u85CF\u5220\u9664\u5185\u5BB9",
+    "changes.deletionsHint": "\u5E26\u5220\u9664\u7EBF\u7684\u6587\u5B57\u8868\u793A\u5DF2\u5220\u9664\uFF1B\u539F\u6709\u884C\u53F7\u4FDD\u6301\u4E0D\u53D8\u3002",
+    "changes.sectionModified": "\u6B64\u7AE0\u8282\u6709\u5C1A\u672A\u53D1\u5E03\u7684\u6539\u52A8",
+    "changes.documentStartModified": "\u6587\u6863\u9876\u90E8\u6709\u5C1A\u672A\u53D1\u5E03\u7684\u6539\u52A8",
+    "changes.deletedText": "\u5DF2\u5220\u9664\u6587\u672C\uFF1A{text}",
+    "changes.deletedLine": "\u5DF2\u5220\u9664\u7B2C {line} \u884C",
     "action.showOutline": "\u663E\u793A\u76EE\u5F55",
     "action.hideOutline": "\u9690\u85CF\u76EE\u5F55",
     "action.copyContent": "\u590D\u5236\u5185\u5BB9",
@@ -38071,6 +38466,7 @@ var WORKBENCH_MESSAGES = Object.freeze({
     "ndjson.line": "\u7B2C {line} \u884C",
     "ndjson.invalid": "\u65E0\u6548 JSON",
     "outline.navigation": "\u5BFC\u822A",
+    "outline.documentStart": "\u6587\u6863\u9876\u90E8",
     "git.added": "\u5DF2\u65B0\u589E",
     "git.untracked": "\u672A\u8DDF\u8E2A",
     "git.deleted": "\u5DF2\u5220\u9664",
@@ -38810,6 +39206,16 @@ var liveMdxComponentInteractionFacet = Facet.define({
 });
 var cursorPlaceholder = "{{cursor}}";
 var imageWidthSteps = [320, 480, 640, 760, 960, 1200];
+var SOURCE_EDITOR_CHANGE_MESSAGES = {
+  en: {
+    deletedText: "Deleted text: {text}",
+    deletedLine: "Deleted line {line}"
+  },
+  "zh-CN": {
+    deletedText: "\u5DF2\u5220\u9664\u6587\u672C\uFF1A{text}",
+    deletedLine: "\u5DF2\u5220\u9664\u7B2C {line} \u884C"
+  }
+};
 var SOURCE_EDITOR_SLASH_MESSAGES = {
   en: {
     "frontmatter.title": "Document frontmatter",
@@ -39249,6 +39655,7 @@ var liveHeadingFoldDecorations = StateField.define({
 var selectedLinesEffect = StateEffect.define();
 var documentSearchEffect = StateEffect.define();
 var remoteMergeHighlightEffect = StateEffect.define();
+var documentChangesEffect = StateEffect.define();
 var documentSearchDecorations = StateField.define({
   create() {
     return Decoration.none;
@@ -39277,6 +39684,34 @@ var remoteMergeHighlightDecorations = StateField.define({
   },
   provide: (field) => EditorView.decorations.from(field)
 });
+var documentChangesState = StateField.define({
+  create(state) {
+    return buildDocumentChangesState(state, {
+      available: false,
+      baselineSource: "",
+      showDeletions: false,
+      locale: "en"
+    });
+  },
+  update(value, transaction) {
+    let config3 = value.config;
+    let changed = transaction.docChanged;
+    for (const effect of transaction.effects) {
+      if (effect.is(documentChangesEffect)) {
+        config3 = {
+          ...config3,
+          ...effect.value
+        };
+        changed = true;
+      }
+    }
+    return changed ? buildDocumentChangesState(transaction.state, config3) : value;
+  },
+  provide: (field) => [
+    EditorView.decorations.from(field, (value) => value.decorations)
+  ]
+});
+var deletedLinesLineNumberMarker = lineNumberWidgetMarker.of((_view, widget) => widget instanceof DeletedLinesWidget ? new DeletedLinesNumberMarker(widget.lines, widget.locale) : null);
 var selectedLineGutterClasses = StateField.define({
   create() {
     return Decoration.none;
@@ -39297,6 +39732,143 @@ var selectedLineGutterMarker = new class extends GutterMarker {
     return other === this;
   }
 }();
+var DeletedLinesNumberMarker = class _DeletedLinesNumberMarker extends GutterMarker {
+  elementClass = "cm-deleted-lines-number-gutter";
+  constructor(lines, locale) {
+    super();
+    this.lines = lines;
+    this.locale = locale;
+  }
+  eq(other) {
+    return other instanceof _DeletedLinesNumberMarker && other.locale === this.locale && JSON.stringify(other.lines) === JSON.stringify(this.lines);
+  }
+  toDOM() {
+    const container = document.createElement("span");
+    container.className = "cm-deleted-lines-numbers";
+    for (const line of this.lines) {
+      const row = document.createElement("span");
+      row.className = "cm-deleted-line-number-row";
+      row.textContent = "\u2212";
+      row.setAttribute(
+        "aria-label",
+        changeMessage(this.locale, "deletedLine", { line: line.number })
+      );
+      container.append(row);
+    }
+    return container;
+  }
+};
+var DeletedInlineTextWidget = class _DeletedInlineTextWidget extends WidgetType {
+  constructor(text2, locale) {
+    super();
+    this.text = text2;
+    this.locale = locale;
+  }
+  eq(other) {
+    return other instanceof _DeletedInlineTextWidget && other.text === this.text && other.locale === this.locale;
+  }
+  toDOM() {
+    const element = document.createElement("span");
+    element.className = "cm-document-deleted-inline";
+    element.textContent = this.text || "\u200B";
+    element.setAttribute(
+      "aria-label",
+      changeMessage(this.locale, "deletedText", { text: this.text })
+    );
+    return element;
+  }
+};
+var DeletedLinesWidget = class _DeletedLinesWidget extends WidgetType {
+  constructor(lines, locale) {
+    super();
+    this.lines = lines;
+    this.locale = locale;
+  }
+  eq(other) {
+    return other instanceof _DeletedLinesWidget && other.locale === this.locale && JSON.stringify(other.lines) === JSON.stringify(this.lines);
+  }
+  toDOM() {
+    const container = document.createElement("div");
+    container.className = "cm-document-deleted-lines";
+    for (const line of this.lines) {
+      const row = document.createElement("div");
+      row.className = "cm-document-deleted-line";
+      row.textContent = line.text || "\u200B";
+      row.setAttribute(
+        "aria-label",
+        `${changeMessage(this.locale, "deletedLine", { line: line.number })}: ${line.text}`
+      );
+      container.append(row);
+    }
+    return container;
+  }
+};
+function buildDocumentChangesState(state, config3) {
+  const model = config3.available ? createDocumentChangeModel({
+    baselineSource: config3.baselineSource,
+    currentSource: state.doc.toString()
+  }) : emptyDocumentChangeModel();
+  const showDeletions = config3.showDeletions === true && model.hasDeletions;
+  return {
+    config: config3,
+    model,
+    showDeletions,
+    decorations: buildDocumentChangeDecorations(state, model, {
+      showDeletions,
+      locale: config3.locale
+    })
+  };
+}
+function buildDocumentChangeDecorations(state, model, { showDeletions, locale }) {
+  if (!model.changed) {
+    return Decoration.none;
+  }
+  const ranges = [];
+  const lineStateByNumber = new Map(model.currentLines.map((line) => [line.line, line]));
+  for (const lineNumber of model.changedLines) {
+    if (lineNumber < 1 || lineNumber > state.doc.lines) {
+      continue;
+    }
+    const line = state.doc.line(lineNumber);
+    const kind = lineStateByNumber.get(lineNumber)?.kind ?? "modified";
+    ranges.push(Decoration.line({
+      attributes: {
+        class: `cm-document-change-line is-${kind}`
+      }
+    }).range(line.from));
+  }
+  for (const range of model.textRanges) {
+    const from = Math.max(0, Math.min(state.doc.length, range.from));
+    const to = Math.max(from, Math.min(state.doc.length, range.to));
+    if (to > from) {
+      ranges.push(Decoration.mark({
+        class: `cm-document-change-text is-${range.kind}`
+      }).range(from, to));
+    }
+  }
+  if (showDeletions) {
+    for (const deletion of model.inlineDeletions) {
+      const at = Math.max(0, Math.min(state.doc.length, deletion.at));
+      ranges.push(Decoration.widget({
+        widget: new DeletedInlineTextWidget(deletion.text, locale),
+        side: -1
+      }).range(at));
+    }
+    for (const deletion of model.lineDeletions) {
+      const at = Math.max(0, Math.min(state.doc.length, deletion.at));
+      ranges.push(Decoration.widget({
+        widget: new DeletedLinesWidget(deletion.lines, locale),
+        block: true,
+        side: deletion.beforeLine > model.currentLines.length ? 1 : -1
+      }).range(at));
+    }
+  }
+  return Decoration.set(ranges, true);
+}
+function changeMessage(locale, key, values2 = {}) {
+  const messages = String(locale ?? "").toLowerCase().startsWith("zh") ? SOURCE_EDITOR_CHANGE_MESSAGES["zh-CN"] : SOURCE_EDITOR_CHANGE_MESSAGES.en;
+  return String(messages[key] ?? key).replace(/\{(\w+)\}/g, (_match, name2) => Object.hasOwn(values2, name2) ? String(values2[name2]) : "");
+}
 function themeFromInput(theme2) {
   return String(theme2 ?? "").trim().toLowerCase() === "dark" ? "dark" : "light";
 }
@@ -39352,11 +39924,12 @@ function sourceEditorThemeForTheme(theme2) {
     ".cm-activeLineGutter": {
       backgroundColor: "var(--panel-weak)"
     },
+    // Keep selections visible after the formatting toolbar takes focus, including
+    // over active-line and unpublished-change decorations.
     ".cm-selectionBackground, &.cm-focused .cm-selectionBackground": {
       backgroundColor: `var(--git-leaf-selection-bg, ${isDarkTheme(theme2) ? "rgba(122, 162, 247, 0.35)" : "rgba(37, 99, 235, 0.18)"})`
     },
-    "&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground": {
-      // Match CodeMirror's focused-selection specificity instead of losing to its base theme.
+    "& > .cm-scroller > .cm-selectionLayer .cm-selectionBackground, &.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground": {
       backgroundColor: `var(--git-leaf-selection-bg, ${isDarkTheme(theme2) ? "rgba(122, 162, 247, 0.35)" : "rgba(37, 99, 235, 0.18)"})`
     },
     ".cm-cursor": {
@@ -39843,6 +40416,8 @@ function createSourceEditor({
       selectedLineGutterClasses,
       documentSearchDecorations,
       remoteMergeHighlightDecorations,
+      documentChangesState,
+      deletedLinesLineNumberMarker,
       themeCompartment.of(editorThemeExtensions(currentTheme)),
       liveModeCompartment.of([]),
       editableCompartment.of([
@@ -40080,6 +40655,27 @@ function createSourceEditor({
   return {
     getValue() {
       return view.state.doc.toString();
+    },
+    setDocumentChangeBaseline({
+      source = "",
+      available = false,
+      showDeletions = false
+    } = {}) {
+      view.dispatch({
+        effects: documentChangesEffect.of({
+          available: available === true,
+          baselineSource: String(source ?? ""),
+          showDeletions: showDeletions === true,
+          locale: locale ?? language2 ?? "en"
+        })
+      });
+    },
+    setShowDeletedChanges(showDeletions) {
+      view.dispatch({
+        effects: documentChangesEffect.of({
+          showDeletions: showDeletions === true
+        })
+      });
     },
     setValue(value, { preserveSelection = false, highlightChanges = false } = {}) {
       const nextValue = String(value ?? "");
