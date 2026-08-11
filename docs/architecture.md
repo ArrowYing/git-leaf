@@ -3,7 +3,7 @@ title: Git Leaf system architecture
 domain: ai
 type: architecture
 owner: maintainer
-last_updated: 2026-08-08
+last_updated: 2026-08-11
 source: git-leaf
 canonical: true
 ai_snippet: "[Architecture] Git Leaf | human desktop interface for shared context repositories | local HTTP service | Git worktrees | Preview Source Live | CodeMirror 6 | guarded Git sync"
@@ -156,7 +156,9 @@ The front end has four stable areas:
   the Agent Context entry;
 - an optional document outline synchronized with the content scroll position; it includes H1–H5,
   omits a sole leading H1 used as the document title, and derives indentation from the relative heading
-  stack so skipped Markdown levels do not create empty navigation depths;
+  stack so skipped Markdown levels do not create empty navigation depths; unpublished changes color the
+  full affected navigation row without changing its click target, and changes before the first visible
+  heading use a synthetic document-start target;
 - the main content area for Preview, Source, Live, and read-only file viewers.
 
 Sidebar, outline, and content have independent scrolling. Transient feedback uses a fixed toast below
@@ -289,6 +291,32 @@ CodeMirror transaction and rewrites only the current table block. Preview remain
 
 Source and Live reload external changes made by Git, editors, or AI agents. Git conflict markers remain
 ordinary source text; Git Leaf does not own conflict resolution.
+
+### Working-tree edit cues
+
+For an editable local Markdown or MDX response, the service may return the committed `HEAD:<path>` text
+alongside the current source. A path absent from `HEAD`, including an untracked document, has an empty
+baseline. The index is not a separate presentation authority: the current file is compared with `HEAD`,
+so both staged and unstaged edits remain visible. Hosted and other non-editable responses never receive
+this baseline or any other local source expansion.
+
+The browser derives transient line and text mappings from those two sources. Current additions and
+replacements receive restrained document and gutter highlights in Preview, Source, and Live. Each
+changed current line maps to its nearest preceding visible outline heading; lines before that heading
+map to a synthetic document-start row. A whole-line deletion maps to its current insertion anchor. The
+full navigation row is colored, but its ordinary heading or document-start navigation remains the only
+click behavior.
+
+Deleted source is hidden by default. When the user explicitly reveals it, deleted fragments and complete
+lines appear only as read-only underlined widgets, and line gutters widen to show committed numbering on
+the left and current numbering on the right. Toggling this presentation must not mutate source, selection
+ranges, Git state, or line-reference semantics. Publishing or otherwise committing the current file
+removes the cues when the document refreshes against the new `HEAD`.
+
+This layer is an editing locator, not a standard Git diff or review surface. It does not expose hunks,
+index operations, staging, discard, patch application, conflict resolution, or history rewriting. Text
+selection is a separate interaction and must retain a clearly visible theme-specific background in
+Preview and CodeMirror, including while a changed or active line is highlighted in dark mode.
 
 ### Markdown interoperability
 

@@ -1,5 +1,5 @@
 ---
-last_updated: 2026-08-08
+last_updated: 2026-08-11
 ---
 
 # Git Leaf user guide
@@ -112,6 +112,32 @@ or Ctrl-click on Windows to open a link in another tab.
 
 Source-backed line numbers are also useful when you need to show an AI agent exactly where a question
 or correction came from.
+
+### Return to unpublished edits
+
+When the current Markdown or MDX file differs from its last committed version, Git Leaf presents a
+lightweight editing trace in Preview, Source, and Live:
+
+- current additions and replacements use a restrained warm highlight in the document and line-number
+  gutter;
+- every affected section uses that color across the full width of its document-navigation row, while
+  keeping the normal click target and section jump;
+- a change before the first visible navigation heading appears as **Document start**, which returns to
+  the top of the document;
+- opening another document and returning reconstructs the same cues from the repository, so there is
+  no separate draft marker to maintain.
+
+The top-right **Show deletions** control is available only when text has been removed and starts off.
+Turn it on to show deleted fragments and complete lines as read-only underlined text. At the same time,
+the line-number gutter changes to two columns: the committed version on the left and the current
+document on the right. Turn it off to return to the normal current-document line numbers. These cues do
+not write deleted text back into the file.
+
+The committed version means `HEAD`, while the current side is the file now on disk. This includes both
+staged and unstaged local work; a new, untracked document is compared with an empty baseline. The
+feature is intentionally not a full Git diff viewer: it does not expose hunks, stage or discard changes,
+or resolve conflicts. Sync remains the place to see all unpublished files, while this document view is
+for quickly locating and continuing an edit.
 
 ## Choose the right editing view
 

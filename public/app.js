@@ -45,6 +45,12 @@ import { parseNdjsonRecords } from "./ndjson.js";
 import { githubFileUrl } from "./file-actions.js";
 import { hasTreeChanged } from "./tree-refresh.js";
 import { shouldReplaceDocumentHtml } from "./document-refresh.js";
+import {
+  changedOutlineTargets,
+  createDocumentChangeModel,
+  emptyDocumentChangeModel,
+  sourceRangeHasChanged,
+} from "./document-changes.js";
 import { attachChartTooltips } from "./chart-tooltip.js";
 import { attachDatasetViews } from "./dataset-view.js";
 import { attachMermaidDiagrams } from "./mermaid-view.js";
@@ -305,6 +311,8 @@ const state = {
   canSwitchWorktrees: false,
   currentFile: initialFile,
   currentDocument: null,
+  documentChangeModel: emptyDocumentChangeModel(),
+  showDeletedChanges: false,
   documentTabs: initialDocumentTabs,
   activeTabId: initialActiveTabId,
   activeTabPath: initialFile || "",
@@ -451,6 +459,7 @@ const historyForwardButton = document.querySelector("#history-forward");
 const documentTabs = document.querySelector("#document-tabs");
 const documentNewButton = document.querySelector("#document-new");
 const floatingDocumentActions = document.querySelector("#floating-document-actions");
+const documentDeletionsToggle = document.querySelector("#document-deletions-toggle");
 const documentFavoriteToggle = document.querySelector("#document-favorite-toggle");
 const copyShareLinkButton = document.querySelector("#copy-share-link");
 const documentActionsMore = document.querySelector("#document-actions-more");
@@ -604,7 +613,7 @@ const uiTooltipController = createUiTooltip({
       container: documentOutline,
       itemFromTarget: outlineItemFromEventTarget,
       details: outlineItemTooltipDetails,
-      key: (item) => item.dataset.outlineTarget,
+      key: (item) => item.dataset.outlineTarget || "document-start",
       shouldShow: (item) => elementIsOverflowing(outlineItemLabelElement(item)),
       anchorElement: outlineItemLabelElement,
       describedElement: (item) => item,
@@ -658,6 +667,7 @@ repositoryPanelList.addEventListener("pointermove", handleRepositoryPanelPointer
 repositoryPanelList.addEventListener("pointerup", handleRepositoryPanelPointerUp);
 repositoryPanelList.addEventListener("pointercancel", handleRepositoryPanelPointerCancel);
 documentFavoriteToggle.addEventListener("click", toggleCurrentDocumentFavorite);
+documentDeletionsToggle.addEventListener("click", toggleDeletedDocumentChanges);
 documentActionsMore.addEventListener("click", showCurrentDocumentActionsMenu);
 fileActionMenu.addEventListener("click", handleFileActionMenuClick);
 fileActionMenu.addEventListener("keydown", handleFileActionMenuKeydown);
@@ -2160,6 +2170,8 @@ function showNoDocumentSelected({ pushState = false } = {}) {
   closeDocumentSearch({ restoreFocus: false });
   state.currentFile = "";
   state.currentDocument = null;
+  state.documentChangeModel = emptyDocumentChangeModel();
+  state.showDeletedChanges = false;
   applyDocumentTabState({ tabs: [], activeTabId: "" });
   state.selectedLines = new Set();
   state.selectionAnchor = null;
@@ -2192,6 +2204,7 @@ function showStartupError(error) {
   closeDocumentSearch({ restoreFocus: false });
   const message = error instanceof Error ? error.message : t("error.load");
   state.currentDocument = null;
+  state.documentChangeModel = emptyDocumentChangeModel();
   state.selectedLines = new Set();
   state.selectionAnchor = null;
   hideNoDocumentSurface();
@@ -2243,6 +2256,7 @@ function applyDocumentData(
   const scrollTop = preserveScroll ? documentContent.scrollTop : 0;
   const shouldReplace = forceReplace || shouldReplaceDocumentHtml(state.currentDocument, documentData);
   state.currentDocument = documentData;
+  state.documentChangeModel = documentChangeModelForDocument(documentData);
   state.currentFile = documentData.path;
   hideNoDocumentSurface();
   state.lastWrittenHash = documentData.sourceHash ?? state.lastWrittenHash;
@@ -2294,8 +2308,11 @@ function applyDocumentData(
         highlightChanges: highlightEditorChanges,
       },
     );
+    applySourceEditorDocumentChangeBaseline();
     state.sourceEditor.setMode(state.mode);
   }
+
+  refreshDocumentChangePresentation();
 
   updateLineSelectionUi();
   if (resetSelectionFromHash) {
@@ -2343,6 +2360,7 @@ function setMode(mode, { persist = true, focus = true } = {}) {
   if (editingMode) {
     ensureSourceEditor();
     state.sourceEditor.setValue(state.currentDocument?.source ?? "");
+    applySourceEditorDocumentChangeBaseline();
     state.sourceEditor.setMode(state.mode);
     updateLineSelectionUi();
     updateSourceSyncStatus("idle");
@@ -2409,6 +2427,285 @@ function canEditDocumentData(documentData) {
 
 function isMarkdownDocument(documentData = state.currentDocument) {
   return (documentData?.kind ?? "markdown") === "markdown";
+}
+
+function documentChangeModelForDocument(documentData) {
+  if (
+    !isMarkdownDocument(documentData) ||
+    documentData?.changeBaselineAvailable !== true ||
+    typeof documentData?.source !== "string"
+  ) {
+    return emptyDocumentChangeModel();
+  }
+  return createDocumentChangeModel({
+    baselineSource: documentData.changeBaselineSource ?? "",
+    currentSource: documentData.source,
+  });
+}
+
+function applySourceEditorDocumentChangeBaseline() {
+  state.sourceEditor?.setDocumentChangeBaseline?.({
+    source: state.currentDocument?.changeBaselineSource ?? "",
+    available: state.currentDocument?.changeBaselineAvailable === true,
+    showDeletions: state.showDeletedChanges,
+  });
+}
+
+function toggleDeletedDocumentChanges() {
+  if (!state.documentChangeModel.hasDeletions) {
+    return;
+  }
+  state.showDeletedChanges = !state.showDeletedChanges;
+  state.sourceEditor?.setShowDeletedChanges?.(state.showDeletedChanges);
+  refreshDocumentChangePresentation();
+}
+
+function refreshDocumentChangePresentation() {
+  resetPreviewDocumentChangePresentation();
+  updateDocumentDeletionsToggle();
+
+  if (!isMarkdownDocument()) {
+    return;
+  }
+
+  const model = state.documentChangeModel;
+  if (model.changed) {
+    markPreviewDocumentChanges(model);
+    if (state.showDeletedChanges && model.hasDeletions) {
+      documentContent.classList.add("is-showing-deleted-changes");
+      applyPreviewComparisonLineNumbers(model);
+      renderPreviewDeletedChanges(model);
+    }
+  }
+
+  renderDocumentOutline();
+  scheduleAnchoredSourceLineGutterSync();
+}
+
+function updateDocumentDeletionsToggle() {
+  const hasDeletions = Boolean(
+    state.currentDocument &&
+    isMarkdownDocument() &&
+    state.documentChangeModel.hasDeletions
+  );
+  const showing = hasDeletions && state.showDeletedChanges;
+  const label = t(showing ? "action.hideDeletedChanges" : "action.showDeletedChanges");
+  documentDeletionsToggle.hidden = !hasDeletions;
+  documentDeletionsToggle.setAttribute("aria-pressed", String(showing));
+  documentDeletionsToggle.setAttribute("aria-label", label);
+  setUiTooltip(documentDeletionsToggle, label, {
+    detail: t("changes.deletionsHint"),
+    placement: "bottom-end",
+  });
+  const labelElement = documentDeletionsToggle.querySelector("[data-document-deletions-label]");
+  if (labelElement) {
+    labelElement.textContent = label;
+  }
+}
+
+function resetPreviewDocumentChangePresentation() {
+  documentContent.classList.remove("is-showing-deleted-changes");
+  for (const element of documentContent.querySelectorAll("[data-document-deleted-preview]")) {
+    element.remove();
+  }
+  for (const element of documentContent.querySelectorAll("[data-document-change-preview]")) {
+    element.classList.remove("document-change-content", "is-added", "is-modified");
+    delete element.dataset.documentChangePreview;
+    delete element.dataset.documentChangeKind;
+  }
+  for (const gutter of documentContent.querySelectorAll(".source-line-gutter.is-comparison")) {
+    gutter.classList.remove("is-comparison");
+  }
+  for (const button of documentContent.querySelectorAll(".source-line-button")) {
+    button.classList.remove("is-document-change", "is-added", "is-modified", "is-comparison");
+    delete button.dataset.documentChangeKind;
+    delete button.dataset.currentLine;
+    if (button.dataset.documentComparison === "true") {
+      button.textContent = currentSourceLineLabel(button);
+      delete button.dataset.documentComparison;
+    }
+  }
+}
+
+function markPreviewDocumentChanges(model) {
+  const changedLines = new Set(model.changedLines);
+  const lineStates = new Map(model.currentLines.map((line) => [line.line, line]));
+  for (const button of documentContent.querySelectorAll(".source-line-button[data-source-line]")) {
+    const start = Number(button.dataset.sourceLine);
+    const end = Number(button.dataset.sourceEnd ?? start);
+    if (!sourceRangeHasChanged(model, start, end)) {
+      continue;
+    }
+    const kind = documentChangeKindForRange(changedLines, lineStates, start, end);
+    button.classList.add("is-document-change", `is-${kind}`);
+    button.dataset.documentChangeKind = kind;
+    for (let line = start; line <= end; line += 1) {
+      if (!changedLines.has(line)) {
+        continue;
+      }
+      markPreviewChangeTarget(previewChangeTargetForLine(line, button), kind);
+    }
+  }
+}
+
+function markPreviewChangeTarget(target, kind) {
+  if (!target) {
+    return;
+  }
+  const nextKind = target.dataset.documentChangeKind === "modified" || kind === "modified"
+    ? "modified"
+    : "added";
+  target.classList.remove("is-added", "is-modified");
+  target.classList.add("document-change-content", `is-${nextKind}`);
+  target.dataset.documentChangePreview = "true";
+  target.dataset.documentChangeKind = nextKind;
+}
+
+function previewChangeTargetForLine(line, button = sourceLineButtonForLine(line)) {
+  const block = button?.closest(".source-block");
+  if (!block) {
+    return null;
+  }
+  return block.querySelector(`[data-source-code-line="${line}"]`)
+    || block.querySelector(`[data-source-list-line="${line}"]`)
+    || block.querySelector(`[data-source-table-line="${line}"]`)
+    || block;
+}
+
+function documentChangeKindForRange(changedLines, lineStates, start, end) {
+  let found = false;
+  for (let line = start; line <= end; line += 1) {
+    if (!changedLines.has(line)) {
+      continue;
+    }
+    found = true;
+    if (lineStates.get(line)?.kind !== "added") {
+      return "modified";
+    }
+  }
+  return found ? "added" : "modified";
+}
+
+function applyPreviewComparisonLineNumbers(model) {
+  const lineStates = new Map(model.currentLines.map((line) => [line.line, line]));
+  for (const button of documentContent.querySelectorAll(".source-line-button[data-source-line]")) {
+    const start = Number(button.dataset.sourceLine);
+    const end = Number(button.dataset.sourceEnd ?? start);
+    const baselineLabel = baselineLineLabelForRange(lineStates, start, end);
+    const currentLabel = currentSourceLineLabel(button);
+    const baseline = document.createElement("span");
+    baseline.className = "source-comparison-baseline-line";
+    baseline.textContent = baselineLabel;
+    baseline.setAttribute("aria-hidden", "true");
+    const current = document.createElement("span");
+    current.className = "source-comparison-current-line";
+    current.textContent = currentLabel;
+    current.setAttribute("aria-hidden", "true");
+    button.replaceChildren(baseline, current);
+    button.classList.add("is-comparison");
+    button.dataset.documentComparison = "true";
+    button.dataset.currentLine = String(start);
+    button.closest(".source-line-gutter")?.classList.add("is-comparison");
+  }
+}
+
+function baselineLineLabelForRange(lineStates, start, end) {
+  const lines = [];
+  for (let line = start; line <= end; line += 1) {
+    const baselineLine = lineStates.get(line)?.baselineLine;
+    if (Number.isInteger(baselineLine)) {
+      lines.push(baselineLine);
+    }
+  }
+  if (lines.length === 0) {
+    return "";
+  }
+  return lines[0] === lines.at(-1) ? String(lines[0]) : `${lines[0]}–${lines.at(-1)}`;
+}
+
+function currentSourceLineLabel(button) {
+  const start = Number(button.dataset.sourceLine);
+  const end = Number(button.dataset.sourceEnd ?? start);
+  return end > start ? `${start}–${end}` : String(start);
+}
+
+function renderPreviewDeletedChanges(model) {
+  renderPreviewInlineDeletions(model.inlineDeletions);
+  for (const deletion of model.lineDeletions) {
+    const block = previewDeletedLinesBlock(deletion);
+    const anchorLine = Math.min(deletion.beforeLine, model.currentLines.length);
+    const anchorBlock = sourceLineButtonForLine(anchorLine)?.closest(".source-block");
+    if (anchorBlock && deletion.beforeLine <= model.currentLines.length) {
+      anchorBlock.before(block);
+    } else {
+      documentContent.append(block);
+    }
+  }
+}
+
+function renderPreviewInlineDeletions(deletions) {
+  const hintsByBlock = new Map();
+  for (const deletion of deletions) {
+    const block = sourceLineButtonForLine(deletion.line)?.closest(".source-block");
+    const content = block?.querySelector(".source-block-content");
+    if (!block || !content) {
+      continue;
+    }
+    let hint = hintsByBlock.get(block);
+    if (!hint) {
+      hint = document.createElement("div");
+      hint.className = "document-preview-inline-deletions";
+      hint.dataset.documentDeletedPreview = "true";
+      content.prepend(hint);
+      hintsByBlock.set(block, hint);
+    }
+    const fragment = document.createElement("span");
+    fragment.className = "document-preview-deleted-inline";
+    fragment.dataset.sourceLine = String(deletion.line);
+    fragment.textContent = deletion.text || "\u200b";
+    fragment.setAttribute("aria-label", t("changes.deletedText", { text: deletion.text }));
+    hint.append(fragment);
+  }
+}
+
+function previewDeletedLinesBlock(deletion) {
+  const block = document.createElement("div");
+  block.className = "source-block document-preview-deleted-block";
+  block.dataset.documentDeletedPreview = "true";
+  const gutter = document.createElement("div");
+  gutter.className = "source-line-gutter is-comparison document-preview-deleted-gutter";
+  gutter.setAttribute("aria-label", t("changes.deletionsHint"));
+  const content = document.createElement("div");
+  content.className = "source-block-content";
+  const rows = document.createElement("div");
+  rows.className = "document-preview-deleted-lines";
+
+  for (const line of deletion.lines) {
+    const lineNumber = document.createElement("span");
+    lineNumber.className = "document-preview-deleted-line-number";
+    lineNumber.setAttribute("aria-label", t("changes.deletedLine", { line: line.number }));
+    const baseline = document.createElement("span");
+    baseline.className = "source-comparison-baseline-line";
+    baseline.textContent = String(line.number);
+    const current = document.createElement("span");
+    current.className = "source-comparison-current-line";
+    current.setAttribute("aria-hidden", "true");
+    lineNumber.append(baseline, current);
+    gutter.append(lineNumber);
+
+    const row = document.createElement("div");
+    row.className = "document-preview-deleted-line";
+    row.textContent = line.text || "\u200b";
+    row.setAttribute(
+      "aria-label",
+      `${t("changes.deletedLine", { line: line.number })}: ${line.text}`,
+    );
+    rows.append(row);
+  }
+
+  content.append(rows);
+  block.append(gutter, content);
+  return block;
 }
 
 function readInitialDesktopPreferences() {
@@ -3311,6 +3608,7 @@ function ensureSourceEditor() {
     getRenderOptions: () => documentRenderOptions(),
     onBeforeSlashCommand: ensureSlashCommandAllowed,
   });
+  applySourceEditorDocumentChangeBaseline();
 }
 
 function applyAppearancePreferences(preferences) {
@@ -4390,7 +4688,7 @@ function documentTabTooltipDetails(item) {
 }
 
 function outlineItemFromEventTarget(target) {
-  const item = target?.closest?.("[data-outline-target]");
+  const item = target?.closest?.("[data-outline-target], [data-outline-document-start]");
   return item && documentOutline.contains(item) ? item : null;
 }
 
@@ -5748,7 +6046,6 @@ function renderDocumentContent(documentData) {
     documentDatasetViewController.hydrate(documentContent);
     documentMermaidController.hydrate(documentContent);
     scheduleAnchoredSourceLineGutterSync();
-    renderDocumentOutline();
     return;
   }
 
@@ -6174,14 +6471,20 @@ function renderDocumentOutline() {
     };
   });
   state.outlineItems = outlineItemsFromHeadings(headings);
+  const changeTargets = changedOutlineTargets(
+    state.outlineItems,
+    state.documentChangeModel.changedLines,
+  );
+  const changedTargetIds = new Set(changeTargets.targetIds);
+  const hasEntries = state.outlineItems.length > 0 || changeTargets.beforeFirstHeading;
   documentOutline.innerHTML = "";
-  documentOutline.hidden = state.outlineItems.length === 0;
-  documentOutlineResizer.hidden = state.outlineItems.length === 0;
+  documentOutline.hidden = !hasEntries;
+  documentOutlineResizer.hidden = !hasEntries;
   documentOutlineResizer.tabIndex =
-    state.outlineItems.length === 0 || state.documentOutlineCollapsed ? -1 : 0;
-  documentOutlineToggle.hidden = state.outlineItems.length === 0;
-  documentBody.classList.toggle("has-outline", state.outlineItems.length > 0);
-  if (state.outlineItems.length === 0) {
+    !hasEntries || state.documentOutlineCollapsed ? -1 : 0;
+  documentOutlineToggle.hidden = !hasEntries;
+  documentBody.classList.toggle("has-outline", hasEntries);
+  if (!hasEntries) {
     return;
   }
 
@@ -6193,6 +6496,23 @@ function renderDocumentOutline() {
   header.append(headerLabel);
   const list = document.createElement("ul");
   list.className = "outline-list";
+  if (changeTargets.beforeFirstHeading) {
+    const listItem = document.createElement("li");
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "outline-link depth-1 document-start has-document-change";
+    button.dataset.outlineDocumentStart = "true";
+    button.setAttribute(
+      "aria-label",
+      `${t("outline.documentStart")}. ${t("changes.documentStartModified")}`,
+    );
+    const label = document.createElement("span");
+    label.className = "outline-link-label";
+    label.textContent = t("outline.documentStart");
+    button.append(label);
+    listItem.append(button);
+    list.append(listItem);
+  }
   for (const item of state.outlineItems) {
     const listItem = document.createElement("li");
     const button = document.createElement("button");
@@ -6201,6 +6521,13 @@ function renderDocumentOutline() {
     button.dataset.outlineTarget = item.id;
     if (Number.isInteger(item.sourceLine)) {
       button.dataset.sourceLine = String(item.sourceLine);
+    }
+    if (changedTargetIds.has(item.id)) {
+      button.classList.add("has-document-change");
+      button.setAttribute(
+        "aria-label",
+        `${item.title}. ${t("changes.sectionModified")}`,
+      );
     }
     const label = document.createElement("span");
     label.className = "outline-link-label";
@@ -6214,8 +6541,19 @@ function renderDocumentOutline() {
 }
 
 function handleOutlineClick(event) {
-  const button = event.target.closest("[data-outline-target]");
+  const button = event.target.closest("[data-outline-target], [data-outline-document-start]");
   if (!button) {
+    return;
+  }
+
+  if (button.dataset.outlineDocumentStart === "true") {
+    outlineClickViewportGuard.begin();
+    if (state.mode === "live" && state.sourceEditor) {
+      state.sourceEditor.scrollToLine(1);
+    } else {
+      documentContent.scrollTo({ top: 0, left: 0 });
+    }
+    updateActiveOutline(undefined, { preserveViewport: true });
     return;
   }
 
@@ -6582,6 +6920,7 @@ async function submitGitSync() {
     showCopyToast(t("toast.syncComplete"));
     await loadTree({ force: true });
     await loadGitStatus();
+    await refreshCurrentDocument();
     state.remoteSync = normalizeRemoteSyncPayload({
       ...state.remoteSync,
       ok: true,
@@ -8989,6 +9328,9 @@ async function publishShareLinkForPath(documentPath) {
       );
       showCopyToast(payload.published ? t("toast.publishedAndCopied") : t("toast.shareCopied"));
       await loadGitStatus();
+      if (payload.published && documentPath === state.currentDocument?.path) {
+        await refreshCurrentDocument();
+      }
       return;
     }
 

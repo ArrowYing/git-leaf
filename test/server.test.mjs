@@ -555,6 +555,7 @@ test("document API returns file metadata for auto refresh and actions", async ()
     assert.equal(typeof payload.mtimeMs, "number");
     assert.equal(payload.repoRoot, repoRoot);
     assert.equal(payload.absolutePath, await realpath(path.join(repoRoot, "sample.md")));
+    assert.equal(payload.changeBaselineAvailable, false);
     assert.deepEqual(payload.sourceLines, [
       { number: 1, text: "# Sample" },
       { number: 2, text: "" },
@@ -571,6 +572,37 @@ test("document API returns file metadata for auto refresh and actions", async ()
     assert.match(unsupported.html, /title="Select line 1" aria-label="Select line 1"/);
   } finally {
     await close(server);
+  }
+});
+
+test("document API returns the committed Markdown baseline for local edit cues", async () => {
+  const repoRoot = await mkdtemp(path.join(tmpdir(), "git-leaf-document-baseline-"));
+  const baseline = "# Plan\n\nBefore launch.\n\n## Delivery\n\nKeep this.\n";
+  const current = "# Plan\n\nLaunch this week.\n\n## Delivery\n\nKeep this.\n";
+  await execFileAsync("git", ["init", "-q"], { cwd: repoRoot });
+  await execFileAsync("git", ["config", "user.email", "git-leaf@example.test"], { cwd: repoRoot });
+  await execFileAsync("git", ["config", "user.name", "Git Leaf Test"], { cwd: repoRoot });
+  await writeFile(path.join(repoRoot, "sample.md"), baseline);
+  await execFileAsync("git", ["add", "sample.md"], { cwd: repoRoot });
+  await execFileAsync("git", ["commit", "-qm", "Initial"], { cwd: repoRoot });
+  await writeFile(path.join(repoRoot, "sample.md"), current);
+  await writeFile(path.join(repoRoot, "new.md"), "# New\n");
+  const initialFile = await resolvePreviewPath(repoRoot, "sample.md");
+  const server = createPreviewServer({ repoRoot, initialFile });
+  const baseUrl = await listen(server);
+
+  try {
+    const edited = await getJson(`${baseUrl}/api/document?file=sample.md`);
+    assert.equal(edited.source, current);
+    assert.equal(edited.changeBaselineAvailable, true);
+    assert.equal(edited.changeBaselineSource, baseline);
+
+    const untracked = await getJson(`${baseUrl}/api/document?file=new.md`);
+    assert.equal(untracked.changeBaselineAvailable, true);
+    assert.equal(untracked.changeBaselineSource, "");
+  } finally {
+    await close(server);
+    await rm(repoRoot, { recursive: true, force: true });
   }
 });
 
@@ -2008,6 +2040,8 @@ test("document payload can explicitly omit source and local paths", async () => 
   assert.equal(Object.hasOwn(payload, "source"), false);
   assert.equal(Object.hasOwn(payload, "repoRoot"), false);
   assert.equal(Object.hasOwn(payload, "absolutePath"), false);
+  assert.equal(Object.hasOwn(payload, "changeBaselineAvailable"), false);
+  assert.equal(Object.hasOwn(payload, "changeBaselineSource"), false);
 });
 
 test("worktree API lists linked worktrees and detached writes create a protection branch", async () => {
@@ -2134,6 +2168,7 @@ test("public module assets are served for the browser", async () => {
       "outline.js",
       "tree-refresh.js",
       "document-refresh.js",
+      "document-changes.js",
       "chart-tooltip.js",
       "dataset-view.js",
       "mermaid-layout.js",
