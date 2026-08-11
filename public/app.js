@@ -32,6 +32,7 @@ import { createUiTooltip, elementIsOverflowing } from "./ui-tooltip.js";
 import { attachHorizontalPointerResize } from "./pointer-resize.js";
 import {
   activeOutlineIdForSourceLine,
+  createOutlineActiveViewportState,
   createOutlineClickViewportGuard,
   outlineItemsFromHeadings,
 } from "./outline.js";
@@ -302,6 +303,7 @@ let fileSearchTelemetryActive = false;
 let documentSearchTelemetryActive = false;
 let lastEditingTelemetryAt = 0;
 const outlineClickViewportGuard = createOutlineClickViewportGuard();
+const outlineActiveViewportState = createOutlineActiveViewportState();
 
 const state = {
   tree: [],
@@ -2185,6 +2187,7 @@ function showNoDocumentSelected({ pushState = false } = {}) {
   documentOutlineToggle.hidden = true;
   documentOutline.innerHTML = "";
   state.outlineItems = [];
+  outlineActiveViewportState.reset();
   updateDocumentActions(false);
   updateLineSelectionUi();
   renderDocumentTabs();
@@ -2214,6 +2217,7 @@ function showStartupError(error) {
   documentOutlineToggle.hidden = true;
   documentOutline.innerHTML = "";
   state.outlineItems = [];
+  outlineActiveViewportState.reset();
   updateDocumentActions(false);
   renderDocumentTabs();
   applyEditCapability();
@@ -2229,6 +2233,7 @@ function showNoDocumentSurface() {
   documentOutlineToggle.hidden = true;
   documentOutline.innerHTML = "";
   state.outlineItems = [];
+  outlineActiveViewportState.reset();
   documentContent.innerHTML = "";
   documentContent.scrollTop = 0;
   sourceSplitter.hidden = true;
@@ -6056,6 +6061,7 @@ function renderDocumentContent(documentData) {
   documentOutline.innerHTML = "";
   documentBody.classList.remove("has-outline");
   state.outlineItems = [];
+  outlineActiveViewportState.reset();
 }
 
 function readonlyPreviewElement(documentData) {
@@ -6485,6 +6491,7 @@ function renderDocumentOutline() {
   documentOutlineToggle.hidden = !hasEntries;
   documentBody.classList.toggle("has-outline", hasEntries);
   if (!hasEntries) {
+    outlineActiveViewportState.reset();
     return;
   }
 
@@ -6588,7 +6595,11 @@ function updateActiveOutlineFromContentScroll(activeId) {
 }
 
 function updateActiveOutline(activeId, { preserveViewport = false } = {}) {
-  const previousActiveButton = documentOutline.querySelector(".outline-link.is-active");
+  const viewportAction = outlineActiveViewportState.transition({
+    documentPath: state.currentDocument?.path || "",
+    activeId,
+    preserveViewport,
+  });
   let activeButton;
   for (const button of documentOutline.querySelectorAll("[data-outline-target]")) {
     const isActive = button.dataset.outlineTarget === activeId;
@@ -6597,9 +6608,9 @@ function updateActiveOutline(activeId, { preserveViewport = false } = {}) {
       activeButton = button;
     }
   }
-  if (!preserveViewport && activeButton && activeButton !== previousActiveButton) {
+  if (viewportAction === "center" && activeButton) {
     centerActiveOutlineButton(activeButton);
-  } else if (!preserveViewport && !activeButton && previousActiveButton) {
+  } else if (viewportAction === "top") {
     documentOutline.scrollTo({ top: 0, left: 0 });
   }
 }

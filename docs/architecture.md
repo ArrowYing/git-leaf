@@ -161,7 +161,9 @@ The front end has four stable areas:
   heading use a synthetic document-start target;
 - the main content area for Preview, Source, Live, and read-only file viewers.
 
-Sidebar, outline, and content have independent scrolling. Transient feedback uses a fixed toast below
+Sidebar, outline, and content have independent scrolling. Rebuilding the current document's outline to
+refresh headings or unpublished-change cues preserves the outline viewport; only a real active-section
+transition applies the ordinary outline-following scroll. Transient feedback uses a fixed toast below
 the title bar. Opening a tab must not expand or scroll the file tree or steal its focus. “Reveal in
 Sidebar” is the explicit action that expands ancestors and performs the smallest necessary scroll.
 

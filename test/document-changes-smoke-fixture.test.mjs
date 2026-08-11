@@ -44,6 +44,7 @@ test("document changes smoke fixture preserves a committed baseline and dirty cu
     );
     assert.match(DOCUMENT_CHANGES_SMOKE_ACCEPTANCE, /铺满整行改动底色/);
     assert.match(DOCUMENT_CHANGES_SMOKE_ACCEPTANCE, /深色模式下显示清晰蓝色底/);
+    assert.match(DOCUMENT_CHANGES_SMOKE_ACCEPTANCE, /目录自身的滚动位置保持稳定/);
   } finally {
     cleanupDocumentChangesSmokeFixture(fixture);
     await rm(temporaryRoot, { recursive: true, force: true });
