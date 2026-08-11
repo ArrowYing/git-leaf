@@ -2145,13 +2145,33 @@ summary.has-operation-feedback {
 }
 
 .document-deletions-toggle-mark {
+  position: relative;
+  display: inline-block;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-  font-size: 10px;
+  font-size: 13px;
   font-weight: 650;
-  letter-spacing: -0.06em;
+  letter-spacing: -0.08em;
   line-height: 1;
   text-decoration: line-through;
   text-decoration-thickness: 1.25px;
+}
+
+.document-deletions-toggle-mark::after {
+  content: "";
+  position: absolute;
+  top: -3px;
+  right: -5px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+  opacity: 0;
+  transform: scale(0.5);
+}
+
+.document-deletions-toggle[aria-pressed="true"] .document-deletions-toggle-mark::after {
+  opacity: 1;
+  transform: scale(1);
 }
 
 .document-deletions-toggle[aria-pressed="true"] {
@@ -2173,8 +2193,8 @@ summary.has-operation-feedback {
 }
 
 .document-favorite-toggle svg {
-  width: 17px;
-  height: 17px;
+  width: 19px;
+  height: 19px;
   fill: transparent;
   stroke: currentColor;
   stroke-linejoin: round;

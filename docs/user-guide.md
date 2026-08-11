@@ -128,10 +128,11 @@ lightweight editing trace in Preview, Source, and Live:
   no separate draft marker to maintain.
 
 The compact top-right **Show deletions** control is available only when text has been removed and starts
-off. Turn it on to show deleted fragments and complete lines as read-only text with a strikethrough and no
-separate text or background color. The ordinary single current-document line numbers stay exactly as they
-were; a removed whole line uses a non-numbered `−` marker. These cues do not write deleted text back into
-the file.
+off. A small solid status dot appears on the icon while the control is on, so its state remains clear
+without turning it into a primary action. Turn it on to show deleted fragments and complete lines as
+read-only text with a strikethrough and no separate text or background color. The ordinary single
+current-document line numbers stay exactly as they were; a removed whole line uses a non-numbered `−`
+marker. These cues do not write deleted text back into the file.
 
 The committed version means `HEAD`, while the current side is the file now on disk. This includes both
 staged and unstaged local work; a new, untracked document is compared with an empty baseline. The
