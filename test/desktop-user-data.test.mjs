@@ -44,19 +44,37 @@ test("Git Leaf 1.x development user-data inputs remain accepted", () => {
 });
 
 test("OpenPeek keeps the Git Leaf profile directory stable across the rename", () => {
-  const calls = [];
-  const result = applyStableUserDataPath({
-    app: {
-      getPath: (name) => name === "appData" ? "/Users/test/Library/Application Support" : "",
-      setPath: (...args) => calls.push(args),
+  for (const {
+    appDataDir,
+    expectedUserDataDir,
+    pathModule,
+  } of [
+    {
+      appDataDir: "/Users/test/Library/Application Support",
+      expectedUserDataDir: "/Users/test/Library/Application Support/git-leaf",
+      pathModule: path.posix,
     },
-  });
+    {
+      appDataDir: "C:\\Users\\test\\AppData\\Roaming",
+      expectedUserDataDir: "C:\\Users\\test\\AppData\\Roaming\\git-leaf",
+      pathModule: path.win32,
+    },
+  ]) {
+    const calls = [];
+    const result = applyStableUserDataPath({
+      app: {
+        getPath: (name) => name === "appData" ? appDataDir : "",
+        setPath: (...args) => calls.push(args),
+      },
+      pathModule,
+    });
 
-  assert.equal(result, "/Users/test/Library/Application Support/git-leaf");
-  assert.deepEqual(calls, [
-    ["userData", result],
-    ["sessionData", result],
-  ]);
+    assert.equal(result, expectedUserDataDir);
+    assert.deepEqual(calls, [
+      ["userData", result],
+      ["sessionData", result],
+    ]);
+  }
 });
 
 test("development user data cannot point at or inside production", () => {
