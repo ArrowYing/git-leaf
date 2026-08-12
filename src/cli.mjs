@@ -17,6 +17,7 @@ import { createPreviewServer } from "./server/index.mjs";
 import { createToolVersionMonitor } from "./tool-version.mjs";
 
 const DEFAULT_PORT = 4317;
+const HEALTH_CHECK_TIMEOUT_MS = 500;
 const RESTART_WAIT_TIMEOUT_MS = 5_000;
 const RESTART_WAIT_INTERVAL_MS = 150;
 const OPENPEEK_APP_ID = "openpeek";
@@ -152,7 +153,9 @@ export async function reusableOpenPeekUrl({
 }) {
   const healthUrl = `http://127.0.0.1:${port}/api/health?check=1`;
   try {
-    const response = await fetch(healthUrl, { signal: AbortSignal.timeout(200) });
+    const response = await fetch(healthUrl, {
+      signal: AbortSignal.timeout(HEALTH_CHECK_TIMEOUT_MS),
+    });
     if (!response.ok) {
       return null;
     }
@@ -212,7 +215,7 @@ async function requestRestartAndWait({ port, repoRoot, expectedPort = port }) {
 async function checkedHealthPayload(port) {
   try {
     const response = await fetch(`http://127.0.0.1:${port}/api/health?check=1`, {
-      signal: AbortSignal.timeout(500),
+      signal: AbortSignal.timeout(HEALTH_CHECK_TIMEOUT_MS),
     });
     return response.ok ? response.json() : null;
   } catch {

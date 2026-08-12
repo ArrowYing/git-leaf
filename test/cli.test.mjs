@@ -37,6 +37,24 @@ test("reusableOpenPeekUrl returns the localhost workbench URL for the same repos
   }
 });
 
+test("reusableOpenPeekUrl tolerates a loaded runner without delaying ordinary CLI startup", async () => {
+  const server = healthServer({ repoRoot: "/repo/a" }, { delayMs: 250 });
+  const port = await listen(server);
+
+  try {
+    assert.equal(
+      await reusableOpenPeekUrl({
+        repoRoot: "/repo/a",
+        port,
+        relativePath: "README.md",
+      }),
+      `http://127.0.0.1:${port}/?file=README.md`,
+    );
+  } finally {
+    await close(server);
+  }
+});
+
 test("reusableOpenPeekUrl accepts a healthy Git Leaf 1.x server for the same repository", async () => {
   const server = healthServer({ app: "git-leaf", repoRoot: "/repo/a" });
   const port = await listen(server);
@@ -407,16 +425,18 @@ test("OpenPeek command detection accepts Windows paths", () => {
   );
 });
 
-function healthServer(payload) {
+function healthServer(payload, { delayMs = 0 } = {}) {
   return http.createServer((request, response) => {
     if (request.url?.startsWith("/api/health")) {
-      response.writeHead(200, { "Content-Type": "application/json" });
-      response.end(JSON.stringify({
-        app: "openpeek",
-        toolFingerprint: "abc123",
-        stale: false,
-        ...payload,
-      }));
+      setTimeout(() => {
+        response.writeHead(200, { "Content-Type": "application/json" });
+        response.end(JSON.stringify({
+          app: "openpeek",
+          toolFingerprint: "abc123",
+          stale: false,
+          ...payload,
+        }));
+      }, delayMs);
       return;
     }
 
