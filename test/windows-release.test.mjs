@@ -30,6 +30,7 @@ test("windows release package args include x64 target metadata", () => {
   assert.ok(args.includes("--platform=win32"));
   assert.ok(args.includes("--arch=x64"));
   assert.ok(args.includes("--app-version=1.9.1"));
+  assert.ok(args.includes("--icon=assets/icons/openpeek.ico"));
   assert.ok(args.includes("--protocol=openpeek"));
   assert.ok(args.includes("--protocol-name=OpenPeek Document"));
   assert.ok(args.includes("--win32metadata.CompanyName=Mango Future"));
@@ -76,6 +77,7 @@ test("windows release package args exclude internal docs, repository tools, and 
     "/.gitleaks.toml",
     "/.github/workflows/windows-release-smoke.yml",
     "/.agents/skills/openpeek-release/SKILL.md",
+    "/assets/icons/openpeek.ico",
     "/node_modules/@electron/get/package.json",
     "/node_modules/@esbuild/win32-x64/esbuild.exe",
     "/node_modules/@types/node/index.d.ts",

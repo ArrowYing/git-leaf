@@ -41,6 +41,7 @@ export const DEFAULT_WINDOWS_RELEASE_OPTIONS = {
   appName: "OpenPeek",
   companyName: "OpenPeek Community",
   productName: "OpenPeek Community Build",
+  iconPath: "assets/icons/openpeek.ico",
   version: packageVersion({ rootDir: REPO_ROOT, fallbackVersion: "0.1.1" }),
   outDir: "dist",
   updateBaseUrl: "https://updates.mangofuture.com/git-leaf",
@@ -81,6 +82,7 @@ export function windowsElectronPackagerArgs({
   version = DEFAULT_WINDOWS_RELEASE_OPTIONS.version,
   companyName = DEFAULT_WINDOWS_RELEASE_OPTIONS.companyName,
   productName = DEFAULT_WINDOWS_RELEASE_OPTIONS.productName,
+  iconPath = DEFAULT_WINDOWS_RELEASE_OPTIONS.iconPath,
   outDir = DEFAULT_WINDOWS_RELEASE_OPTIONS.outDir,
 } = {}) {
   return [
@@ -92,6 +94,7 @@ export function windowsElectronPackagerArgs({
     "--overwrite",
     `--app-version=${version}`,
     `--executable-name=${appName}`,
+    `--icon=${iconPath}`,
     `--protocol=${OPENPEEK_PROTOCOL}`,
     "--protocol-name=OpenPeek Document",
     `--win32metadata.CompanyName=${companyName}`,
