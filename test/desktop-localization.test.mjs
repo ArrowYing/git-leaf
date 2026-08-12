@@ -52,7 +52,7 @@ test("desktop and application translators localize menus, status, and dialogs", 
   assert.equal(chinese("menu.sidebarFavorites"), "收藏");
   assert.match(
     english("updates.handoffAvailableVersion", { version: "1.16.0" }),
-    /internal Git Leaf 1\.16\.0/,
+    /internal OpenPeek 1\.16\.0/,
   );
   assert.match(
     chinese("updates.handoffAvailableVersion", { version: "1.16.0" }),

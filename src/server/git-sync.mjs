@@ -29,17 +29,17 @@ const GIT_SYNC_MESSAGES = {
     "error.divergedSync": "The current branch has diverged from its remote. To avoid rewriting local commits automatically, hand it off to an AI Agent before syncing again.",
     "error.remoteChangedWithUnselected": "The remote branch has new commits, but some local changes are not selected.",
     "error.selectAllChanges": "To avoid affecting those files during the update, select all changes and try again, or handle these unselected files first:",
-    "error.workspaceStillChanging": "The workspace kept changing while Git Leaf prepared the sync. Git Leaf did not commit the current changes. Try syncing again later.",
+    "error.workspaceStillChanging": "The workspace kept changing while OpenPeek prepared the sync. OpenPeek did not commit the current changes. Try syncing again later.",
     "error.noStagedChanges": "The selected files have no staged changes to commit.",
-    "error.postCommitChanged": "New workspace changes appeared after the commit. Git Leaf preserved the local commit and new changes, but did not rebase or push. Hand it off to an AI Agent to continue.",
-    "error.rebaseAbortSucceeded": "Git Leaf exited the failed rebase automatically and restored the local commit and files.",
-    "error.rebaseAbortFailed": "Git Leaf could not exit the rebase automatically. Do not continue syncing; hand it off to an AI Agent.",
-    "error.headChanged": "New commits appeared on the current branch during sync. Git Leaf did not continue pushing. Hand it off to an AI Agent to inspect the branch.",
+    "error.postCommitChanged": "New workspace changes appeared after the commit. OpenPeek preserved the local commit and new changes, but did not rebase or push. Hand it off to an AI Agent to continue.",
+    "error.rebaseAbortSucceeded": "OpenPeek exited the failed rebase automatically and restored the local commit and files.",
+    "error.rebaseAbortFailed": "OpenPeek could not exit the rebase automatically. Do not continue syncing; hand it off to an AI Agent.",
+    "error.headChanged": "New commits appeared on the current branch during sync. OpenPeek did not continue pushing. Hand it off to an AI Agent to inspect the branch.",
     "error.uncommittedBeforePublish": "There are still uncommitted local changes. Finish syncing them before publishing.",
     "error.divergedPublish": "The current branch has diverged from its remote. To avoid rewriting local commits automatically, hand it off to an AI Agent before publishing.",
     "error.unresolvedConflicts": "The repository has unresolved conflicts. Hand it off to an AI Agent first.",
     "error.operationInProgress": "A {operations} operation is in progress in the repository. Finish or cancel it first.",
-    "error.remoteMissingCommit": "The remote origin/{branch} does not contain this commit yet. Git Leaf preserved the local commit. Check the network or remote permissions, then try again.",
+    "error.remoteMissingCommit": "The remote origin/{branch} does not contain this commit yet. OpenPeek preserved the local commit. Check the network or remote permissions, then try again.",
     "error.unknownGit": "Unknown Git error",
     "error.gitNameMissing": "Git user.name is not configured. Run `git config --global user.name \"Your Name\"` before syncing.",
     "error.gitEmailMissing": "Git user.email is not configured. Run `git config --global user.email \"you@example.com\"` before syncing.",
@@ -51,8 +51,8 @@ const GIT_SYNC_MESSAGES = {
     "state.authenticationRequired": "Git authentication failed. Sync has stopped.",
     "state.networkUnavailable": "The network or Git remote is temporarily unavailable. Sync has stopped.",
     "state.interrupted": "The Git command was interrupted before it completed. Sync has stopped.",
-    "state.invalidOutput": "Git returned a result that Git Leaf could not recognize. Sync has stopped.",
-    "prompt.title": "Please resolve this Git Leaf sync failure:",
+    "state.invalidOutput": "Git returned a result that OpenPeek could not recognize. Sync has stopped.",
+    "prompt.title": "Please resolve this OpenPeek sync failure:",
     "prompt.repository": "Repository: {repo}",
     "prompt.repositoryPath": "Repository path: {path}",
     "prompt.branch": "Current branch: {branch}",
@@ -61,7 +61,7 @@ const GIT_SYNC_MESSAGES = {
     "prompt.error": "Error output:",
     "prompt.noError": "No error output",
     "prompt.goals": "Goals:",
-    "prompt.goal1": "1. Preserve the Git Leaf user's changes to the files above.",
+    "prompt.goal1": "1. Preserve the OpenPeek user's changes to the files above.",
     "prompt.goal2": "2. Resolve the current Git state, failed checks, or conflicts.",
     "prompt.goal3": "3. After the necessary checks pass, commit and push the current branch {branch}.",
   },
@@ -74,17 +74,17 @@ const GIT_SYNC_MESSAGES = {
     "error.divergedSync": "当前分支与远端已经分叉。为避免自动改写本地提交，请交给 AI Agent 处理后再同步。",
     "error.remoteChangedWithUnselected": "远端分支已有新提交，但当前仍有未勾选的本地改动。",
     "error.selectAllChanges": "为避免自动更新时影响这些文件，请勾选全部改动后重试，或先处理未勾选文件：",
-    "error.workspaceStillChanging": "同步准备期间内容仍在变化。Git Leaf 没有提交当前改动，请稍后重新同步。",
+    "error.workspaceStillChanging": "同步准备期间内容仍在变化。OpenPeek 没有提交当前改动，请稍后重新同步。",
     "error.noStagedChanges": "选中文件没有可提交的 staged 改动。",
-    "error.postCommitChanged": "提交后工作区出现了新的修改。Git Leaf 已保留本地提交和新修改，但没有执行 rebase 或 push，请交给 AI Agent 继续处理。",
-    "error.rebaseAbortSucceeded": "Git Leaf 已自动退出失败的 rebase，本地提交和文件已恢复。",
-    "error.rebaseAbortFailed": "Git Leaf 无法自动退出 rebase；请不要继续同步，直接交给 AI Agent 处理。",
-    "error.headChanged": "同步期间当前分支出现了新的提交。Git Leaf 没有继续推送，请交给 AI Agent 检查分支状态。",
+    "error.postCommitChanged": "提交后工作区出现了新的修改。OpenPeek 已保留本地提交和新修改，但没有执行 rebase 或 push，请交给 AI Agent 继续处理。",
+    "error.rebaseAbortSucceeded": "OpenPeek 已自动退出失败的 rebase，本地提交和文件已恢复。",
+    "error.rebaseAbortFailed": "OpenPeek 无法自动退出 rebase；请不要继续同步，直接交给 AI Agent 处理。",
+    "error.headChanged": "同步期间当前分支出现了新的提交。OpenPeek 没有继续推送，请交给 AI Agent 检查分支状态。",
     "error.uncommittedBeforePublish": "当前仍有未提交的本地改动，请先完成同步后再发布。",
     "error.divergedPublish": "当前分支与远端已经分叉。为避免自动改写本地提交，请交给 AI Agent 处理后再发布。",
     "error.unresolvedConflicts": "仓库存在尚未解决的冲突，请先交给 AI Agent 处理。",
     "error.operationInProgress": "仓库正在进行 {operations}，请先完成或取消该操作。",
-    "error.remoteMissingCommit": "远端 origin/{branch} 尚未包含本次提交。Git Leaf 已保留本地提交，请检查网络或远端权限后重试。",
+    "error.remoteMissingCommit": "远端 origin/{branch} 尚未包含本次提交。OpenPeek 已保留本地提交，请检查网络或远端权限后重试。",
     "error.unknownGit": "未知 Git 错误",
     "error.gitNameMissing": "尚未配置 Git user.name。请先运行 `git config --global user.name \"你的名字\"`。",
     "error.gitEmailMissing": "尚未配置 Git user.email。请先运行 `git config --global user.email \"you@example.com\"`。",
@@ -96,8 +96,8 @@ const GIT_SYNC_MESSAGES = {
     "state.authenticationRequired": "Git 身份验证未通过，当前同步已停止。",
     "state.networkUnavailable": "网络或 Git 远端暂时不可用，当前同步已停止。",
     "state.interrupted": "Git 命令在完成前被中断，当前同步已停止。",
-    "state.invalidOutput": "Git 返回了 Git Leaf 无法识别的结果，当前同步已停止。",
-    "prompt.title": "请处理 Git Leaf 同步失败：",
+    "state.invalidOutput": "Git 返回了 OpenPeek 无法识别的结果，当前同步已停止。",
+    "prompt.title": "请处理 OpenPeek 同步失败：",
     "prompt.repository": "仓库：{repo}",
     "prompt.repositoryPath": "仓库路径：{path}",
     "prompt.branch": "当前分支：{branch}",
@@ -106,7 +106,7 @@ const GIT_SYNC_MESSAGES = {
     "prompt.error": "错误输出：",
     "prompt.noError": "无错误输出",
     "prompt.goals": "目标：",
-    "prompt.goal1": "1. 保留 Git Leaf 用户对上述文件的修改。",
+    "prompt.goal1": "1. 保留 OpenPeek 用户对上述文件的修改。",
     "prompt.goal2": "2. 处理当前 Git 状态、检查失败或冲突。",
     "prompt.goal3": "3. 完成必要检查后，提交并推送当前分支 {branch}。",
   },
@@ -340,9 +340,9 @@ export async function syncSelectedFiles({
       } catch (error) {
         try {
           await gitRunner(repo.root, ["rebase", "--abort"]);
-          error.gitLeafRecovery = translate("error.rebaseAbortSucceeded");
+          error.openPeekRecovery = translate("error.rebaseAbortSucceeded");
         } catch {
-          error.gitLeafRecovery = translate("error.rebaseAbortFailed");
+          error.openPeekRecovery = translate("error.rebaseAbortFailed");
         }
         throw error;
       }
@@ -821,7 +821,7 @@ export function buildGitSyncAgentPrompt({
 function commitMessageForContext({ files, note }) {
   const noteLines = String(note ?? "").split(/\r?\n/);
   const firstLine = noteLines.shift()?.trim() ?? "";
-  const subject = firstLine ? firstLine.slice(0, 72) : "Sync Git Leaf files";
+  const subject = firstLine ? firstLine.slice(0, 72) : "Sync OpenPeek files";
   const bodyParts = [];
   if (firstLine.length > subject.length) {
     bodyParts.push(firstLine);
@@ -893,7 +893,7 @@ export function commandErrorText(error, { locale, language } = {}) {
   const stderr = typeof error?.stderr === "string" ? error.stderr.trim() : "";
   const stdout = typeof error?.stdout === "string" ? error.stdout.trim() : "";
   const message = error instanceof Error ? error.message : String(error ?? "");
-  const recovery = typeof error?.gitLeafRecovery === "string" ? error.gitLeafRecovery.trim() : "";
+  const recovery = typeof error?.openPeekRecovery === "string" ? error.openPeekRecovery.trim() : "";
   const state = externalCommandState(error);
   const stateMessage = commandStateMessage(state, { locale, language });
   return [stateMessage, stderr, stdout, message, recovery].filter(Boolean).join("\n");

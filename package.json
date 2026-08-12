@@ -1,6 +1,6 @@
 {
-  "name": "git-leaf",
-  "version": "1.21.0",
+  "name": "openpeek",
+  "version": "2.0.0",
   "private": true,
   "type": "module",
   "main": "src/desktop/main.mjs",
@@ -43,6 +43,7 @@
     "test:release:win": "node scripts/test-suite.mjs release:win"
   },
   "bin": {
+    "openpeek": "src/cli.mjs",
     "git-leaf": "src/cli.mjs"
   },
   "engines": {

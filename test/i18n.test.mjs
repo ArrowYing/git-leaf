@@ -79,7 +79,7 @@ test("translator falls back to English and formats named values", () => {
   };
   const chinese = createTranslator(messages, "zh-CN");
 
-  assert.equal(chinese("greeting", { name: "Git Leaf" }), "你好，Git Leaf");
+  assert.equal(chinese("greeting", { name: "OpenPeek" }), "你好，OpenPeek");
   assert.equal(chinese("onlyEnglish"), "English fallback");
   assert.equal(chinese("missing.key"), "missing.key");
   assert.equal(formatMessage("{count} files", { count: 3 }), "3 files");
@@ -107,12 +107,12 @@ test("workbench locale resources localize linked worktrees and link dialog field
 test("workbench first paint honors the desktop-resolved language before browser languages", async () => {
   const html = await readFile(new URL("../public/index.html", import.meta.url), "utf8");
   const inlineScript = html.match(/<script>\s*([\s\S]*?)<\/script>/)?.[1]
-    .replace("__GIT_LEAF_INITIAL_FILE__", "\"\"")
-    .replace("__GIT_LEAF_INITIAL_REPO__", "\"repo\"")
-    .replace("__GIT_LEAF_WORKTREE_ID__", "\"repo\"")
-    .replace("__GIT_LEAF_CAN_EDIT__", "true")
-    .replace("__GIT_LEAF_DESKTOP_PREFERENCES__", "window.__TEST_PREFERENCES__")
-    .replace("__GIT_LEAF_TELEMETRY_ENABLED__", "false");
+    .replace("__OPENPEEK_INITIAL_FILE__", "\"\"")
+    .replace("__OPENPEEK_INITIAL_REPO__", "\"repo\"")
+    .replace("__OPENPEEK_WORKTREE_ID__", "\"repo\"")
+    .replace("__OPENPEEK_CAN_EDIT__", "true")
+    .replace("__OPENPEEK_DESKTOP_PREFERENCES__", "window.__TEST_PREFERENCES__")
+    .replace("__OPENPEEK_TELEMETRY_ENABLED__", "false");
   assert.ok(inlineScript);
 
   assert.equal(runWorkbenchBootstrap(inlineScript, {
@@ -149,7 +149,7 @@ function runWorkbenchBootstrap(source, { preferences, systemLanguages }) {
   };
   const window = {
     __TEST_PREFERENCES__: preferences,
-    GIT_LEAF_DESKTOP_PREFERENCES: preferences,
+    OPENPEEK_DESKTOP_PREFERENCES: preferences,
     navigator: {
       languages: systemLanguages,
       language: systemLanguages[0],
@@ -163,5 +163,5 @@ function runWorkbenchBootstrap(source, { preferences, systemLanguages }) {
     document: { documentElement },
     window,
   });
-  return window.GIT_LEAF_INITIAL_LOCALE;
+  return window.OPENPEEK_INITIAL_LOCALE;
 }

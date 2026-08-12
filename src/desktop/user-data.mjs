@@ -1,8 +1,11 @@
 import { lstatSync, mkdirSync, realpathSync } from "node:fs";
 import path from "node:path";
 
-export const DEVELOPMENT_USER_DATA_ARG = "--git-leaf-dev-user-data-dir";
-export const DEVELOPMENT_USER_DATA_ENV = "GIT_LEAF_DEV_USER_DATA_DIR";
+export const STABLE_USER_DATA_DIRNAME = "git-leaf";
+export const DEVELOPMENT_USER_DATA_ARG = "--openpeek-dev-user-data-dir";
+export const DEVELOPMENT_USER_DATA_ENV = "OPENPEEK_DEV_USER_DATA_DIR";
+export const LEGACY_DEVELOPMENT_USER_DATA_ARG = "--git-leaf-dev-user-data-dir";
+export const LEGACY_DEVELOPMENT_USER_DATA_ENV = "GIT_LEAF_DEV_USER_DATA_DIR";
 
 function lstatIfPresent(filePath) {
   try {
@@ -70,18 +73,31 @@ export function assertPathIdentitiesDoNotOverlap({ requestedIdentity, protectedI
 }
 
 export function requestedDevelopmentUserDataDir({ argv = [], env = {} } = {}) {
-  const inlinePrefix = `${DEVELOPMENT_USER_DATA_ARG}=`;
-  const inlineValue = argv.find((argument) => String(argument).startsWith(inlinePrefix));
-  if (inlineValue) {
-    return String(inlineValue).slice(inlinePrefix.length).trim();
+  for (const argumentName of [DEVELOPMENT_USER_DATA_ARG, LEGACY_DEVELOPMENT_USER_DATA_ARG]) {
+    const inlinePrefix = `${argumentName}=`;
+    const inlineValue = argv.find((argument) => String(argument).startsWith(inlinePrefix));
+    if (inlineValue) {
+      return String(inlineValue).slice(inlinePrefix.length).trim();
+    }
+
+    const argumentIndex = argv.findIndex((argument) => argument === argumentName);
+    if (argumentIndex >= 0) {
+      return String(argv[argumentIndex + 1] || "").trim();
+    }
   }
 
-  const argumentIndex = argv.findIndex((argument) => argument === DEVELOPMENT_USER_DATA_ARG);
-  if (argumentIndex >= 0) {
-    return String(argv[argumentIndex + 1] || "").trim();
-  }
+  return String(
+    env[DEVELOPMENT_USER_DATA_ENV]
+    ?? env[LEGACY_DEVELOPMENT_USER_DATA_ENV]
+    ?? "",
+  ).trim();
+}
 
-  return String(env[DEVELOPMENT_USER_DATA_ENV] || "").trim();
+export function applyStableUserDataPath({ app, pathModule = path } = {}) {
+  const stableDir = pathModule.join(app.getPath("appData"), STABLE_USER_DATA_DIRNAME);
+  app.setPath("userData", stableDir);
+  app.setPath("sessionData", stableDir);
+  return stableDir;
 }
 
 export function assertDevelopmentUserDataOverride({ requestedDir, defaultDir }) {
@@ -117,7 +133,7 @@ export function applyDevelopmentUserDataOverride({
   assertDevelopmentUserDataOverride({ requestedDir: userDataDir, defaultDir: defaultSessionDir });
   app.setPath("userData", userDataDir);
   app.setPath("sessionData", userDataDir);
-  log(`[Git Leaf dev] Isolated userData/sessionData: ${userDataDir}`);
+  log(`[OpenPeek dev] Isolated userData/sessionData: ${userDataDir}`);
   return {
     applied: true,
     defaultDir: path.resolve(defaultDir),

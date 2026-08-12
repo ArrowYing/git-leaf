@@ -12,17 +12,17 @@ const REPOSITORY_ERROR_MESSAGES = Object.freeze({
     "startup.notRepository":
       "This folder is no longer inside a Git repository. Choose another local Git repository.",
     "startup.unavailableTitle": "The saved repository is temporarily unavailable: {path}",
-    "failure.unavailable.summary": "Git Leaf cannot find the local Git command.",
+    "failure.unavailable.summary": "OpenPeek cannot find the local Git command.",
     "failure.unavailable.action":
       "Make sure Git is installed and the desktop app can run the git command, then try again.",
     "failure.permission.summary":
-      "Git Leaf does not have permission to run Git or read this folder.",
+      "OpenPeek does not have permission to run Git or read this folder.",
     "failure.permission.action":
       "Check access permissions for the Git command and repository folder, then try again.",
     "failure.unsupported.summary":
       "The installed Git version does not support the command capability required for this operation.",
     "failure.unsupported.action":
-      "Git Leaf stopped the operation; repository content was not modified.",
+      "OpenPeek stopped the operation; repository content was not modified.",
     "failure.authentication.summary": "Git authentication failed.",
     "failure.authentication.action":
       "Check the Git credentials used by this repository, then try again.",
@@ -32,10 +32,10 @@ const REPOSITORY_ERROR_MESSAGES = Object.freeze({
     "failure.interrupted.action":
       "Make sure no system task is terminating Git, then try again.",
     "failure.invalidOutput.summary":
-      "Git returned a result that Git Leaf could not recognize.",
+      "Git returned a result that OpenPeek could not recognize.",
     "failure.invalidOutput.action":
-      "Git Leaf stopped the operation; repository content was not modified.",
-    "failure.default.summary": "Git Leaf encountered a problem while reading this repository.",
+      "OpenPeek stopped the operation; repository content was not modified.",
+    "failure.default.summary": "OpenPeek encountered a problem while reading this repository.",
     "failure.default.action":
       "Make sure the folder still exists and the current user can access it, then try again.",
     "technicalInfo": "Technical information: {detail}",
@@ -47,22 +47,22 @@ const REPOSITORY_ERROR_MESSAGES = Object.freeze({
     "startup.missingTitle": "上次打开的仓库已不可用：{path}",
     "startup.notRepository": "这个目录已经不在 Git 仓库中，请重新选择一个本地 Git 仓库。",
     "startup.unavailableTitle": "上次记录的仓库暂时不可用：{path}",
-    "failure.unavailable.summary": "Git Leaf 找不到本机 Git 命令。",
+    "failure.unavailable.summary": "OpenPeek 找不到本机 Git 命令。",
     "failure.unavailable.action":
       "请确认 Git 已安装，并且桌面应用可以运行 git 命令，然后重试。",
-    "failure.permission.summary": "Git Leaf 没有权限运行 Git 或读取这个目录。",
+    "failure.permission.summary": "OpenPeek 没有权限运行 Git 或读取这个目录。",
     "failure.permission.action": "请检查 Git 命令与仓库目录的访问权限，然后重试。",
     "failure.unsupported.summary": "本机 Git 不支持当前操作所需的命令能力。",
-    "failure.unsupported.action": "Git Leaf 已停止当前操作；仓库内容没有被修改。",
+    "failure.unsupported.action": "OpenPeek 已停止当前操作；仓库内容没有被修改。",
     "failure.authentication.summary": "Git 身份验证未通过。",
     "failure.authentication.action": "请检查当前仓库使用的 Git 凭据，然后重试。",
     "failure.network.summary": "网络或 Git 远端暂时不可用。",
     "failure.network.action": "请检查网络与远端地址，然后重试。",
     "failure.interrupted.summary": "Git 命令在完成前被中断。",
     "failure.interrupted.action": "请确认没有系统任务终止 Git，然后重试。",
-    "failure.invalidOutput.summary": "Git 返回了 Git Leaf 无法识别的结果。",
-    "failure.invalidOutput.action": "Git Leaf 已停止当前操作；仓库内容没有被修改。",
-    "failure.default.summary": "Git Leaf 读取这个仓库时遇到问题。",
+    "failure.invalidOutput.summary": "Git 返回了 OpenPeek 无法识别的结果。",
+    "failure.invalidOutput.action": "OpenPeek 已停止当前操作；仓库内容没有被修改。",
+    "failure.default.summary": "OpenPeek 读取这个仓库时遇到问题。",
     "failure.default.action": "请确认目录仍然存在，并且当前用户可以访问，然后重试。",
     "technicalInfo": "技术信息：{detail}",
   }),

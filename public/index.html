@@ -3,16 +3,16 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Git Leaf</title>
+    <title>OpenPeek</title>
     <script>
-      window.GIT_LEAF_INITIAL_FILE = __GIT_LEAF_INITIAL_FILE__;
-      window.GIT_LEAF_INITIAL_REPO = __GIT_LEAF_INITIAL_REPO__;
-      window.GIT_LEAF_WORKTREE_ID = __GIT_LEAF_WORKTREE_ID__;
-      window.GIT_LEAF_CAN_EDIT = __GIT_LEAF_CAN_EDIT__;
-      window.GIT_LEAF_DESKTOP_PREFERENCES = __GIT_LEAF_DESKTOP_PREFERENCES__;
-      window.GIT_LEAF_TELEMETRY_ENABLED = __GIT_LEAF_TELEMETRY_ENABLED__;
+      window.OPENPEEK_INITIAL_FILE = __OPENPEEK_INITIAL_FILE__;
+      window.OPENPEEK_INITIAL_REPO = __OPENPEEK_INITIAL_REPO__;
+      window.OPENPEEK_WORKTREE_ID = __OPENPEEK_WORKTREE_ID__;
+      window.OPENPEEK_CAN_EDIT = __OPENPEEK_CAN_EDIT__;
+      window.OPENPEEK_DESKTOP_PREFERENCES = __OPENPEEK_DESKTOP_PREFERENCES__;
+      window.OPENPEEK_TELEMETRY_ENABLED = __OPENPEEK_TELEMETRY_ENABLED__;
       (() => {
-        const preferences = window.GIT_LEAF_DESKTOP_PREFERENCES;
+        const preferences = window.OPENPEEK_DESKTOP_PREFERENCES;
         const language = String(preferences?.language || "system").trim().toLowerCase();
         const desktopResolvedLanguage = preferences?.resolvedLanguage === "zh-CN"
           ? "zh-CN"
@@ -43,7 +43,7 @@
           }
         }
         locale ||= "en";
-        window.GIT_LEAF_INITIAL_LOCALE = locale;
+        window.OPENPEEK_INITIAL_LOCALE = locale;
         document.documentElement.lang = locale;
         document.documentElement.dataset.locale = locale;
         let colorMode = preferences?.colorMode;
@@ -143,7 +143,7 @@
         .workbench-loading-indicator { animation-duration: 1.6s; }
       }
     </style>
-    <link rel="stylesheet" href="/styles.css?v=__GIT_LEAF_ASSET_VERSION__">
+    <link rel="stylesheet" href="/styles.css?v=__OPENPEEK_ASSET_VERSION__">
   </head>
   <body>
     <div id="workbench-loading" role="status" aria-live="polite" aria-busy="true">
@@ -239,7 +239,7 @@
         <aside id="workspace-sidebar" class="sidebar" aria-label="文件浏览器" data-i18n-aria-label="aria.fileBrowser">
           <div id="workspace-sidebar-header" class="workspace-sidebar-header">
             <div class="repository-heading">
-              <div id="repository-title" class="toolbar-repository">Git Leaf</div>
+              <div id="repository-title" class="toolbar-repository">OpenPeek</div>
               <div id="worktree-switcher" class="worktree-switcher" hidden>
                 <button
                   id="worktree-switcher-toggle"
@@ -352,7 +352,7 @@
             ></div>
           </div>
           <nav id="file-tree" class="file-tree" role="tabpanel" aria-labelledby="sidebar-tab-all" aria-label="仓库文件" data-i18n-aria-label="aria.repositoryFiles"></nav>
-          <section id="desktop-update-panel" class="desktop-update-panel" aria-label="Git Leaf 更新" data-i18n-aria-label="aria.gitLeafUpdates" aria-live="polite" hidden>
+          <section id="desktop-update-panel" class="desktop-update-panel" aria-label="OpenPeek 更新" data-i18n-aria-label="aria.openPeekUpdates" aria-live="polite" hidden>
             <div class="desktop-update-copy">
               <strong id="desktop-update-title"></strong>
               <span id="desktop-update-detail"></span>
@@ -606,6 +606,6 @@
         </section>
       </div>
     </div>
-    <script src="/app.js?v=__GIT_LEAF_ASSET_VERSION__" type="module"></script>
+    <script src="/app.js?v=__OPENPEEK_ASSET_VERSION__" type="module"></script>
   </body>
 </html>

@@ -8,7 +8,7 @@ import {
   syncLabelForState,
 } from "../public/source-sync.js";
 
-test("shouldIgnoreWatchedChange ignores writes that match the last Git Leaf write", () => {
+test("shouldIgnoreWatchedChange ignores writes that match the last OpenPeek write", () => {
   assert.equal(
     shouldIgnoreWatchedChange({
       currentMode: "source",
@@ -19,7 +19,7 @@ test("shouldIgnoreWatchedChange ignores writes that match the last Git Leaf writ
   );
 });
 
-test("shouldIgnoreWatchedChange also ignores matching Git Leaf writes in Live mode", () => {
+test("shouldIgnoreWatchedChange also ignores matching OpenPeek writes in Live mode", () => {
   assert.equal(
     shouldIgnoreWatchedChange({
       currentMode: "live",

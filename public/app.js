@@ -140,7 +140,7 @@ import {
   nextSearchIndex,
 } from "./document-search.js";
 import {
-  getGitLeafHelpSections,
+  getOpenPeekHelpSections,
   getFileTypeHelpRows,
 } from "./help-content.js";
 import {
@@ -267,7 +267,7 @@ const initialUserPreferences = normalizeUserPreferences(
   },
 );
 const initialLocale = resolveLocalePreference(
-  window.GIT_LEAF_INITIAL_LOCALE
+  window.OPENPEEK_INITIAL_LOCALE
     ?? initialDesktopPreferences?.resolvedLanguage
     ?? initialDesktopPreferences?.language
     ?? "system",
@@ -278,10 +278,10 @@ localizeDocument(document, t);
 const systemColorSchemeQuery = window.matchMedia?.("(prefers-color-scheme: dark)") ?? null;
 const initialWorkbenchSessions = readWorkbenchSessions({ preferences: initialDesktopPreferences });
 const initialRepoId = initialSearchParams.get("repo") ||
-  (initialSearchParams.has("file") ? window.GIT_LEAF_INITIAL_REPO : null) ||
-  window.GIT_LEAF_INITIAL_REPO;
-const initialWorktreeId = window.GIT_LEAF_WORKTREE_ID || initialRepoId;
-const requestedInitialFile = initialSearchParams.get("file") || window.GIT_LEAF_INITIAL_FILE;
+  (initialSearchParams.has("file") ? window.OPENPEEK_INITIAL_REPO : null) ||
+  window.OPENPEEK_INITIAL_REPO;
+const initialWorktreeId = window.OPENPEEK_WORKTREE_ID || initialRepoId;
+const requestedInitialFile = initialSearchParams.get("file") || window.OPENPEEK_INITIAL_FILE;
 const initialWorkbenchSession = workbenchSessionForLaunch(
   initialWorkbenchSessions,
   initialWorktreeId,
@@ -319,10 +319,10 @@ const state = {
   activeTabId: initialActiveTabId,
   activeTabPath: initialFile || "",
   documentNavigationRequestId: 0,
-  canEdit: window.GIT_LEAF_CAN_EDIT !== false,
+  canEdit: window.OPENPEEK_CAN_EDIT !== false,
   currentRepoBranch: "main",
   currentRepoDetached: false,
-  currentRepoCanEdit: window.GIT_LEAF_CAN_EDIT !== false,
+  currentRepoCanEdit: window.OPENPEEK_CAN_EDIT !== false,
   repositories: [],
   mode: readModePreference({ preferences: initialDesktopPreferences }),
   colorMode: initialUserPreferences.colorMode,
@@ -743,8 +743,8 @@ document.addEventListener("visibilitychange", handleToolStatusVisibilityChange);
 for (const button of modeButtons) {
   button.addEventListener("click", () => setMode(button.dataset.mode));
 }
-window.gitLeafPreparePdfExport = preparePdfExport;
-window.gitLeafFinishPdfExport = finishPdfExport;
+window.openPeekPreparePdfExport = preparePdfExport;
+window.openPeekFinishPdfExport = finishPdfExport;
 copyShareLinkButton.addEventListener("click", copyCurrentShareLink);
 documentContent.addEventListener("click", handleDocumentClick);
 documentContent.addEventListener("keydown", handlePreviewContentKeydown);
@@ -1231,7 +1231,7 @@ function handleWorktreeSelection(event) {
   }
 
   flushWorkbenchSessionPreference();
-  const action = new URL("git-leaf://open-worktree");
+  const action = new URL("openpeek://open-worktree");
   action.searchParams.set("path", worktree.root);
   window.location.href = action.href;
 }
@@ -2654,7 +2654,7 @@ function previewDeletedLinesBlock(deletion) {
 }
 
 function readInitialDesktopPreferences() {
-  const preferences = window.GIT_LEAF_DESKTOP_PREFERENCES;
+  const preferences = window.OPENPEEK_DESKTOP_PREFERENCES;
   return preferences && typeof preferences === "object" && !Array.isArray(preferences)
     ? { ...preferences }
     : null;
@@ -2972,7 +2972,7 @@ async function applyBranchProtectionPayload(payload) {
 }
 
 function renderRepositoryHeader(repo) {
-  const repoName = String(repo?.name || repo?.id || state.currentRepo || "Git Leaf").trim();
+  const repoName = String(repo?.name || repo?.id || state.currentRepo || "OpenPeek").trim();
   repositoryTitle.textContent = repoName;
   repositoryPanelToggle.hidden = !state.desktopPreferencesAvailable;
 }
@@ -4126,7 +4126,7 @@ async function waitForToolRestart(previousFingerprint) {
     await delay(TOOL_RESTART_WAIT_INTERVAL_MS);
     const status = await healthPayloadAfterRestart();
     if (
-      status?.app === "git-leaf" &&
+      ["openpeek", "git-leaf"].includes(status?.app) &&
       status.toolFingerprint &&
       !status.stale &&
       status.toolFingerprint !== previousFingerprint
@@ -4135,7 +4135,7 @@ async function waitForToolRestart(previousFingerprint) {
     }
   }
 
-  throw new Error("Git Leaf restart did not become ready in time");
+  throw new Error("OpenPeek restart did not become ready in time");
 }
 
 async function healthPayloadAfterRestart() {
@@ -7393,7 +7393,7 @@ async function runAppShortcut(action) {
       showKeyboardShortcutsDialog();
       return;
     case "show-git-leaf-help":
-      showGitLeafHelpDialog();
+      showOpenPeekHelpDialog();
       return;
     default:
       return;
@@ -7452,7 +7452,7 @@ function renderSidebarUpdateStatus(status) {
 }
 
 function requestDesktopUpdateInstall() {
-  window.open("git-leaf://install-update", "_blank", "noopener");
+  window.open("openpeek://install-update", "_blank", "noopener");
 }
 
 function openDocumentSearch() {
@@ -8048,10 +8048,10 @@ function showKeyboardShortcutsDialog() {
   });
 }
 
-function showGitLeafHelpDialog() {
+function showOpenPeekHelpDialog() {
   void showAppDialog({
     title: t("help.title"),
-    content: renderGitLeafHelpDialog(),
+    content: renderOpenPeekHelpDialog(),
     showCancel: false,
     showConfirm: false,
     variant: "help",
@@ -8059,11 +8059,11 @@ function showGitLeafHelpDialog() {
   });
 }
 
-function renderGitLeafHelpDialog() {
+function renderOpenPeekHelpDialog() {
   const root = document.createElement("div");
   root.className = "git-leaf-help";
 
-  for (const sectionData of getGitLeafHelpSections(state.locale)) {
+  for (const sectionData of getOpenPeekHelpSections(state.locale)) {
     const section = document.createElement("section");
     section.className = "git-leaf-help-section";
 
@@ -8569,7 +8569,7 @@ function handleDocumentClick(event) {
     return;
   }
 
-  const openableLink = gitLeafOpenableLinkFromClick(event);
+  const openableLink = openPeekOpenableLinkFromClick(event);
   if (openableLink) {
     event.preventDefault();
     void navigateDocumentLocation(openableLink, {
@@ -8639,7 +8639,7 @@ function handlePreviewContentKeydown(event) {
   documentContent.scrollBy({ top, left: 0, behavior: "auto" });
 }
 
-function gitLeafOpenableLinkFromClick(event) {
+function openPeekOpenableLinkFromClick(event) {
   if (event.altKey || event.defaultPrevented) {
     return null;
   }
@@ -9483,7 +9483,7 @@ async function pasteTextLink(text, { selectedText = "" } = {}) {
   }
 
   const value = String(text ?? "").trim();
-  if (isGitLeafDocumentUrl(value)) {
+  if (isOpenPeekDocumentUrl(value)) {
     return documentLinkMarkdown(value, selectedText);
   }
 
@@ -9617,7 +9617,7 @@ async function documentLinkMarkdown(target, titleOverride = "") {
   }
 }
 
-function isGitLeafDocumentUrl(value) {
+function isOpenPeekDocumentUrl(value) {
   try {
     const url = new URL(String(value ?? "").trim());
     const file = url.searchParams.get("file") ?? "";
@@ -10225,7 +10225,7 @@ async function markdownFromLinkFields(values = {}) {
     return "";
   }
 
-  if (isGitLeafDocumentUrl(href) || looksLikeMarkdownDocumentHref(href)) {
+  if (isOpenPeekDocumentUrl(href) || looksLikeMarkdownDocumentHref(href)) {
     return documentLinkMarkdown(href, values.title);
   }
   return externalLinkMarkdownFromFields(values.title, href);
@@ -10254,7 +10254,7 @@ async function openActiveLiveLink({ newTab = false } = {}) {
 }
 
 async function liveDocumentTargetFromHref(href) {
-  const directTarget = gitLeafDocumentTargetFromHref(href);
+  const directTarget = openPeekDocumentTargetFromHref(href);
   if (directTarget) {
     return directTarget;
   }
@@ -10297,7 +10297,7 @@ function parseMarkdownLink(value) {
   };
 }
 
-function gitLeafDocumentTargetFromHref(href) {
+function openPeekDocumentTargetFromHref(href) {
   try {
     const url = new URL(String(href ?? "").trim(), window.location.origin);
     const file = url.searchParams.get("file") ?? "";
@@ -10322,7 +10322,7 @@ function looksLikeMarkdownDocumentHref(href) {
   if (!value) {
     return false;
   }
-  if (gitLeafDocumentTargetFromHref(value)) {
+  if (openPeekDocumentTargetFromHref(value)) {
     return true;
   }
   if (/^[a-z][a-z0-9+.-]*:/i.test(value)) {

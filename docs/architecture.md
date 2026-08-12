@@ -1,19 +1,19 @@
 ---
-title: Git Leaf system architecture
+title: OpenPeek system architecture
 domain: ai
 type: architecture
 owner: maintainer
-last_updated: 2026-08-11
-source: git-leaf
+last_updated: 2026-08-12
+source: openpeek
 canonical: true
-ai_snippet: "[Architecture] Git Leaf | human desktop interface for shared context repositories | local HTTP service | Git worktrees | Preview Source Live | CodeMirror 6 | guarded Git sync"
+ai_snippet: "[Architecture] OpenPeek | human desktop interface for shared context repositories | local HTTP service | Git worktrees | Preview Source Live | CodeMirror 6 | guarded Git sync"
 ---
 
-# Git Leaf system architecture
+# OpenPeek system architecture
 
 [Documentation index](README.md)
 
-This document defines Git Leaf's system boundaries and long-lived behavioral contracts. It is not a
+This document defines OpenPeek's system boundaries and long-lived behavioral contracts. It is not a
 user guide or an MDX-lite syntax reference.
 
 - Product capabilities and user entry points: [README](../README.md).
@@ -25,29 +25,55 @@ user guide or an MDX-lite syntax reference.
 
 ## Product and data model
 
-Git Leaf is a local desktop interface for Git repositories used as durable shared context by teams and
+OpenPeek is a local desktop interface for Git repositories used as durable shared context by teams and
 AI agents. These repositories are primarily made of Markdown and MDX documents.
 
 The Git repository selected by the user is the shared context system of record. It may contain a
 knowledge base, but it can also contain agent instructions, decisions, plans, playbooks, and operational
-context. Git Leaf does not import documents into a separate database, CMS, context engine, or cloud
-store. Images, attachments, code, and other repository files remain ordinary files. Git Leaf provides
+context. OpenPeek does not import documents into a separate database, CMS, context engine, or cloud
+store. Images, attachments, code, and other repository files remain ordinary files. OpenPeek provides
 the human interface over that repository; AI agents, developers, and automation work with the same files
 directly.
 
-Git Leaf is optimized for three jobs:
+OpenPeek is optimized for three jobs:
 
 - give people who do not work in Git or Markdown a familiar way to read, search, inspect, and make
   focused edits;
 - preserve source paths, line ranges, revisions, branches, and worktrees for agents and automation;
 - let people return to the app to inspect and continue changes made by external agents and tools.
 
-Git Leaf is not an agent runtime, model host, account service, public documentation site, or general
+OpenPeek is not an agent runtime, model host, account service, public documentation site, or general
 code editor.
+
+## Product identity and 2.0 compatibility
+
+OpenPeek is the canonical product identity beginning with version 2.0. New desktop bundles, executable
+names, package artifacts, CLI output, generated deep links, environment variables, and embedded build
+metadata use `OpenPeek`, `openpeek`, `openpeek://`, `OPENPEEK_*`, and
+`openpeek-build-info.json` respectively.
+
+The rename must not create a second application state or strand 1.x callers. These identifiers remain
+stable compatibility contracts:
+
+- Electron `userData` and `sessionData` stay under the `git-leaf` Profile directory on every platform;
+- `git-leaf` remains a CLI alias, and the app parses and registers `git-leaf://` alongside the canonical
+  protocol while generating only `openpeek://` links;
+- `GIT_LEAF_*` environment inputs and `git-leaf-build-info.json` remain read-only fallbacks, with the
+  canonical OpenPeek form taking precedence;
+- the existing official and Community macOS Bundle IDs and the `git_leaf.*` analytics event namespace
+  remain unchanged because they are persistent operating-system and data-schema identities;
+- the `MangoFuture1210/git-leaf` repository, `gitleaf.mangofuture.com`, update-service `/git-leaf`
+  roots, and public example-repository name remain unchanged until their separately coordinated external
+  migration.
+
+On macOS, a new installation uses `OpenPeek.app`, while an existing `Git Leaf.app` is reused for an
+in-place 2.0 update. On Windows, 2.0 accepts the old executable and updater arguments long enough to
+migrate the fixed app into `%LOCALAPPDATA%\OpenPeek\app`; only after the canonical executable confirms
+startup may the old install tree and shortcut be removed.
 
 ## Runtime model
 
-Git Leaf consists of:
+OpenPeek consists of:
 
 - a Node.js HTTP service bound to localhost;
 - a browser-based workbench served by that process;
@@ -76,12 +102,12 @@ pending Source or Live writes when possible, and restart without treating a stal
 
 ## Repository and worktree model
 
-Git Leaf can open any local Git repository. The Git Leaf source checkout does not need to be inside the
+OpenPeek can open any local Git repository. The OpenPeek source checkout does not need to be inside the
 content repository.
 
 A repository can be selected through the desktop UI, supplied with `--repo`, or discovered upward from
 the CLI working directory. When no saved session or explicit document exists, the initial document
-priority is `AGENTS.md`, `README.md`, then `CONTEXT.md`; if none exists, Git Leaf opens an empty
+priority is `AGENTS.md`, `README.md`, then `CONTEXT.md`; if none exists, OpenPeek opens an empty
 workbench.
 
 Repository identity and worktree state follow these rules:
@@ -115,7 +141,7 @@ panel button remains independent.
 
 Normal branches are editable. A detached worktree can be read and can enter an editing mode, but the
 first actual write must create a protective local branch named like
-`git-leaf/detached-<commit>-<timestamp>`. If branch creation fails, the write fails without modifying the
+`openpeek/detached-<commit>-<timestamp>`. If branch creation fails, the write fails without modifying the
 document. No write path may bypass this boundary.
 
 ### External command contract
@@ -125,7 +151,7 @@ check: remote operations use Git's configured credentials and remain available w
 Operating-system launch helpers are action-specific dependencies rather than prerequisites for opening a
 repository. Every external-command caller classifies both process execution and output:
 
-Before macOS desktop environment checks or repository services start, Git Leaf augments the inherited
+Before macOS desktop environment checks or repository services start, OpenPeek augments the inherited
 GUI `PATH` with entries missing from the user's login shell. Existing entry precedence is retained, and
 only `PATH` is imported. A missing shell, timeout, or malformed output leaves the inherited environment
 unchanged rather than blocking startup.
@@ -181,7 +207,7 @@ blob root; repositories without one keep that action disabled.
 Favorites are user preferences, not repository content. Desktop builds persist them in `userData`; the
 browser development entry uses repository-scoped `localStorage` as a best-effort fallback. Missing
 favorite paths are removed only after a complete repository tree loads successfully. Search, filtering,
-or a failed or invalid tree response must never prune favorites. Renames performed inside Git Leaf update
+or a failed or invalid tree response must never prune favorites. Renames performed inside OpenPeek update
 document favorites directly; external renames, deletions, and worktree changes may remove a favorite
 whose saved path is no longer present.
 
@@ -206,7 +232,7 @@ presentation:
   pointer crosses it but remains hit-test transparent, so the underlying file or navigation target keeps
   click ownership;
 - search, the current document, favorites, and Sync may reveal otherwise hidden paths;
-- Git Leaf-created empty folders contain a zero-byte `.gitkeep`; All and Content Files preserve the
+- OpenPeek-created empty folders contain a zero-byte `.gitkeep`; All and Content Files preserve the
   folder while hiding the placeholder, and Sync exposes the placeholder whenever Git reports its change;
 - text search combines whitespace-separated terms with AND, matches each folder or file on its own
   searchable fields, including document titles only while they are displayed, and initially keeps only
@@ -244,7 +270,7 @@ of exposing a second file set that includes ignored content.
 
 ## Document modes
 
-Git Leaf has exactly three document modes; their UI names remain `Preview`, `Source`, and `Live`.
+OpenPeek has exactly three document modes; their UI names remain `Preview`, `Source`, and `Live`.
 
 ### Preview
 
@@ -292,7 +318,7 @@ column; the whole column moves even when the selection covers only part of it. E
 CodeMirror transaction and rewrites only the current table block. Preview remains read-only.
 
 Source and Live reload external changes made by Git, editors, or AI agents. Git conflict markers remain
-ordinary source text; Git Leaf does not own conflict resolution.
+ordinary source text; OpenPeek does not own conflict resolution.
 
 ### Working-tree edit cues
 
@@ -323,9 +349,9 @@ Preview and CodeMirror, including while a changed or active line is highlighted 
 
 ### Markdown interoperability
 
-Except for explicitly allowlisted MDX-lite components, Git Leaf must prefer source syntax that remains
+Except for explicitly allowlisted MDX-lite components, OpenPeek must prefer source syntax that remains
 readable and editable in Obsidian and other CommonMark or GitHub-Flavored Markdown tools. A visual Live
-control is an interface over portable source, not permission to introduce a Git Leaf-only table schema,
+control is an interface over portable source, not permission to introduce an OpenPeek-only table schema,
 hidden metadata, or a second document representation. Exact rendering and editor affordances may still
 differ between applications.
 
@@ -333,13 +359,13 @@ In particular, table rows and alignment remain native pipe-table syntax. Bold, i
 strikethrough use standard Markdown delimiters. Foreground color and text-only highlight use one
 narrowly controlled inline HTML span whose `style` may contain only fixed-palette `color` and
 `background-color` values. Highlight never fills the table cell. No class, event handler, font size,
-arbitrary style declaration, hidden metadata, or Git Leaf data attribute is stored in the document.
-Git Leaf renders only the fixed palettes and escapes unsupported HTML. Alignment changes only the
+arbitrary style declaration, hidden metadata, or OpenPeek data attribute is stored in the document.
+OpenPeek renders only the fixed palettes and escapes unsupported HTML. Alignment changes only the
 colons in the native separator row; clearing text formatting does not change alignment. Column
 movement reorders the header cell, its separator/alignment cell, and every body cell together. These
 sources remain editable in Obsidian even though its toolbar and exact rendering affordances may differ.
 
-MDX-lite is the explicit interoperability exception. It is a Git Leaf controlled extension and is not
+MDX-lite is the explicit interoperability exception. It is an OpenPeek-controlled extension and is not
 expected to open as an interactive component in Obsidian.
 
 ## Rendering, Mermaid, and MDX-lite
@@ -351,7 +377,7 @@ repository-local `.dataset.json` contract whose CSV, TSV, or JSON source remains
 authority. Rendering never creates a second authoritative data model. Preview renders the visual result,
 and Source and Live continue to edit the original MDX view definition.
 
-Markdown uses `markdown-it`. MDX-lite is parsed by Git Leaf before rendering and produces static HTML or
+Markdown uses `markdown-it`. MDX-lite is parsed by OpenPeek before rendering and produces static HTML or
 SVG. It is not a general MDX runtime and cannot execute imports, exports, arbitrary JSX, scripts,
 expressions, or event handlers.
 
@@ -383,7 +409,7 @@ Mermaid runs with strict security, disabled automatic startup, and a 100,000-cha
 The client accepts only an SVG result without executable elements, event-handler attributes, or
 JavaScript links, and rendered links are non-interactive. Invalid, unsafe, or oversized input leaves a
 localized error in the shell while the escaped source remains available through the explicit `</>`
-control. The source fence remains authoritative; Git Leaf does not persist SVG or diagram layout state.
+control. The source fence remains authoritative; OpenPeek does not persist SVG or diagram layout state.
 
 An external dataset component remains the existing allowlisted `Chart` or `DataTable`. The synchronous
 browser-safe renderer emits an inert view shell containing a finite JSON request, not data or executable
@@ -413,7 +439,7 @@ The component allowlist, attributes, input data formats, and rendering contracts
 
 ## Editing and write boundaries
 
-Source and Live write the current file after a short debounce. Watcher events caused by Git Leaf's own
+Source and Live write the current file after a short debounce. Watcher events caused by OpenPeek's own
 write are ignored by content state to avoid reload loops. External changes reload from disk. A narrow
 race may lose not-yet-flushed keystrokes rather than creating an independent hidden draft model.
 
@@ -424,7 +450,7 @@ File-tree mutations are deliberately narrower than a general file manager:
 
 - a context menu creates one folder with a zero-byte `.gitkeep`; creation is refused when Git ignores
   that marker;
-- when a document is then created in that folder during the same server session, Git Leaf removes only
+- when a document is then created in that folder during the same server session, OpenPeek removes only
   the marker it created, and only while it is still zero-byte and untracked;
 - F2 or the context menu renames one regular file within its existing directory and refuses overwrite,
   symlinks, and submodules;
@@ -461,9 +487,9 @@ preference clears the existing timer and schedules the next check from that mome
 visible window after a missed selected interval also triggers a check. Fetching only updates the
 remote-tracking ref:
 
-- when the current branch is behind and the worktree is clean, Git Leaf applies a safe fast-forward
+- when the current branch is behind and the worktree is clean, OpenPeek applies a safe fast-forward
   automatically and refreshes the open document without changing its tab or mode;
-- when the worktree has local changes, Git Leaf attempts the same protected object-layer merge used by
+- when the worktree has local changes, OpenPeek attempts the same protected object-layer merge used by
   the explicit action. A conflict-free result advances the local branch automatically while preserving
   the user's complete local workspace as uncommitted changes;
 - if that protected merge finds a conflict, repository drift, diverged history, or another unsafe
@@ -473,7 +499,7 @@ remote-tracking ref:
 - **Sync and publish** remains the explicit up action. It includes any required remote integration, then
   commits and pushes all local changes.
 
-For a dirty down-only merge, Git Leaf freezes the complete click-time workspace with an alternate Git
+For a dirty down-only merge, OpenPeek freezes the complete click-time workspace with an alternate Git
 index and an immutable snapshot commit. It merges that snapshot with the fetched remote commit in Git's
 object layer. Only a conflict-free result may be applied to the real files, and a final tree comparison
 must match the verified object-layer result. The branch ref advances with a compare-and-swap update, the
@@ -489,7 +515,7 @@ HEAD, remote commit, complete workspace fingerprint, and current editor revision
 workspace drift discards that result and prepares again after the next editing pause.
 
 If an incoming path is the focused Source or Live document, the verified result remains visibly pending
-and **Merge remote changes** stays available. Git Leaf applies it automatically after focus leaves the
+and **Merge remote changes** stays available. OpenPeek applies it automatically after focus leaves the
 editor while the application remains in the foreground; moving to another application leaves the result
 pending. Only the short, revalidated application phase makes that editor surface inert, so preparation
 never drops keystrokes or blocks continued typing. A minimal text update preserves the mapped cursor and
@@ -517,17 +543,20 @@ and the down-only prompt explicitly requires an uncommitted, unpushed result.
 
 ## Deep links and hosted handoff
 
-The desktop app registers `git-leaf://`:
+The desktop app registers `openpeek://`:
 
 ```text
-git-leaf://open
-git-leaf://open?repo=<absolute-local-path>&path=<repository-relative.md>
-git-leaf://open?repo=<github-owner/repository>&path=<repository-relative.md>
-git-leaf://open-worktree?repo=<github-owner/repository>&path=<relative.md>&worktree=<local-id>
+openpeek://open
+openpeek://open?repo=<absolute-local-path>&path=<repository-relative.md>
+openpeek://open?repo=<github-owner/repository>&path=<repository-relative.md>
+openpeek://open-worktree?repo=<github-owner/repository>&path=<relative.md>&worktree=<local-id>
 ```
 
+The app also registers and parses equivalent `git-leaf://` links created by 1.x, but never emits that
+legacy scheme for a new link.
+
 An empty link only launches or focuses the app. Shareable links use a lowercase GitHub
-`owner/repository` identity and do not expose the sender's absolute path. Git Leaf matches that identity
+`owner/repository` identity and do not expose the sender's absolute path. OpenPeek matches that identity
 against repositories already opened locally; if no match exists, it asks the user to select a local
 repository and verifies its origin before continuing.
 
@@ -540,7 +569,7 @@ metadata into a local protocol launch and maintain a random, in-memory handoff s
 minutes. They do not fetch a Git repository or document body. The exact transmitted metadata and normal
 HTTP exposure are documented in [Hosted link handoff](hosted-links.md).
 
-The separate `/download` page never launches `git-leaf://`. It shows only manifests explicitly marked
+The separate `/download` page never launches `openpeek://`. It shows only manifests explicitly marked
 `releaseTrack=public` whose channel, platform, HTTPS URL, SHA-256, size, and on-disk artifact agree.
 Internal, legacy, or missing-track manifests must never appear there.
 
@@ -550,7 +579,7 @@ Shared document links are versioned:
 
 ```text
 https://gitleaf.mangofuture.com/share?v=1&repo=<owner/repo>&path=<relative.md>&rev=<full-commit>&title=<title>
-git-leaf://open-shared?v=1&repo=<owner/repo>&path=<relative.md>&rev=<full-commit>&handoff=<id>
+openpeek://open-shared?v=1&repo=<owner/repo>&path=<relative.md>&rev=<full-commit>&handoff=<id>
 ```
 
 Version 1 shares only a document from the primary checkout's `main`. `rev` is the full commit that last
@@ -559,7 +588,7 @@ main that contains the revision; it does not detach at that commit.
 
 The HTTPS URL can include a document title of at most 100 characters for link previews. New links do not
 include `ai_snippet` or document body content. The hosted page accepts the legacy bounded `snippet`
-parameter for compatibility but Git Leaf no longer generates it.
+parameter for compatibility but OpenPeek no longer generates it.
 
 Before copying a link, the sender publishes local changes if the user confirms, fetches the remote, and
 proves the revision is on `origin/main`. A local commit or successful push process exit is not enough.
@@ -567,7 +596,7 @@ The receiver always resolves the primary checkout, fetches `origin/main`, retrie
 failure, and applies only a safe fast-forward or the same guarded sync flow. Ahead, diverged, conflicting,
 missing-revision, or continuously changing states stop without silent Git mutation.
 
-A shared URL grants no GitHub permission. The receiving Git Leaf installation uses that repository's
+A shared URL grants no GitHub permission. The receiving OpenPeek installation uses that repository's
 existing local Git credentials.
 
 ## Desktop Profile and preferences
@@ -575,7 +604,8 @@ existing local Git credentials.
 Human use of installed official, development, and locally run builds shares the same real Electron
 Profile so replacing an app preserves repositories, sessions, appearance, language, favorites, and
 sidebar state. Build identity controls labeling, updater eligibility, and analytics eligibility; it
-must not select another `userData` directory by itself.
+must not select another `userData` directory by itself. The stable Profile directory remains named
+`git-leaf`; renaming that persistent path is not part of the product rename.
 
 The single identity-changing exception is a packaged macOS source development handoff to the official
 internal build. Its requested target is stored as a bounded receipt in the same Profile. Immediately
@@ -607,9 +637,10 @@ No path may form a render → save session → save preference → broadcast →
 
 ## Build identity and updates
 
-Every packaged app embeds build metadata. Community builds use the technical
+Every packaged app embeds build metadata in `openpeek-build-info.json`; readers also accept the 1.x
+`git-leaf-build-info.json` filename. Community builds use the technical
 `distribution=source, releaseTrack=source` identity, display `Community build`, use the macOS bundle ID
-`org.gitleaf.community`, and use `Git Leaf Community` publisher metadata on Windows. They do not check
+`org.gitleaf.community`, and use `OpenPeek Community` publisher metadata on Windows. They do not check
 Mango Future update feeds or send usage analytics.
 
 Official builds require a reviewed release profile, use `distribution=official`, and select either the
@@ -632,7 +663,7 @@ valid newer package starts downloading and preparing automatically; the sidebar 
 after the package is ready. Choosing **Restart now** or quitting normally installs that ready package.
 Checks continue while a package is waiting, and a newer target supersedes it. Windows and development
 handoff preparation replace their whole private update cache before writing the new target; after
-Squirrel stages a newer official macOS target, Git Leaf removes every orphaned `update.*` directory while
+Squirrel stages a newer official macOS target, OpenPeek removes every orphaned `update.*` directory while
 preserving the one referenced by `ShipItState.plist`. The steady state therefore contains at most one
 complete downloaded-but-uninstalled package. Failed preparation remains retryable and must not
 masquerade as an active download.
@@ -692,7 +723,7 @@ The following files are key seams, not an exhaustive module inventory:
 | `src/server/index.mjs` | Local HTTP API, document IO, rendering, Git actions |
 | `src/server/repositories.mjs`, `src/server/git-worktrees.mjs` | Repository identity, worktree discovery, stable IDs |
 | `src/server/external-command.mjs` | Command execution and failure classification |
-| `src/server/hosted-links.mjs`, `src/server/git-leaf-open-link.mjs` | Hosted HTTPS link validation and generation |
+| `src/server/hosted-links.mjs`, `src/server/openpeek-open-link.mjs` | Hosted HTTPS link validation and generation |
 | `src/desktop/deep-link.mjs` | Local desktop protocol generation and parsing |
 | `src/server/git-share-publish.mjs`, `src/server/git-share-open.mjs` | Sender publication and receiver safety |
 | `src/content/markdown.mjs`, `src/content/mdx-lite.mjs` | Markdown shells, allowlisted MDX-lite rendering, and inert dataset view declarations |
@@ -710,7 +741,7 @@ another's responsibilities.
 
 ## Non-goals
 
-Git Leaf does not currently provide:
+OpenPeek does not currently provide:
 
 - real-time multi-user editing;
 - cloud accounts, SSO, permissions, or a hosted repository or context service;

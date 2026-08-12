@@ -4,10 +4,10 @@ import { runExternalCommand } from "./external-command.mjs";
 
 const OID_PATTERN = /^[0-9a-f]{40,64}$/i;
 const SNAPSHOT_IDENTITY = Object.freeze({
-  GIT_AUTHOR_NAME: "Git Leaf",
-  GIT_AUTHOR_EMAIL: "snapshot@git-leaf.invalid",
-  GIT_COMMITTER_NAME: "Git Leaf",
-  GIT_COMMITTER_EMAIL: "snapshot@git-leaf.invalid",
+  GIT_AUTHOR_NAME: "OpenPeek",
+  GIT_AUTHOR_EMAIL: "snapshot@openpeek.invalid",
+  GIT_COMMITTER_NAME: "OpenPeek",
+  GIT_COMMITTER_EMAIL: "snapshot@openpeek.invalid",
 });
 
 export async function createImmutableGitTree({
@@ -27,7 +27,7 @@ export async function createImmutableGitTree({
 export async function createImmutableGitSnapshot({
   repoRoot,
   indexPath,
-  message = "Git Leaf local workspace snapshot",
+  message = "OpenPeek local workspace snapshot",
   commandRunner = runGitSnapshotCommand,
 }) {
   const tree = await createImmutableGitTree({
@@ -59,7 +59,7 @@ export async function rebaseImmutableGitSnapshot({
   repoRoot,
   snapshotCommit,
   remoteCommit,
-  message = "Git Leaf local workspace snapshot on remote",
+  message = "OpenPeek local workspace snapshot on remote",
   commandRunner = runGitSnapshotCommand,
 }) {
   let mergeResult;

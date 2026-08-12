@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { publishGitLeafShareLink } from "../src/server/git-share-publish.mjs";
+import { publishOpenPeekShareLink } from "../src/server/git-share-publish.mjs";
 
 const REPO = {
   id: "docs-repo",
@@ -55,18 +55,18 @@ test("share publication can retry a failed push after the document was committed
     },
   };
 
-  const failed = await publishGitLeafShareLink(options);
+  const failed = await publishOpenPeekShareLink(options);
   assert.equal(failed.ok, false);
   assert.equal(failed.step, "push");
   assert.equal(failed.retryable, true);
   assert.equal(failed.error, "远端暂时不可用。");
-  assert.match(failed.agentPrompt, /Please resolve this Git Leaf share publication failure/);
+  assert.match(failed.agentPrompt, /Please resolve this OpenPeek share publication failure/);
   assert.match(failed.agentPrompt, /Repository path: \/repos\/docs-repo/);
   assert.match(failed.agentPrompt, /Selected files:\n- docs\/report\.md/);
   assert.match(failed.agentPrompt, /Error output:\n远端暂时不可用。/);
   assert.match(failed.agentPrompt, /commit and push the current branch main/);
 
-  const retried = await publishGitLeafShareLink(options);
+  const retried = await publishOpenPeekShareLink(options);
   assert.equal(retried.ok, true);
   assert.equal(retried.published, true);
   assert.equal(retried.url, "https://gitleaf.mangofuture.com/share?v=1");
@@ -79,7 +79,7 @@ test("share publication can retry a failed push after the document was committed
 
 test("share publication localizes its Agent prompt while preserving raw Git output", async () => {
   const rawGitOutput = "fatal: remote rejected refs/heads/main";
-  const result = await publishGitLeafShareLink({
+  const result = await publishOpenPeekShareLink({
     repo: REPO,
     file: "docs/report.md",
     locale: "zh-CN",
@@ -106,7 +106,7 @@ test("share publication localizes its Agent prompt while preserving raw Git outp
 
   assert.equal(result.ok, false);
   assert.equal(result.error, rawGitOutput);
-  assert.match(result.agentPrompt, /请处理 Git Leaf 分享链接发布失败/);
+  assert.match(result.agentPrompt, /请处理 OpenPeek 分享链接发布失败/);
   assert.match(result.agentPrompt, /仓库路径：\/repos\/docs-repo/);
   assert.match(result.agentPrompt, /选中文件：\n- docs\/report\.md/);
   assert.equal(result.agentPrompt.includes(`错误输出：\n${rawGitOutput}`), true);
@@ -115,7 +115,7 @@ test("share publication localizes its Agent prompt while preserving raw Git outp
 });
 
 test("share publication localizes fallback errors before and after publishing", async () => {
-  const publishFailure = await publishGitLeafShareLink({
+  const publishFailure = await publishOpenPeekShareLink({
     repo: REPO,
     file: "docs/report.md",
     language: "zh-CN",
@@ -135,7 +135,7 @@ test("share publication localizes fallback errors before and after publishing", 
   assert.match(publishFailure.agentPrompt, /错误输出：\n无法完成远端发布。/);
 
   let shareAttempts = 0;
-  const verificationFailure = await publishGitLeafShareLink({
+  const verificationFailure = await publishOpenPeekShareLink({
     repo: REPO,
     file: "docs/report.md",
     createShareLink: async () => {

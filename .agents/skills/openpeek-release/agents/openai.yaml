@@ -1,0 +1,4 @@
+interface:
+  display_name: "OpenPeek Release"
+  short_description: "Run repository-governed OpenPeek releases and update gates"
+  default_prompt: "Use $openpeek-release to execute or diagnose the documented OpenPeek release workflow."

@@ -24,7 +24,7 @@ export function updateArtifactRemotePath({
 }
 
 export function buildUpdateManifest({
-  appName = "Git Leaf",
+  appName = "OpenPeek",
   baseUrl = DEFAULT_UPDATE_BASE_URL,
   channel = DEFAULT_UPDATE_CHANNEL,
   releaseTrack,

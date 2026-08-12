@@ -8,19 +8,19 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
 import {
-  createGitLeafOpenLink as createCanonicalOpenLink,
-} from "../src/server/git-leaf-open-link.mjs";
+  createOpenPeekOpenLink as createCanonicalOpenLink,
+} from "../src/server/openpeek-open-link.mjs";
 import {
-  createGitLeafOpenLink,
+  createOpenPeekOpenLink,
   githubRepositoryIdentityFromRemote,
   normalizeMarkdownPath,
   parseGitWorktreeRoots,
   worktreeIdForPath,
-} from "../tools/generate-git-leaf-open-link.mjs";
+} from "../tools/generate-openpeek-open-link.mjs";
 
 const execFileAsync = promisify(execFile);
 const scriptPath = fileURLToPath(
-  new URL("../tools/generate-git-leaf-open-link.mjs", import.meta.url),
+  new URL("../tools/generate-openpeek-open-link.mjs", import.meta.url),
 );
 
 test("portable link tool supports common GitHub origin formats", () => {
@@ -66,13 +66,13 @@ test("portable link tool parses null- and newline-delimited worktree records", (
   ]);
 });
 
-test("portable link tool matches Git Leaf for primary and linked worktrees", async (t) => {
+test("portable link tool matches OpenPeek for primary and linked worktrees", async (t) => {
   const fixture = await createRepositoryFixture(t);
   const expectedPrimaryLink =
     "https://gitleaf.mangofuture.com/open?repo=exampleorg%2Fshared-context&path=docs%2Freport.md";
 
   assert.equal(
-    await createGitLeafOpenLink({ repoRoot: fixture.primaryRoot, file: "docs/report.md" }),
+    await createOpenPeekOpenLink({ repoRoot: fixture.primaryRoot, file: "docs/report.md" }),
     expectedPrimaryLink,
   );
   assert.equal(
@@ -84,7 +84,7 @@ test("portable link tool matches Git Leaf for primary and linked worktrees", asy
   const expectedLinkedLink =
     `${expectedPrimaryLink}&worktree=${worktreeIdForPath(linkedRoot)}`;
   assert.equal(
-    await createGitLeafOpenLink({ repoRoot: fixture.linkedRoot, file: "docs/report.md" }),
+    await createOpenPeekOpenLink({ repoRoot: fixture.linkedRoot, file: "docs/report.md" }),
     expectedLinkedLink,
   );
   assert.equal(
@@ -103,7 +103,7 @@ test("portable link tool matches Git Leaf for primary and linked worktrees", asy
 });
 
 async function createRepositoryFixture(t) {
-  const fixtureRoot = await mkdtemp(path.join(tmpdir(), "git-leaf-open-link-tool-"));
+  const fixtureRoot = await mkdtemp(path.join(tmpdir(), "openpeek-open-link-tool-"));
   t.after(() => rm(fixtureRoot, { recursive: true, force: true }));
 
   const primaryRoot = path.join(fixtureRoot, "shared-context");

@@ -1,7 +1,7 @@
-import { gitLeafDeepLinkFromArgs } from "./deep-link.mjs";
+import { openPeekDeepLinkFromArgs } from "./deep-link.mjs";
 
 export function parseDesktopArgs(args = [], { platform = process.platform } = {}) {
-  const deepLink = gitLeafDeepLinkFromArgs(args, { platform });
+  const deepLink = openPeekDeepLinkFromArgs(args, { platform });
   if (deepLink) {
     return deepLink;
   }

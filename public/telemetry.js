@@ -186,7 +186,7 @@ function exactKeys(value, allowedKeys) {
 }
 
 const telemetry = createRendererTelemetry({
-  enabled: typeof window !== "undefined" && window.GIT_LEAF_TELEMETRY_ENABLED === true,
+  enabled: typeof window !== "undefined" && window.OPENPEEK_TELEMETRY_ENABLED === true,
 });
 
 export function recordTelemetryFeature(featureId, dimensions = {}) {

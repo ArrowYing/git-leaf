@@ -19,6 +19,10 @@ import { pipeline } from "node:stream/promises";
 import { fileURLToPath } from "node:url";
 
 import {
+  BUILD_INFO_FILENAME,
+  LEGACY_BUILD_INFO_FILENAME,
+} from "../build-info.mjs";
+import {
   developmentHandoffReceiptForManifest,
   developmentHandoffReceiptMatchesBuild,
   normalizeDevelopmentHandoffReceipt,
@@ -41,8 +45,8 @@ import {
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const READY_SCHEMA_VERSION = 1;
 const READY_FILENAME = "ready.json";
-const MAC_APP_NAME = "Git Leaf.app";
-const MAC_EXECUTABLE_NAME = "Git Leaf";
+const MAC_APP_NAME = "OpenPeek.app";
+const MAC_EXECUTABLE_NAME = "OpenPeek";
 const HELPER_READY_ARGUMENT = "--install-ready";
 const HELPER_PID_ARGUMENT = "--wait-pid";
 const activePreparations = new Map();
@@ -75,7 +79,7 @@ export function macAppBundlePathFromExecutable(execPath = process.execPath) {
     || path.basename(path.dirname(executable)) !== "MacOS"
     || path.basename(path.dirname(path.dirname(executable))) !== "Contents"
   ) {
-    throw new Error(`Git Leaf is not running from a macOS App bundle: ${executable}`);
+    throw new Error(`OpenPeek is not running from a macOS App bundle: ${executable}`);
   }
   return path.dirname(path.dirname(path.dirname(executable)));
 }
@@ -375,7 +379,7 @@ export async function waitForMacProcessExit(processId, {
   const startedAt = now();
   while (processExists(processId)) {
     if (now() - startedAt >= timeoutMs) {
-      throw new Error("Timed out waiting for the current Git Leaf process to exit.");
+      throw new Error("Timed out waiting for the current OpenPeek process to exit.");
     }
     await wait(pollMs);
   }
@@ -383,13 +387,13 @@ export async function waitForMacProcessExit(processId, {
 
 export function inspectOfficialMacApp(appPath) {
   verifySignedMacApp(appPath);
-  const buildInfoPath = path.join(
-    appPath,
-    "Contents",
-    "Resources",
-    "app.asar",
-    "git-leaf-build-info.json",
-  );
+  const appResourcesPath = path.join(appPath, "Contents", "Resources", "app.asar");
+  const buildInfoPath = [BUILD_INFO_FILENAME, LEGACY_BUILD_INFO_FILENAME]
+    .map((filename) => path.join(appResourcesPath, filename))
+    .find((candidate) => existsSync(candidate));
+  if (!buildInfoPath) {
+    throw new Error("The official OpenPeek App does not contain build identity metadata.");
+  }
   return {
     bundleId: readMacAppBundleId(appPath),
     teamIdentifier: OFFICIAL_MAC_TEAM_IDENTIFIER,
@@ -650,7 +654,7 @@ async function launchAndConfirmMacApp({
   });
   await wait(confirmationDelayMs);
   if (child.exitCode != null || child.signalCode != null) {
-    throw new Error("The internal Git Leaf App exited before startup confirmation.");
+    throw new Error("The internal OpenPeek App exited before startup confirmation.");
   }
   child.unref?.();
   return true;

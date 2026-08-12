@@ -2,19 +2,19 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-  gitLeafDeepLinkFromArgs,
-  gitLeafDeepLinkUrl,
-  gitLeafSharedDeepLinkUrl,
-  parseGitLeafDeepLink,
+  openPeekDeepLinkFromArgs,
+  openPeekDeepLinkUrl,
+  openPeekSharedDeepLinkUrl,
+  parseOpenPeekDeepLink,
 } from "../src/desktop/deep-link.mjs";
 import {
-  gitLeafHttpsOpenUrl,
-  gitLeafShareUrl,
+  openPeekHttpsOpenUrl,
+  openPeekShareUrl,
 } from "../src/server/hosted-links.mjs";
 
-test("Git Leaf HTTPS links carry a local worktree id without exposing its path", () => {
+test("OpenPeek HTTPS links carry a local worktree id without exposing its path", () => {
   assert.equal(
-    gitLeafHttpsOpenUrl({
+    openPeekHttpsOpenUrl({
       repository: "ExampleOrg/company-docs",
       file: "docs/report.md",
       worktree: "0123456789abcdef",
@@ -23,8 +23,8 @@ test("Git Leaf HTTPS links carry a local worktree id without exposing its path",
   );
 });
 
-test("Git Leaf deep links round-trip a macOS repository and Markdown document", () => {
-  const url = gitLeafDeepLinkUrl({
+test("OpenPeek deep links round-trip a macOS repository and Markdown document", () => {
+  const url = openPeekDeepLinkUrl({
     repoRoot: "/Users/maintainer/Projects/company-docs",
     file: "docs/strategy notes.md",
     platform: "darwin",
@@ -32,29 +32,29 @@ test("Git Leaf deep links round-trip a macOS repository and Markdown document", 
 
   assert.equal(
     url,
-    "git-leaf://open?repo=%2FUsers%2Fmaintainer%2FProjects%2Fcompany-docs&path=docs%2Fstrategy+notes.md",
+    "openpeek://open?repo=%2FUsers%2Fmaintainer%2FProjects%2Fcompany-docs&path=docs%2Fstrategy+notes.md",
   );
-  assert.deepEqual(parseGitLeafDeepLink(url, { platform: "darwin" }), {
+  assert.deepEqual(parseOpenPeekDeepLink(url, { platform: "darwin" }), {
     repoRoot: "/Users/maintainer/Projects/company-docs",
     file: "docs/strategy notes.md",
   });
 });
 
-test("Git Leaf deep links round-trip a Windows repository and normalize document separators", () => {
-  const url = gitLeafDeepLinkUrl({
+test("OpenPeek deep links round-trip a Windows repository and normalize document separators", () => {
+  const url = openPeekDeepLinkUrl({
     repoRoot: "C:\\Users\\mango\\Projects\\company-docs",
     file: "docs\\strategy.md",
     platform: "win32",
   });
 
-  assert.deepEqual(parseGitLeafDeepLink(url, { platform: "win32" }), {
+  assert.deepEqual(parseOpenPeekDeepLink(url, { platform: "win32" }), {
     repoRoot: "C:\\Users\\mango\\Projects\\company-docs",
     file: "docs/strategy.md",
   });
 });
 
-test("Git Leaf deep links round-trip a stable GitHub repository identity", () => {
-  const url = gitLeafDeepLinkUrl({
+test("OpenPeek deep links round-trip a stable GitHub repository identity", () => {
+  const url = openPeekDeepLinkUrl({
     repository: "ExampleOrg/company-docs",
     file: "company/strategy.md",
     worktree: "0123456789abcdef",
@@ -63,9 +63,9 @@ test("Git Leaf deep links round-trip a stable GitHub repository identity", () =>
 
   assert.equal(
     url,
-    "git-leaf://open-worktree?repo=exampleorg%2Fcompany-docs&path=company%2Fstrategy.md&worktree=0123456789abcdef&handoff=handoff_1234567890abcdef",
+    "openpeek://open-worktree?repo=exampleorg%2Fcompany-docs&path=company%2Fstrategy.md&worktree=0123456789abcdef&handoff=handoff_1234567890abcdef",
   );
-  assert.deepEqual(parseGitLeafDeepLink(url), {
+  assert.deepEqual(parseOpenPeekDeepLink(url), {
     repository: "exampleorg/company-docs",
     file: "company/strategy.md",
     worktree: "0123456789abcdef",
@@ -73,9 +73,9 @@ test("Git Leaf deep links round-trip a stable GitHub repository identity", () =>
   });
 });
 
-test("Git Leaf share links use an independent versioned protocol", () => {
+test("OpenPeek share links use an independent versioned protocol", () => {
   const rev = "c".repeat(40);
-  const shareUrl = new URL(gitLeafShareUrl({
+  const shareUrl = new URL(openPeekShareUrl({
     repository: "ExampleOrg/company-docs",
     file: "company/strategy.md",
     rev,
@@ -90,13 +90,13 @@ test("Git Leaf share links use an independent versioned protocol", () => {
   assert.equal(shareUrl.searchParams.get("title"), "Company Strategy");
   assert.equal(shareUrl.searchParams.has("snippet"), false);
 
-  const deepLink = gitLeafSharedDeepLinkUrl({
+  const deepLink = openPeekSharedDeepLinkUrl({
     repository: "ExampleOrg/company-docs",
     file: "company/strategy.md",
     rev,
     handoff: "handoff_1234567890abcdef",
   });
-  assert.deepEqual(parseGitLeafDeepLink(deepLink), {
+  assert.deepEqual(parseOpenPeekDeepLink(deepLink), {
     repository: "exampleorg/company-docs",
     file: "company/strategy.md",
     rev,
@@ -107,8 +107,8 @@ test("Git Leaf share links use an independent versioned protocol", () => {
   assert.equal(deepLink.includes("snippet="), false);
 });
 
-test("Git Leaf share title is bounded without carrying ai_snippet", () => {
-  const url = new URL(gitLeafShareUrl({
+test("OpenPeek share title is bounded without carrying ai_snippet", () => {
+  const url = new URL(openPeekShareUrl({
     repository: "owner/repo",
     file: "README.md",
     rev: "e".repeat(40),
@@ -122,54 +122,67 @@ test("Git Leaf share title is bounded without carrying ai_snippet", () => {
   assert.ok(url.toString().length < 4096);
 });
 
-test("Git Leaf share links reject invalid versions, revisions, duplicates, and extra fields", () => {
+test("OpenPeek share links reject invalid versions, revisions, duplicates, and extra fields", () => {
   const rev = "d".repeat(40);
   for (const url of [
-    `git-leaf://open-shared?v=2&repo=owner%2Frepo&path=README.md&rev=${rev}`,
-    "git-leaf://open-shared?v=1&repo=owner%2Frepo&path=README.md&rev=short",
-    `git-leaf://open-shared?v=1&repo=owner%2Frepo&repo=other%2Frepo&path=README.md&rev=${rev}`,
-    `git-leaf://open-shared?v=1&repo=owner%2Frepo&path=README.md&rev=${rev}&worktree=0123456789abcdef`,
+    `openpeek://open-shared?v=2&repo=owner%2Frepo&path=README.md&rev=${rev}`,
+    "openpeek://open-shared?v=1&repo=owner%2Frepo&path=README.md&rev=short",
+    `openpeek://open-shared?v=1&repo=owner%2Frepo&repo=other%2Frepo&path=README.md&rev=${rev}`,
+    `openpeek://open-shared?v=1&repo=owner%2Frepo&path=README.md&rev=${rev}&worktree=0123456789abcdef`,
   ]) {
-    assert.equal(parseGitLeafDeepLink(url), null, url);
+    assert.equal(parseOpenPeekDeepLink(url), null, url);
   }
 });
 
-test("Git Leaf accepts a handoff-only deep link for app launch confirmation", () => {
+test("OpenPeek accepts a handoff-only deep link for app launch confirmation", () => {
   assert.deepEqual(
-    parseGitLeafDeepLink("git-leaf://open?handoff=handoff_1234567890abcdef"),
+    parseOpenPeekDeepLink("openpeek://open?handoff=handoff_1234567890abcdef"),
     { repoRoot: "", file: "", handoff: "handoff_1234567890abcdef" },
   );
-  assert.equal(parseGitLeafDeepLink("git-leaf://open?handoff=short"), null);
+  assert.equal(parseOpenPeekDeepLink("openpeek://open?handoff=short"), null);
 });
 
-test("Git Leaf deep links reject unsupported hosts, malformed repositories, and unsafe document paths", () => {
+test("OpenPeek deep links reject unsupported hosts, malformed repositories, and unsafe document paths", () => {
   for (const url of [
     "https://open?repo=%2Frepo&path=README.md",
-    "git-leaf://settings?repo=%2Frepo&path=README.md",
-    "git-leaf://open?repo=relative&path=README.md",
-    "git-leaf://open?repo=owner%2Frepo%2Fextra&path=README.md",
-    "git-leaf://open?repo=owner%2Frepo&path=README.txt",
-    "git-leaf://open?repo=%2Frepo&path=..%2Fsecret.md",
-    "git-leaf://open?repo=%2Frepo&path=%2Fetc%2Fpasswd.md",
-    "git-leaf://open?repo=%2Frepo&path=docs%2Fimage.png",
-    "git-leaf://open?repo=owner%2Frepo&path=README.md&worktree=main",
-    "git-leaf://open?repo=owner%2Frepo&path=README.md&worktree=0123456789abcdef",
-    "git-leaf://open-worktree?repo=owner%2Frepo&path=README.md",
-    "git-leaf://open?repo=%2Frepo&path=README.md&worktree=0123456789abcdef",
+    "openpeek://settings?repo=%2Frepo&path=README.md",
+    "openpeek://open?repo=relative&path=README.md",
+    "openpeek://open?repo=owner%2Frepo%2Fextra&path=README.md",
+    "openpeek://open?repo=owner%2Frepo&path=README.txt",
+    "openpeek://open?repo=%2Frepo&path=..%2Fsecret.md",
+    "openpeek://open?repo=%2Frepo&path=%2Fetc%2Fpasswd.md",
+    "openpeek://open?repo=%2Frepo&path=docs%2Fimage.png",
+    "openpeek://open?repo=owner%2Frepo&path=README.md&worktree=main",
+    "openpeek://open?repo=owner%2Frepo&path=README.md&worktree=0123456789abcdef",
+    "openpeek://open-worktree?repo=owner%2Frepo&path=README.md",
+    "openpeek://open?repo=%2Frepo&path=README.md&worktree=0123456789abcdef",
   ]) {
-    assert.equal(parseGitLeafDeepLink(url, { platform: "darwin" }), null, url);
+    assert.equal(parseOpenPeekDeepLink(url, { platform: "darwin" }), null, url);
   }
 });
 
-test("Git Leaf finds a deep link anywhere in desktop process arguments", () => {
+test("OpenPeek finds a deep link anywhere in desktop process arguments", () => {
   assert.deepEqual(
-    gitLeafDeepLinkFromArgs([
-      "C:\\Program Files\\Git Leaf\\Git Leaf.exe",
+    openPeekDeepLinkFromArgs([
+      "C:\\Program Files\\OpenPeek\\OpenPeek.exe",
       "--original-process-start-time=123",
-      "git-leaf://open?repo=C%3A%5CProjects%5Ccompany-docs&path=README.md",
+      "openpeek://open?repo=C%3A%5CProjects%5Ccompany-docs&path=README.md",
     ], { platform: "win32" }),
     {
       repoRoot: "C:\\Projects\\company-docs",
+      file: "README.md",
+    },
+  );
+});
+
+test("OpenPeek continues to open Git Leaf 1.x deep links", () => {
+  assert.deepEqual(
+    parseOpenPeekDeepLink(
+      "git-leaf://open?repo=%2FUsers%2Fmaintainer%2FProjects%2Fcompany-docs&path=README.md",
+      { platform: "darwin" },
+    ),
+    {
+      repoRoot: "/Users/maintainer/Projects/company-docs",
       file: "README.md",
     },
   );

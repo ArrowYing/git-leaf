@@ -1,10 +1,13 @@
-# Build Git Leaf from source
+# Build OpenPeek from source
 
 [Documentation index](README.md)
 
 This guide is for contributors and people who want a local Community Build. It does not require Mango
 Future release profiles, signing credentials, update infrastructure, or the official
 [release process](release.md).
+
+OpenPeek is the product name from version 2.0. The public repository URL still contains `git-leaf`
+during the repository-only transition, so the clone commands below intentionally keep that address.
 
 ## Requirements
 
@@ -29,7 +32,7 @@ Choose any local Git repository in the app, or select one at launch:
 npm run desktop -- --repo /path/to/knowledge-repository
 ```
 
-To try Git Leaf with prepared public content:
+To try OpenPeek with prepared public content:
 
 ```bash
 git clone https://github.com/MangoFuture1210/git-leaf-example-knowledge-base.git
@@ -38,7 +41,7 @@ npm run desktop -- --repo ../git-leaf-example-knowledge-base
 
 ## Run the browser workbench
 
-From the Git Leaf checkout:
+From the OpenPeek checkout:
 
 ```bash
 npm start -- /path/to/knowledge-repository/README.md
@@ -78,12 +81,12 @@ Community packages have an explicit non-official identity:
 | Embedded distribution | `source` |
 | Release track | `source` |
 | macOS Bundle ID | `org.gitleaf.community` |
-| Windows CompanyName | `Git Leaf Community` |
+| Windows CompanyName | `OpenPeek Community` |
 | Official updates | Disabled |
 | Usage analytics | Disabled |
 
 They are not Developer ID-signed or notarized by Mango Future and must not be redistributed as an
-official Git Leaf release. macOS source packages receive only a local ad-hoc signature after packaging
+official OpenPeek release. macOS source packages receive only a local ad-hoc signature after packaging
 so their modified bundled frameworks retain code integrity. The official identity depends on the Mango
 Future signature, official package metadata, download channel, checksum, tag, and matching public
 commit.
@@ -96,10 +99,12 @@ For human testing on a maintainer Mac:
 make install-dev-mac
 ```
 
-This is intentionally different from a distributable Community package. It installs `Git Leaf dev`
-with `dev=true` and the Community Bundle ID at `/Applications/Git Leaf.app`, replacing the current App
-and using the same real Profile. Repositories, workbench sessions, appearance, language, favorites, and
-sidebar state therefore survive replacement. The development build remains telemetry-ineligible.
+This is intentionally different from a distributable Community package. It installs `OpenPeek dev`
+with `dev=true` and the Community Bundle ID, replacing the current App and using the same real Profile.
+A new installation uses `/Applications/OpenPeek.app`; if `/Applications/Git Leaf.app` already exists,
+the transition reuses that path instead of creating a duplicate. Repositories, workbench sessions,
+appearance, language, favorites, and sidebar state therefore survive replacement. The development build
+remains telemetry-ineligible.
 
 The installed dev build may make one user-selected, one-way switch to the latest signed
 `internal-stable` package only when its version is strictly newer than the development version. Equal or

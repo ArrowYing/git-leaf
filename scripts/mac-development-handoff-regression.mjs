@@ -17,14 +17,23 @@ import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { extractFile, uncache } from "@electron/asar";
+import { extractFile, listPackage, uncache } from "@electron/asar";
 
+import {
+  BUILD_INFO_FILENAME,
+  LEGACY_BUILD_INFO_FILENAME,
+} from "../src/build-info.mjs";
 import {
   normalizeDevelopmentHandoffReceipt,
   sameDevelopmentHandoffReceipt,
 } from "../src/desktop/development-handoff.mjs";
+import { DEVELOPMENT_USER_DATA_ARG } from "../src/desktop/user-data.mjs";
 import { compareAppVersions } from "../src/desktop/app-updates.mjs";
 import { macDevelopmentHandoffCachePaths } from "../src/desktop/mac-development-handoff-update.mjs";
+import {
+  OPENPEEK_PROTOCOL,
+  OPENPEEK_SUPPORTED_PROTOCOLS,
+} from "../src/product-identity.mjs";
 import {
   applyMacBundleIcon,
   DEFAULT_RELEASE_OPTIONS,
@@ -148,7 +157,11 @@ export function validateDevelopmentHandoffRegressionEvidence(evidence) {
     || evidence?.sourceBundleId !== COMMUNITY_PACKAGE_IDENTITY.macBundleId
     || evidence?.targetBundleId !== OFFICIAL_PACKAGE_IDENTITY.macBundleId
     || evidence?.targetTeamIdentifier !== OFFICIAL_MAC_TEAM_IDENTIFIER
-    || evidence?.protocolScheme !== "git-leaf"
+    || evidence?.protocolScheme !== OPENPEEK_PROTOCOL
+    || !Array.isArray(evidence?.protocolSchemes)
+    || OPENPEEK_SUPPORTED_PROTOCOLS.some(
+      (scheme) => !evidence.protocolSchemes.includes(scheme),
+    )
     || evidence?.targetUsageAnalyticsDefault !== true
     || evidence?.analyticsDefaultAdopted !== true
     || evidence?.handoffReceiptConsumed !== true
@@ -337,8 +350,16 @@ export async function runDevelopmentHandoffRegression({
         `The internal App is signed by unexpected team ${targetTeamIdentifier || "missing"}`,
       );
     }
-    if (readAppPlistValue(targetAppPath, "CFBundleURLTypes:0:CFBundleURLSchemes:0") !== "git-leaf") {
-      throw new Error("The internal App does not own the git-leaf URL scheme");
+    const protocolSchemes = [0, 1].map((index) => readAppPlistValue(
+      targetAppPath,
+      `CFBundleURLTypes:0:CFBundleURLSchemes:${index}`,
+    ));
+    if (OPENPEEK_SUPPORTED_PROTOCOLS.some(
+      (scheme) => !protocolSchemes.includes(scheme),
+    )) {
+      throw new Error(
+        "The internal App does not own the canonical and legacy OpenPeek URL schemes",
+      );
     }
 
     server = await startUpdateServer({ serverRoot, telemetryRoot, logPath });
@@ -360,17 +381,17 @@ export async function runDevelopmentHandoffRegression({
       HOME: isolatedHome,
       CFFIXED_USER_HOME: isolatedHome,
       TMPDIR: `${isolatedTmp}${path.sep}`,
-      GIT_LEAF_UPDATE_BASE_URL:
+      OPENPEEK_UPDATE_BASE_URL:
         `http://127.0.0.1:${server.port}/git-leaf`,
-      GIT_LEAF_TELEMETRY_ENDPOINT:
+      OPENPEEK_TELEMETRY_ENDPOINT:
         `http://127.0.0.1:${server.port}/telemetry/v1/events`,
-      GIT_LEAF_DEV_USER_DATA_DIR: userDataDir,
+      OPENPEEK_DEV_USER_DATA_DIR: userDataDir,
     };
     const logDescriptor = openSync(logPath, "a");
     appProcess = spawn(
-      path.join(sourceAppPath, "Contents", "MacOS", "Git Leaf"),
+      path.join(sourceAppPath, "Contents", "MacOS", "OpenPeek"),
       [
-        `--git-leaf-dev-user-data-dir=${userDataDir}`,
+        `${DEVELOPMENT_USER_DATA_ARG}=${userDataDir}`,
         "--remote-debugging-port=0",
         "--repo",
         REPO_ROOT,
@@ -511,7 +532,8 @@ export async function runDevelopmentHandoffRegression({
       telemetryInitialized: existsSync(
         path.join(userDataDir, "telemetry-state.json"),
       ),
-      protocolScheme: "git-leaf",
+      protocolScheme: OPENPEEK_PROTOCOL,
+      protocolSchemes,
       nonprivilegedContentsBridge: true,
       squirrelInvoked: false,
       preparedUpdateRemoved: !existsSync(preparedPaths.versionRoot),
@@ -533,8 +555,8 @@ export async function runDevelopmentHandoffRegression({
       if (appParentLocked) {
         const sourceAppPath = path.join(
           packageOutputDir,
-          "Git Leaf-darwin-universal",
-          "Git Leaf.app",
+          "OpenPeek-darwin-universal",
+          "OpenPeek.app",
         );
         chmodSync(path.dirname(sourceAppPath), 0o755);
         appParentLocked = false;
@@ -584,7 +606,7 @@ export async function runDevelopmentHandoffRegression({
       const realProfileAfter = fingerprintRealProfile();
       const realShipItCacheAfter = realShipItCacheFingerprint();
       if (!sameFingerprint(host.productionFingerprint, realProfileAfter)) {
-        throw new Error("The real Git Leaf Profile changed during handoff regression");
+        throw new Error("The real OpenPeek Profile changed during handoff regression");
       }
       if (!sameFingerprint(realShipItCacheBefore, realShipItCacheAfter)) {
         throw new Error("The real ShipIt caches changed during handoff regression");
@@ -635,9 +657,9 @@ function packageSourceDevelopmentApp({ outputDir, version } = {}) {
       env: {
         ...process.env,
         VERSION: version,
-        GIT_LEAF_RELEASE_PROFILE: "",
-        GIT_LEAF_DISTRIBUTION: "source",
-        GIT_LEAF_USAGE_ANALYTICS_DEFAULT: "false",
+        OPENPEEK_RELEASE_PROFILE: "",
+        OPENPEEK_DISTRIBUTION: "source",
+        OPENPEEK_USAGE_ANALYTICS_DEFAULT: "false",
       },
     }),
     dev: true,
@@ -659,8 +681,8 @@ function packageSourceDevelopmentApp({ outputDir, version } = {}) {
   });
   const appPath = path.join(
     outputDir,
-    "Git Leaf-darwin-universal",
-    "Git Leaf.app",
+    "OpenPeek-darwin-universal",
+    "OpenPeek.app",
   );
   patchSquirrelMacPolicy({ appDir: appPath, rootDir: REPO_ROOT });
   applyMacBundleIcon(options, { appDir: appPath });
@@ -713,8 +735,19 @@ export function readPackagedBuildInfo(appPath) {
     "app.asar",
   );
   uncache(asarPath);
+  const packagedFiles = new Set(
+    listPackage(asarPath, { isPack: false })
+      .map((filename) => filename.replace(/^[/\\]+/, "")),
+  );
+  const filename = [BUILD_INFO_FILENAME, LEGACY_BUILD_INFO_FILENAME]
+    .find((candidate) => packagedFiles.has(candidate));
+  if (!filename) {
+    throw new Error(
+      `The packaged App is missing ${BUILD_INFO_FILENAME}`,
+    );
+  }
   return JSON.parse(
-    extractFile(asarPath, "git-leaf-build-info.json").toString("utf8"),
+    extractFile(asarPath, filename).toString("utf8"),
   );
 }
 

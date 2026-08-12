@@ -65,8 +65,8 @@ import {
   previewRepositoryFileRename,
   renameRepositoryFile,
 } from "./repository-file-operations.mjs";
-import { createGitLeafShareLink } from "./git-leaf-open-link.mjs";
-import { publishGitLeafShareLink } from "./git-share-publish.mjs";
+import { createOpenPeekShareLink } from "./openpeek-open-link.mjs";
+import { publishOpenPeekShareLink } from "./git-share-publish.mjs";
 import { githubFileUrl } from "../../public/file-actions.js";
 import { sourceLinesFromMarkdown } from "../../public/line-selection.js";
 import { normalizeSidebarFavorites } from "../../public/sidebar-favorites.js";
@@ -170,31 +170,31 @@ async function handleRequest(request, response, context) {
       response,
       html
         .replace(
-          "__GIT_LEAF_INITIAL_FILE__",
+          "__OPENPEEK_INITIAL_FILE__",
           JSON.stringify(context.initialFile?.relativePath ?? ""),
         )
         .replace(
-          "__GIT_LEAF_INITIAL_REPO__",
+          "__OPENPEEK_INITIAL_REPO__",
           JSON.stringify(repo.id),
         )
         .replace(
-          "__GIT_LEAF_WORKTREE_ID__",
+          "__OPENPEEK_WORKTREE_ID__",
           JSON.stringify(repo.worktreeId ?? repo.id),
         )
         .replaceAll(
-          "__GIT_LEAF_ASSET_VERSION__",
+          "__OPENPEEK_ASSET_VERSION__",
           encodeURIComponent(context.assetVersion),
         )
         .replace(
-          "__GIT_LEAF_CAN_EDIT__",
+          "__OPENPEEK_CAN_EDIT__",
           JSON.stringify(canEditRequest(request, context)),
         )
         .replace(
-          "__GIT_LEAF_DESKTOP_PREFERENCES__",
+          "__OPENPEEK_DESKTOP_PREFERENCES__",
           JSON.stringify(context.desktopPreferences ?? null),
         )
         .replace(
-          "__GIT_LEAF_TELEMETRY_ENABLED__",
+          "__OPENPEEK_TELEMETRY_ENABLED__",
           JSON.stringify(typeof context.recordTelemetryActions === "function"),
         ),
     );
@@ -206,7 +206,7 @@ async function handleRequest(request, response, context) {
       force: requestUrl.searchParams.get("check") === "1",
     });
     sendJson(response, 200, {
-      app: "git-leaf",
+      app: "openpeek",
       repoRoot: context.repoRoot,
       initialFile: context.initialFile?.relativePath ?? "",
       toolFingerprint: toolStatus.toolFingerprint,
@@ -363,7 +363,7 @@ async function handleRequest(request, response, context) {
     try {
       if (request.method === "POST") {
         requireEditableRequest(request, context, repo);
-        const payload = await publishGitLeafShareLink({
+        const payload = await publishOpenPeekShareLink({
           repo,
           file,
           locale,
@@ -373,7 +373,7 @@ async function handleRequest(request, response, context) {
         return;
       }
       sendJson(response, 200, {
-        url: await createGitLeafShareLink({
+        url: await createOpenPeekShareLink({
           repoRoot: repo.root,
           file,
           locale,
@@ -1099,7 +1099,7 @@ function requireEditableRequest(request, context, repo) {
     return;
   }
 
-  const error = new Error("Editing is only available from the local Git Leaf app.");
+  const error = new Error("Editing is only available from the local OpenPeek app.");
   error.statusCode = 403;
   throw error;
 }
@@ -1110,7 +1110,7 @@ function requireLocalRequest(request, context) {
     return;
   }
 
-  const error = new Error("This Git Leaf action is only available from the local machine.");
+  const error = new Error("This OpenPeek action is only available from the local machine.");
   error.statusCode = 403;
   throw error;
 }
@@ -1576,10 +1576,10 @@ async function linkTargetPayload({
   locale = "en",
 }) {
   const currentDocument = await resolvePreviewPath(currentRepo.root, file);
-  const gitLeafTarget = gitLeafDocumentUrlTarget(rawTarget);
-  if (gitLeafTarget?.repo && gitLeafTarget.repo !== currentRepo.id) {
+  const openPeekTarget = openPeekDocumentUrlTarget(rawTarget);
+  if (openPeekTarget?.repo && openPeekTarget.repo !== currentRepo.id) {
     const error = new Error(localizedServerMessage(locale, "linkRepositoryUnavailable", {
-      repository: gitLeafTarget.repo,
+      repository: openPeekTarget.repo,
     }));
     error.statusCode = 404;
     throw error;
@@ -1587,13 +1587,13 @@ async function linkTargetPayload({
   const targetRepo = currentRepo;
   const targetDocument = await resolveFirstPreviewPath(
     targetRepo.root,
-    gitLeafTarget
-      ? [repoRootDocumentInput(gitLeafTarget.file, locale)]
+    openPeekTarget
+      ? [repoRootDocumentInput(openPeekTarget.file, locale)]
       : documentLinkTargetInputs(currentRepo.root, currentDocument.relativePath, rawTarget, locale),
     { locale },
   );
   const source = await readFile(targetDocument.absolutePath, "utf8");
-  const suffix = gitLeafTarget?.suffix ?? "";
+  const suffix = openPeekTarget?.suffix ?? "";
   const href = documentLinkHref(currentDocument.relativePath, targetDocument.relativePath, suffix);
   const title = extractTitle(source, targetDocument.relativePath);
   return {
@@ -1652,7 +1652,7 @@ function documentLinkTargetInputs(repoRoot, currentRelativePath, rawTarget, loca
   ];
 }
 
-function gitLeafDocumentUrlTarget(rawTarget) {
+function openPeekDocumentUrlTarget(rawTarget) {
   try {
     const url = new URL(String(rawTarget ?? "").trim());
     const file = url.searchParams.get("file") ?? "";
@@ -1726,7 +1726,7 @@ async function externalLinkTitlePayload(rawUrl) {
       signal: AbortSignal.timeout(3500),
       headers: {
         Accept: "text/html,application/xhtml+xml;q=0.9,text/plain;q=0.3,*/*;q=0.1",
-        "User-Agent": "Git Leaf/0.1 link-title",
+        "User-Agent": "OpenPeek/0.1 link-title",
       },
     });
     if (!response.ok) {

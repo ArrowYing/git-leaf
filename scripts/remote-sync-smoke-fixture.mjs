@@ -27,7 +27,7 @@ export const REMOTE_SYNC_SMOKE_MERGED_CONTENT = [
   "",
 ].join("\n");
 export const REMOTE_SYNC_SMOKE_ACCEPTANCE = [
-  "Git Leaf automatically merges the conflict-free remote update without a click.",
+  "OpenPeek automatically merges the conflict-free remote update without a click.",
   "Remote becomes up to date, the local change remains unpublished,",
   "and the open editor contains both the local draft and remote update.",
 ].join(" ");
@@ -128,7 +128,7 @@ export function cleanupRemoteSyncSmokeFixture(fixture) {
 }
 
 function configureIdentity(repoRoot, runGit) {
-  runGit(["config", "user.name", "Git Leaf Smoke"], repoRoot);
+  runGit(["config", "user.name", "OpenPeek Smoke"], repoRoot);
   runGit(["config", "user.email", "smoke@git-leaf.invalid"], repoRoot);
 }
 

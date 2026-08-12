@@ -122,7 +122,7 @@ export function generatedDetachedBranchName(head, date = new Date()) {
     .replace(/[-:]/g, "")
     .replace("T", "-")
     .replace(/\.\d{3}Z$/, "");
-  return `git-leaf/detached-${String(head || "unknown").slice(0, 7)}-${timestamp}`;
+  return `openpeek/detached-${String(head || "unknown").slice(0, 7)}-${timestamp}`;
 }
 
 function worktreeFromFields(fields) {
@@ -206,7 +206,7 @@ async function availableBranchName(repoRoot, baseName, gitRunner) {
       throw error;
     }
   }
-  throw new Error("Could not allocate a Git Leaf protection branch name.");
+  throw new Error("Could not allocate an OpenPeek protection branch name.");
 }
 
 function runGit(cwd, args) {

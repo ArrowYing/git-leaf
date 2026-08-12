@@ -1,6 +1,6 @@
-# Contributing to Git Leaf
+# Contributing to OpenPeek
 
-Thank you for helping improve Git Leaf.
+Thank you for helping improve OpenPeek.
 
 ## Before opening a change
 
@@ -13,7 +13,7 @@ For substantial behavior or UX changes, start with an issue that explains the us
 
 ## Development
 
-Git Leaf requires Node.js 22 or newer and Git.
+OpenPeek requires Node.js 22 or newer and Git.
 
 ```bash
 npm ci

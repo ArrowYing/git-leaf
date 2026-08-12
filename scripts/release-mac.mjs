@@ -22,7 +22,16 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
+  OPENPEEK_LEGACY_PROTOCOL,
+  OPENPEEK_PROTOCOL,
+} from "../src/product-identity.mjs";
+import {
+  openPeekEnvironmentFlag,
+  openPeekEnvironmentValue,
+} from "../src/environment.mjs";
+import {
   assertPathIdentitiesDoNotOverlap,
+  DEVELOPMENT_USER_DATA_ARG,
   pathIdentity,
   pathsOverlap,
 } from "../src/desktop/user-data.mjs";
@@ -51,7 +60,7 @@ const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const REPO_ROOT = path.dirname(path.dirname(SCRIPT_PATH));
 
 export const DEFAULT_RELEASE_OPTIONS = {
-  appName: "Git Leaf",
+  appName: "OpenPeek",
   arch: "universal",
   bundleId: "org.gitleaf.community",
   identity:
@@ -60,7 +69,7 @@ export const DEFAULT_RELEASE_OPTIONS = {
   version: packageVersion({ rootDir: REPO_ROOT, fallbackVersion: "0.1.1" }),
   outDir: "dist",
   applicationsDir: "/Applications",
-  iconPath: "assets/icons/git-leaf",
+  iconPath: "assets/icons/openpeek",
   entitlementsPath: "assets/entitlements.mac.plist",
   updateBaseUrl: "https://updates.mangofuture.com/git-leaf",
   updateChannel: "stable",
@@ -71,6 +80,7 @@ export const DEFAULT_RELEASE_OPTIONS = {
 };
 
 const APPLICATIONS_SHORTCUT_NAME = "Applications";
+const LEGACY_MAC_APP_NAME = "Git Leaf";
 
 export const releaseSteps = [
   "check-version",
@@ -165,8 +175,8 @@ export function electronPackagerArgs({
     "--overwrite",
     `--app-version=${version}`,
     `--app-bundle-id=${bundleId}`,
-    "--protocol=git-leaf",
-    "--protocol-name=Git Leaf Document",
+    `--protocol=${OPENPEEK_PROTOCOL}`,
+    "--protocol-name=OpenPeek Document",
     ...(iconPath ? [`--icon=${iconPath}`] : []),
     ...(electronZipDir ? [`--electron-zip-dir=${electronZipDir}`] : []),
     ...RELEASE_PACKAGE_IGNORE_PATTERNS.map((pattern) => `--ignore=${pattern}`),
@@ -250,11 +260,19 @@ export function macDevelopmentInstallPaths({
   releaseTrack = DEFAULT_RELEASE_OPTIONS.releaseTrack,
   buildId = DEFAULT_RELEASE_OPTIONS.buildId,
   applicationsDir = DEFAULT_RELEASE_OPTIONS.applicationsDir,
+  exists = existsSync,
 } = {}) {
+  const canonicalInstalledAppDir = path.join(applicationsDir, `${appName}.app`);
+  const legacyInstalledAppDir = path.join(applicationsDir, `${LEGACY_MAC_APP_NAME}.app`);
+  const installedAppDir = exists(canonicalInstalledAppDir) || !exists(legacyInstalledAppDir)
+    ? canonicalInstalledAppDir
+    : legacyInstalledAppDir;
   return {
     ...macReleasePaths({ rootDir, appName, arch, version, releaseTrack, buildId }),
     applicationsDir,
-    installedAppDir: path.join(applicationsDir, `${appName}.app`),
+    canonicalInstalledAppDir,
+    legacyInstalledAppDir,
+    installedAppDir,
   };
 }
 
@@ -882,10 +900,10 @@ function frameworkSigningTargets(appDir) {
 
 function helperAppSigningTargets(appDir) {
   return [
-    "Contents/Frameworks/Git Leaf Helper.app",
-    "Contents/Frameworks/Git Leaf Helper (Plugin).app",
-    "Contents/Frameworks/Git Leaf Helper (Renderer).app",
-    "Contents/Frameworks/Git Leaf Helper (GPU).app",
+    "Contents/Frameworks/OpenPeek Helper.app",
+    "Contents/Frameworks/OpenPeek Helper (Plugin).app",
+    "Contents/Frameworks/OpenPeek Helper (Renderer).app",
+    "Contents/Frameworks/OpenPeek Helper (GPU).app",
   ].map((target) => path.join(appDir, target));
 }
 
@@ -930,14 +948,15 @@ function releaseOptionsFromEnv() {
       || DEFAULT_RELEASE_OPTIONS.updateRemoteRoot,
     dmgLocale: detectedDmgLocale(),
     electronZipDir: process.env.ELECTRON_ZIP_DIR || undefined,
-    devUserDataDir: process.env.GIT_LEAF_DEV_USER_DATA_DIR || undefined,
-    smokeUserDataDir: process.env.GIT_LEAF_SMOKE_USER_DATA_DIR || DEFAULT_SMOKE_USER_DATA_DIR,
-    smokeRepoRoot: process.env.GIT_LEAF_SMOKE_REPO_ROOT || "",
-    smokeFile: process.env.GIT_LEAF_SMOKE_FILE || "",
-    smokeRemoteDebuggingPort: process.env.GIT_LEAF_SMOKE_REMOTE_DEBUGGING_PORT || "",
-    formalRelease: ["1", "true", "yes"].includes(
-      String(process.env.GIT_LEAF_FORMAL_RELEASE || "").trim().toLowerCase(),
-    ),
+    devUserDataDir: openPeekEnvironmentValue(process.env, "DEV_USER_DATA_DIR") || undefined,
+    smokeUserDataDir:
+      openPeekEnvironmentValue(process.env, "SMOKE_USER_DATA_DIR")
+      || DEFAULT_SMOKE_USER_DATA_DIR,
+    smokeRepoRoot: openPeekEnvironmentValue(process.env, "SMOKE_REPO_ROOT") || "",
+    smokeFile: openPeekEnvironmentValue(process.env, "SMOKE_FILE") || "",
+    smokeRemoteDebuggingPort:
+      openPeekEnvironmentValue(process.env, "SMOKE_REMOTE_DEBUGGING_PORT") || "",
+    formalRelease: openPeekEnvironmentFlag(process.env, "FORMAL_RELEASE"),
   };
 }
 
@@ -1024,7 +1043,7 @@ export function ensureReleaseSigningIdentityAccess({
     );
   }
 
-  const probeDir = mkdtempSync(path.join(temporaryRoot, "git-leaf-release-signing-"));
+  const probeDir = mkdtempSync(path.join(temporaryRoot, "openpeek-release-signing-"));
   const probePath = path.join(probeDir, "codesign-probe");
   try {
     copyFileSync(probeSource, probePath);
@@ -1091,6 +1110,7 @@ function packageMac(options) {
     rootDir: REPO_ROOT,
   });
   applyMacBundleIcon(options, macDevelopmentInstallPaths(options));
+  applyMacBundleProtocols(macDevelopmentInstallPaths(options));
   if (options.distribution === "source") {
     signMacAppAdHoc({ appDir: macReleasePaths(options).appDir });
   }
@@ -1135,26 +1155,49 @@ export function applyMacBundleIcon(options, paths) {
   touchMacAppBundle(paths.appDir);
 }
 
+export function applyMacBundleProtocols(paths) {
+  const infoPlistPath = path.join(paths.appDir, "Contents", "Info.plist");
+  requirePath(infoPlistPath);
+  const protocolRegistration = [{
+    CFBundleURLName: "OpenPeek Document",
+    CFBundleURLSchemes: [OPENPEEK_PROTOCOL, OPENPEEK_LEGACY_PROTOCOL],
+  }];
+  run("/usr/bin/plutil", [
+    "-replace",
+    "CFBundleURLTypes",
+    "-json",
+    JSON.stringify(protocolRegistration),
+    infoPlistPath,
+  ]);
+  touchMacAppBundle(paths.appDir);
+  return protocolRegistration;
+}
+
 export function touchMacAppBundle(appDir, { now = new Date() } = {}) {
   requirePath(appDir);
   utimesSync(appDir, now, now);
 }
 
 export function developmentAppQuitCommands(appName, paths) {
-  return [
+  return uniqueCommands([
     ["osascript", ["-e", `tell application "${appName}" to quit`]],
+    ["osascript", ["-e", `tell application "${LEGACY_MAC_APP_NAME}" to quit`]],
     ["pkill", ["-x", appName]],
+    ["pkill", ["-x", LEGACY_MAC_APP_NAME]],
     ["pkill", ["-f", paths.installedAppDir]],
+    ["pkill", ["-f", paths.legacyInstalledAppDir]],
     ["pkill", ["-f", paths.appDir]],
-  ];
+  ]);
 }
 
 export function developmentAppForceQuitCommands(appName, paths) {
-  return [
+  return uniqueCommands([
     ["pkill", ["-9", "-x", appName]],
+    ["pkill", ["-9", "-x", LEGACY_MAC_APP_NAME]],
     ["pkill", ["-9", "-f", paths.installedAppDir]],
+    ["pkill", ["-9", "-f", paths.legacyInstalledAppDir]],
     ["pkill", ["-9", "-f", paths.appDir]],
-  ];
+  ]);
 }
 
 function quitDevelopmentApp(options, paths) {
@@ -1201,11 +1244,13 @@ function waitForDevelopmentAppExit(appName, paths, {
 }
 
 export function developmentAppProcessQueries(appName, paths) {
-  return [
+  return uniqueValues([
     ["-x", appName],
+    ["-x", LEGACY_MAC_APP_NAME],
     ["-f", paths.installedAppDir],
+    ["-f", paths.legacyInstalledAppDir],
     ["-f", paths.appDir],
-  ];
+  ]);
 }
 
 function developmentAppIsRunning(appName, paths) {
@@ -1315,7 +1360,7 @@ export function launchDevelopmentAppCommand(paths, {
       paths.installedAppDir,
       ...(userDataDir ? [
         "--args",
-        `--git-leaf-dev-user-data-dir=${path.resolve(userDataDir)}`,
+        `${DEVELOPMENT_USER_DATA_ARG}=${path.resolve(userDataDir)}`,
       ] : []),
       ...(normalizedRemoteDebuggingPort ? [
         "--remote-debugging-address=127.0.0.1",
@@ -1325,6 +1370,16 @@ export function launchDevelopmentAppCommand(paths, {
       ...(normalizedFile ? [`--file=${normalizedFile}`] : []),
     ],
   ];
+}
+
+function uniqueCommands(commands) {
+  return commands.filter((command, index) => (
+    commands.findIndex((candidate) => JSON.stringify(candidate) === JSON.stringify(command)) === index
+  ));
+}
+
+function uniqueValues(values) {
+  return uniqueCommands(values);
 }
 
 export function codesignArgs(
@@ -1517,7 +1572,7 @@ export function stageMacUpdateMetadata(options, paths, { rootDir = REPO_ROOT } =
     buildId,
     commit: options.commit,
     builtAt: options.builtAt,
-    notes: `Git Leaf ${options.version}`,
+    notes: `OpenPeek ${options.version}`,
     artifacts,
   });
 
@@ -1546,7 +1601,7 @@ export function stageMacUpdateMetadata(options, paths, { rootDir = REPO_ROOT } =
     buildId,
     commit: options.commit,
     builtAt: options.builtAt,
-    notes: `Git Leaf ${options.version}`,
+    notes: `OpenPeek ${options.version}`,
     artifacts,
   });
   writeUpdateManifests(arm64MigrationPaths, arm64MigrationManifest);
@@ -1720,11 +1775,11 @@ Environment overrides:
   ENTITLEMENTS_PATH
   ELECTRON_VERSION
   ELECTRON_ZIP_DIR
-  GIT_LEAF_DEV_USER_DATA_DIR
-  GIT_LEAF_SMOKE_USER_DATA_DIR
-  GIT_LEAF_SMOKE_REPO_ROOT
-  GIT_LEAF_SMOKE_FILE
-  GIT_LEAF_SMOKE_REMOTE_DEBUGGING_PORT
+  OPENPEEK_DEV_USER_DATA_DIR
+  OPENPEEK_SMOKE_USER_DATA_DIR
+  OPENPEEK_SMOKE_REPO_ROOT
+  OPENPEEK_SMOKE_FILE
+  OPENPEEK_SMOKE_REMOTE_DEBUGGING_PORT
   UPDATE_BASE_URL
   UPDATE_CHANNEL
   UPDATE_REMOTE_HOST

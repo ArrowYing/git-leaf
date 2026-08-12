@@ -27,8 +27,8 @@ try {
       cwd: REPO_ROOT,
       env: {
         ...process.env,
-        GIT_LEAF_SMOKE_REPO_ROOT: fixture.repoRoot,
-        GIT_LEAF_SMOKE_FILE: fixture.file,
+        OPENPEEK_SMOKE_REPO_ROOT: fixture.repoRoot,
+        OPENPEEK_SMOKE_FILE: fixture.file,
       },
       stdio: "inherit",
     },

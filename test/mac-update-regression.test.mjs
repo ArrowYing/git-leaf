@@ -86,7 +86,7 @@ test("mac update regression refuses conflicting local updater state before launc
       userShipItJobExists: true,
       systemShipItJobExists: false,
     }),
-    /Refusing to start.*conflicting local state[\s\S]*installed Git Leaf App is running[\s\S]*ShipIt/,
+    /Refusing to start.*conflicting local state[\s\S]*installed OpenPeek App is running[\s\S]*ShipIt/,
   );
   assert.doesNotThrow(() => assertSafeMacUpdateRegressionHost({
     platform: "darwin",
@@ -152,8 +152,8 @@ test("mac update regression validates candidate identity and ZIP contract", () =
     commit: "0123456789ab",
     files: {
       zip: {
-        name: "GitLeaf-1.12.1-internal-darwin-universal.zip",
-        url: "https://updates.example.test/GitLeaf.zip",
+        name: "OpenPeek-1.12.1-internal-darwin-universal.zip",
+        url: "https://updates.example.test/OpenPeek.zip",
         sha256: "a".repeat(64),
         size: 1024,
       },
@@ -186,8 +186,8 @@ test("mac update regression accepts only the exact internal 1.11.3 public stable
     commit: "9a7baa0cb6d3",
     files: {
       zip: {
-        name: "GitLeaf-1.11.3-internal-darwin-universal.zip",
-        url: "https://updates.example.test/GitLeaf-1.11.3.zip",
+        name: "OpenPeek-1.11.3-internal-darwin-universal.zip",
+        url: "https://updates.example.test/OpenPeek-1.11.3.zip",
         sha256: "b".repeat(64),
         size: 2048,
       },

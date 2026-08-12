@@ -3,23 +3,23 @@ import http from "node:http";
 import test from "node:test";
 
 import {
-  findReusableGitLeafUrl,
-  gitLeafCommandLineLooksLikeGitLeaf,
+  findReusableOpenPeekUrl,
+  openPeekCommandLineLooksLikeOpenPeek,
   processCommandLineCommand,
-  registeredGitLeafProcessOnPort,
-  reusableGitLeafUrl,
-  stopRegisteredGitLeafProcessOnPort,
+  registeredOpenPeekProcessOnPort,
+  reusableOpenPeekUrl,
+  stopRegisteredOpenPeekProcessOnPort,
   tcpPortOwnerCommand,
   windowsNetstatShowsPidListeningOnPort,
 } from "../src/cli.mjs";
 
-test("reusableGitLeafUrl returns the localhost workbench URL for the same repository", async () => {
+test("reusableOpenPeekUrl returns the localhost workbench URL for the same repository", async () => {
   const server = healthServer({ repoRoot: "/repo/a" });
   const port = await listen(server);
 
   try {
     assert.equal(
-      await reusableGitLeafUrl({
+      await reusableOpenPeekUrl({
         repoRoot: "/repo/a",
         port,
         relativePath: "",
@@ -37,13 +37,29 @@ test("reusableGitLeafUrl returns the localhost workbench URL for the same reposi
   }
 });
 
-test("reusableGitLeafUrl opens a requested document on an existing server", async () => {
+test("reusableOpenPeekUrl accepts a healthy Git Leaf 1.x server for the same repository", async () => {
+  const server = healthServer({ app: "git-leaf", repoRoot: "/repo/a" });
+  const port = await listen(server);
+
+  try {
+    assert.equal(await reusableOpenPeekUrl({
+      repoRoot: "/repo/a",
+      port,
+      relativePath: "README.md",
+      readRecord: async () => ({ app: "git-leaf", repoRoot: "/repo/a", port }),
+    }), `http://127.0.0.1:${port}/?file=README.md`);
+  } finally {
+    await close(server);
+  }
+});
+
+test("reusableOpenPeekUrl opens a requested document on an existing server", async () => {
   const server = healthServer({ repoRoot: "/repo/a" });
   const port = await listen(server);
 
   try {
     assert.equal(
-      await reusableGitLeafUrl({
+      await reusableOpenPeekUrl({
         repoRoot: "/repo/a",
         port,
         relativePath: "docs/repo structure.md",
@@ -55,13 +71,13 @@ test("reusableGitLeafUrl opens a requested document on an existing server", asyn
   }
 });
 
-test("reusableGitLeafUrl ignores a Git Leaf server for another repository", async () => {
+test("reusableOpenPeekUrl ignores an OpenPeek server for another repository", async () => {
   const server = healthServer({ repoRoot: "/repo/b" });
   const port = await listen(server);
 
   try {
     assert.equal(
-      await reusableGitLeafUrl({
+      await reusableOpenPeekUrl({
         repoRoot: "/repo/a",
         port,
         relativePath: "README.md",
@@ -73,7 +89,7 @@ test("reusableGitLeafUrl ignores a Git Leaf server for another repository", asyn
   }
 });
 
-test("reusableGitLeafUrl requests a soft restart for a stale same-repository server", async () => {
+test("reusableOpenPeekUrl requests a soft restart for a stale same-repository server", async () => {
   let restartRequested = false;
   let stale = true;
   const server = http.createServer((request, response) => {
@@ -103,7 +119,7 @@ test("reusableGitLeafUrl requests a soft restart for a stale same-repository ser
 
   try {
     assert.equal(
-      await reusableGitLeafUrl({
+      await reusableOpenPeekUrl({
         repoRoot: "/repo/a",
         port,
         relativePath: "README.md",
@@ -116,7 +132,7 @@ test("reusableGitLeafUrl requests a soft restart for a stale same-repository ser
   }
 });
 
-test("reusableGitLeafUrl ignores old Git Leaf servers without tool fingerprints", async () => {
+test("reusableOpenPeekUrl ignores old OpenPeek servers without tool fingerprints", async () => {
   const server = healthServer({
     repoRoot: "/repo/a",
     toolFingerprint: undefined,
@@ -126,7 +142,7 @@ test("reusableGitLeafUrl ignores old Git Leaf servers without tool fingerprints"
 
   try {
     assert.equal(
-      await reusableGitLeafUrl({
+      await reusableOpenPeekUrl({
         repoRoot: "/repo/a",
         port,
         relativePath: "",
@@ -138,7 +154,7 @@ test("reusableGitLeafUrl ignores old Git Leaf servers without tool fingerprints"
   }
 });
 
-test("findReusableGitLeafUrl moves a fallback server back to the primary port when it is free", async () => {
+test("findReusableOpenPeekUrl moves a fallback server back to the primary port when it is free", async () => {
   const { primaryPort, fallbackPort } = await freePortPair();
   let restartRequested = false;
   let primaryServer = null;
@@ -177,7 +193,7 @@ test("findReusableGitLeafUrl moves a fallback server back to the primary port wh
 
   try {
     assert.equal(
-      await findReusableGitLeafUrl({
+      await findReusableOpenPeekUrl({
         repoRoot: "/repo/a",
         port: primaryPort,
         relativePath: "README.md",
@@ -193,7 +209,7 @@ test("findReusableGitLeafUrl moves a fallback server back to the primary port wh
   }
 });
 
-test("findReusableGitLeafUrl reuses a fallback port only when the primary port is busy", async () => {
+test("findReusableOpenPeekUrl reuses a fallback port only when the primary port is busy", async () => {
   const { primaryPort, fallbackPort } = await freePortPair();
   const blocker = http.createServer((_request, response) => {
     response.writeHead(404);
@@ -205,7 +221,7 @@ test("findReusableGitLeafUrl reuses a fallback port only when the primary port i
 
   try {
     assert.equal(
-      await findReusableGitLeafUrl({
+      await findReusableOpenPeekUrl({
         repoRoot: "/repo/a",
         port: primaryPort,
         relativePath: "README.md",
@@ -218,7 +234,7 @@ test("findReusableGitLeafUrl reuses a fallback port only when the primary port i
   }
 });
 
-test("reusableGitLeafUrl accepts stale restart when the fingerprint stays current", async () => {
+test("reusableOpenPeekUrl accepts stale restart when the fingerprint stays current", async () => {
   let restartRequested = false;
   let stale = true;
   const server = http.createServer((request, response) => {
@@ -248,7 +264,7 @@ test("reusableGitLeafUrl accepts stale restart when the fingerprint stays curren
 
   try {
     assert.equal(
-      await reusableGitLeafUrl({
+      await reusableOpenPeekUrl({
         repoRoot: "/repo/a",
         port,
         relativePath: "README.md",
@@ -261,30 +277,30 @@ test("reusableGitLeafUrl accepts stale restart when the fingerprint stays curren
   }
 });
 
-test("registeredGitLeafProcessOnPort confirms repo, port, pid, socket, and command", async () => {
-  const record = await registeredGitLeafProcessOnPort({
+test("registeredOpenPeekProcessOnPort confirms repo, port, pid, socket, and command", async () => {
+  const record = await registeredOpenPeekProcessOnPort({
     repoRoot: "/repo/a",
     port: 4317,
     readRecord: async () => ({
-      app: "git-leaf",
+      app: "openpeek",
       repoRoot: "/repo/a",
       port: 4317,
       pid: 1234,
     }),
     isProcessAlive: async (pid) => pid === 1234,
     pidOwnsPort: async (pid, port) => pid === 1234 && port === 4317,
-    isGitLeafProcess: async (pid) => pid === 1234,
+    isOpenPeekProcess: async (pid) => pid === 1234,
   });
 
   assert.deepEqual(record, {
-    app: "git-leaf",
+    app: "openpeek",
     repoRoot: "/repo/a",
     port: 4317,
     pid: 1234,
   });
 });
 
-test("registeredGitLeafProcessOnPort rejects stale records and unrelated processes", async () => {
+test("registeredOpenPeekProcessOnPort rejects stale records and unrelated processes", async () => {
   const base = {
     app: "git-leaf",
     repoRoot: "/repo/a",
@@ -296,37 +312,37 @@ test("registeredGitLeafProcessOnPort rejects stale records and unrelated process
     port: 4317,
     isProcessAlive: async () => true,
     pidOwnsPort: async () => true,
-    isGitLeafProcess: async () => true,
+    isOpenPeekProcess: async () => true,
   };
 
-  assert.equal(await registeredGitLeafProcessOnPort({
+  assert.equal(await registeredOpenPeekProcessOnPort({
     ...defaults,
     readRecord: async () => ({ ...base, repoRoot: "/repo/b" }),
   }), null);
-  assert.equal(await registeredGitLeafProcessOnPort({
+  assert.equal(await registeredOpenPeekProcessOnPort({
     ...defaults,
     readRecord: async () => ({ ...base, port: 4318 }),
   }), null);
-  assert.equal(await registeredGitLeafProcessOnPort({
+  assert.equal(await registeredOpenPeekProcessOnPort({
     ...defaults,
     readRecord: async () => base,
     isProcessAlive: async () => false,
   }), null);
-  assert.equal(await registeredGitLeafProcessOnPort({
+  assert.equal(await registeredOpenPeekProcessOnPort({
     ...defaults,
     readRecord: async () => base,
     pidOwnsPort: async () => false,
   }), null);
-  assert.equal(await registeredGitLeafProcessOnPort({
+  assert.equal(await registeredOpenPeekProcessOnPort({
     ...defaults,
     readRecord: async () => base,
-    isGitLeafProcess: async () => false,
+    isOpenPeekProcess: async () => false,
   }), null);
 });
 
-test("stopRegisteredGitLeafProcessOnPort stops only a confirmed registered Git Leaf process", async () => {
+test("stopRegisteredOpenPeekProcessOnPort stops only a confirmed registered OpenPeek process", async () => {
   const stopped = [];
-  const result = await stopRegisteredGitLeafProcessOnPort({
+  const result = await stopRegisteredOpenPeekProcessOnPort({
     repoRoot: "/repo/a",
     port: 4317,
     host: "127.0.0.1",
@@ -338,7 +354,7 @@ test("stopRegisteredGitLeafProcessOnPort stops only a confirmed registered Git L
     }),
     isProcessAlive: async () => true,
     pidOwnsPort: async () => true,
-    isGitLeafProcess: async () => true,
+    isOpenPeekProcess: async () => true,
     stopProcess: async (pid, signal) => {
       stopped.push([pid, signal]);
     },
@@ -365,7 +381,7 @@ test("windows CLI process probes avoid Unix-only lsof and ps commands", () => {
   });
 });
 
-test("windows netstat listener output confirms the matching Git Leaf process", () => {
+test("windows netstat listener output confirms the matching OpenPeek process", () => {
   const output = [
     "  Proto  Local Address          Foreign Address        State           PID",
     "  TCP    127.0.0.1:4317         0.0.0.0:0              LISTENING       1234",
@@ -378,15 +394,15 @@ test("windows netstat listener output confirms the matching Git Leaf process", (
   assert.equal(windowsNetstatShowsPidListeningOnPort(output, 1234, 14317), false);
 });
 
-test("Git Leaf command detection accepts Windows paths", () => {
+test("OpenPeek command detection accepts Windows paths", () => {
   assert.equal(
-    gitLeafCommandLineLooksLikeGitLeaf(
+    openPeekCommandLineLooksLikeOpenPeek(
       'C:\\Program Files\\nodejs\\node.exe C:\\Users\\ops\\git-leaf\\src\\cli.mjs --no-open',
     ),
     true,
   );
   assert.equal(
-    gitLeafCommandLineLooksLikeGitLeaf("C:\\Program Files\\nodejs\\node.exe C:\\tools\\other.mjs"),
+    openPeekCommandLineLooksLikeOpenPeek("C:\\Program Files\\nodejs\\node.exe C:\\tools\\other.mjs"),
     false,
   );
 });
@@ -396,7 +412,7 @@ function healthServer(payload) {
     if (request.url?.startsWith("/api/health")) {
       response.writeHead(200, { "Content-Type": "application/json" });
       response.end(JSON.stringify({
-        app: "git-leaf",
+        app: "openpeek",
         toolFingerprint: "abc123",
         stale: false,
         ...payload,
@@ -427,7 +443,7 @@ async function freePortPair() {
       return { primaryPort, fallbackPort };
     }
   }
-  throw new Error("Unable to find adjacent free ports for Git Leaf CLI test");
+  throw new Error("Unable to find adjacent free ports for OpenPeek CLI test");
 }
 
 async function randomFreePort() {

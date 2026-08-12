@@ -2,15 +2,15 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-  GIT_LEAF_HELP_SECTIONS,
+  OPENPEEK_HELP_SECTIONS,
   FILE_TYPE_HELP_ROWS,
   getFileTypeHelpRows,
-  getGitLeafHelpSections,
-  gitLeafHelpPlainText,
+  getOpenPeekHelpSections,
+  openPeekHelpPlainText,
 } from "../public/help-content.js";
 
-test("Git Leaf help explains stable filtering and all repository files", () => {
-  const text = gitLeafHelpPlainText();
+test("OpenPeek help explains stable filtering and all repository files", () => {
+  const text = openPeekHelpPlainText();
 
   assert.match(text, /docs\/frontmatter-rules\.json/);
   assert.match(text, /筛选按钮/);
@@ -44,9 +44,9 @@ test("Git Leaf help explains stable filtering and all repository files", () => {
   assert.match(text, /基础使用统计/);
   assert.match(text, /不会发送仓库名、仓库路径/);
   assert.match(text, /设备名称只出现在低频安装观察日志/);
-  assert.equal(GIT_LEAF_HELP_SECTIONS.length, 6);
+  assert.equal(OPENPEEK_HELP_SECTIONS.length, 6);
   assert.deepEqual(
-    GIT_LEAF_HELP_SECTIONS.map((section) => section.id),
+    OPENPEEK_HELP_SECTIONS.map((section) => section.id),
     ["repository-files", "filters", "worktrees", "sync", "sharing", "telemetry"],
   );
   assert.deepEqual(
@@ -81,14 +81,14 @@ test("Git Leaf help explains stable filtering and all repository files", () => {
   );
 });
 
-test("Git Leaf help is available in English and Simplified Chinese", () => {
-  const english = gitLeafHelpPlainText("en");
-  const chinese = gitLeafHelpPlainText("zh-CN");
+test("OpenPeek help is available in English and Simplified Chinese", () => {
+  const english = openPeekHelpPlainText("en");
+  const chinese = openPeekHelpPlainText("zh-CN");
 
   assert.match(english, /Repository files/);
   assert.match(english, /Share documents/);
   assert.match(english, /Basic usage analytics/);
   assert.match(chinese, /仓库文件/);
-  assert.equal(getGitLeafHelpSections("en").length, getGitLeafHelpSections("zh-CN").length);
+  assert.equal(getOpenPeekHelpSections("en").length, getOpenPeekHelpSections("zh-CN").length);
   assert.equal(getFileTypeHelpRows("en")[0].visibility, "Shown by default");
 });

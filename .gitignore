@@ -8,6 +8,7 @@ npm-debug.log*
 .env
 .env.*
 !.env.example
+openpeek-release-profile*.json
 git-leaf-release-profile*.json
 *.pem
 *.key

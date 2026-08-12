@@ -14,6 +14,8 @@ import {
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { OPENPEEK_PROTOCOL } from "../src/product-identity.mjs";
+import { openPeekEnvironmentFlag } from "../src/environment.mjs";
 import { buildUpdateManifest, updateArtifactRemotePath, updateMetadataRelativeDir } from "./update-publish.mjs";
 import {
   assertOfficialReleaseProfile,
@@ -36,9 +38,9 @@ const REPO_ROOT = path.dirname(path.dirname(SCRIPT_PATH));
 export const DEFAULT_ELECTRON_MIRROR = "https://npmmirror.com/mirrors/electron/";
 
 export const DEFAULT_WINDOWS_RELEASE_OPTIONS = {
-  appName: "Git Leaf",
-  companyName: "Git Leaf Community",
-  productName: "Git Leaf Community Build",
+  appName: "OpenPeek",
+  companyName: "OpenPeek Community",
+  productName: "OpenPeek Community Build",
   version: packageVersion({ rootDir: REPO_ROOT, fallbackVersion: "0.1.1" }),
   outDir: "dist",
   updateBaseUrl: "https://updates.mangofuture.com/git-leaf",
@@ -90,8 +92,8 @@ export function windowsElectronPackagerArgs({
     "--overwrite",
     `--app-version=${version}`,
     `--executable-name=${appName}`,
-    "--protocol=git-leaf",
-    "--protocol-name=Git Leaf Document",
+    `--protocol=${OPENPEEK_PROTOCOL}`,
+    "--protocol-name=OpenPeek Document",
     `--win32metadata.CompanyName=${companyName}`,
     `--win32metadata.FileDescription=${productName}`,
     `--win32metadata.ProductName=${productName}`,
@@ -114,6 +116,7 @@ export function windowsReleasePaths({
     distDir,
     appRoot,
     exePath: path.join(appRoot, `${appName}.exe`),
+    legacyExePath: path.join(appRoot, "Git Leaf.exe"),
     zipPath: path.join(
       distDir,
       releaseArtifactFileName({
@@ -177,9 +180,7 @@ function windowsReleaseOptionsFromEnv() {
       process.env.UPDATE_REMOTE_ROOT
       || profile.updateRemoteRoot
       || DEFAULT_WINDOWS_RELEASE_OPTIONS.updateRemoteRoot,
-    formalRelease: ["1", "true", "yes"].includes(
-      String(process.env.GIT_LEAF_FORMAL_RELEASE || "").trim().toLowerCase(),
-    ),
+    formalRelease: openPeekEnvironmentFlag(process.env, "FORMAL_RELEASE"),
   };
 }
 
@@ -209,6 +210,9 @@ function packageWindows(options) {
   withReleaseBuildInfoFile({ rootDir: REPO_ROOT, buildInfo: options }, () => {
     run(packager.command, [...packager.args, ...windowsElectronPackagerArgs(options)]);
   });
+  const paths = windowsReleasePaths(options);
+  requirePath(paths.exePath);
+  copyFileSync(paths.exePath, paths.legacyExePath);
 }
 
 function createWindowsZip(options) {
@@ -263,6 +267,7 @@ function verifyWindowsPackage(options) {
   const paths = windowsReleasePaths(options);
   requirePath(paths.appRoot);
   requirePath(paths.exePath);
+  requirePath(paths.legacyExePath);
   requirePath(paths.zipPath);
 }
 

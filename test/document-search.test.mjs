@@ -7,7 +7,7 @@ import {
 } from "../public/document-search.js";
 
 test("document search finds literal text case-insensitively", () => {
-  assert.deepEqual(findTextMatches("Git Leaf git leaf GIT LEAF", "git leaf"), [
+  assert.deepEqual(findTextMatches("OpenPeek openpeek OPENPEEK", "openpeek"), [
     { from: 0, to: 8 },
     { from: 9, to: 17 },
     { from: 18, to: 26 },

@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import vm from "node:vm";
 
-test("gitleaf update server serves universal and ARM migration Squirrel.Mac feeds", async () => {
+test("OpenPeek update server serves universal and ARM migration Squirrel.Mac feeds", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "gitleaf-updates-"));
   const artifactUrl = "https://updates.mangofuture.com/git-leaf/stable/darwin-universal/Git%20Leaf.zip";
   for (const platformKey of ["darwin-universal", "darwin-arm64"]) {
@@ -17,7 +17,7 @@ test("gitleaf update server serves universal and ARM migration Squirrel.Mac feed
       version: "0.1.2",
       autoUpdater: {
         url: artifactUrl,
-        name: "Git Leaf 0.1.2",
+        name: "OpenPeek 0.1.2",
         notes: "Release update",
         pub_date: "2026-07-06T07:00:00.000Z",
       },
@@ -25,7 +25,7 @@ test("gitleaf update server serves universal and ARM migration Squirrel.Mac feed
   }
 
   const server = spawn("python3", [
-    "scripts/gitleaf-update-server.py",
+    "scripts/openpeek-update-server.py",
     "--root",
     root,
     "--bind",
@@ -44,7 +44,7 @@ test("gitleaf update server serves universal and ARM migration Squirrel.Mac feed
       assert.equal(newer.status, 200);
       assert.deepEqual(await newer.json(), {
         url: artifactUrl,
-        name: "Git Leaf 0.1.2",
+        name: "OpenPeek 0.1.2",
         notes: "Release update",
         pub_date: "2026-07-06T07:00:00.000Z",
       });
@@ -61,7 +61,7 @@ test("gitleaf update server serves universal and ARM migration Squirrel.Mac feed
   }
 });
 
-test("gitleaf update server appends validated telemetry batches as JSONL", async () => {
+test("OpenPeek update server appends validated telemetry batches as JSONL", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "gitleaf-telemetry-server-"));
   const telemetryRoot = path.join(root, "telemetry");
   const archiveDate = shiftedUtcDate(-8);
@@ -79,7 +79,7 @@ test("gitleaf update server appends validated telemetry batches as JSONL", async
   await writeFile(downloadArchivePath, "{\"old_download\":true}\n");
   await writeFile(downloadExpiredPath, "{\"expired_download\":true}\n");
   const server = spawn("python3", [
-    "scripts/gitleaf-update-server.py",
+    "scripts/openpeek-update-server.py",
     "--root",
     root,
     "--telemetry-root",
@@ -132,11 +132,11 @@ test("gitleaf update server appends validated telemetry batches as JSONL", async
   }
 });
 
-test("gitleaf update server rejects telemetry with private or unknown fields", async () => {
+test("OpenPeek update server rejects telemetry with private or unknown fields", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "gitleaf-telemetry-invalid-"));
   const telemetryRoot = path.join(root, "telemetry");
   const server = spawn("python3", [
-    "scripts/gitleaf-update-server.py",
+    "scripts/openpeek-update-server.py",
     "--root",
     root,
     "--telemetry-root",
@@ -195,11 +195,11 @@ test("gitleaf update server rejects telemetry with private or unknown fields", a
   }
 });
 
-test("gitleaf update server enforces versioned update-state contracts without rejecting queued legacy events", async () => {
+test("OpenPeek update server enforces versioned update-state contracts without rejecting queued legacy events", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "gitleaf-telemetry-update-contract-"));
   const telemetryRoot = path.join(root, "telemetry");
   const server = spawn("python3", [
-    "scripts/gitleaf-update-server.py",
+    "scripts/openpeek-update-server.py",
     "--root",
     root,
     "--telemetry-root",
@@ -321,11 +321,11 @@ test("gitleaf update server enforces versioned update-state contracts without re
   }
 });
 
-test("gitleaf update server validates real zoned timestamps and their local dates", async () => {
+test("OpenPeek update server validates real zoned timestamps and their local dates", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "gitleaf-telemetry-date-contract-"));
   const telemetryRoot = path.join(root, "telemetry");
   const server = spawn("python3", [
-    "scripts/gitleaf-update-server.py",
+    "scripts/openpeek-update-server.py",
     "--root",
     root,
     "--telemetry-root",
@@ -365,11 +365,11 @@ test("gitleaf update server validates real zoned timestamps and their local date
   }
 });
 
-test("gitleaf update server accepts legacy daily summaries and binds explicit summary dates to install ids", async () => {
+test("OpenPeek update server accepts legacy daily summaries and binds explicit summary dates to install ids", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "gitleaf-telemetry-summary-date-"));
   const telemetryRoot = path.join(root, "telemetry");
   const server = spawn("python3", [
-    "scripts/gitleaf-update-server.py",
+    "scripts/openpeek-update-server.py",
     "--root",
     root,
     "--telemetry-root",
@@ -447,10 +447,10 @@ test("gitleaf update server accepts legacy daily summaries and binds explicit su
   }
 });
 
-test("gitleaf update server launches the app without binding to a repository", async () => {
+test("OpenPeek update server launches the app without binding to a repository", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "gitleaf-open-app-"));
   const server = spawn("python3", [
-    "scripts/gitleaf-update-server.py",
+    "scripts/openpeek-update-server.py",
     "--root",
     root,
     "--bind",
@@ -467,7 +467,7 @@ test("gitleaf update server launches the app without binding to a repository", a
     const html = await response.text();
 
     assert.equal(response.status, 200);
-    assert.match(html, /git-leaf:\/\/open/);
+    assert.match(html, /openpeek:\/\/open/);
     assert.doesNotMatch(html, /repo=/);
     assert.match(html, /handoff=[A-Za-z0-9_-]+/);
     assert.match(html, /只启动或聚焦应用，不会切换当前仓库或文档/);
@@ -477,7 +477,7 @@ test("gitleaf update server launches the app without binding to a repository", a
   }
 });
 
-test("gitleaf download page renders validated public macOS and Windows releases in both languages", async () => {
+test("OpenPeek download page renders validated public macOS and Windows releases in both languages", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "gitleaf-public-downloads-"));
   const macDir = path.join(root, "git-leaf", "stable", "darwin-universal");
   const windowsDir = path.join(root, "git-leaf", "stable", "win32-x64");
@@ -485,8 +485,8 @@ test("gitleaf download page renders validated public macOS and Windows releases 
   await mkdir(windowsDir, { recursive: true });
   const macArtifact = "mac package";
   const windowsArtifact = "windows package";
-  await writeFile(path.join(macDir, "GitLeaf-1.4.0.dmg"), macArtifact);
-  await writeFile(path.join(windowsDir, "GitLeaf-1.4.0.zip"), windowsArtifact);
+  await writeFile(path.join(macDir, "OpenPeek-1.4.0.dmg"), macArtifact);
+  await writeFile(path.join(windowsDir, "OpenPeek-1.4.0.zip"), windowsArtifact);
   await writeFile(path.join(macDir, "latest.json"), JSON.stringify({
     version: "1.4.0",
     releaseTrack: "public",
@@ -494,12 +494,12 @@ test("gitleaf download page renders validated public macOS and Windows releases 
     platform: "darwin-universal",
     files: {
       dmg: {
-        url: "https://updates.mangofuture.com/git-leaf/stable/darwin-universal/GitLeaf-1.4.0.dmg",
+        url: "https://updates.mangofuture.com/git-leaf/stable/darwin-universal/OpenPeek-1.4.0.dmg",
         sha256: "a".repeat(64),
         size: Buffer.byteLength(macArtifact),
       },
       zip: {
-        url: "https://updates.mangofuture.com/git-leaf/stable/darwin-universal/GitLeaf-1.4.0.zip",
+        url: "https://updates.mangofuture.com/git-leaf/stable/darwin-universal/OpenPeek-1.4.0.zip",
         sha256: "b".repeat(64),
         size: 10485760,
       },
@@ -512,7 +512,7 @@ test("gitleaf download page renders validated public macOS and Windows releases 
     platform: "win32-x64",
     files: {
       zip: {
-        url: "https://updates.mangofuture.com/git-leaf/stable/win32-x64/GitLeaf-1.4.0.zip",
+        url: "https://updates.mangofuture.com/git-leaf/stable/win32-x64/OpenPeek-1.4.0.zip",
         sha256: "c".repeat(64),
         size: Buffer.byteLength(windowsArtifact),
       },
@@ -520,7 +520,7 @@ test("gitleaf download page renders validated public macOS and Windows releases 
   }));
 
   const server = spawn("python3", [
-    "scripts/gitleaf-update-server.py",
+    "scripts/openpeek-update-server.py",
     "--root",
     root,
     "--bind",
@@ -546,20 +546,20 @@ test("gitleaf download page renders validated public macOS and Windows releases 
     assert.doesNotMatch(response.headers.get("content-security-policy"), /script-src/);
     assert.match(english, /A desktop interface for Git repositories used as shared context by teams and AI agents\./);
     assert.match(english, /One repository for agents\. A familiar interface for people\./);
-    assert.match(english, /AI agents work directly in Git\. People use Git Leaf to read, inspect, and make focused edits\./);
+    assert.match(english, /AI agents work directly in Git\. People use OpenPeek to read, inspect, and make focused edits\./);
     assert.match(english, /Developer ID signed and Apple notarized/);
     assert.match(english, /Unsigned Preview/);
     assert.match(
       english,
-      /href="https:\/\/updates\.mangofuture\.com\/git-leaf\/stable\/darwin-universal\/GitLeaf-1\.4\.0\.dmg\?source=download-page"[^>]*>Download for macOS 1\.4\.0</,
+      /href="https:\/\/updates\.mangofuture\.com\/git-leaf\/stable\/darwin-universal\/OpenPeek-1\.4\.0\.dmg\?source=download-page"[^>]*>Download for macOS 1\.4\.0</,
     );
     assert.match(
       english,
-      /href="https:\/\/updates\.mangofuture\.com\/git-leaf\/stable\/win32-x64\/GitLeaf-1\.4\.0\.zip\?source=download-page"[^>]*>Download Windows Preview 1\.4\.0</,
+      /href="https:\/\/updates\.mangofuture\.com\/git-leaf\/stable\/win32-x64\/OpenPeek-1\.4\.0\.zip\?source=download-page"[^>]*>Download Windows Preview 1\.4\.0</,
     );
     assert.match(english, new RegExp("a{64}"));
     assert.match(english, new RegExp("c{64}"));
-    assert.doesNotMatch(english, /git-leaf:\/\//);
+    assert.doesNotMatch(english, /(?:openpeek|git-leaf):\/\//);
     assert.doesNotMatch(english, /<script/i);
 
     const chineseResponse = await fetch(`http://127.0.0.1:${port}/download?lang=zh-CN`, {
@@ -569,7 +569,7 @@ test("gitleaf download page renders validated public macOS and Windows releases 
     assert.equal(chineseResponse.headers.get("content-language"), "zh-CN");
     assert.match(chinese, /面向团队与 AI Agent 共享上下文仓库的桌面应用。/);
     assert.match(chinese, /一个供 Agent 直接工作的仓库，一个供人使用的熟悉界面。/);
-    assert.match(chinese, /AI Agent 直接使用 Git 仓库；人通过 Git Leaf 阅读、检查并做范围明确的小修改。/);
+    assert.match(chinese, /AI Agent 直接使用 Git 仓库；人通过 OpenPeek 阅读、检查并做范围明确的小修改。/);
     assert.match(chinese, /Windows 会显示未知发布者警告/);
 
     const head = await fetch(`http://127.0.0.1:${port}/download`, {
@@ -581,20 +581,20 @@ test("gitleaf download page renders validated public macOS and Windows releases 
     assert.equal(await head.text(), "");
 
     const openPage = await (await fetch(`http://127.0.0.1:${port}/open`)).text();
-    assert.match(openPage, /git-leaf:\/\/open/);
+    assert.match(openPage, /openpeek:\/\/open/);
     assert.doesNotMatch(openPage, /source=download-page|Download for macOS|下载 macOS/);
 
     const sharePage = await (await fetch(
       `http://127.0.0.1:${port}/share?v=1&repo=ExampleOrg%2Fknowledge&path=README.md&rev=${"1".repeat(40)}`,
     )).text();
-    assert.match(sharePage, /git-leaf:\/\/open-shared/);
+    assert.match(sharePage, /openpeek:\/\/open-shared/);
     assert.doesNotMatch(sharePage, /source=download-page|Download for macOS|下载 macOS/);
   } finally {
     server.kill("SIGTERM");
   }
 });
 
-test("gitleaf download page rejects legacy, internal, and malformed public manifests", async () => {
+test("OpenPeek download page rejects legacy, internal, and malformed public manifests", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "gitleaf-download-internal-hidden-"));
   for (const [platform, releaseTrack, artifact, extension] of [
     ["darwin-universal", "internal", "dmg", "dmg"],
@@ -610,7 +610,7 @@ test("gitleaf download page rejects legacy, internal, and malformed public manif
       platform,
       files: {
         [artifact]: {
-          url: `https://updates.mangofuture.com/git-leaf/stable/${platform}/GitLeaf-1.11.3-internal-${platform}.${extension}`,
+          url: `https://updates.mangofuture.com/git-leaf/stable/${platform}/OpenPeek-1.11.3-internal-${platform}.${extension}`,
           sha256: releaseTrack === "public" ? "not-a-sha256" : "d".repeat(64),
           size: 1024,
         },
@@ -619,7 +619,7 @@ test("gitleaf download page rejects legacy, internal, and malformed public manif
   }
 
   const server = spawn("python3", [
-    "scripts/gitleaf-update-server.py",
+    "scripts/openpeek-update-server.py",
     "--root",
     root,
     "--bind",
@@ -639,7 +639,7 @@ test("gitleaf download page rejects legacy, internal, and malformed public manif
     assert.match(html, /Public builds are not available yet/);
     assert.match(html, /internal distributions are never shown here/);
     assert.match(html, /View source and run instructions/);
-    assert.doesNotMatch(html, /GitLeaf-1\.11\.3-internal/);
+    assert.doesNotMatch(html, /OpenPeek-1\.11\.3-internal/);
     assert.doesNotMatch(html, /Download for macOS 1\.11\.3/);
     assert.doesNotMatch(html, /Download Windows Preview 1\.11\.3/);
     assert.doesNotMatch(html, /internal-stable/);
@@ -648,11 +648,11 @@ test("gitleaf download page rejects legacy, internal, and malformed public manif
   }
 });
 
-test("gitleaf update server logs completed public download-page artifacts without request identity", async () => {
+test("OpenPeek update server logs completed public download-page artifacts without request identity", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "gitleaf-download-log-"));
   const telemetryRoot = path.join(root, "telemetry");
   const platformDir = path.join(root, "git-leaf", "stable", "darwin-universal");
-  const artifactName = "GitLeaf-1.4.0-darwin-universal.dmg";
+  const artifactName = "OpenPeek-1.4.0-darwin-universal.dmg";
   const artifactPath = path.join(platformDir, artifactName);
   const manifestPath = path.join(platformDir, "latest.json");
   const manifest = {
@@ -672,7 +672,7 @@ test("gitleaf update server logs completed public download-page artifacts withou
   await writeFile(artifactPath, "distribution package");
   await writeFile(manifestPath, JSON.stringify(manifest));
   const server = spawn("python3", [
-    "scripts/gitleaf-update-server.py",
+    "scripts/openpeek-update-server.py",
     "--root",
     root,
     "--telemetry-root",
@@ -724,12 +724,12 @@ test("gitleaf update server logs completed public download-page artifacts withou
   }
 });
 
-test("gitleaf download page falls back to the last ARM release before the first universal release", async () => {
+test("OpenPeek download page falls back to the last ARM release before the first universal release", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "gitleaf-download-arm-fallback-"));
   const macDir = path.join(root, "git-leaf", "stable", "darwin-arm64");
   await mkdir(macDir, { recursive: true });
   const armArtifact = "arm package";
-  await writeFile(path.join(macDir, "GitLeaf-1.8.1.dmg"), armArtifact);
+  await writeFile(path.join(macDir, "OpenPeek-1.8.1.dmg"), armArtifact);
   await writeFile(path.join(macDir, "latest.json"), JSON.stringify({
     version: "1.8.1",
     releaseTrack: "public",
@@ -737,7 +737,7 @@ test("gitleaf download page falls back to the last ARM release before the first 
     platform: "darwin-arm64",
     files: {
       dmg: {
-        url: "https://updates.mangofuture.com/git-leaf/stable/darwin-arm64/GitLeaf-1.8.1.dmg",
+        url: "https://updates.mangofuture.com/git-leaf/stable/darwin-arm64/OpenPeek-1.8.1.dmg",
         sha256: "f".repeat(64),
         size: Buffer.byteLength(armArtifact),
       },
@@ -745,7 +745,7 @@ test("gitleaf download page falls back to the last ARM release before the first 
   }));
 
   const server = spawn("python3", [
-    "scripts/gitleaf-update-server.py",
+    "scripts/openpeek-update-server.py",
     "--root",
     root,
     "--bind",
@@ -762,16 +762,16 @@ test("gitleaf download page falls back to the last ARM release before the first 
     const html = await response.text();
 
     assert.equal(response.status, 200);
-    assert.match(html, /GitLeaf-1\.8\.1\.dmg/);
+    assert.match(html, /OpenPeek-1\.8\.1\.dmg/);
   } finally {
     server.kill("SIGTERM");
   }
 });
 
-test("gitleaf update server renders a safe optional document deep link", async () => {
+test("OpenPeek update server renders a safe optional document deep link", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "gitleaf-open-"));
   const server = spawn("python3", [
-    "scripts/gitleaf-update-server.py",
+    "scripts/openpeek-update-server.py",
     "--root",
     root,
     "--bind",
@@ -796,11 +796,11 @@ test("gitleaf update server renders a safe optional document deep link", async (
     assert.match(response.headers.get("content-security-policy"), /connect-src 'self'/);
     assert.match(
       html,
-      /git-leaf:\/\/open-worktree\?repo=exampleorg%2Fcompany-docs&amp;path=company%2Fstrategy\.md&amp;worktree=0123456789abcdef&amp;handoff=[A-Za-z0-9_-]+/,
+      /openpeek:\/\/open-worktree\?repo=exampleorg%2Fcompany-docs&amp;path=company%2Fstrategy\.md&amp;worktree=0123456789abcdef&amp;handoff=[A-Za-z0-9_-]+/,
     );
-    assert.match(html, /正在 Git Leaf 中打开文档/);
+    assert.match(html, /正在 OpenPeek 中打开文档/);
     assert.match(html, /exampleorg\/company-docs · company\/strategy\.md/);
-    assert.match(html, /在 Git Leaf 中打开/);
+    assert.match(html, /在 OpenPeek 中打开/);
     assert.match(html, /window\.close\(\)/);
     assert.match(html, /\/open\/status\?id=/);
     assert.doesNotMatch(html, /window\.addEventListener\('blur',completeHandoff\)/);
@@ -842,10 +842,10 @@ test("gitleaf update server renders a safe optional document deep link", async (
   }
 });
 
-test("gitleaf update server renders versioned share links and reports handoff states", async () => {
+test("OpenPeek update server renders versioned share links and reports handoff states", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "gitleaf-share-"));
   const server = spawn("python3", [
-    "scripts/gitleaf-update-server.py",
+    "scripts/openpeek-update-server.py",
     "--root",
     root,
     "--bind",
@@ -872,19 +872,19 @@ test("gitleaf update server renders versioned share links and reports handoff st
     assert.equal(response.status, 200);
     assert.match(
       html,
-      new RegExp(`git-leaf:\\/\\/open-shared\\?v=1&amp;repo=exampleorg%2Fcompany-docs&amp;path=company%2Fstrategy\\.md&amp;rev=${rev}&amp;handoff=[A-Za-z0-9_-]+`),
+      new RegExp(`openpeek:\\/\\/open-shared\\?v=1&amp;repo=exampleorg%2Fcompany-docs&amp;path=company%2Fstrategy\\.md&amp;rev=${rev}&amp;handoff=[A-Za-z0-9_-]+`),
     );
     assert.match(html, /\/share\/status\?id=/);
-    assert.match(html, /已在 Git Leaf 中取消打开/);
-    assert.match(html, /Git Leaf 无法完成打开/);
+    assert.match(html, /已在 OpenPeek 中取消打开/);
+    assert.match(html, /OpenPeek 无法完成打开/);
     assert.match(html, /<title>Company &amp; Strategy<\/title>/);
     assert.match(html, /<meta name="description" content="Goals, owners &amp; milestones for coworkers\.">/);
     assert.match(html, /<meta property="og:title" content="Company &amp; Strategy">/);
     assert.match(html, /<meta property="og:description" content="Goals, owners &amp; milestones for coworkers\.">/);
-    assert.match(html, /<meta property="og:site_name" content="Git Leaf">/);
+    assert.match(html, /<meta property="og:site_name" content="OpenPeek">/);
     assert.match(html, /<meta property="og:type" content="article">/);
 
-    const deepLinkMatch = html.match(/href="(git-leaf:[^"]+)"/);
+    const deepLinkMatch = html.match(/href="(openpeek:[^"]+)"/);
     assert.ok(deepLinkMatch);
     const deepLink = new URL(decodeHtml(deepLinkMatch[1]));
     assert.equal(deepLink.searchParams.has("title"), false);
@@ -929,17 +929,17 @@ test("gitleaf update server renders versioned share links and reports handoff st
     );
     const legacyHtml = await legacyResponse.text();
     assert.equal(legacyResponse.status, 200);
-    assert.match(legacyHtml, /<meta property="og:title" content="正在 Git Leaf 中打开分享文档">/);
+    assert.match(legacyHtml, /<meta property="og:title" content="正在 OpenPeek 中打开分享文档">/);
     assert.match(legacyHtml, /<meta property="og:description" content="owner\/repo · README\.md">/);
   } finally {
     server.kill("SIGTERM");
   }
 });
 
-test("gitleaf open page also closes synchronously after a successful manual handoff", async () => {
+test("OpenPeek open page also closes synchronously after a successful manual handoff", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "gitleaf-open-manual-"));
   const server = spawn("python3", [
-    "scripts/gitleaf-update-server.py",
+    "scripts/openpeek-update-server.py",
     "--root",
     root,
     "--bind",
@@ -976,10 +976,10 @@ test("gitleaf open page also closes synchronously after a successful manual hand
   }
 });
 
-test("gitleaf open page rejects unsafe repository and document parameters", async () => {
+test("OpenPeek open page rejects unsafe repository and document parameters", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "gitleaf-open-invalid-"));
   const server = spawn("python3", [
-    "scripts/gitleaf-update-server.py",
+    "scripts/openpeek-update-server.py",
     "--root",
     root,
     "--bind",
@@ -1026,7 +1026,7 @@ from datetime import date
 from pathlib import Path
 import sys
 
-spec = importlib.util.spec_from_file_location("gitleaf_update_server", "scripts/gitleaf-update-server.py")
+spec = importlib.util.spec_from_file_location("openpeek_update_server", "scripts/openpeek-update-server.py")
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 store = module.TelemetryLogStore(Path(sys.argv[1]))
@@ -1054,7 +1054,7 @@ from pathlib import Path
 import os
 import sys
 
-spec = importlib.util.spec_from_file_location("gitleaf_update_server", "scripts/gitleaf-update-server.py")
+spec = importlib.util.spec_from_file_location("openpeek_update_server", "scripts/openpeek-update-server.py")
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 store = module.TelemetryLogStore(Path(sys.argv[1]))
@@ -1083,12 +1083,12 @@ else:
 });
 
 test("update service installer applies private telemetry permissions and a restrictive service umask", async () => {
-  const installer = await readFile("scripts/install-gitleaf-update-server.sh", "utf8");
+  const installer = await readFile("scripts/install-openpeek-update-server.sh", "utf8");
 
   assert.match(installer, /install -d -m 0750 '\$TELEMETRY_ROOT'/);
   assert.match(installer, /find '\$TELEMETRY_ROOT' -type d -exec chmod 0750/);
   assert.match(installer, /-type f -exec chmod 0640/);
-  assert.match(installer, /install -m 0750 \/tmp\/gitleaf-update-server\.py/);
+  assert.match(installer, /install -m 0750 \/tmp\/openpeek-update-server\.py/);
   assert.match(installer, /UMask=0027/);
 });
 
@@ -1100,7 +1100,7 @@ test("Python cache generated by update server tests stays ignored", () => {
       "check-ignore",
       "--no-index",
       "-v",
-      "scripts/__pycache__/gitleaf-update-server.cpython-311.pyc",
+      "scripts/__pycache__/openpeek-update-server.cpython-311.pyc",
     ],
     { cwd: repoRoot, encoding: "utf8" },
   );

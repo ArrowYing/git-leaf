@@ -65,7 +65,7 @@ export function verifySignedMacApp(appPath) {
     || !identity.includes(`Identifier=${OFFICIAL_MAC_BUNDLE_ID}`)
     || !identity.includes(`TeamIdentifier=${OFFICIAL_MAC_TEAM_IDENTIFIER}`)
   ) {
-    throw new Error("The App is not signed as the official Mango Future Git Leaf");
+    throw new Error("The App is not signed as the official Mango Future OpenPeek");
   }
   return true;
 }
@@ -130,7 +130,7 @@ export async function waitForMacAppProcessesExit(appPath, {
   while (processIds.length > 0) {
     if (now() - startedAt >= timeoutMs) {
       throw new Error(
-        `Timed out waiting for Git Leaf App processes to exit: ${
+        `Timed out waiting for OpenPeek App processes to exit: ${
           processIds.join(", ")
         }`,
       );
@@ -161,7 +161,7 @@ export function beginMacAppContentsReplacement({
   accessSync(target, constants.W_OK);
   verifyApp(source);
   if (readVersion(source) !== expectedVersion) {
-    throw new Error(`The source App is not Git Leaf ${expectedVersion}`);
+    throw new Error(`The source App is not OpenPeek ${expectedVersion}`);
   }
 
   const targetInode = statSync(target).ino;
@@ -213,7 +213,7 @@ export function beginMacAppContentsReplacement({
 
     verifyApp(target);
     if (readVersion(target) !== expectedVersion) {
-      throw new Error(`The installed App is not Git Leaf ${expectedVersion}`);
+      throw new Error(`The installed App is not OpenPeek ${expectedVersion}`);
     }
     if (statSync(target).ino !== targetInode) {
       throw new Error("The App directory inode changed during Contents replacement");

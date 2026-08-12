@@ -55,7 +55,7 @@ function main(args = process.argv.slice(2)) {
     expectedVersion,
   });
   console.log(
-    `Installed Git Leaf ${result.version} by nonprivileged Contents replacement`,
+    `Installed OpenPeek ${result.version} by nonprivileged Contents replacement`,
   );
 }
 

@@ -5,7 +5,7 @@ Status: Approved for implementation planning
 
 ## Problem
 
-`make install-dev-mac` replaces `/Applications/Git Leaf.app` with a human-facing development build. The
+`make install-dev-mac` replaces `/Applications/OpenPeek.app` with a human-facing development build. The
 development and official Apps intentionally share the real Electron Profile so repositories, workbench
 sessions, favorites, language, appearance, and other preferences survive replacement.
 
@@ -156,7 +156,7 @@ The eligible development build participates in the normal metadata-check schedul
 same Check for Updates entry as an official build when a newer internal version exists, for example:
 
 ```text
-Switch to the internal Git Leaf 1.16.1 release
+Switch to the internal OpenPeek 1.16.1 release
 ```
 
 Metadata discovery never starts a package download. The user must choose the update action, matching the
@@ -193,7 +193,7 @@ The starting App has `org.gitleaf.community`. The installed signed package has
 - the target's packaged nonprivileged Squirrel policy is intact for its later official updates;
 - Squirrel and ShipIt were not invoked for the identity handoff;
 - no privileged ShipIt job was created;
-- LaunchServices and `git-leaf://` resolve the resulting official App correctly.
+- LaunchServices and `openpeek://` resolve the resulting official App correctly.
 
 Failure to replace or relaunch the target leaves the development installation retryable. Cleanup removes
 only state owned by the attempted handoff.
@@ -314,7 +314,7 @@ The regression must prove:
 - the internal package persists `usageAnalyticsEnabled=true` and initializes telemetry;
 - repositories, workbench sessions, favorites, appearance, typography, language, and sidebar state are
   unchanged;
-- LaunchServices, the App display identity, and `git-leaf://` resolve the official App;
+- LaunchServices, the App display identity, and `openpeek://` resolve the official App;
 - all temporary state is removed without touching the real Profile or real ShipIt cache.
 
 Because this feature changes update, installation, package identity, and configuration behavior, the

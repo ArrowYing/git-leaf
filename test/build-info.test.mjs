@@ -8,6 +8,7 @@ import {
   aboutPanelCopyright,
   appDisplayName,
   BUILD_INFO_FILENAME,
+  LEGACY_BUILD_INFO_FILENAME,
   buildDistributionLabel,
   isOfficialDistribution,
   readBuildInfo,
@@ -37,9 +38,9 @@ test("releaseDateLabel omits invalid build timestamps", () => {
 });
 
 test("appDisplayName marks development builds with dev", () => {
-  assert.equal(appDisplayName({ dev: true }), "Git Leaf dev");
-  assert.equal(appDisplayName({ dev: false }), "Git Leaf");
-  assert.equal(appDisplayName({}), "Git Leaf");
+  assert.equal(appDisplayName({ dev: true }), "OpenPeek dev");
+  assert.equal(appDisplayName({ dev: false }), "OpenPeek");
+  assert.equal(appDisplayName({}), "OpenPeek");
 });
 
 test("build identity defaults to a community build with usage analytics disabled", async () => {
@@ -81,8 +82,8 @@ test("official legacy build identity without a release track remains on the publ
   const buildInfo = readBuildInfo({
     rootDir,
     env: {
-      GIT_LEAF_DISTRIBUTION: "source",
-      GIT_LEAF_RELEASE_TRACK: "internal",
+      OPENPEEK_DISTRIBUTION: "source",
+      OPENPEEK_RELEASE_TRACK: "internal",
     },
   });
 
@@ -112,8 +113,8 @@ test("packaged build identity keeps its embedded internal track despite environm
   const buildInfo = readBuildInfo({
     rootDir,
     env: {
-      GIT_LEAF_DISTRIBUTION: "source",
-      GIT_LEAF_RELEASE_TRACK: "public",
+      OPENPEEK_DISTRIBUTION: "source",
+      OPENPEEK_RELEASE_TRACK: "public",
     },
   });
 
@@ -174,7 +175,7 @@ test("generated build analytics defaults cannot be overridden by the environment
 
     const buildInfo = readBuildInfo({
       rootDir,
-      env: { GIT_LEAF_USAGE_ANALYTICS_DEFAULT: environmentValue },
+      env: { OPENPEEK_USAGE_ANALYTICS_DEFAULT: environmentValue },
     });
     assert.equal(buildInfo.usageAnalyticsDefault, expected);
   }
@@ -190,10 +191,39 @@ test("source builds without generated identity may use an analytics environment 
 
   const buildInfo = readBuildInfo({
     rootDir,
-    env: { GIT_LEAF_USAGE_ANALYTICS_DEFAULT: "true" },
+    env: { OPENPEEK_USAGE_ANALYTICS_DEFAULT: "true" },
   });
   assert.equal(buildInfo.distribution, "source");
   assert.equal(buildInfo.usageAnalyticsDefault, true);
+});
+
+test("OpenPeek reads Git Leaf 1.x build identity and environment names as fallbacks", async () => {
+  const rootDir = await mkdtemp(path.join(tmpdir(), "openpeek-legacy-build-info-"));
+  await writeFile(path.join(rootDir, "package.json"), JSON.stringify({ version: "2.0.0" }), "utf8");
+  await writeFile(path.join(rootDir, LEGACY_BUILD_INFO_FILENAME), JSON.stringify({
+    version: "1.21.0",
+    distribution: "official",
+    releaseTrack: "public",
+  }), "utf8");
+
+  assert.equal(readBuildInfo({ rootDir }).version, "1.21.0");
+  await writeFile(path.join(rootDir, BUILD_INFO_FILENAME), JSON.stringify({
+    version: "2.0.0",
+    distribution: "official",
+    releaseTrack: "public",
+  }), "utf8");
+  assert.equal(readBuildInfo({ rootDir }).version, "2.0.0");
+
+  const envRoot = await mkdtemp(path.join(tmpdir(), "openpeek-legacy-build-env-"));
+  await writeFile(path.join(envRoot, "package.json"), JSON.stringify({ version: "2.0.0" }), "utf8");
+  assert.equal(readBuildInfo({
+    rootDir: envRoot,
+    env: { GIT_LEAF_VERSION: "1.20.0", GIT_LEAF_DEV: "true" },
+  }).version, "1.20.0");
+  assert.equal(readBuildInfo({
+    rootDir: envRoot,
+    env: { OPENPEEK_VERSION: "2.0.1", GIT_LEAF_VERSION: "1.20.0" },
+  }).version, "2.0.1");
 });
 
 test("aboutPanelCopyright includes the commit for development builds only", () => {

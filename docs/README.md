@@ -1,4 +1,4 @@
-# Git Leaf documentation
+# OpenPeek documentation
 
 The repository root contains the standard open-source entry points: `README.md`, `LICENSE`,
 `CONTRIBUTING.md`, `SECURITY.md`, and `CHANGELOG.md`. Maintainer-facing technical documents use English

@@ -29,7 +29,7 @@ const MAIN_MESSAGES = Object.freeze({
     "share.mainWrongBranch":
       "This repository’s main worktree is currently on {branch}.\n\nShared links can only open in the main worktree on the main branch. Switch that worktree to main, then open the link again.",
     "share.mainMissing":
-      "Git Leaf could not find an available main worktree for this repository. Make sure the main worktree still exists on this computer, then open the link again.",
+      "OpenPeek could not find an available main worktree for this repository. Make sure the main worktree still exists on this computer, then open the link again.",
     "share.openFailed": "Could not open the shared link",
     "share.switchPrompt": "Switch to the main worktree?",
     "share.switchRequired": "Opening this shared link requires the main worktree on the main branch.",
@@ -50,7 +50,7 @@ const MAIN_MESSAGES = Object.freeze({
     "share.syncNote": "Sync local files before opening a shared link",
     "share.safeUpdateFailed": "Could not safely update main",
     "share.worktreeNotFound": "The target worktree was not found on this computer",
-    "share.repositoryNotAdded": "This repository has not been added to Git Leaf",
+    "share.repositoryNotAdded": "This repository has not been added to OpenPeek",
     "share.chooseRepositoryTitle": "Choose the Git repository for this link",
     "share.invalidRepository": "The selected folder is not a usable Git repository",
     "share.chooseMatchingRepository": "Choose the local folder for the repository in this link.",
@@ -62,46 +62,46 @@ const MAIN_MESSAGES = Object.freeze({
     "share.revisionMissingTitle": "The shared revision is no longer available",
     "share.unpushedMainTitle": "main has commits that have not been synchronized",
     "share.fetchFailedDetail":
-      "Git Leaf could not fetch the latest main from GitHub. Check the network and GitHub access, then open the link again.",
+      "OpenPeek could not fetch the latest main from GitHub. Check the network and GitHub access, then open the link again.",
     "share.technicalDetail": "Technical details: {detail}",
     "share.revisionMissingDetail":
       "origin/main no longer contains the document revision in this link. Ask the sender to create a new link.",
     "share.aheadDetail":
-      "The local main worktree has unpushed commits. Finish Git sync in Git Leaf, then open the link again.",
+      "The local main worktree has unpushed commits. Finish Git sync in OpenPeek, then open the link again.",
     "share.divergedDetail":
       "The local main worktree and origin/main have diverged. Ask an AI Agent to resolve the divergence and complete Git sync, then open the link again.",
     "share.unsafeDetail":
       "The main worktree is not currently safe to open. Complete Git sync, then open the link again.",
     "share.repositoryUnknown":
-      "{repository} is not yet in Git Leaf’s repository list.\nChoose its local folder so Git Leaf can verify the GitHub origin and continue opening this link.",
+      "{repository} is not yet in OpenPeek’s repository list.\nChoose its local folder so OpenPeek can verify the GitHub origin and continue opening this link.",
     "share.worktreeUnknown":
-      "Git Leaf has not found worktree {worktree} for {repository} on this computer.\nChoose any local worktree of the repository and Git Leaf will continue looking for the linked worktree.\nIf that worktree only exists on another computer, open the link on the computer where it was created.",
+      "OpenPeek has not found worktree {worktree} for {repository} on this computer.\nChoose any local worktree of the repository and OpenPeek will continue looking for the linked worktree.\nIf that worktree only exists on another computer, open the link on the computer where it was created.",
     "share.repositorySelectionMismatch":
-      "This link requires {repository}.\nChoose a local folder for that GitHub repository; Git Leaf will not substitute another repository.",
+      "This link requires {repository}.\nChoose a local folder for that GitHub repository; OpenPeek will not substitute another repository.",
 
-    "windows.updateFailedTitle": "Git Leaf update failed",
+    "windows.updateFailedTitle": "OpenPeek update failed",
     "windows.updateFailedStage": "Update failed",
-    "windows.updateFailed": "Git Leaf could not update.",
+    "windows.updateFailed": "OpenPeek could not update.",
     "windows.switchFailed": "The new version could not be activated and the fixed installation was not restored automatically.",
     "windows.backupPreserved": "The previous version backup is still available at: {path}",
-    "windows.installIncomplete": "Git Leaf installation did not complete. Extract the full package and try again.",
+    "windows.installIncomplete": "OpenPeek installation did not complete. Extract the full package and try again.",
     "windows.noPreviousInstall": "This is the first installation, so there is no previous version to restore.",
-    "windows.restoredStartMenu": "The previous version was restored. Start Git Leaf again from the Start menu; you can retry the update later.",
-    "windows.restoredPortable": "The previous version was restored. Double-click Git Leaf.exe in this newly extracted folder again.",
+    "windows.restoredStartMenu": "The previous version was restored. Start OpenPeek again from the Start menu; you can retry the update later.",
+    "windows.restoredPortable": "The previous version was restored. Double-click OpenPeek.exe in this newly extracted folder again.",
     "windows.previousAvailable": "The previous version in the fixed installation folder is still available.",
-    "windows.quitRunningTitle": "Quit the running Git Leaf first",
+    "windows.quitRunningTitle": "Quit the running OpenPeek first",
     "windows.quitRunningDetail":
-      "Another Git Leaf process is still running, so no installation files were changed.\n\nQuit the old version, then double-click Git Leaf.exe in this newly extracted folder again.",
-    "windows.prepareFailedTitle": "Could not prepare Git Leaf",
+      "Another OpenPeek process is still running, so no installation files were changed.\n\nQuit the old version, then double-click OpenPeek.exe in this newly extracted folder again.",
+    "windows.prepareFailedTitle": "Could not prepare OpenPeek",
     "windows.prepareFailedDetail":
-      "Git Leaf could not update its fixed installation folder.\n\nQuit the running Git Leaf, then double-click this new version again.",
+      "OpenPeek could not update its fixed installation folder.\n\nQuit the running OpenPeek, then double-click this new version again.",
     "windows.startMenuShortcutDescription":
-      "Open Git repositories and Markdown documents in Git Leaf.",
+      "Open Git repositories and Markdown documents in OpenPeek.",
 
-    "startup.configInvalidTitle": "Git Leaf settings are damaged",
-    "startup.failedTitle": "Git Leaf could not start",
+    "startup.configInvalidTitle": "OpenPeek settings are damaged",
+    "startup.failedTitle": "OpenPeek could not start",
     "startup.configInvalidDetail":
-      "Git Leaf could not read either the settings file or its backup.\n\nTo avoid overwriting repositories, appearance settings, or workspace state, the app stopped and left the existing files unchanged.",
+      "OpenPeek could not read either the settings file or its backup.\n\nTo avoid overwriting repositories, appearance settings, or workspace state, the app stopped and left the existing files unchanged.",
   }),
   "zh-CN": Object.freeze({
     "dialog.openDocumentForPdf": "请先打开文档，再导出 PDF。",
@@ -122,7 +122,7 @@ const MAIN_MESSAGES = Object.freeze({
     "share.mainWrongBranch":
       "该仓库的主工作区当前位于 {branch}。\n\n分享链接只能在主工作区的 main 分支打开。请先切换回 main，再重新打开链接。",
     "share.mainMissing":
-      "Git Leaf 找不到这个仓库可用的主工作区。请确认主工作区仍在本机且可以访问，再重新打开链接。",
+      "OpenPeek 找不到这个仓库可用的主工作区。请确认主工作区仍在本机且可以访问，再重新打开链接。",
     "share.openFailed": "无法打开分享链接",
     "share.switchPrompt": "切换到主工作区？",
     "share.switchRequired": "打开分享链接需要切换到主工作区的 main 分支。",
@@ -141,7 +141,7 @@ const MAIN_MESSAGES = Object.freeze({
     "share.syncNote": "打开分享链接前同步本地文件",
     "share.safeUpdateFailed": "无法安全更新 main",
     "share.worktreeNotFound": "本机尚未找到目标工作树",
-    "share.repositoryNotAdded": "此仓库尚未添加到 Git Leaf",
+    "share.repositoryNotAdded": "此仓库尚未添加到 OpenPeek",
     "share.chooseRepositoryTitle": "选择链接对应的 Git 仓库",
     "share.invalidRepository": "所选文件夹不是可用的 Git 仓库",
     "share.chooseMatchingRepository": "请选择链接对应仓库的本机目录。",
@@ -153,42 +153,42 @@ const MAIN_MESSAGES = Object.freeze({
     "share.revisionMissingTitle": "分享版本已失效",
     "share.unpushedMainTitle": "main 存在尚未同步的提交",
     "share.fetchFailedDetail":
-      "Git Leaf 无法从 GitHub 获取最新 main。请检查网络和 GitHub 访问状态，然后重新打开链接。",
+      "OpenPeek 无法从 GitHub 获取最新 main。请检查网络和 GitHub 访问状态，然后重新打开链接。",
     "share.technicalDetail": "技术信息：{detail}",
     "share.revisionMissingDetail": "origin/main 已不再包含链接中的文档版本。请联系分享者重新生成链接。",
-    "share.aheadDetail": "本地主工作区有尚未推送的 commit。请先在 Git Leaf 中完成 Git 同步，再重新打开链接。",
+    "share.aheadDetail": "本地主工作区有尚未推送的 commit。请先在 OpenPeek 中完成 Git 同步，再重新打开链接。",
     "share.divergedDetail": "本地主工作区与 origin/main 已经分叉。请先让 AI Agent 处理分叉并完成 Git 同步，再重新打开链接。",
     "share.unsafeDetail": "主工作区当前不满足安全打开条件。请先完成 Git 同步，再重新打开链接。",
     "share.repositoryUnknown":
-      "Git Leaf 的仓库列表里还没有 {repository}。\n选择它的本机目录后，Git Leaf 会核对 GitHub origin，并继续打开当前链接。",
+      "OpenPeek 的仓库列表里还没有 {repository}。\n选择它的本机目录后，OpenPeek 会核对 GitHub origin，并继续打开当前链接。",
     "share.worktreeUnknown":
-      "Git Leaf 在本机尚未找到 {repository} 的目标工作树 {worktree}。\n请选择该仓库任一工作树的本机目录，Git Leaf 会继续查找链接指定的工作树。\n如果目标工作树只存在于另一台电脑，请在创建链接的电脑上打开。",
+      "OpenPeek 在本机尚未找到 {repository} 的目标工作树 {worktree}。\n请选择该仓库任一工作树的本机目录，OpenPeek 会继续查找链接指定的工作树。\n如果目标工作树只存在于另一台电脑，请在创建链接的电脑上打开。",
     "share.repositorySelectionMismatch":
-      "这个链接需要 {repository}。\n请选择该 GitHub 仓库的本机目录；Git Leaf 不会用其他仓库替代打开。",
+      "这个链接需要 {repository}。\n请选择该 GitHub 仓库的本机目录；OpenPeek 不会用其他仓库替代打开。",
 
-    "windows.updateFailedTitle": "Git Leaf 更新失败",
+    "windows.updateFailedTitle": "OpenPeek 更新失败",
     "windows.updateFailedStage": "更新失败",
-    "windows.updateFailed": "Git Leaf 更新失败",
+    "windows.updateFailed": "OpenPeek 更新失败",
     "windows.switchFailed": "新版本切换失败，并且没有自动恢复到固定目录。",
     "windows.backupPreserved": "旧版本备份仍保留在：{path}",
-    "windows.installIncomplete": "Git Leaf 安装未完成。请重新完整解压安装包后再试。",
+    "windows.installIncomplete": "OpenPeek 安装未完成。请重新完整解压安装包后再试。",
     "windows.noPreviousInstall": "这是首次安装，固定目录中没有可恢复的旧版本。",
-    "windows.restoredStartMenu": "原版本已恢复。请从开始菜单重新启动 Git Leaf，稍后可以再次更新。",
-    "windows.restoredPortable": "原版本已恢复。请重新双击这个新版解压目录中的 Git Leaf.exe。",
+    "windows.restoredStartMenu": "原版本已恢复。请从开始菜单重新启动 OpenPeek，稍后可以再次更新。",
+    "windows.restoredPortable": "原版本已恢复。请重新双击这个新版解压目录中的 OpenPeek.exe。",
     "windows.previousAvailable": "固定目录中的原版本仍然可用。",
-    "windows.quitRunningTitle": "请先完全退出正在运行的 Git Leaf",
+    "windows.quitRunningTitle": "请先完全退出正在运行的 OpenPeek",
     "windows.quitRunningDetail":
-      "检测到另一个 Git Leaf 仍在运行，因此尚未修改任何安装文件。\n\n请退出旧版本，然后重新双击这个新版解压目录中的 Git Leaf.exe。",
-    "windows.prepareFailedTitle": "无法准备 Git Leaf",
+      "检测到另一个 OpenPeek 仍在运行，因此尚未修改任何安装文件。\n\n请退出旧版本，然后重新双击这个新版解压目录中的 OpenPeek.exe。",
+    "windows.prepareFailedTitle": "无法准备 OpenPeek",
     "windows.prepareFailedDetail":
-      "Git Leaf 无法更新本机固定安装位置。\n\n请先退出正在运行的 Git Leaf，然后重新双击这个新版本。",
+      "OpenPeek 无法更新本机固定安装位置。\n\n请先退出正在运行的 OpenPeek，然后重新双击这个新版本。",
     "windows.startMenuShortcutDescription":
-      "在 Git Leaf 中打开 Git 仓库和 Markdown 文档。",
+      "在 OpenPeek 中打开 Git 仓库和 Markdown 文档。",
 
-    "startup.configInvalidTitle": "Git Leaf 配置文件损坏",
-    "startup.failedTitle": "Git Leaf 启动失败",
+    "startup.configInvalidTitle": "OpenPeek 配置文件损坏",
+    "startup.failedTitle": "OpenPeek 启动失败",
     "startup.configInvalidDetail":
-      "Git Leaf 检测到设置文件和备份都无法读取。\n\n为避免覆盖原有仓库、外观与工作台状态，App 已停止启动，现有文件保持不变。",
+      "OpenPeek 检测到设置文件和备份都无法读取。\n\n为避免覆盖原有仓库、外观与工作台状态，App 已停止启动，现有文件保持不变。",
   }),
 });
 

@@ -21,7 +21,7 @@ export function desktopPreviewServerUrl({
   });
 }
 
-export async function startDesktopGitLeafServer({
+export async function startDesktopOpenPeekServer({
   repoRoot,
   initialFilePath = "",
   port = DEFAULT_DESKTOP_PORT,
@@ -32,7 +32,7 @@ export async function startDesktopGitLeafServer({
   recordTelemetryActions = null,
 } = {}) {
   if (!repoRoot) {
-    throw new Error("repoRoot is required to start Git Leaf desktop.");
+    throw new Error("repoRoot is required to start OpenPeek desktop.");
   }
 
   const initialFile = await resolveDesktopInitialFile({

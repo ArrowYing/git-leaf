@@ -177,7 +177,7 @@ test("findGithubRepositoryRoot resolves an exact local worktree without falling 
     branch: "main",
     files: { "README.md": "# Main\n" },
   });
-  await execFileAsync("git", ["config", "user.name", "Git Leaf Tests"], { cwd: repoRoot });
+  await execFileAsync("git", ["config", "user.name", "OpenPeek Tests"], { cwd: repoRoot });
   await execFileAsync("git", ["config", "user.email", "git-leaf@example.com"], { cwd: repoRoot });
   await execFileAsync("git", ["add", "."], { cwd: repoRoot });
   await execFileAsync("git", ["commit", "-m", "Initial"], { cwd: repoRoot });

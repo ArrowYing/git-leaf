@@ -28,6 +28,7 @@ import { pipeline } from "node:stream/promises";
 import { fileURLToPath } from "node:url";
 
 import { compareAppVersions } from "../src/desktop/app-updates.mjs";
+import { DEVELOPMENT_USER_DATA_ARG } from "../src/desktop/user-data.mjs";
 import { replaceMacAppContents } from "./mac-update-bridge.mjs";
 import { developmentProfileFingerprint } from "./release-mac.mjs";
 import { verifySquirrelMacPolicy } from "./squirrel-mac-policy.mjs";
@@ -69,7 +70,7 @@ export function assertSafeMacUpdateRegressionHost({
     throw new Error("The macOS update regression harness requires macOS");
   }
   const conflicts = [
-    [productionAppRunning, "the installed Git Leaf App is running"],
+    [productionAppRunning, "the installed OpenPeek App is running"],
     [userShipItJobExists, "the per-user ShipIt launchd job exists"],
     [systemShipItJobExists, "the system ShipIt launchd job exists"],
   ].filter(([present]) => present).map(([, message]) => message);
@@ -168,7 +169,7 @@ export function launchctlJobDetails({
 
 function hostPaths({ homeDir = homedir() } = {}) {
   return {
-    productionAppPath: "/Applications/Git Leaf.app",
+    productionAppPath: "/Applications/OpenPeek.app",
     productionProfilePath: path.join(
       homeDir,
       "Library",
@@ -193,7 +194,7 @@ export function assertCurrentHostSafe() {
     paths.productionAppPath,
     "Contents",
     "MacOS",
-    "Git Leaf",
+    "OpenPeek",
   );
   assertSafeMacUpdateRegressionHost({
     productionAppRunning: String(processes.stdout || "")
@@ -430,7 +431,7 @@ export function startUpdateServer({ serverRoot, telemetryRoot, logPath }) {
     "python3",
     [
       "-u",
-      path.join(REPO_ROOT, "scripts", "gitleaf-update-server.py"),
+      path.join(REPO_ROOT, "scripts", "openpeek-update-server.py"),
       "--root",
       serverRoot,
       "--telemetry-root",
@@ -793,15 +794,15 @@ async function runHarness({
         HOME: isolatedHome,
         CFFIXED_USER_HOME: isolatedHome,
         TMPDIR: `${isolatedTmp}${path.sep}`,
-        GIT_LEAF_UPDATE_BASE_URL: `http://127.0.0.1:${server.port}/git-leaf`,
-        GIT_LEAF_DEV_USER_DATA_DIR: userDataDir,
+        OPENPEEK_UPDATE_BASE_URL: `http://127.0.0.1:${server.port}/git-leaf`,
+        OPENPEEK_DEV_USER_DATA_DIR: userDataDir,
       };
       writeIsolatedSquirrelDefault(appEnv);
       const logDescriptor = openSync(logPath, "a");
       appProcess = spawn(
-        path.join(appPath, "Contents", "MacOS", "Git Leaf"),
+        path.join(appPath, "Contents", "MacOS", "OpenPeek"),
         [
-          `--git-leaf-dev-user-data-dir=${userDataDir}`,
+          `${DEVELOPMENT_USER_DATA_ARG}=${userDataDir}`,
           "--remote-debugging-port=0",
           "--repo",
           REPO_ROOT,
@@ -843,7 +844,7 @@ async function runHarness({
       }, {
         timeoutMs: 180_000,
         intervalMs: 2_000,
-        label: `Git Leaf ${candidateManifest.version} to replace the baseline`,
+        label: `OpenPeek ${candidateManifest.version} to replace the baseline`,
       });
     }
 
@@ -935,7 +936,7 @@ async function runHarness({
         productionUserDataDir: host.productionProfilePath,
       });
       if (after.sha256 !== host.productionFingerprint.sha256) {
-        throw new Error("The real Git Leaf Profile changed during update regression");
+        throw new Error("The real OpenPeek Profile changed during update regression");
       }
       const realShipItCacheAfter = developmentProfileFingerprint({
         productionUserDataDir: host.realShipItCachePath,
@@ -994,7 +995,7 @@ function printHelp() {
     [--base-url URL]
 
 This harness runs on the release Mac with an isolated HOME and Electron Profile.
-It refuses to start while the installed Git Leaf App is running or a ShipIt
+It refuses to start while the installed OpenPeek App is running or a ShipIt
 launchd job already exists.`);
 }
 

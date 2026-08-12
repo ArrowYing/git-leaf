@@ -1,8 +1,35 @@
 # Changelog
 
-Git Leaf follows Semantic Versioning for its shared app version. Git tags identify source revisions;
+OpenPeek follows Semantic Versioning for its shared app version. Git tags identify source revisions;
 official public artifacts, signatures, checksums, and platform availability are authoritative only on
-the [Git Leaf download page](https://gitleaf.mangofuture.com/download).
+the [OpenPeek download page](https://gitleaf.mangofuture.com/download).
+
+## 2.0.0 — Unreleased
+
+### Changed
+
+- Renamed the user-facing product, desktop app, packages, artifacts, primary CLI command, and generated
+  local protocol from Git Leaf to OpenPeek.
+- Raised the shared app version to `2.0.0` because the application and operating-system identity surface
+  changes across desktop installation, command-line use, deep links, and update packaging.
+- New packages use `OpenPeek.app`, `OpenPeek.exe`, the `openpeek` command, `openpeek://`,
+  `OPENPEEK_*`, and `openpeek-build-info.json` as their canonical names.
+
+### Compatibility
+
+- Preserved the existing `git-leaf` Electron Profile so repositories, sessions, preferences, favorites,
+  and browser state survive the rename.
+- Kept the `git-leaf` CLI alias, `git-leaf://` deep links, `GIT_LEAF_*` environment fallbacks, and
+  `git-leaf-build-info.json` package reads for 1.x interoperability.
+- Existing macOS `Git Leaf.app` installations are updated in place instead of creating a duplicate.
+  Windows migrates the fixed installation to `%LOCALAPPDATA%\OpenPeek\app` and removes the superseded
+  shortcut and install tree after the canonical app confirms startup.
+- Retained the existing macOS Bundle IDs, `git_leaf.*` analytics schema, GitHub repository, hosted
+  domain, update-service paths, and stable Profile directory. Those externally coordinated identities
+  are intentionally outside this repository-only rename.
+
+This entry describes source changes only. It does not declare that a 2.0.0 package, tag, website, or
+formal release has been published.
 
 ## 1.14.0 — 2026-07-27
 

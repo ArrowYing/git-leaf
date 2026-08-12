@@ -1,28 +1,38 @@
-import { normalizeGitLeafHandoffId } from "./handoff.mjs";
+import { normalizeOpenPeekHandoffId } from "./handoff.mjs";
 import {
-  GIT_LEAF_SHARE_VERSION,
-  gitLeafShareUrl,
-  normalizeGitLeafLinkTarget as normalizeDeepLinkTarget,
+  OPENPEEK_LEGACY_PROTOCOL,
+  OPENPEEK_PROTOCOL,
+  OPENPEEK_SUPPORTED_PROTOCOLS,
+  isOpenPeekProtocol,
+} from "../product-identity.mjs";
+import {
+  OPENPEEK_SHARE_VERSION,
+  openPeekShareUrl,
+  normalizeOpenPeekLinkTarget as normalizeDeepLinkTarget,
   normalizeGitRevision,
 } from "../server/hosted-links.mjs";
 
 export {
-  GIT_LEAF_HTTPS_OPEN_URL,
-  GIT_LEAF_HTTPS_SHARE_URL,
-  GIT_LEAF_SHARE_TITLE_MAX_LENGTH,
-  GIT_LEAF_SHARE_VERSION,
-  gitLeafHttpsOpenUrl,
-  gitLeafShareUrl,
-  normalizeGitLeafWorktreeId,
+  OPENPEEK_HTTPS_OPEN_URL,
+  OPENPEEK_HTTPS_SHARE_URL,
+  OPENPEEK_SHARE_TITLE_MAX_LENGTH,
+  OPENPEEK_SHARE_VERSION,
+  openPeekHttpsOpenUrl,
+  openPeekShareUrl,
+  normalizeOpenPeekWorktreeId,
   normalizeGitRevision,
 } from "../server/hosted-links.mjs";
 
-export const GIT_LEAF_PROTOCOL = "git-leaf";
-export const GIT_LEAF_OPEN_HOST = "open";
-export const GIT_LEAF_OPEN_WORKTREE_HOST = "open-worktree";
-export const GIT_LEAF_OPEN_SHARED_HOST = "open-shared";
+export {
+  OPENPEEK_LEGACY_PROTOCOL,
+  OPENPEEK_PROTOCOL,
+  OPENPEEK_SUPPORTED_PROTOCOLS,
+};
+export const OPENPEEK_OPEN_HOST = "open";
+export const OPENPEEK_OPEN_WORKTREE_HOST = "open-worktree";
+export const OPENPEEK_OPEN_SHARED_HOST = "open-shared";
 
-export function gitLeafDeepLinkUrl({
+export function openPeekDeepLinkUrl({
   repoRoot,
   repository,
   file = "",
@@ -32,11 +42,11 @@ export function gitLeafDeepLinkUrl({
 } = {}) {
   const normalized = normalizeDeepLinkTarget({ repoRoot, repository, file, worktree, platform });
   if (!normalized) {
-    throw new Error("Git Leaf deep links require a repository and a safe Markdown document path.");
+    throw new Error("OpenPeek deep links require a repository and a safe Markdown document path.");
   }
 
-  const host = normalized.worktree ? GIT_LEAF_OPEN_WORKTREE_HOST : GIT_LEAF_OPEN_HOST;
-  const url = new URL(`${GIT_LEAF_PROTOCOL}://${host}`);
+  const host = normalized.worktree ? OPENPEEK_OPEN_WORKTREE_HOST : OPENPEEK_OPEN_HOST;
+  const url = new URL(`${OPENPEEK_PROTOCOL}://${host}`);
   url.searchParams.set("repo", normalized.repoRoot || normalized.repository);
   if (normalized.file) {
     url.searchParams.set("path", normalized.file);
@@ -45,43 +55,43 @@ export function gitLeafDeepLinkUrl({
     url.searchParams.set("worktree", normalized.worktree);
   }
   if (handoff) {
-    const normalizedHandoff = normalizeGitLeafHandoffId(handoff);
+    const normalizedHandoff = normalizeOpenPeekHandoffId(handoff);
     if (!normalizedHandoff) {
-      throw new Error("Git Leaf handoff ids must be safe one-time identifiers.");
+      throw new Error("OpenPeek handoff ids must be safe one-time identifiers.");
     }
     url.searchParams.set("handoff", normalizedHandoff);
   }
   return url.toString();
 }
 
-export function gitLeafSharedDeepLinkUrl({ repository, file, rev, handoff = "" } = {}) {
-  const shareUrl = new URL(gitLeafShareUrl({ repository, file, rev }));
-  const url = new URL(`${GIT_LEAF_PROTOCOL}://${GIT_LEAF_OPEN_SHARED_HOST}`);
+export function openPeekSharedDeepLinkUrl({ repository, file, rev, handoff = "" } = {}) {
+  const shareUrl = new URL(openPeekShareUrl({ repository, file, rev }));
+  const url = new URL(`${OPENPEEK_PROTOCOL}://${OPENPEEK_OPEN_SHARED_HOST}`);
   for (const key of ["v", "repo", "path", "rev"]) {
     url.searchParams.set(key, shareUrl.searchParams.get(key));
   }
   if (handoff) {
-    const normalizedHandoff = normalizeGitLeafHandoffId(handoff);
+    const normalizedHandoff = normalizeOpenPeekHandoffId(handoff);
     if (!normalizedHandoff) {
-      throw new Error("Git Leaf handoff ids must be safe one-time identifiers.");
+      throw new Error("OpenPeek handoff ids must be safe one-time identifiers.");
     }
     url.searchParams.set("handoff", normalizedHandoff);
   }
   return url.toString();
 }
 
-export function parseGitLeafDeepLink(value, { platform = process.platform } = {}) {
-  if (typeof value !== "string" || !value.startsWith(`${GIT_LEAF_PROTOCOL}:`)) {
+export function parseOpenPeekDeepLink(value, { platform = process.platform } = {}) {
+  if (typeof value !== "string") {
     return null;
   }
 
   try {
     const url = new URL(value);
-    const isRepositoryOpen = url.hostname === GIT_LEAF_OPEN_HOST;
-    const isWorktreeOpen = url.hostname === GIT_LEAF_OPEN_WORKTREE_HOST;
-    const isSharedOpen = url.hostname === GIT_LEAF_OPEN_SHARED_HOST;
+    const isRepositoryOpen = url.hostname === OPENPEEK_OPEN_HOST;
+    const isWorktreeOpen = url.hostname === OPENPEEK_OPEN_WORKTREE_HOST;
+    const isSharedOpen = url.hostname === OPENPEEK_OPEN_SHARED_HOST;
     if (
-      url.protocol !== `${GIT_LEAF_PROTOCOL}:`
+      !isOpenPeekProtocol(url.protocol)
       || (!isRepositoryOpen && !isWorktreeOpen && !isSharedOpen)
     ) {
       return null;
@@ -90,7 +100,7 @@ export function parseGitLeafDeepLink(value, { platform = process.platform } = {}
       return parseSharedDeepLink(url);
     }
     const handoffValue = url.searchParams.get("handoff") ?? "";
-    const handoff = normalizeGitLeafHandoffId(handoffValue);
+    const handoff = normalizeOpenPeekHandoffId(handoffValue);
     if (handoffValue && !handoff) {
       return null;
     }
@@ -131,12 +141,12 @@ function parseSharedDeepLink(url) {
   if ([version, repository, file, revisionValue, handoffValue].includes(null)) {
     return null;
   }
-  if (version !== GIT_LEAF_SHARE_VERSION) {
+  if (version !== OPENPEEK_SHARE_VERSION) {
     return null;
   }
   const target = normalizeDeepLinkTarget({ repository, file });
   const rev = normalizeGitRevision(revisionValue);
-  const handoff = handoffValue ? normalizeGitLeafHandoffId(handoffValue) : "";
+  const handoff = handoffValue ? normalizeOpenPeekHandoffId(handoffValue) : "";
   if (!target?.repository || !target.file || !rev || (handoffValue && !handoff)) {
     return null;
   }
@@ -158,9 +168,9 @@ function singleSearchParam(url, key) {
   return values.length <= 1 ? values[0] ?? "" : null;
 }
 
-export function gitLeafDeepLinkFromArgs(args = [], options = {}) {
+export function openPeekDeepLinkFromArgs(args = [], options = {}) {
   for (const arg of args) {
-    const parsed = parseGitLeafDeepLink(arg, options);
+    const parsed = parseOpenPeekDeepLink(arg, options);
     if (parsed) {
       return parsed;
     }

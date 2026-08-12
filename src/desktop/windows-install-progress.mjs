@@ -3,20 +3,20 @@ const WINDOWS_INSTALL_PROGRESS_MESSAGES = Object.freeze({
     "action.update": "Update",
     "action.start": "Start",
     "action.install": "Setup",
-    "heading.update": "Updating Git Leaf{version}",
-    "heading.start": "Starting Git Leaf{version}",
-    "heading.install": "Preparing Git Leaf{version}",
-    message: "Please wait. Git Leaf will finish automatically and reopen.",
+    "heading.update": "Updating OpenPeek{version}",
+    "heading.start": "Starting OpenPeek{version}",
+    "heading.install": "Preparing OpenPeek{version}",
+    message: "Please wait. OpenPeek will finish automatically and reopen.",
     stage: "Starting…",
   }),
   "zh-CN": Object.freeze({
     "action.update": "更新",
     "action.start": "启动",
     "action.install": "准备",
-    "heading.update": "正在更新 Git Leaf{version}",
-    "heading.start": "正在启动 Git Leaf{version}",
-    "heading.install": "正在准备 Git Leaf{version}",
-    message: "请稍候，Git Leaf 会自动完成并重新打开。",
+    "heading.update": "正在更新 OpenPeek{version}",
+    "heading.start": "正在启动 OpenPeek{version}",
+    "heading.install": "正在准备 OpenPeek{version}",
+    message: "请稍候，OpenPeek 会自动完成并重新打开。",
     stage: "正在开始…",
   }),
 });
@@ -41,7 +41,7 @@ export function windowsInstallProgressHtml({
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
-  <title>Git Leaf ${translate(`action.${actionKey}`)}</title>
+  <title>OpenPeek ${translate(`action.${actionKey}`)}</title>
   <style>
     :root { color-scheme: light; font-family: "Segoe UI", system-ui, sans-serif; }
     * { box-sizing: border-box; }
@@ -92,7 +92,7 @@ export function windowsInstallProgressHtml({
 </head>
 <body data-phase="starting">
   <main>
-    <div class="brand"><div class="leaf">L</div><div class="name">Git Leaf</div></div>
+    <div class="brand"><div class="leaf">L</div><div class="name">OpenPeek</div></div>
     <h1 id="title">${translate(`heading.${actionKey}`, { version: versionLabel })}</h1>
     <p class="message" id="message">${translate("message")}</p>
     <p class="detail" id="detail" hidden></p>
@@ -105,7 +105,7 @@ export function windowsInstallProgressHtml({
     window.updateInstallProgress = (state) => {
       const percent = Math.max(0, Math.min(100, Number(state.percent) || 0));
       document.body.dataset.phase = state.phase || "working";
-      document.getElementById("title").textContent = state.title || "Git Leaf";
+      document.getElementById("title").textContent = state.title || "OpenPeek";
       document.getElementById("message").textContent = state.message || "";
       const detail = document.getElementById("detail");
       detail.textContent = state.detail || "";

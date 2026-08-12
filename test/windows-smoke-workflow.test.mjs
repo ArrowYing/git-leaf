@@ -35,13 +35,14 @@ test("Windows release smoke workflow builds, launches, screenshots, and uploads 
   assert.match(workflow, /\.git\\hooks\\pre-commit/);
   assert.match(workflow, /git-leaf-hook-ran/);
   assert.match(workflow, /node -e/);
-  assert.match(workflow, /GIT_LEAF_SMOKE_REPO/);
+  assert.match(workflow, /OPENPEEK_SMOKE_REPO/);
   assert.match(workflow, /pwsh scripts\/windows-smoke\.ps1/);
-  assert.match(workflow, /-RepoRoot "\$env:GIT_LEAF_SMOKE_REPO"/);
+  assert.match(workflow, /-RepoRoot "\$env:OPENPEEK_SMOKE_REPO"/);
   assert.doesNotMatch(workflow, /-RepoRoot "\$env:GITHUB_WORKSPACE"/);
   assert.match(workflow, /actions\/upload-artifact@v7/);
+  assert.match(workflow, /openpeek-windows-release-smoke-/);
   assert.match(workflow, /if-no-files-found:\s*error/);
-  assert.match(workflow, /dist\/GitLeaf-\*-win32-x64\.zip/);
+  assert.match(workflow, /dist\/OpenPeek-\*-win32-x64\.zip/);
   assert.match(workflow, /dist\/windows-smoke\/release-gate\.json/);
   assert.match(workflow, /dist\/windows-smoke\/home\.png/);
 });
@@ -50,9 +51,10 @@ test("Windows smoke script starts the packaged app, checks health, captures UI, 
   const script = await readFile("scripts/windows-smoke.ps1", "utf8");
 
   assert.match(script, /param\s*\(/);
-  assert.match(script, /Git Leaf\.exe/);
+  assert.match(script, /OpenPeek\.exe/);
   assert.match(script, /Start-Process/);
-  assert.match(script, /LOCALAPPDATA.+GitLeaf\\app/);
+  assert.match(script, /LOCALAPPDATA.+OpenPeek\\app/);
+  assert.match(script, /HKEY_CURRENT_USER\\Software\\Classes\\openpeek\\shell\\open\\command/);
   assert.match(script, /HKEY_CURRENT_USER\\Software\\Classes\\git-leaf\\shell\\open\\command/);
   assert.match(script, /Stable executable/);
   assert.match(script, /install-state\.json/);
@@ -66,6 +68,7 @@ test("Windows smoke script starts the packaged app, checks health, captures UI, 
   assert.match(script, /Get-FileHash -LiteralPath \$installedExe/);
   assert.match(script, /manual upgrade process exited before the running-app guard was observed/i);
   assert.match(script, /Protocol command/);
+  assert.match(script, /openpeek:\/\/open\?repo=/);
   assert.match(script, /git-leaf:\/\/open\?repo=/);
   assert.match(script, /docs%2Fnotes\.md/);
   assert.match(script, /ExpectedInitialFile/);

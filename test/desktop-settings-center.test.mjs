@@ -321,7 +321,7 @@ test("settings IPC authorizes its own view and whitelists model, preference, and
     },
     checkForUpdates: async () => {
       updateChecks += 1;
-      return { state: "current", message: "Git Leaf 已经是最新版本。" };
+      return { state: "current", message: "OpenPeek 已经是最新版本。" };
     },
   });
   const controller = harness.createController();
@@ -390,7 +390,7 @@ test("settings IPC authorizes its own view and whitelists model, preference, and
   assert.equal(updateChecks, 1);
   assert.deepEqual(updateResult, {
     ok: true,
-    result: { state: "current", message: "Git Leaf 已经是最新版本。" },
+    result: { state: "current", message: "OpenPeek 已经是最新版本。" },
   });
   await assert.rejects(
     () => harness.ipcMain.invoke(
@@ -418,7 +418,7 @@ test("settings page and preload keep a bounded renderer security surface", async
   assert.match(html, /object-src 'none'/);
   assert.match(html, /base-uri 'none'/);
   assert.match(html, /form-action 'none'/);
-  assert.match(preload, /contextBridge\.exposeInMainWorld\("gitLeafSettings"/);
+  assert.match(preload, /contextBridge\.exposeInMainWorld\("openPeekSettings"/);
   assert.match(preload, /getModel\(\)/);
   assert.match(preload, /updatePreferences\(patch\)/);
   assert.match(preload, /close\(\)/);

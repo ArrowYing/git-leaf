@@ -404,8 +404,8 @@ def valid_gzip_file(target):
         return False
 
 
-class GitLeafUpdateHandler(SimpleHTTPRequestHandler):
-    server_version = "GitLeafUpdates/1.0"
+class OpenPeekUpdateHandler(SimpleHTTPRequestHandler):
+    server_version = "OpenPeekUpdates/1.0"
 
     def do_GET(self):
         if self._handle_share_status():
@@ -529,13 +529,13 @@ class GitLeafUpdateHandler(SimpleHTTPRequestHandler):
             deep_link_params["worktree"] = worktree
         deep_link_params["handoff"] = handoff_id
         deep_link_host = "open-worktree" if worktree else "open"
-        deep_link = f"git-leaf://{deep_link_host}?" + urlencode(deep_link_params)
+        deep_link = f"openpeek://{deep_link_host}?" + urlencode(deep_link_params)
 
         if repository:
-            title = "正在 Git Leaf 中打开文档"
+            title = "正在 OpenPeek 中打开文档"
             detail = f"{repository} · {document_path}"
         else:
-            title = "正在启动 Git Leaf"
+            title = "正在启动 OpenPeek"
             detail = "这个链接只启动或聚焦应用，不会切换当前仓库或文档。"
         body = open_page_html(
             title,
@@ -594,7 +594,7 @@ class GitLeafUpdateHandler(SimpleHTTPRequestHandler):
             return True
 
         handoff_id = self.server.handoffs.create()
-        deep_link = "git-leaf://open-shared?" + urlencode({
+        deep_link = "openpeek://open-shared?" + urlencode({
             "v": "1",
             "repo": repository,
             "path": document_path,
@@ -603,12 +603,12 @@ class GitLeafUpdateHandler(SimpleHTTPRequestHandler):
         })
         detail = f"{repository} · {document_path}"
         body = open_page_html(
-            "正在 Git Leaf 中打开分享文档",
+            "正在 OpenPeek 中打开分享文档",
             detail,
             deep_link,
             handoff_id,
             status_endpoint="/share/status",
-            preview_title=preview_title or "正在 Git Leaf 中打开分享文档",
+            preview_title=preview_title or "正在 OpenPeek 中打开分享文档",
             preview_description=preview_snippet or detail,
         ).encode("utf-8")
         self.send_response(HTTPStatus.OK)
@@ -633,7 +633,7 @@ class GitLeafUpdateHandler(SimpleHTTPRequestHandler):
 
     def _send_open_error(self, send_body):
         body = open_page_html(
-            "无法打开 Git Leaf",
+            "无法打开 OpenPeek",
             "这个文档链接无效或不完整。",
             "",
             "",
@@ -802,7 +802,7 @@ class GitLeafUpdateHandler(SimpleHTTPRequestHandler):
         payload = manifest.get("autoUpdater") or {}
         body = json.dumps({
             "url": payload.get("url", ""),
-            "name": payload.get("name", f"Git Leaf {manifest.get('version', '')}"),
+            "name": payload.get("name", f"OpenPeek {manifest.get('version', '')}"),
             "notes": payload.get("notes", manifest.get("notes", "")),
             "pub_date": payload.get("pub_date", manifest.get("publishedAt", "")),
         }, ensure_ascii=False).encode("utf-8")
@@ -1346,15 +1346,15 @@ def format_download_size(size):
 def download_page_html(language, downloads):
     is_chinese = language == "zh-CN"
     copy = {
-        "title": "Git Leaf 下载" if is_chinese else "Download Git Leaf",
+        "title": "OpenPeek 下载" if is_chinese else "Download OpenPeek",
         "category": "面向团队与 AI Agent 共享上下文仓库的桌面应用。" if is_chinese
         else "A desktop interface for Git repositories used as shared context by teams and AI agents.",
         "value": "一个供 Agent 直接工作的仓库，一个供人使用的熟悉界面。" if is_chinese
         else "One repository for agents. A familiar interface for people.",
         "collaboration": (
-            "AI Agent 直接使用 Git 仓库；人通过 Git Leaf 阅读、检查并做范围明确的小修改。"
+            "AI Agent 直接使用 Git 仓库；人通过 OpenPeek 阅读、检查并做范围明确的小修改。"
             if is_chinese else
-            "AI agents work directly in Git. People use Git Leaf to read, inspect, and make focused edits."
+            "AI agents work directly in Git. People use OpenPeek to read, inspect, and make focused edits."
         ),
         "latest": "最新公开版本" if is_chinese else "Latest public release",
         "unavailable_title": "公开安装包暂不可用" if is_chinese else "Public builds are not available yet",
@@ -1476,7 +1476,7 @@ def download_page_html(language, downloads):
 </head>
 <body>
   <div class="shell">
-    <header><a class="brand" href="/download">Git Leaf</a><span class="language">{alternate_language}</span></header>
+    <header><a class="brand" href="/download">OpenPeek</a><span class="language">{alternate_language}</span></header>
     <main>
       <section class="hero">
         <p class="eyebrow">{html.escape(copy["category"])}</p>
@@ -1530,7 +1530,7 @@ def open_page_html(
             f'  <meta name="description" content="{safe_preview_description}">\n'
             f'  <meta property="og:title" content="{safe_preview_title}">\n'
             f'  <meta property="og:description" content="{safe_preview_description}">\n'
-            '  <meta property="og:site_name" content="Git Leaf">\n'
+            '  <meta property="og:site_name" content="OpenPeek">\n'
             '  <meta property="og:type" content="article">\n'
         )
     launch_script = ""
@@ -1541,9 +1541,9 @@ def open_page_html(
             "<script>(()=>{"
             "const status=document.querySelector('#handoff-status');"
             "const attemptClose=()=>{"
-            "if(status)status.textContent='Git Leaf 已确认打开，正在关闭此页面…';"
+            "if(status)status.textContent='OpenPeek 已确认打开，正在关闭此页面…';"
             "window.close();window.setTimeout(()=>{"
-            "if(status)status.textContent='Git Leaf 已打开。浏览器未允许自动关闭时，可以关闭此页面。';"
+            "if(status)status.textContent='OpenPeek 已打开。浏览器未允许自动关闭时，可以关闭此页面。';"
             "},250);};"
             "let handoffCompleted=false;let pollTimer=0;"
             "const pollHandoff=async()=>{"
@@ -1553,9 +1553,9 @@ def open_page_html(
             "if(!response.ok)return;"
             "const result=await response.json();"
             "if(!result.opened){"
-            "if(result.state==='cancelled')status.textContent='已在 Git Leaf 中取消打开。可以点击按钮重试。';"
-            "else if(result.state==='failed')status.textContent='Git Leaf 无法完成打开。请在应用中处理后重试。';"
-            "else if(result.state==='received')status.textContent='Git Leaf 已收到链接，正在检查本地知识库…';"
+            "if(result.state==='cancelled')status.textContent='已在 OpenPeek 中取消打开。可以点击按钮重试。';"
+            "else if(result.state==='failed')status.textContent='OpenPeek 无法完成打开。请在应用中处理后重试。';"
+            "else if(result.state==='received')status.textContent='OpenPeek 已收到链接，正在检查本地知识库…';"
             "return;}"
             "handoffCompleted=true;window.clearInterval(pollTimer);attemptClose();"
             "}catch{}"
@@ -1567,7 +1567,7 @@ def open_page_html(
             "},{once:true});"
             "})();</script>"
         )
-        button = f'<a id="launch-link" class="button" href="{safe_deep_link}">在 Git Leaf 中打开</a>'
+        button = f'<a id="launch-link" class="button" href="{safe_deep_link}">在 OpenPeek 中打开</a>'
     return f"""<!doctype html>
 <html lang="zh-CN">
 <head>
@@ -1621,7 +1621,7 @@ def main():
     parser.add_argument("--port", type=int, default=8320)
     args = parser.parse_args()
 
-    handler = lambda *handler_args: GitLeafUpdateHandler(
+    handler = lambda *handler_args: OpenPeekUpdateHandler(
         *handler_args,
         directory=args.root,
     )

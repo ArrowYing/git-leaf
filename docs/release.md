@@ -1,10 +1,10 @@
-# Git Leaf release process
+# OpenPeek release process
 
 This document defines the public release contract. Mango Future's host names, deployment directories, credentials, and private release profiles are maintained outside this repository.
 
 ## Release tracks and build identities
 
-Every packaged app contains `git-leaf-build-info.json` with three independent fields:
+Every newly packaged app contains `openpeek-build-info.json` with three independent fields:
 
 ```json
 {
@@ -25,11 +25,17 @@ Supported identities:
 `distribution` identifies the publisher class. `releaseTrack` identifies which official release lane an installed app follows. The two official tracks use separate manifests and artifacts; a packaged app trusts its embedded track and cannot be moved to another track by an environment variable.
 
 The safe default is always `source + source + false`. A Community Build uses
-`org.gitleaf.community` as its macOS bundle identifier and `Git Leaf Community` as its Windows company
+`org.gitleaf.community` as its macOS bundle identifier and `OpenPeek Community` as its Windows company
 name. Official profiles select `com.mangofuture.gitleaf` and Mango Future's legal publisher identity.
 Build metadata is informational and can be changed by anyone compiling the source. Official identity is
 established by the Mango Future code signature, official download channel, SHA-256, release tag, and
 matching public commit.
+
+Version 2.0 is the product-name transition. Runtime readers continue to accept the 1.x
+`git-leaf-build-info.json` filename and `GIT_LEAF_*` environment names, but every newly prepared package
+and release environment must write the canonical OpenPeek filename and `OPENPEEK_*` names. Existing
+macOS Bundle IDs, the `git-leaf` Profile directory, and external repository/update coordinates remain
+stable compatibility identities and are not release-name substitutions.
 
 The analytics default is normally used only when initializing a new local setting. Once
 `usageAnalyticsEnabled` exists in userData, an ordinary update must preserve it. The bounded
@@ -98,7 +104,7 @@ official profile and track are present.
 
 ## Human and automation Profiles
 
-The installed formal app and a development build installed for human use are the same `Git Leaf.app`.
+The installed formal app and a development build installed for human use are the same `OpenPeek.app`.
 They use the same real Electron Profile so replacing one build with the other preserves repositories,
 workbench sessions, favorites, language, and preferences. A packaged `dev=true, source, source` build
 may perform only the one-way internal handoff defined below; the build marker does not make it official,
@@ -151,7 +157,7 @@ not repeat it.
 
 ## Community Builds
 
-The concise contributor entry point is [Build Git Leaf from source](build-from-source.md). The commands
+The concise contributor entry point is [Build OpenPeek from source](build-from-source.md). The commands
 below are the packaging subset of that guide:
 
 ```bash
@@ -159,7 +165,7 @@ npm run package:mac
 npm run package:win
 ```
 
-Verify that packaged `git-leaf-build-info.json` contains:
+Verify that packaged `openpeek-build-info.json` contains:
 
 ```json
 {
@@ -369,7 +375,7 @@ npm run release:verify-update:mac -- \
   --output dist/macos-update-regression/release-gate.json
 ```
 
-The harness refuses to start while the installed Git Leaf App is running or any ShipIt launchd job
+The harness refuses to start while the installed OpenPeek App is running or any ShipIt launchd job
 already exists. It uses a temporary App location whose parent is deliberately not writable, plus
 isolated HOME and Electron Profile paths when exercising the in-App updater. For a stable version older
 than the first nonprivileged-only package, it uses the one-time `Contents` bridge instead of launching
@@ -421,7 +427,7 @@ and cleanup proof. The former manual
 `mark-update-regression-verified` command does not exist.
 
 Official packaged macOS builds persist Squirrel's direct-`Contents` default and carry a build-verified
-Squirrel policy that never launches a privileged Helper. A user-owned `/Applications/Git Leaf.app`
+Squirrel policy that never launches a privileged Helper. A user-owned `/Applications/OpenPeek.app`
 therefore replaces its signed `Contents` directory without write access to the root-owned
 `/Applications` parent; an App bundle that is itself not writable fails closed as an installation repair
 case. The regression requires the `.app` directory inode to remain unchanged.

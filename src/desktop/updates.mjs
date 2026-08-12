@@ -13,6 +13,10 @@ import {
   isOfficialDistribution,
   releaseTrackForBuildInfo,
 } from "../build-info.mjs";
+import {
+  openPeekEnvironmentFlag,
+  openPeekEnvironmentValue,
+} from "../environment.mjs";
 import { createDesktopTranslator } from "./localization.mjs";
 import {
   developmentHandoffReceiptForManifest,
@@ -34,7 +38,7 @@ export function createDesktopUpdateController({
   isPackaged = app?.isPackaged ?? false,
   platform = process.platform,
   arch = process.arch,
-  baseUrl = process.env.GIT_LEAF_UPDATE_BASE_URL || DEFAULT_UPDATE_BASE_URL,
+  baseUrl = openPeekEnvironmentValue(process.env, "UPDATE_BASE_URL") || DEFAULT_UPDATE_BASE_URL,
   channel: configuredChannel,
   environment = process.env,
   scheduleTimeout = setTimeout,
@@ -89,7 +93,7 @@ export function createDesktopUpdateController({
   const channel = isPackaged
     ? releaseTrackChannel
     : configuredChannel
-      || environment.GIT_LEAF_UPDATE_CHANNEL
+      || openPeekEnvironmentValue(environment, "UPDATE_CHANNEL")
       || releaseTrackChannel
       || DEFAULT_UPDATE_CHANNEL;
 
@@ -335,7 +339,7 @@ export function createDesktopUpdateController({
       }
       return "disabled";
     }
-    if (!isPackaged && process.env.GIT_LEAF_ENABLE_UPDATES !== "1") {
+    if (!isPackaged && !openPeekEnvironmentFlag(process.env, "ENABLE_UPDATES")) {
       if (manual) {
         await showUpdateInfo("updates.disabledDevelopmentMode");
       }
@@ -611,7 +615,7 @@ export function createDesktopUpdateController({
 
     const pending = {
       version: String(manifest.version || "").trim(),
-      name: manifest?.autoUpdater?.name || `Git Leaf ${manifest.version}`,
+      name: manifest?.autoUpdater?.name || `OpenPeek ${manifest.version}`,
       trigger: manual ? "manual" : "automatic",
       platform,
       state: "available",

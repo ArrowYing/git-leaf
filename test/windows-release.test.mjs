@@ -20,21 +20,21 @@ import {
 
 test("windows release package args include x64 target metadata", () => {
   const args = windowsElectronPackagerArgs({
-    appName: "Git Leaf",
+    appName: "OpenPeek",
     version: "1.9.1",
     companyName: "Mango Future",
-    productName: "Git Leaf",
+    productName: "OpenPeek",
     outDir: "dist",
   });
 
   assert.ok(args.includes("--platform=win32"));
   assert.ok(args.includes("--arch=x64"));
   assert.ok(args.includes("--app-version=1.9.1"));
-  assert.ok(args.includes("--protocol=git-leaf"));
-  assert.ok(args.includes("--protocol-name=Git Leaf Document"));
+  assert.ok(args.includes("--protocol=openpeek"));
+  assert.ok(args.includes("--protocol-name=OpenPeek Document"));
   assert.ok(args.includes("--win32metadata.CompanyName=Mango Future"));
-  assert.ok(args.includes("--win32metadata.ProductName=Git Leaf"));
-  assert.ok(args.includes("--win32metadata.OriginalFilename=Git Leaf.exe"));
+  assert.ok(args.includes("--win32metadata.ProductName=OpenPeek"));
+  assert.ok(args.includes("--win32metadata.OriginalFilename=OpenPeek.exe"));
   assert.equal(
     args.some((arg) => arg.includes("requested-execution-level")),
     false,
@@ -46,9 +46,9 @@ test("windows release package args include x64 target metadata", () => {
 
 test("windows release package args exclude internal docs, repository tools, and dev-only dependencies", () => {
   const args = windowsElectronPackagerArgs({
-    appName: "Git Leaf",
+    appName: "OpenPeek",
     companyName: "Mango Future",
-    productName: "Git Leaf",
+    productName: "OpenPeek",
     outDir: "dist",
   });
   const ignorePatterns = args
@@ -58,7 +58,7 @@ test("windows release package args exclude internal docs, repository tools, and 
 
   for (const filePath of [
     "/scripts/release-windows.mjs",
-    "/tools/generate-git-leaf-open-link.mjs",
+    "/tools/generate-openpeek-open-link.mjs",
     "/Makefile",
     "/AGENTS.md",
     "/CLAUDE.md",
@@ -75,7 +75,7 @@ test("windows release package args exclude internal docs, repository tools, and 
     "/.gitignore",
     "/.gitleaks.toml",
     "/.github/workflows/windows-release-smoke.yml",
-    "/.agents/skills/git-leaf-release/SKILL.md",
+    "/.agents/skills/openpeek-release/SKILL.md",
     "/node_modules/@electron/get/package.json",
     "/node_modules/@esbuild/win32-x64/esbuild.exe",
     "/node_modules/@types/node/index.d.ts",
@@ -90,22 +90,23 @@ test("windows release package args exclude internal docs, repository tools, and 
 test("windows release paths point to the packaged executable", () => {
   const paths = windowsReleasePaths({
     rootDir: "/repo",
-    appName: "Git Leaf",
+    appName: "OpenPeek",
     version: "0.1.1",
   });
 
-  assert.equal(slashPath(paths.appRoot), "/repo/dist/Git Leaf-win32-x64");
-  assert.equal(slashPath(paths.exePath), "/repo/dist/Git Leaf-win32-x64/Git Leaf.exe");
+  assert.equal(slashPath(paths.appRoot), "/repo/dist/OpenPeek-win32-x64");
+  assert.equal(slashPath(paths.exePath), "/repo/dist/OpenPeek-win32-x64/OpenPeek.exe");
+  assert.equal(slashPath(paths.legacyExePath), "/repo/dist/OpenPeek-win32-x64/Git Leaf.exe");
   assert.equal(
     slashPath(paths.zipPath),
-    "/repo/dist/GitLeaf-0.1.1-source-win32-x64.zip",
+    "/repo/dist/OpenPeek-0.1.1-source-win32-x64.zip",
   );
 });
 
 test("windows internal release filenames cannot collide with the same public semver", () => {
   const paths = windowsReleasePaths({
     rootDir: "/repo",
-    appName: "Git Leaf",
+    appName: "OpenPeek",
     version: "0.1.1",
     releaseTrack: "internal",
     buildId: "93458e1.20260705T114700Z",
@@ -113,7 +114,7 @@ test("windows internal release filenames cannot collide with the same public sem
 
   assert.equal(
     slashPath(paths.zipPath),
-    "/repo/dist/GitLeaf-0.1.1-internal-win32-x64.zip",
+    "/repo/dist/OpenPeek-0.1.1-internal-win32-x64.zip",
   );
 });
 
@@ -145,9 +146,9 @@ test("windows release sequence creates an unsigned portable package", () => {
   ]);
   assert.equal(
     DEFAULT_WINDOWS_RELEASE_OPTIONS.companyName,
-    "Git Leaf Community",
+    "OpenPeek Community",
   );
-  assert.equal(DEFAULT_WINDOWS_RELEASE_OPTIONS.productName, "Git Leaf Community Build");
+  assert.equal(DEFAULT_WINDOWS_RELEASE_OPTIONS.productName, "OpenPeek Community Build");
   assert.equal(DEFAULT_ELECTRON_MIRROR, "https://npmmirror.com/mirrors/electron/");
 });
 
@@ -163,7 +164,7 @@ test("windows internal update manifest keeps the track and track-qualified build
     await writeFile(releasePaths.zipPath, "internal windows zip");
 
     const metadata = stageWindowsUpdateMetadata({
-      appName: "Git Leaf",
+      appName: "OpenPeek",
       updateBaseUrl: "https://updates.mangofuture.com/git-leaf",
       updateChannel: "internal-stable",
       version: "1.11.3",
@@ -179,7 +180,7 @@ test("windows internal update manifest keeps the track and track-qualified build
     assert.equal(manifest.buildId, "abc123.20260723T000000Z.internal");
     assert.match(
       manifest.files.zip.url,
-      /\/internal-stable\/win32-x64\/GitLeaf-1\.11\.3-internal-win32-x64\.zip$/,
+      /\/internal-stable\/win32-x64\/OpenPeek-1\.11\.3-internal-win32-x64\.zip$/,
     );
   } finally {
     await rm(rootDir, { recursive: true, force: true });
@@ -194,7 +195,7 @@ test("formal Windows package fails closed before packaging when its release prof
       releaseTrack: "source",
       usageAnalyticsDefault: false,
     }),
-    /Official release commands require GIT_LEAF_RELEASE_PROFILE/,
+    /Official release commands require OPENPEEK_RELEASE_PROFILE/,
   );
 });
 
@@ -211,34 +212,34 @@ test("windows publish commands require an unpublished version without blocking s
 test("windows zip command uses PowerShell on Windows hosts", () => {
   const command = windowsZipCommand({
     platform: "win32",
-    appRoot: "C:\\repo\\dist\\Git Leaf-win32-x64",
-    zipPath: "C:\\repo\\dist\\GitLeaf-0.1.1-source-win32-x64.zip",
+    appRoot: "C:\\repo\\dist\\OpenPeek-win32-x64",
+    zipPath: "C:\\repo\\dist\\OpenPeek-0.1.1-source-win32-x64.zip",
   });
 
   assert.equal(command.command, "powershell.exe");
   const commandText = command.args.at(-1);
 
   assert.match(commandText, /Compress-Archive/);
-  assert.match(commandText, /-LiteralPath 'C:\\repo\\dist\\Git Leaf-win32-x64'/);
+  assert.match(commandText, /-LiteralPath 'C:\\repo\\dist\\OpenPeek-win32-x64'/);
   assert.match(
     commandText,
-    /-DestinationPath 'C:\\repo\\dist\\GitLeaf-0\.1\.1-source-win32-x64\.zip'/,
+    /-DestinationPath 'C:\\repo\\dist\\OpenPeek-0\.1\.1-source-win32-x64\.zip'/,
   );
-  assert.equal(command.args.includes("C:\\repo\\dist\\Git Leaf-win32-x64"), false);
+  assert.equal(command.args.includes("C:\\repo\\dist\\OpenPeek-win32-x64"), false);
 });
 
 test("windows zip command keeps zip on POSIX hosts", () => {
   const command = windowsZipCommand({
     platform: "darwin",
-    appRoot: "/repo/dist/Git Leaf-win32-x64",
-    zipPath: "/repo/dist/GitLeaf-0.1.1-source-win32-x64.zip",
+    appRoot: "/repo/dist/OpenPeek-win32-x64",
+    zipPath: "/repo/dist/OpenPeek-0.1.1-source-win32-x64.zip",
   });
 
   assert.equal(command.command, "zip");
   assert.deepEqual(command.args, [
     "-qry",
-    "/repo/dist/GitLeaf-0.1.1-source-win32-x64.zip",
-    "Git Leaf-win32-x64",
+    "/repo/dist/OpenPeek-0.1.1-source-win32-x64.zip",
+    "OpenPeek-win32-x64",
   ]);
   assert.equal(command.cwd, "/repo/dist");
 });

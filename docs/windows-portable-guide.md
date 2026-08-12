@@ -1,10 +1,10 @@
-# Git Leaf Windows Preview
+# OpenPeek Windows Preview
 
 English | [简体中文](windows-portable-guide.zh-CN.md)
 
-Git Leaf for Windows is currently distributed as an unsigned self-installing ZIP. It does not use Microsoft Store, MSI, or MSIX, and it does not require administrator access.
+OpenPeek for Windows is currently distributed as an unsigned self-installing ZIP. It does not use Microsoft Store, MSI, or MSIX, and it does not require administrator access.
 
-Because the executable is not Authenticode-signed, Windows can show an unknown publisher or SmartScreen warning. Download it only from the official Git Leaf page, verify the published SHA-256, and do not bypass a warning for a file received through another channel.
+Because the executable is not Authenticode-signed, Windows can show an unknown publisher or SmartScreen warning. Download it only from the official OpenPeek page, verify the published SHA-256, and do not bypass a warning for a file received through another channel.
 
 ## Requirements
 
@@ -15,15 +15,15 @@ Because the executable is not Authenticode-signed, Windows can show an unknown p
 ## Install
 
 1. Open `https://gitleaf.mangofuture.com/download#windows`.
-2. Download `GitLeaf-<version>-public-win32-x64.zip`.
+2. Download `OpenPeek-<version>-public-win32-x64.zip`.
 3. Compare the ZIP's SHA-256 with the checksum published for that release.
-4. Fully exit an older Git Leaf process.
+4. Fully exit an older OpenPeek or Git Leaf process.
 5. Extract the whole ZIP. Do not run the executable from the archive preview.
-6. Open `Git Leaf-win32-x64` and run `Git Leaf.exe`.
-7. Git Leaf copies the complete app into `%LOCALAPPDATA%\GitLeaf\app`, creates the Start Menu shortcut, and relaunches from the fixed location.
+6. Open `OpenPeek-win32-x64` and run `OpenPeek.exe`.
+7. OpenPeek copies the complete app into `%LOCALAPPDATA%\OpenPeek\app`, creates the Start Menu shortcut, and relaunches from the fixed location.
 8. Choose a local Git repository.
 
-Electron applications require the complete directory. Do not copy only `Git Leaf.exe`.
+Electron applications require the complete directory. Do not copy only `OpenPeek.exe`.
 
 ## Updates
 
@@ -32,6 +32,11 @@ Only Mango Future official builds connect to the official update service. Public
 An official Windows build checks for metadata but does not download an update until the user selects Update. The app verifies the ZIP's file size and SHA-256, prepares the next version in a temporary directory, waits for the current process to exit, then atomically switches the fixed install directory. If the new version cannot start and confirm readiness, the installer attempts to restore the previous version.
 
 Updates do not change an existing local `usageAnalyticsEnabled` setting.
+
+When a Git Leaf 1.x fixed installation updates to OpenPeek 2.0, the compatibility executable and old
+updater arguments are accepted once, the app is copied to `%LOCALAPPDATA%\OpenPeek\app`, and the new
+executable must confirm startup before the old installation is retired. If Windows still has the old
+updater open, cleanup is retried on the next OpenPeek launch.
 
 ## Community Build
 
@@ -43,30 +48,34 @@ npm run package:win
 ```
 
 The resulting package is technically a `source` distribution and is labeled `Community build`. It uses
-`Git Leaf Community` as its Windows CompanyName, is unsigned, does not use official updates, and starts
+`OpenPeek Community` as its Windows CompanyName, is unsigned, does not use official updates, and starts
 with usage analytics disabled. See [Build from source](build-from-source.md) for the short contributor
 workflow.
 
 ## Deep links
 
-Git Leaf registers the `git-leaf://` protocol from its fixed installation:
+OpenPeek registers the `openpeek://` protocol from its fixed installation:
 
 ```powershell
-Start-Process 'git-leaf://open'
-Start-Process 'git-leaf://open?repo=C%3A%5CUsers%5Cexample%5CProjects%5Cgit-leaf-guide-demo&path=README.md'
+Start-Process 'openpeek://open'
+Start-Process 'openpeek://open?repo=C%3A%5CUsers%5Cexample%5CProjects%5Cgit-leaf-guide-demo&path=README.md'
 ```
+
+Existing `git-leaf://` links remain accepted for 1.x compatibility. OpenPeek generates only
+`openpeek://` links.
 
 `repo` is a URL-encoded local repository path. `path` is a repository-relative Markdown or MDX path. HTTPS share links use a GitHub `owner/repo` identity and do not transmit a recipient's local path or document content. The public HTTPS handoff is hosted by Mango Future; see [Hosted `/open` and `/share` links](hosted-links.md) for the exact metadata.
 
 ## Uninstall
 
-Exit Git Leaf, then remove:
+Exit OpenPeek, then remove:
 
-- `%LOCALAPPDATA%\GitLeaf`;
-- the Git Leaf shortcut under the current user's Start Menu.
+- `%LOCALAPPDATA%\OpenPeek`;
+- the OpenPeek shortcut under the current user's Start Menu.
 
 User preferences are stored separately under Electron userData. Back them up or remove them according to your own data-retention needs.
+The stable 1.x/2.0 Profile remains `%APPDATA%\git-leaf`; uninstalling the app does not remove it.
 
 ## Reporting problems
 
-For security issues, follow [SECURITY.md](../SECURITY.md). For ordinary bugs, open a GitHub issue and include the Git Leaf version, build identity, Windows version, installation source, and minimal reproduction steps. Do not attach private repository content or personal paths.
+For security issues, follow [SECURITY.md](../SECURITY.md). For ordinary bugs, open a GitHub issue and include the OpenPeek version, build identity, Windows version, installation source, and minimal reproduction steps. Do not attach private repository content or personal paths.

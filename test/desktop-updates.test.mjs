@@ -46,11 +46,11 @@ function fakeMacManifestFetch({
         buildId,
         commit,
         autoUpdater: {
-          name: `Git Leaf ${version}`,
+          name: `OpenPeek ${version}`,
         },
         files: {
           zip: {
-            url: `https://updates.mangofuture.com/git-leaf/${channel}/${platform}/GitLeaf-${version}.zip`,
+            url: `https://updates.mangofuture.com/git-leaf/${channel}/${platform}/OpenPeek-${version}.zip`,
           },
         },
       }),
@@ -139,7 +139,7 @@ test("packaged internal builds ignore environment channel overrides", async () =
     arch: "arm64",
     channel: "stable",
     environment: {
-      GIT_LEAF_UPDATE_CHANNEL: "candidate",
+      OPENPEEK_UPDATE_CHANNEL: "candidate",
     },
   });
 
@@ -250,7 +250,7 @@ test("packaged source development builds automatically prepare a newer internal 
     platform: "darwin",
     arch: "arm64",
     environment: {
-      GIT_LEAF_UPDATE_CHANNEL: "candidate",
+      OPENPEEK_UPDATE_CHANNEL: "candidate",
     },
     saveDevelopmentHandoff: async (handoff) => {
       operations.push("save");
@@ -577,7 +577,7 @@ test("desktop update actions cannot bypass development-build update guards", asy
   assert.equal(await controller.handleUpdateAction(), "disabled");
   assert.deepEqual(fetch.urls, []);
   assert.equal(autoUpdater.checked, false);
-  assert.match(dialog.calls[0][0].message, /Git Leaf dev/);
+  assert.match(dialog.calls[0][0].message, /OpenPeek dev/);
 });
 
 test("development builds do not restore version-only update actions from shared preferences", async () => {
@@ -623,7 +623,7 @@ test("desktop updater does not show transient macOS errors before a downloaded u
 
   await controller.checkForUpdates({ manual: true });
   autoUpdater.listeners.get("error")(
-    new Error("文件夹“GitLeaf-1.2.1-darwin-arm64.zip”不存在。：该文件夹不存在。"),
+    new Error("文件夹“OpenPeek-1.2.1-darwin-arm64.zip”不存在。：该文件夹不存在。"),
   );
 
   assert.equal(dialog.calls.length, 0);
@@ -909,7 +909,7 @@ test("desktop updater automatically prepares Windows and launches it on quit", a
     arch: "x64",
     prepareWindowsUpdate: async (manifest) => {
       preparedManifests.push(manifest);
-      return { version: manifest.version, executable: "C:\\updates\\Git Leaf.exe" };
+      return { version: manifest.version, executable: "C:\\updates\\OpenPeek.exe" };
     },
     launchWindowsUpdate: (prepared) => launched.push(prepared),
     showUpdateStatus: async (status) => statuses.push(status),
@@ -997,10 +997,10 @@ test("a newer macOS release replaces the downloaded update and prunes the old pa
         channel: "stable",
         platform: "darwin-universal",
         version,
-        autoUpdater: { name: `Git Leaf ${version}` },
+        autoUpdater: { name: `OpenPeek ${version}` },
         files: {
           zip: {
-            url: `https://updates.example/GitLeaf-${version}-darwin-universal.zip`,
+            url: `https://updates.example/OpenPeek-${version}-darwin-universal.zip`,
           },
         },
       }),
@@ -1212,7 +1212,7 @@ test("automatic Windows checks prepare immediately and install on quit", async (
         version: "1.9.0",
         files: {
           zip: {
-            url: "https://updates.example/GitLeaf-1.9.0-win32-x64.zip",
+            url: "https://updates.example/OpenPeek-1.9.0-win32-x64.zip",
             sha256: "a".repeat(64),
             size: 123,
           },
@@ -1224,7 +1224,7 @@ test("automatic Windows checks prepare immediately and install on quit", async (
     arch: "x64",
     prepareWindowsUpdate: async (manifest) => {
       prepared.push(manifest.version);
-      return { version: manifest.version, executable: "C:\\updates\\Git Leaf.exe" };
+      return { version: manifest.version, executable: "C:\\updates\\OpenPeek.exe" };
     },
     launchWindowsUpdate: (pending) => launched.push(pending),
   });
@@ -1364,7 +1364,7 @@ test("install lifecycle is recorded at the real entry and entry failures are exp
     isPackaged: true,
     platform: "win32",
     arch: "x64",
-    prepareWindowsUpdate: async () => ({ executable: "Git Leaf.exe" }),
+    prepareWindowsUpdate: async () => ({ executable: "OpenPeek.exe" }),
     launchWindowsUpdate: () => { throw new Error("launch failed"); },
     recordUpdateState: async (update) => updates.push(update),
   });

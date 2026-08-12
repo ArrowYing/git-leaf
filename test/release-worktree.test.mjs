@@ -165,6 +165,8 @@ test("release environment cannot drift away from the frozen state", () => {
     RELEASE_COMMIT: "0123456789abcdef0123456789abcdef01234567",
     BUILT_AT: "2026-07-15T08:09:10.000Z",
     BUILD_ID: "0123456789ab.20260715T080910Z",
+    OPENPEEK_FORMAL_RELEASE: "1",
+    OPENPEEK_RELEASE_PROFILE: "/profiles/git-leaf-official-public.json",
     GIT_LEAF_FORMAL_RELEASE: "1",
     GIT_LEAF_RELEASE_PROFILE: "/profiles/git-leaf-official-public.json",
     UPDATE_CHANNEL: "candidate",
@@ -179,10 +181,10 @@ test("release subprocesses ignore all ambient identity, profile, destination, an
     BUILT_AT: "2099-01-01T00:00:00.000Z",
     GIT_COMMIT: "ambient",
     RELEASE_COMMIT: "ambient",
-    GIT_LEAF_FORMAL_RELEASE: "0",
-    GIT_LEAF_RELEASE_PROFILE: "/tmp/wrong-profile.json",
-    GIT_LEAF_DISTRIBUTION: "source",
-    GIT_LEAF_USAGE_ANALYTICS_DEFAULT: "false",
+    OPENPEEK_FORMAL_RELEASE: "0",
+    OPENPEEK_RELEASE_PROFILE: "/tmp/wrong-profile.json",
+    OPENPEEK_DISTRIBUTION: "source",
+    OPENPEEK_USAGE_ANALYTICS_DEFAULT: "false",
     DEVELOPER_ID_APPLICATION: "wrong identity",
     NOTARY_PROFILE: "wrong notary profile",
     ELECTRON_MIRROR: "http://localhost:9996",
@@ -190,12 +192,22 @@ test("release subprocesses ignore all ambient identity, profile, destination, an
     UPDATE_REMOTE_HOST: "wrong-host",
     UPDATE_REMOTE_ROOT: "/tmp/wrong-root",
     UPDATE_CHANNEL: "stable",
-    GIT_LEAF_DEV_USER_DATA_DIR: "/tmp/release-smoke-profile",
+    OPENPEEK_DEV_USER_DATA_DIR: "/tmp/release-smoke-profile",
+    OPENPEEK_ENABLE_UPDATES: "1",
+    OPENPEEK_PORTABLE: "1",
+    OPENPEEK_TELEMETRY_ENDPOINT: "http://localhost:9999",
+    OPENPEEK_UPDATE_BASE_URL: "http://localhost:9998",
+    OPENPEEK_UPDATE_CHANNEL: "candidate",
+    GIT_LEAF_FORMAL_RELEASE: "0",
+    GIT_LEAF_RELEASE_PROFILE: "/tmp/legacy-wrong-profile.json",
+    GIT_LEAF_DISTRIBUTION: "official",
+    GIT_LEAF_USAGE_ANALYTICS_DEFAULT: "true",
+    GIT_LEAF_DEV_USER_DATA_DIR: "/tmp/legacy-release-smoke-profile",
     GIT_LEAF_ENABLE_UPDATES: "1",
     GIT_LEAF_PORTABLE: "1",
-    GIT_LEAF_TELEMETRY_ENDPOINT: "http://localhost:9999",
-    GIT_LEAF_UPDATE_BASE_URL: "http://localhost:9998",
-    GIT_LEAF_UPDATE_CHANNEL: "candidate",
+    GIT_LEAF_TELEMETRY_ENDPOINT: "http://localhost:8999",
+    GIT_LEAF_UPDATE_BASE_URL: "http://localhost:8998",
+    GIT_LEAF_UPDATE_CHANNEL: "stable",
   }), {
     HOME: "/Users/release",
   });
@@ -537,7 +549,7 @@ test("Windows Release Smoke evidence accepts only a successful run for the froze
   const artifacts = {
     artifacts: [{
       id: 8588318244,
-      name: `git-leaf-windows-release-smoke-10-${state.commit}`,
+      name: `openpeek-windows-release-smoke-10-${state.commit}`,
       size_in_bytes: 152326386,
       expired: false,
     }],
@@ -561,7 +573,7 @@ test("Windows Release Smoke evidence accepts only a successful run for the froze
     runStatus: "completed",
     conclusion: "success",
     artifactId: "8588318244",
-    artifactName: `git-leaf-windows-release-smoke-10-${state.commit}`,
+    artifactName: `openpeek-windows-release-smoke-10-${state.commit}`,
     artifactSize: 152326386,
     verifiedAt: "2026-07-24T06:20:00.000Z",
   });
@@ -762,7 +774,7 @@ test("failed attempts never satisfy release gates", () => {
 });
 
 test("release controller prepares, validates, exports, and aborts an isolated worktree", async () => {
-  const fixtureRoot = await mkdtemp(path.join(tmpdir(), "git-leaf-release-worktree-"));
+  const fixtureRoot = await mkdtemp(path.join(tmpdir(), "openpeek-release-worktree-"));
   const sourceRoot = path.join(fixtureRoot, "git-leaf");
   const remoteRoot = path.join(fixtureRoot, "origin.git");
   const profilePath = path.join(fixtureRoot, "official-internal.json");
@@ -779,9 +791,11 @@ test("release controller prepares, validates, exports, and aborts an isolated wo
   cpSync(path.join(REPO_ROOT, "scripts", "release-worktree.mjs"), path.join(sourceRoot, "scripts", "release-worktree.mjs"));
   cpSync(path.join(REPO_ROOT, "scripts", "release-shared.mjs"), path.join(sourceRoot, "scripts", "release-shared.mjs"));
   cpSync(path.join(REPO_ROOT, "src", "build-info.mjs"), path.join(sourceRoot, "src", "build-info.mjs"));
+  cpSync(path.join(REPO_ROOT, "src", "environment.mjs"), path.join(sourceRoot, "src", "environment.mjs"));
+  cpSync(path.join(REPO_ROOT, "src", "product-identity.mjs"), path.join(sourceRoot, "src", "product-identity.mjs"));
   writeFileSync(
     path.join(sourceRoot, "scripts", "release-mac.mjs"),
-    "console.log(JSON.stringify({ formal: process.env.GIT_LEAF_FORMAL_RELEASE, profile: process.env.GIT_LEAF_RELEASE_PROFILE, channel: process.env.UPDATE_CHANNEL }));\n",
+    "console.log(JSON.stringify({ formal: process.env.OPENPEEK_FORMAL_RELEASE, profile: process.env.OPENPEEK_RELEASE_PROFILE, channel: process.env.UPDATE_CHANNEL }));\n",
   );
   writeFileSync(path.join(sourceRoot, "package.json"), `${JSON.stringify({ version: "1.11.2" }, null, 2)}\n`);
   writeFileSync(path.join(sourceRoot, ".gitignore"), "node_modules/\ndist/\n");
@@ -834,14 +848,14 @@ test("release controller prepares, validates, exports, and aborts an isolated wo
   assert.match(node([controller, "status", "--remote"], { cwd: sourceRoot }), /Release worktree is valid/);
   const releaseEnv = node([controller, "env"], { cwd: sourceRoot });
   assert.match(releaseEnv, /export VERSION='1\.11\.3'/);
-  assert.match(releaseEnv, /export GIT_LEAF_FORMAL_RELEASE='1'/);
+  assert.match(releaseEnv, /export OPENPEEK_FORMAL_RELEASE='1'/);
   assert.match(
     releaseEnv,
-    new RegExp(`export GIT_LEAF_RELEASE_PROFILE='${escapeRegExp(realpathSync(profilePath))}'`),
+    new RegExp(`export OPENPEEK_RELEASE_PROFILE='${escapeRegExp(realpathSync(profilePath))}'`),
   );
   assert.match(releaseEnv, new RegExp(`export RELEASE_WORKTREE='${escapeRegExp(worktreePath)}'`));
 
-  const statePath = path.join(sourceRoot, ".git", "git-leaf-release-state.json");
+  const statePath = path.join(sourceRoot, ".git", "openpeek-release-state.json");
   let state = JSON.parse(readFileSync(statePath, "utf8"));
   assert.equal(state.track, "internal");
   assert.equal(state.releaseProfile.path, realpathSync(profilePath));
@@ -909,14 +923,14 @@ test("release controller prepares, validates, exports, and aborts an isolated wo
   writeFileSync(profilePath, profileContents);
   assert.match(node([controller, "status"], { cwd: sourceRoot }), /Release worktree is valid/);
 
-  assert.match(node([controller, "abort"], { cwd: sourceRoot }), /Aborted Git Leaf 1\.11\.3/);
+  assert.match(node([controller, "abort"], { cwd: sourceRoot }), /Aborted OpenPeek 1\.11\.3/);
   assert.equal(existsSync(worktreePath), false);
   assert.equal(existsSync(statePath), false);
   assert.doesNotMatch(readFileSync(path.join(sourceRoot, ".git", "config"), "utf8"), /release-worktrees/);
 });
 
 test("release controller finish preserves verified stable artifacts outside the release worktree", async () => {
-  const fixtureRoot = await mkdtemp(path.join(tmpdir(), "git-leaf-release-finish-"));
+  const fixtureRoot = await mkdtemp(path.join(tmpdir(), "openpeek-release-finish-"));
   const sourceRoot = path.join(fixtureRoot, "git-leaf");
   const remoteRoot = path.join(fixtureRoot, "origin.git");
   const profilePath = path.join(fixtureRoot, "official-internal.json");
@@ -933,6 +947,8 @@ test("release controller finish preserves verified stable artifacts outside the 
   cpSync(path.join(REPO_ROOT, "scripts", "release-worktree.mjs"), path.join(sourceRoot, "scripts", "release-worktree.mjs"));
   cpSync(path.join(REPO_ROOT, "scripts", "release-shared.mjs"), path.join(sourceRoot, "scripts", "release-shared.mjs"));
   cpSync(path.join(REPO_ROOT, "src", "build-info.mjs"), path.join(sourceRoot, "src", "build-info.mjs"));
+  cpSync(path.join(REPO_ROOT, "src", "environment.mjs"), path.join(sourceRoot, "src", "environment.mjs"));
+  cpSync(path.join(REPO_ROOT, "src", "product-identity.mjs"), path.join(sourceRoot, "src", "product-identity.mjs"));
   writeFileSync(path.join(sourceRoot, "package.json"), `${JSON.stringify({ version: "1.11.3" }, null, 2)}\n`);
   writeFileSync(path.join(sourceRoot, ".gitignore"), "node_modules/\ndist/\n");
 
@@ -966,7 +982,7 @@ test("release controller finish preserves verified stable artifacts outside the 
     ".release-worktrees",
     "git-leaf-v1.11.4",
   );
-  const statePath = path.join(sourceRoot, ".git", "git-leaf-release-state.json");
+  const statePath = path.join(sourceRoot, ".git", "openpeek-release-state.json");
   const state = JSON.parse(readFileSync(statePath, "utf8"));
   const releaseBuildId = `${state.buildId}.internal`;
   const updateRoot = path.join(
@@ -978,15 +994,15 @@ test("release controller finish preserves verified stable artifacts outside the 
   );
   const artifacts = {
     dmg: {
-      name: "GitLeaf-1.11.4-internal-darwin-universal.dmg",
+      name: "OpenPeek-1.11.4-internal-darwin-universal.dmg",
       contents: "signed and notarized dmg",
     },
     macZip: {
-      name: "GitLeaf-1.11.4-internal-darwin-universal.zip",
+      name: "OpenPeek-1.11.4-internal-darwin-universal.zip",
       contents: "signed and notarized mac zip",
     },
     windowsZip: {
-      name: "GitLeaf-1.11.4-internal-win32-x64.zip",
+      name: "OpenPeek-1.11.4-internal-win32-x64.zip",
       contents: "verified windows zip",
     },
   };
@@ -1004,7 +1020,7 @@ test("release controller finish preserves verified stable artifacts outside the 
     size: artifact.size,
   });
   const macManifest = {
-    app: "Git Leaf",
+    app: "OpenPeek",
     releaseTrack: "internal",
     channel: "internal-stable",
     platform: "darwin-universal",
@@ -1024,7 +1040,7 @@ test("release controller finish preserves verified stable artifacts outside the 
     platform: "darwin-arm64",
   };
   const windowsManifest = {
-    app: "Git Leaf",
+    app: "OpenPeek",
     releaseTrack: "internal",
     channel: "internal-stable",
     platform: "win32-x64",

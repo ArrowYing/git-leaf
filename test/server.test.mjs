@@ -24,18 +24,18 @@ test("index page can start without an initial document", async () => {
     const html = await response.text();
 
     assert.equal(response.ok, true);
-    assert.match(html, /window\.GIT_LEAF_INITIAL_FILE = "";/);
-    assert.match(html, /window\.GIT_LEAF_DESKTOP_PREFERENCES = null;/);
-    assert.match(html, /window\.GIT_LEAF_TELEMETRY_ENABLED = false;/);
+    assert.match(html, /window\.OPENPEEK_INITIAL_FILE = "";/);
+    assert.match(html, /window\.OPENPEEK_DESKTOP_PREFERENCES = null;/);
+    assert.match(html, /window\.OPENPEEK_TELEMETRY_ENABLED = false;/);
     assert.match(html, /id="theme-toggle"/);
     assert.match(html, /aria-label="切换到深色模式"/);
     assert.match(html, /id="theme-toggle"[\s\S]*hidden[\s\S]*><\/button>/);
     assert.match(html, /href="\/styles\.css\?v=[^"]+"/);
     assert.match(html, /src="\/app\.js\?v=[^"]+"/);
-    assert.doesNotMatch(html, /__GIT_LEAF_INITIAL_FILE__/);
-    assert.doesNotMatch(html, /__GIT_LEAF_ASSET_VERSION__/);
-    assert.doesNotMatch(html, /__GIT_LEAF_DESKTOP_PREFERENCES__/);
-    assert.doesNotMatch(html, /__GIT_LEAF_TELEMETRY_ENABLED__/);
+    assert.doesNotMatch(html, /__OPENPEEK_INITIAL_FILE__/);
+    assert.doesNotMatch(html, /__OPENPEEK_ASSET_VERSION__/);
+    assert.doesNotMatch(html, /__OPENPEEK_DESKTOP_PREFERENCES__/);
+    assert.doesNotMatch(html, /__OPENPEEK_TELEMETRY_ENABLED__/);
   } finally {
     await close(server);
   }
@@ -57,7 +57,7 @@ test("telemetry API is available only when a desktop recorder is supplied", asyn
 
   try {
     const page = await fetch(`${baseUrl}/`);
-    assert.match(await page.text(), /window\.GIT_LEAF_TELEMETRY_ENABLED = true;/);
+    assert.match(await page.text(), /window\.OPENPEEK_TELEMETRY_ENABLED = true;/);
     const actions = [{ kind: "mode", mode: "live" }];
     const response = await fetch(`${baseUrl}/api/telemetry`, {
       method: "POST",
@@ -72,7 +72,7 @@ test("telemetry API is available only when a desktop recorder is supplied", asyn
   }
 });
 
-test("document API requires a file when Git Leaf starts as a workbench", async () => {
+test("document API requires a file when OpenPeek starts as a workbench", async () => {
   const repoRoot = await mkdtemp(path.join(tmpdir(), "git-leaf-"));
   await writeFile(path.join(repoRoot, "sample.md"), "# Sample\n");
   const server = createPreviewServer({ repoRoot, initialFile: null });
@@ -278,7 +278,7 @@ test("resolveNewDocumentPath normalizes extensions and rejects invalid names", a
   }
 });
 
-test("health API identifies a reusable Git Leaf server", async () => {
+test("health API identifies a reusable OpenPeek server", async () => {
   const repoRoot = await mkdtemp(path.join(tmpdir(), "git-leaf-"));
   await writeFile(path.join(repoRoot, "sample.md"), "# Sample\n");
   const server = createPreviewServer({
@@ -291,7 +291,7 @@ test("health API identifies a reusable Git Leaf server", async () => {
   try {
     const payload = await getJson(`${baseUrl}/api/health`);
 
-    assert.equal(payload.app, "git-leaf");
+    assert.equal(payload.app, "openpeek");
     assert.equal(payload.repoRoot, repoRoot);
     assert.equal(payload.initialFile, "");
     assert.equal(payload.toolFingerprint, "abc123");
@@ -401,7 +401,7 @@ test("preferences API reads and updates desktop app preferences", async () => {
     const page = await fetch(`${baseUrl}/`);
     const html = await page.text();
 
-    assert.match(html, /window\.GIT_LEAF_DESKTOP_PREFERENCES = \{"mode":"live","theme":"dark"\};/);
+    assert.match(html, /window\.OPENPEEK_DESKTOP_PREFERENCES = \{"mode":"live","theme":"dark"\};/);
     assert.deepEqual(await getJson(`${baseUrl}/api/preferences`), {
       available: true,
       preferences: {
@@ -581,7 +581,7 @@ test("document API returns the committed Markdown baseline for local edit cues",
   const current = "# Plan\n\nLaunch this week.\n\n## Delivery\n\nKeep this.\n";
   await execFileAsync("git", ["init", "-q"], { cwd: repoRoot });
   await execFileAsync("git", ["config", "user.email", "git-leaf@example.test"], { cwd: repoRoot });
-  await execFileAsync("git", ["config", "user.name", "Git Leaf Test"], { cwd: repoRoot });
+  await execFileAsync("git", ["config", "user.name", "OpenPeek Test"], { cwd: repoRoot });
   await writeFile(path.join(repoRoot, "sample.md"), baseline);
   await execFileAsync("git", ["add", "sample.md"], { cwd: repoRoot });
   await execFileAsync("git", ["commit", "-qm", "Initial"], { cwd: repoRoot });
@@ -1088,7 +1088,7 @@ test("link target API returns titled safe repository document links", async () =
     const child = await getJson(`${baseUrl}/api/link-target?file=docs/source.md&target=guides/guide.md`);
     const deep = await getJson(`${baseUrl}/api/link-target?file=docs/source.md&target=guides/deep/deep.md`);
     const absolute = await getJson(`${baseUrl}/api/link-target?file=docs/source.md&target=${encodeURIComponent(path.join(repoRoot, "company", "org.md"))}`);
-    const gitLeafUrl = await getJson(`${baseUrl}/api/link-target?file=docs/source.md&target=${encodeURIComponent(`${baseUrl}/?repo=${path.basename(repoRoot)}&file=docs%2Fpeer.md#L3`)}`);
+    const openPeekUrl = await getJson(`${baseUrl}/api/link-target?file=docs/source.md&target=${encodeURIComponent(`${baseUrl}/?repo=${path.basename(repoRoot)}&file=docs%2Fpeer.md#L3`)}`);
 
     assert.deepEqual(
       { title: peer.title, href: peer.href, markdown: peer.markdown },
@@ -1101,14 +1101,14 @@ test("link target API returns titled safe repository document links", async () =
     assert.equal(absolute.href, "../company/org.md");
     assert.equal(absolute.markdown, "[Company Org](../company/org.md)");
     assert.doesNotMatch(absolute.markdown, /Users|private|var|tmp/);
-    assert.equal(gitLeafUrl.href, "./peer.md#L3");
-    assert.equal(gitLeafUrl.markdown, "[Peer Doc](./peer.md#L3)");
+    assert.equal(openPeekUrl.href, "./peer.md#L3");
+    assert.equal(openPeekUrl.markdown, "[Peer Doc](./peer.md#L3)");
   } finally {
     await close(server);
   }
 });
 
-test("link target API rejects Git Leaf URLs for another repository", async () => {
+test("link target API rejects OpenPeek URLs for another repository", async () => {
   const currentRoot = await mkdtemp(path.join(tmpdir(), "git-leaf-current-"));
   await mkdir(path.join(currentRoot, "docs"), { recursive: true });
   await writeFile(path.join(currentRoot, "docs", "source.md"), "# Source\n");
@@ -1300,7 +1300,7 @@ test("frontmatter facets API returns allowed key values and file metadata", asyn
       "product: sample-product",
       "decision_status: accepted",
       "canonical: true",
-      "ai_snippet: Git Leaf editor supports live preview and frontmatter filters",
+      "ai_snippet: OpenPeek editor supports live preview and frontmatter filters",
       "ignored: value",
       "---",
       "# Standard",
@@ -1346,7 +1346,7 @@ test("frontmatter facets API returns allowed key values and file metadata", asyn
       product: "sample-product",
       decision_status: "accepted",
       canonical: true,
-      ai_snippet: "Git Leaf editor supports live preview and frontmatter filters",
+      ai_snippet: "OpenPeek editor supports live preview and frontmatter filters",
     });
     assert.equal(payload.files["plain.md"], undefined);
     assert.equal(payload.facets.domain.find((item) => item.value === "docs")?.count, 2);
@@ -1602,7 +1602,7 @@ test("prepared merge API stays read-only until apply and then preserves dirty lo
   await mkdir(bare, { recursive: true });
   await execFileAsync("git", ["init", "--bare", "--initial-branch=main"], { cwd: bare });
   await execFileAsync("git", ["clone", bare, repoRoot], { cwd: root });
-  await execFileAsync("git", ["config", "user.name", "Git Leaf Tests"], { cwd: repoRoot });
+  await execFileAsync("git", ["config", "user.name", "OpenPeek Tests"], { cwd: repoRoot });
   await execFileAsync("git", ["config", "user.email", "git-leaf@example.test"], { cwd: repoRoot });
   await writeFile(path.join(repoRoot, "sample.md"), "before\n");
   await writeFile(path.join(repoRoot, "remote.md"), "remote before\n");
@@ -1610,7 +1610,7 @@ test("prepared merge API stays read-only until apply and then preserves dirty lo
   await execFileAsync("git", ["commit", "-m", "Initial"], { cwd: repoRoot });
   await execFileAsync("git", ["push", "-u", "origin", "main"], { cwd: repoRoot });
   await execFileAsync("git", ["clone", bare, coworker], { cwd: root });
-  await execFileAsync("git", ["config", "user.name", "Git Leaf Tests"], { cwd: coworker });
+  await execFileAsync("git", ["config", "user.name", "OpenPeek Tests"], { cwd: coworker });
   await execFileAsync("git", ["config", "user.email", "git-leaf@example.test"], { cwd: coworker });
   await writeFile(path.join(coworker, "remote.md"), "remote after\n");
   await execFileAsync("git", ["add", "-A"], { cwd: coworker });
@@ -1726,7 +1726,7 @@ test("git sync API returns an Agent prompt when the fixed Git flow fails", async
     assert.equal(payload.ok, false);
     assert.equal(payload.step, "push");
     assert.match(payload.error, /remote contains work/);
-    assert.match(payload.agentPrompt, /请处理 Git Leaf 同步失败/);
+    assert.match(payload.agentPrompt, /请处理 OpenPeek 同步失败/);
     assert.match(payload.agentPrompt, /选中文件：\n- sample\.md/);
     assert.match(payload.agentPrompt, /失败步骤：push/);
   } finally {
@@ -1737,7 +1737,7 @@ test("git sync API returns an Agent prompt when the fixed Git flow fails", async
 test("share-link API returns a main-primary published document link", async () => {
   const repoRoot = await mkdtemp(path.join(tmpdir(), "git-leaf-share-api-"));
   await execFileAsync("git", ["init", "-b", "main"], { cwd: repoRoot });
-  await execFileAsync("git", ["config", "user.name", "Git Leaf Tests"], { cwd: repoRoot });
+  await execFileAsync("git", ["config", "user.name", "OpenPeek Tests"], { cwd: repoRoot });
   await execFileAsync("git", ["config", "user.email", "git-leaf@example.test"], { cwd: repoRoot });
   await writeFile(path.join(repoRoot, "sample.md"), [
     "---",
@@ -1777,7 +1777,7 @@ test("share-link API returns a main-primary published document link", async () =
 test("share-link publish API commits, pushes, verifies origin/main, and returns the link", async () => {
   const repoRoot = await mkdtemp(path.join(tmpdir(), "git-leaf-share-publish-api-"));
   await execFileAsync("git", ["init", "-b", "main"], { cwd: repoRoot });
-  await execFileAsync("git", ["config", "user.name", "Git Leaf Tests"], { cwd: repoRoot });
+  await execFileAsync("git", ["config", "user.name", "OpenPeek Tests"], { cwd: repoRoot });
   await execFileAsync("git", ["config", "user.email", "git-leaf@example.test"], { cwd: repoRoot });
   await writeFile(path.join(repoRoot, "README.md"), "# Initial\n");
   await execFileAsync("git", ["add", "README.md"], { cwd: repoRoot });
@@ -1795,7 +1795,7 @@ test("share-link publish API commits, pushes, verifies origin/main, and returns 
   const gitRunner = async (_cwd, args) => {
     calls.push(args);
     const command = args.join(" ");
-    if (command === "config --get user.name") return { stdout: "Git Leaf Tests\n", stderr: "" };
+    if (command === "config --get user.name") return { stdout: "OpenPeek Tests\n", stderr: "" };
     if (command === "config --get user.email") return { stdout: "git-leaf@example.test\n", stderr: "" };
     if (command === "remote get-url origin") {
       return { stdout: "git@github.com:ExampleOrg/docs-repo.git\n", stderr: "" };
@@ -1815,7 +1815,7 @@ test("share-link publish API commits, pushes, verifies origin/main, and returns 
     if (args[0] === "rev-list") return { stdout: "0\t0\n", stderr: "" };
     if (args[0] === "commit") {
       committed = true;
-      return { stdout: `[main ${publishedHead.slice(0, 7)}] Sync Git Leaf files\n`, stderr: "" };
+      return { stdout: `[main ${publishedHead.slice(0, 7)}] Sync OpenPeek files\n`, stderr: "" };
     }
     if (args[0] === "push") {
       pushed = true;
@@ -1872,10 +1872,10 @@ test("index page exposes edit capability for the current browser", async () => {
     const html = await response.text();
 
     assert.equal(response.ok, true);
-    assert.match(html, /window\.GIT_LEAF_CAN_EDIT = true;/);
-    assert.match(html, /window\.GIT_LEAF_INITIAL_REPO = "git-leaf-/);
-    assert.doesNotMatch(html, /__GIT_LEAF_CAN_EDIT__/);
-    assert.doesNotMatch(html, /__GIT_LEAF_INITIAL_REPO__/);
+    assert.match(html, /window\.OPENPEEK_CAN_EDIT = true;/);
+    assert.match(html, /window\.OPENPEEK_INITIAL_REPO = "git-leaf-/);
+    assert.doesNotMatch(html, /__OPENPEEK_CAN_EDIT__/);
+    assert.doesNotMatch(html, /__OPENPEEK_INITIAL_REPO__/);
   } finally {
     await close(server);
   }
@@ -1899,7 +1899,7 @@ test("repository payloads contain no sharing tokens", async () => {
   try {
     const htmlResponse = await fetch(`${baseUrl}/?repo=docs-repo&file=sample.md`);
     const html = await htmlResponse.text();
-    assert.match(html, /window\.GIT_LEAF_CAN_EDIT = true;/);
+    assert.match(html, /window\.OPENPEEK_CAN_EDIT = true;/);
 
     const reposPayload = await getJson(`${baseUrl}/api/repos?repo=docs-repo`);
     assert.equal(reposPayload.canEdit, true);
@@ -2050,7 +2050,7 @@ test("worktree API lists linked worktrees and detached writes create a protectio
   const detachedRoot = path.join(rootDir, "docs-review");
   await mkdir(repoRoot, { recursive: true });
   await execFileAsync("git", ["init", "-b", "main"], { cwd: repoRoot });
-  await execFileAsync("git", ["config", "user.name", "Git Leaf Tests"], { cwd: repoRoot });
+  await execFileAsync("git", ["config", "user.name", "OpenPeek Tests"], { cwd: repoRoot });
   await execFileAsync("git", ["config", "user.email", "git-leaf@example.test"], { cwd: repoRoot });
   await writeFile(path.join(repoRoot, "README.md"), "# Docs\n");
   await execFileAsync("git", ["add", "README.md"], { cwd: repoRoot });
@@ -2096,7 +2096,7 @@ test("worktree API lists linked worktrees and detached writes create a protectio
 
     assert.equal(response.ok, true);
     assert.equal(payload.branchCreated, true);
-    assert.match(payload.branch, /^git-leaf\/detached-[a-f0-9]{7}-/);
+    assert.match(payload.branch, /^openpeek\/detached-[a-f0-9]{7}-/);
     assert.equal(branchOutput.trim(), payload.branch);
     assert.equal(await readFile(path.join(detachedRoot, "README.md"), "utf8"), "# Protected edit\n");
 
@@ -2114,7 +2114,7 @@ test("worktree API stops listing a linked worktree after its directory is remove
   const removedRoot = path.join(rootDir, "removed-review");
   await mkdir(repoRoot, { recursive: true });
   await execFileAsync("git", ["init", "-b", "main"], { cwd: repoRoot });
-  await execFileAsync("git", ["config", "user.name", "Git Leaf Tests"], { cwd: repoRoot });
+  await execFileAsync("git", ["config", "user.name", "OpenPeek Tests"], { cwd: repoRoot });
   await execFileAsync("git", ["config", "user.email", "git-leaf@example.test"], { cwd: repoRoot });
   await writeFile(path.join(repoRoot, "README.md"), "# Docs\n");
   await execFileAsync("git", ["add", "README.md"], { cwd: repoRoot });

@@ -9,7 +9,7 @@ const CHANNELS = Object.freeze({
   show: "git-leaf-settings:show",
 });
 
-contextBridge.exposeInMainWorld("gitLeafSettings", Object.freeze({
+contextBridge.exposeInMainWorld("openPeekSettings", Object.freeze({
   getModel() {
     return ipcRenderer.invoke(CHANNELS.getModel);
   },

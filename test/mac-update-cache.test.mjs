@@ -18,12 +18,12 @@ test("macOS update cache keeps only the package staged by ShipIt", async () => {
   const current = path.join(paths.updateRoot, "update.NEW5678");
   const unrelated = path.join(paths.updateRoot, "logs");
   await Promise.all([
-    mkdir(path.join(stale, "Git Leaf.app"), { recursive: true }),
-    mkdir(path.join(current, "Git Leaf.app"), { recursive: true }),
+    mkdir(path.join(stale, "OpenPeek.app"), { recursive: true }),
+    mkdir(path.join(current, "OpenPeek.app"), { recursive: true }),
     mkdir(unrelated, { recursive: true }),
   ]);
   await writeFile(paths.stateFile, JSON.stringify({
-    updateBundleURL: pathToFileURL(path.join(current, "Git Leaf.app")).href,
+    updateBundleURL: pathToFileURL(path.join(current, "OpenPeek.app")).href,
   }));
 
   const result = await pruneObsoleteMacUpdatePackages({ homeDir });
@@ -42,14 +42,14 @@ test("macOS update cache rechecks ShipIt state before removing each package", as
   const oldPackage = path.join(paths.updateRoot, "update.A-OLD");
   const newPackage = path.join(paths.updateRoot, "update.B-NEW");
   await Promise.all([
-    mkdir(path.join(oldPackage, "Git Leaf.app"), { recursive: true }),
-    mkdir(path.join(newPackage, "Git Leaf.app"), { recursive: true }),
+    mkdir(path.join(oldPackage, "OpenPeek.app"), { recursive: true }),
+    mkdir(path.join(newPackage, "OpenPeek.app"), { recursive: true }),
   ]);
   let reads = 0;
   const readFileFn = async () => JSON.stringify({
     updateBundleURL: pathToFileURL(path.join(
       reads++ === 0 ? oldPackage : newPackage,
-      "Git Leaf.app",
+      "OpenPeek.app",
     )).href,
   });
   const readdirFn = async () => [
@@ -77,10 +77,10 @@ test("macOS update cache reports incomplete pruning without removing the staged 
   const current = path.join(paths.updateRoot, "update.NEW5678");
   await Promise.all([
     mkdir(stale, { recursive: true }),
-    mkdir(path.join(current, "Git Leaf.app"), { recursive: true }),
+    mkdir(path.join(current, "OpenPeek.app"), { recursive: true }),
   ]);
   await writeFile(paths.stateFile, JSON.stringify({
-    updateBundleURL: pathToFileURL(path.join(current, "Git Leaf.app")).href,
+    updateBundleURL: pathToFileURL(path.join(current, "OpenPeek.app")).href,
   }));
 
   const result = await pruneObsoleteMacUpdatePackages({
@@ -102,7 +102,7 @@ test("macOS update cache fails closed when ShipIt state points outside its cache
   const staged = path.join(paths.updateRoot, "update.KEEP123");
   await mkdir(staged, { recursive: true });
   await writeFile(paths.stateFile, JSON.stringify({
-    updateBundleURL: pathToFileURL(path.join(homeDir, "elsewhere", "Git Leaf.app")).href,
+    updateBundleURL: pathToFileURL(path.join(homeDir, "elsewhere", "OpenPeek.app")).href,
   }));
 
   assert.deepEqual(await pruneObsoleteMacUpdatePackages({ homeDir }), {

@@ -11,7 +11,7 @@ test("release documentation exposes the dual-track build and publication boundar
   assert.match(releaseDoc, /safe default is always `source \+ source \+ false`/);
   assert.match(releaseDoc, /Community Build must not query or download from Mango Future's update service/);
   assert.match(releaseDoc, /`org\.gitleaf\.community`/);
-  assert.match(releaseDoc, /`Git Leaf Community`/);
+  assert.match(releaseDoc, /`OpenPeek Community`/);
   assert.match(releaseDoc, /`official \+ public` \| `stable` \| `false`/);
   assert.match(releaseDoc, /`official \+ internal` \| `internal-stable` \| `true`/);
   assert.match(releaseDoc, /Versions and Git tags are global across both official tracks/);
@@ -61,14 +61,14 @@ test("release documentation exposes the dual-track build and publication boundar
 });
 
 test("repository release skill remains a thin public router", async () => {
-  const releaseSkill = (await readFile(".agents/skills/git-leaf-release/SKILL.md", "utf8")).replace(
+  const releaseSkill = (await readFile(".agents/skills/openpeek-release/SKILL.md", "utf8")).replace(
     /\r\n?/g,
     "\n",
   );
   const body = releaseSkill.replace(/^---\n[\s\S]*?\n---\n/, "");
   const bodyWordCount = body.trim().split(/\s+/).length;
 
-  assert.match(releaseSkill, /^---\nname: git-leaf-release\n/m);
+  assert.match(releaseSkill, /^---\nname: openpeek-release\n/m);
   assert.match(releaseSkill, /`docs\/release\.md` as the sole release policy/);
   assert.match(releaseSkill, /`scripts\/release-worktree\.mjs` as the formal state machine/);
   assert.ok(bodyWordCount <= 300, `release skill should remain a thin router, got ${bodyWordCount} words`);
@@ -111,7 +111,7 @@ test("release documentation delegates UI acceptance and keeps update regression 
   assert.match(releaseDoc, /Update-sensitive changes can make a real packaged-App update regression mandatory/);
   assert.match(releaseDoc, /must run on the release Mac/);
   assert.match(releaseDoc, /npm run release:verify-update:mac/);
-  assert.match(releaseDoc, /refuses to start while the installed Git Leaf App is running/);
+  assert.match(releaseDoc, /refuses to start while the installed OpenPeek App is running/);
   assert.match(releaseDoc, /real Profile and real ShipIt cache fingerprints did not change/);
   assert.match(releaseDoc, /verify-macos-update-regression[\s\S]*--evidence/);
   assert.doesNotMatch(releaseDoc, /mark-update-regression-verified\s*$/m);

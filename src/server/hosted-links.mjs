@@ -1,17 +1,17 @@
 import path from "node:path";
 
-export const GIT_LEAF_HTTPS_OPEN_URL = "https://gitleaf.mangofuture.com/open";
-export const GIT_LEAF_HTTPS_SHARE_URL = "https://gitleaf.mangofuture.com/share";
-export const GIT_LEAF_SHARE_VERSION = "1";
-export const GIT_LEAF_SHARE_TITLE_MAX_LENGTH = 100;
+export const OPENPEEK_HTTPS_OPEN_URL = "https://gitleaf.mangofuture.com/open";
+export const OPENPEEK_HTTPS_SHARE_URL = "https://gitleaf.mangofuture.com/share";
+export const OPENPEEK_SHARE_VERSION = "1";
+export const OPENPEEK_SHARE_TITLE_MAX_LENGTH = 100;
 
-export function gitLeafHttpsOpenUrl({ repository, file = "", worktree = "" } = {}) {
-  const normalized = normalizeGitLeafLinkTarget({ repository, file, worktree });
+export function openPeekHttpsOpenUrl({ repository, file = "", worktree = "" } = {}) {
+  const normalized = normalizeOpenPeekLinkTarget({ repository, file, worktree });
   if (!normalized?.repository) {
-    throw new Error("Git Leaf HTTPS links require a GitHub repository identity.");
+    throw new Error("OpenPeek HTTPS links require a GitHub repository identity.");
   }
 
-  const url = new URL(GIT_LEAF_HTTPS_OPEN_URL);
+  const url = new URL(OPENPEEK_HTTPS_OPEN_URL);
   url.searchParams.set("repo", normalized.repository);
   if (normalized.file) {
     url.searchParams.set("path", normalized.file);
@@ -22,26 +22,26 @@ export function gitLeafHttpsOpenUrl({ repository, file = "", worktree = "" } = {
   return url.toString();
 }
 
-export function gitLeafShareUrl({ repository, file, rev, title = "" } = {}) {
-  const target = normalizeGitLeafLinkTarget({ repository, file });
+export function openPeekShareUrl({ repository, file, rev, title = "" } = {}) {
+  const target = normalizeOpenPeekLinkTarget({ repository, file });
   const revision = normalizeGitRevision(rev);
   if (!target?.repository || !target.file || !revision) {
-    throw new Error("Git Leaf share links require a repository, document, and full revision.");
+    throw new Error("OpenPeek share links require a repository, document, and full revision.");
   }
 
-  const url = new URL(GIT_LEAF_HTTPS_SHARE_URL);
-  url.searchParams.set("v", GIT_LEAF_SHARE_VERSION);
+  const url = new URL(OPENPEEK_HTTPS_SHARE_URL);
+  url.searchParams.set("v", OPENPEEK_SHARE_VERSION);
   url.searchParams.set("repo", target.repository);
   url.searchParams.set("path", target.file);
   url.searchParams.set("rev", revision);
-  const previewTitle = normalizeSharePreviewText(title, GIT_LEAF_SHARE_TITLE_MAX_LENGTH);
+  const previewTitle = normalizeSharePreviewText(title, OPENPEEK_SHARE_TITLE_MAX_LENGTH);
   if (previewTitle) {
     url.searchParams.set("title", previewTitle);
   }
   return url.toString();
 }
 
-export function normalizeGitLeafLinkTarget({
+export function normalizeOpenPeekLinkTarget({
   repoRoot,
   repository,
   file,
@@ -52,7 +52,7 @@ export function normalizeGitLeafLinkTarget({
   const cleanRepository = normalizeRepositoryIdentity(repository);
   const cleanFile = typeof file === "string" ? file.trim().replaceAll("\\", "/") : "";
   const requestedWorktree = typeof worktree === "string" ? worktree.trim() : "";
-  const cleanWorktree = normalizeGitLeafWorktreeId(requestedWorktree);
+  const cleanWorktree = normalizeOpenPeekWorktreeId(requestedWorktree);
   const platformPath = platform === "win32" ? path.win32 : path.posix;
 
   const hasLocalRepository = cleanRepoRoot
@@ -99,7 +99,7 @@ export function normalizeGitLeafLinkTarget({
   };
 }
 
-export function normalizeGitLeafWorktreeId(value) {
+export function normalizeOpenPeekWorktreeId(value) {
   const cleanValue = typeof value === "string" ? value.trim().toLowerCase() : "";
   return /^[a-f0-9]{16}$/.test(cleanValue) ? cleanValue : "";
 }
