@@ -16,8 +16,9 @@ than Obsidian.
 > **Name transition:** OpenPeek is the new name of Git Leaf beginning with version 2.0. Existing
 > repositories, sessions, and preferences keep using the same local Profile. The `git-leaf` CLI command
 > and `git-leaf://` links remain accepted as 1.x compatibility aliases, while newly generated commands
-> and links use `openpeek` and `openpeek://`. The public repository, download host, and update roots keep
-> their existing addresses until a separate external migration.
+> and links use `openpeek` and `openpeek://`. GitHub redirects the former repository address to
+> `MangoFuture1210/openpeek`; the download host and update roots keep their existing addresses until a
+> separate domain migration.
 
 ## Why OpenPeek?
 
@@ -68,10 +69,10 @@ than Obsidian.
 
 ![OpenPeek showing a shared context repository, local changes, and Agent Context](docs/assets/user-guide/workspace-overview.png)
 
-[![CI](https://github.com/MangoFuture1210/git-leaf/actions/workflows/ci.yml/badge.svg)](https://github.com/MangoFuture1210/git-leaf/actions/workflows/ci.yml)
+[![CI](https://github.com/MangoFuture1210/openpeek/actions/workflows/ci.yml/badge.svg)](https://github.com/MangoFuture1210/openpeek/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
-[Open the public User Guide Demo repository](https://gitleaf.mangofuture.com/open?repo=mangofuture1210%2Fgit-leaf-example-knowledge-base&path=README.md)
+[Open the public User Guide Demo repository](https://gitleaf.mangofuture.com/open?repo=mangofuture1210%2Fopenpeek-example-knowledge-base&path=README.md)
 after installing OpenPeek, or clone it for a completely local first run.
 For a fuller visual tour and day-to-day workflows, read the [OpenPeek user guide](docs/user-guide.md).
 
@@ -214,7 +215,7 @@ npm run desktop -- --repo /path/to/docs-repo
 
 The complete [build-from-source guide](docs/build-from-source.md) explains source packaging, Community
 Build identity, and the difference from an official Mango Future distribution. The
-[public User Guide Demo repository](https://github.com/MangoFuture1210/git-leaf-example-knowledge-base)
+[public User Guide Demo repository](https://github.com/MangoFuture1210/openpeek-example-knowledge-base)
 provides a ready-to-open repository with Markdown and MDX content.
 
 The CLI and browser workspace are primarily for local development:

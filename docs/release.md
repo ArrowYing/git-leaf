@@ -34,8 +34,9 @@ matching public commit.
 Version 2.0 is the product-name transition. Runtime readers continue to accept the 1.x
 `git-leaf-build-info.json` filename and `GIT_LEAF_*` environment names, but every newly prepared package
 and release environment must write the canonical OpenPeek filename and `OPENPEEK_*` names. Existing
-macOS Bundle IDs, the `git-leaf` Profile directory, and external repository/update coordinates remain
-stable compatibility identities and are not release-name substitutions.
+macOS Bundle IDs, the `git-leaf` Profile directory, and update-service coordinates remain stable
+compatibility identities and are not release-name substitutions. GitHub repository names use the
+canonical OpenPeek identity; GitHub preserves old repository URLs as redirects.
 
 The analytics default is normally used only when initializing a new local setting. Once
 `usageAnalyticsEnabled` exists in userData, an ordinary update must preserve it. The bounded
@@ -339,7 +340,7 @@ The frozen `RELEASE_COMMIT` must have a `Windows Release Smoke` workflow run wit
 properties:
 
 - the run has reached `completed` status with a `success` conclusion;
-- the run belongs to the `MangoFuture1210/git-leaf` repository;
+- the run belongs to the `MangoFuture1210/openpeek` repository;
 - the run uses `.github/workflows/windows-release-smoke.yml`;
 - the run's head SHA exactly equals the frozen `RELEASE_COMMIT`;
 - the run exposes a non-expired, non-empty smoke artifact whose name ends with that exact frozen commit.
@@ -375,7 +376,7 @@ npm run release:verify-update:mac -- \
   --output dist/macos-update-regression/release-gate.json
 ```
 
-The harness refuses to start while the installed OpenPeek App is running or any ShipIt launchd job
+The harness refuses to start while an installed OpenPeek or Git Leaf App is running or any ShipIt launchd job
 already exists. It uses a temporary App location whose parent is deliberately not writable, plus
 isolated HOME and Electron Profile paths when exercising the in-App updater. For a stable version older
 than the first nonprivileged-only package, it uses the one-time `Contents` bridge instead of launching

@@ -14,7 +14,8 @@ Markdown 知识库。
 
 > **名称迁移：** 从 2.0 开始，Git Leaf 更名为 OpenPeek。已有仓库、会话和个人设置继续使用同一个本机
 > Profile；`git-leaf` CLI 命令与 `git-leaf://` 链接继续作为 1.x 兼容入口，新生成的命令和链接则使用
-> `openpeek` 与 `openpeek://`。公开仓库、下载域名和更新服务根路径暂时保持原地址，等待后续独立完成外部迁移。
+> `openpeek` 与 `openpeek://`。GitHub 会把原仓库地址重定向到 `MangoFuture1210/openpeek`；下载域名和更新服务
+> 根路径暂时保持原地址，等待后续独立完成域名迁移。
 
 ## 为什么需要 OpenPeek？
 
@@ -56,10 +57,10 @@ Markdown 知识库。
 
 ![OpenPeek 展示共享上下文仓库、本地改动和 Agent 上下文](docs/assets/user-guide/workspace-overview.png)
 
-[![CI](https://github.com/MangoFuture1210/git-leaf/actions/workflows/ci.yml/badge.svg)](https://github.com/MangoFuture1210/git-leaf/actions/workflows/ci.yml)
+[![CI](https://github.com/MangoFuture1210/openpeek/actions/workflows/ci.yml/badge.svg)](https://github.com/MangoFuture1210/openpeek/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
-安装 OpenPeek 后，可以直接[打开公开使用指南 Demo 仓库](https://gitleaf.mangofuture.com/open?repo=mangofuture1210%2Fgit-leaf-example-knowledge-base&path=README.zh-CN.md)，
+安装 OpenPeek 后，可以直接[打开公开使用指南 Demo 仓库](https://gitleaf.mangofuture.com/open?repo=mangofuture1210%2Fopenpeek-example-knowledge-base&path=README.zh-CN.md)，
 也可以先克隆到本机，完成一次完全本地的首次体验。
 更完整的界面介绍和日常工作方式见 [OpenPeek 用户手册](docs/user-guide.zh-CN.md)。
 
@@ -174,7 +175,7 @@ npm run desktop -- --repo /path/to/docs-repo
 ```
 
 [从源码构建指南](docs/build-from-source.md)说明了依赖、打包方式、Community Build 身份，以及它与
-Mango Future 官方发行版的区别。[公开使用指南 Demo 仓库](https://github.com/MangoFuture1210/git-leaf-example-knowledge-base)
+Mango Future 官方发行版的区别。[公开使用指南 Demo 仓库](https://github.com/MangoFuture1210/openpeek-example-knowledge-base)
 提供了一组可以直接打开的 Markdown／MDX 内容。
 
 CLI／Web 入口主要用于本机开发和浏览器工作台：

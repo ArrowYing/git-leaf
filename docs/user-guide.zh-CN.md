@@ -11,7 +11,7 @@ OpenPeek 是供人使用的桌面 App，用来打开和维护团队与 AI Agent 
 
 这份手册面向需要理解和维护仓库、但不希望把 Git、Markdown 或开发工具变成日常工作方式的用户。截图与
 动手示例使用公开的
-[OpenPeek 使用指南 Demo 仓库](https://github.com/MangoFuture1210/git-leaf-example-knowledge-base)。
+[OpenPeek 使用指南 Demo 仓库](https://github.com/MangoFuture1210/openpeek-example-knowledge-base)。
 
 ## 从这里开始
 
@@ -20,7 +20,7 @@ OpenPeek 是供人使用的桌面 App，用来打开和维护团队与 AI Agent 
 2. 确认共享 Git 仓库已经作为一个本机文件夹存在。仓库维护者可以提前准备好，也可以克隆公开示例：
 
    ```bash
-   git clone https://github.com/MangoFuture1210/git-leaf-example-knowledge-base.git
+   git clone https://github.com/MangoFuture1210/openpeek-example-knowledge-base.git
    ```
 
 3. 打开 OpenPeek，选择仓库文件夹。
@@ -231,7 +231,7 @@ Agent Context。
 ````markdown
 # Agent Context
 
-Repository: git-leaf-example-knowledge-base
+Repository: openpeek-example-knowledge-base
 Worktree: main checkout
 Branch: main
 Revision: 0123456789abcdef
@@ -300,7 +300,7 @@ Agent 把文档交给人检查时，完整流程是：
 安装 OpenPeek，并让公开示例仓库在本机可用后，可以直接体验完整中转：
 
 Open in OpenPeek：
-[OpenPeek 使用指南 Demo](https://gitleaf.mangofuture.com/open?repo=mangofuture1210%2Fgit-leaf-example-knowledge-base&path=guide%2Fuser-guide.zh-CN.md)
+[OpenPeek 使用指南 Demo](https://gitleaf.mangofuture.com/open?repo=mangofuture1210%2Fopenpeek-example-knowledge-base&path=guide%2Fuser-guide.zh-CN.md)
 
 ### 让 Agent 在交付时返回链接
 

@@ -8,11 +8,11 @@
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/MangoFuture1210/git-leaf.git"
+    "url": "git+https://github.com/MangoFuture1210/openpeek.git"
   },
-  "homepage": "https://github.com/MangoFuture1210/git-leaf#readme",
+  "homepage": "https://github.com/MangoFuture1210/openpeek#readme",
   "bugs": {
-    "url": "https://github.com/MangoFuture1210/git-leaf/issues"
+    "url": "https://github.com/MangoFuture1210/openpeek/issues"
   },
   "scripts": {
     "build:client": "node scripts/build-client.mjs",

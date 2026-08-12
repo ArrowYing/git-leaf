@@ -6,9 +6,6 @@ This guide is for contributors and people who want a local Community Build. It d
 Future release profiles, signing credentials, update infrastructure, or the official
 [release process](release.md).
 
-OpenPeek is the product name from version 2.0. The public repository URL still contains `git-leaf`
-during the repository-only transition, so the clone commands below intentionally keep that address.
-
 ## Requirements
 
 - macOS, Windows, or Linux for the local browser workbench;
@@ -20,8 +17,8 @@ during the repository-only transition, so the clone commands below intentionally
 ## Run the desktop app
 
 ```bash
-git clone https://github.com/MangoFuture1210/git-leaf.git
-cd git-leaf
+git clone https://github.com/MangoFuture1210/openpeek.git
+cd openpeek
 npm ci
 npm run desktop
 ```
@@ -35,8 +32,8 @@ npm run desktop -- --repo /path/to/knowledge-repository
 To try OpenPeek with prepared public content:
 
 ```bash
-git clone https://github.com/MangoFuture1210/git-leaf-example-knowledge-base.git
-npm run desktop -- --repo ../git-leaf-example-knowledge-base
+git clone https://github.com/MangoFuture1210/openpeek-example-knowledge-base.git
+npm run desktop -- --repo ../openpeek-example-knowledge-base
 ```
 
 ## Run the browser workbench

@@ -8,6 +8,7 @@ import { promisify } from "node:util";
 
 import {
   canEditRepository,
+  canonicalGithubRepositoryIdentity,
   createRepositoryInfo,
   findGithubRepositoryRoot,
   githubBlobRoot,
@@ -117,6 +118,44 @@ test("GitHub repository identities normalize SSH and HTTPS remotes", () => {
     "exampleorg/company-docs",
   );
   assert.equal(githubRepositoryIdentityFromRemote("https://gitlab.com/acme/docs.git"), "");
+});
+
+test("OpenPeek repository renames preserve legacy local checkout identity", () => {
+  assert.equal(
+    githubRepositoryIdentityFromRemote("https://github.com/MangoFuture1210/git-leaf.git"),
+    "mangofuture1210/openpeek",
+  );
+  assert.equal(
+    githubRepositoryIdentityFromRemote(
+      "git@github.com:MangoFuture1210/git-leaf-example-knowledge-base.git",
+    ),
+    "mangofuture1210/openpeek-example-knowledge-base",
+  );
+  assert.equal(
+    canonicalGithubRepositoryIdentity("MangoFuture1210/OpenPeek"),
+    "mangofuture1210/openpeek",
+  );
+  assert.equal(
+    canonicalGithubRepositoryIdentity("ExampleOrg/company-docs"),
+    "exampleorg/company-docs",
+  );
+});
+
+test("findGithubRepositoryRoot matches OpenPeek links against legacy local remotes", async () => {
+  assert.equal(
+    await findGithubRepositoryRoot("MangoFuture1210/openpeek", ["/legacy-openpeek"], {
+      originReader: async () => "https://github.com/MangoFuture1210/git-leaf.git",
+      candidateAccess: async () => {},
+    }),
+    "/legacy-openpeek",
+  );
+  assert.equal(
+    await findGithubRepositoryRoot("MangoFuture1210/git-leaf", ["/renamed-openpeek"], {
+      originReader: async () => "https://github.com/MangoFuture1210/openpeek.git",
+      candidateAccess: async () => {},
+    }),
+    "/renamed-openpeek",
+  );
 });
 
 test("findGithubRepositoryRoot matches a stable identity against local candidates", async () => {

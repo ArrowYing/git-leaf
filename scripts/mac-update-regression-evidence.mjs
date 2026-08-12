@@ -23,9 +23,22 @@ export function validateMacUpdateRegressionEvidence(evidence, {
   commit,
   buildId,
 } = {}) {
+  const productRenameRelease = String(evidence?.fromVersion || "").startsWith("1.")
+    && String(version || "").startsWith("2.0.");
+  const productRenameIdentityMatches = !productRenameRelease || (
+    evidence.baselineAppIdentity?.bundleName === "Git Leaf.app"
+    && evidence.baselineAppIdentity?.productName === "Git Leaf"
+    && evidence.baselineAppIdentity?.executable === "Git Leaf"
+    && evidence.candidateAppIdentity?.bundleName === "OpenPeek.app"
+    && evidence.candidateAppIdentity?.productName === "OpenPeek"
+    && evidence.candidateAppIdentity?.executable === "OpenPeek"
+    && evidence.installedAppIdentity?.bundleName === "Git Leaf.app"
+    && evidence.installedAppIdentity?.productName === "OpenPeek"
+    && evidence.installedAppIdentity?.executable === "OpenPeek"
+  );
   if (
-    evidence?.schemaVersion !== 3
-    || evidence.source !== "git-leaf-macos-update-regression"
+    evidence?.schemaVersion !== 4
+    || evidence.source !== "openpeek-macos-update-regression"
     || evidence.status !== "passed"
     || evidence.track !== track
     || evidence.platform !== "darwin-universal"
@@ -36,6 +49,8 @@ export function validateMacUpdateRegressionEvidence(evidence, {
     || !["contents-bridge", "in-app-update"].includes(evidence.installMode)
     || evidence.directContentsWrite !== true
     || evidence.appDirectoryInodePreserved !== true
+    || evidence.profileStatePreserved !== true
+    || !productRenameIdentityMatches
     || evidence.installParentWritable !== false
     || evidence.privilegedShipItJobObserved !== false
     || evidence.squirrelPolicy?.policy !== "nonprivileged-only"

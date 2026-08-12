@@ -62,9 +62,11 @@ stable compatibility contracts:
   canonical OpenPeek form taking precedence;
 - the existing official and Community macOS Bundle IDs and the `git_leaf.*` analytics event namespace
   remain unchanged because they are persistent operating-system and data-schema identities;
-- the `MangoFuture1210/git-leaf` repository, `gitleaf.mangofuture.com`, update-service `/git-leaf`
-  roots, and public example-repository name remain unchanged until their separately coordinated external
-  migration.
+- the former GitHub repository names redirect to `MangoFuture1210/openpeek` and
+  `MangoFuture1210/openpeek-example-knowledge-base`, and the app canonicalizes both names when matching
+  a local checkout;
+- `gitleaf.mangofuture.com` and update-service `/git-leaf` roots remain unchanged until their separately
+  coordinated domain migration.
 
 On macOS, a new installation uses `OpenPeek.app`, while an existing `Git Leaf.app` is reused for an
 in-place 2.0 update. On Windows, 2.0 accepts the old executable and updater arguments long enough to

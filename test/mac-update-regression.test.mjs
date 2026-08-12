@@ -8,6 +8,7 @@ import test from "node:test";
 import vm from "node:vm";
 
 import {
+  assertRenameMigrationUserState,
   assertSafeMacUpdateRegressionHost,
   downloadUpdateRegressionArtifact,
   updateRegressionInstallExpression,
@@ -86,7 +87,7 @@ test("mac update regression refuses conflicting local updater state before launc
       userShipItJobExists: true,
       systemShipItJobExists: false,
     }),
-    /Refusing to start.*conflicting local state[\s\S]*installed OpenPeek App is running[\s\S]*ShipIt/,
+    /Refusing to start.*conflicting local state[\s\S]*OpenPeek or Git Leaf App is running[\s\S]*ShipIt/,
   );
   assert.doesNotThrow(() => assertSafeMacUpdateRegressionHost({
     platform: "darwin",
@@ -94,6 +95,41 @@ test("mac update regression refuses conflicting local updater state before launc
     userShipItJobExists: false,
     systemShipItJobExists: false,
   }));
+});
+
+test("mac product rename migration preserves repositories, workspace state, and preferences", () => {
+  const expected = {
+    renameMigrationSentinel: "git-leaf-1.x-to-openpeek-2.x",
+    repoRoot: "/repo",
+    openRepoRoots: ["/repo", "/second"],
+    usageAnalyticsEnabled: false,
+    preferences: {
+      language: "zh-CN",
+      colorMode: "dark",
+      documentFont: "system-serif",
+      documentFontSize: 18,
+      fileTreeMode: "all",
+      showDocumentTitles: false,
+      mode: "live",
+      sidebarCollapsed: true,
+      sourcePreviewRatio: 61,
+      workbenchSessions: {
+        openpeek: { tabs: [{ path: "README.md" }], activeTabPath: "README.md" },
+      },
+      updateRequestedVersion: "2.0.0",
+    },
+  };
+  const afterUpdate = structuredClone(expected);
+  afterUpdate.preferences.updateRequestedVersion = "";
+  afterUpdate.preferences.updateAvailableVersion = "";
+  assert.equal(assertRenameMigrationUserState(afterUpdate, expected), true);
+  assert.throws(
+    () => assertRenameMigrationUserState({
+      ...afterUpdate,
+      preferences: { ...afterUpdate.preferences, language: "system" },
+    }, expected),
+    /did not preserve/,
+  );
 });
 
 test("mac update regression uses the real enabled update action", () => {
@@ -233,8 +269,8 @@ test("mac update regression accepts only the exact internal 1.11.3 public stable
 test("mac update regression evidence binds installation and cleanup to the frozen release", () => {
   const fingerprint = { sha256: "a".repeat(64), fileCount: 3 };
   const evidence = {
-    schemaVersion: 3,
-    source: "git-leaf-macos-update-regression",
+    schemaVersion: 4,
+    source: "openpeek-macos-update-regression",
     status: "passed",
     track: "internal",
     platform: "darwin-universal",
@@ -247,6 +283,22 @@ test("mac update regression evidence binds installation and cleanup to the froze
     installMode: "contents-bridge",
     directContentsWrite: true,
     appDirectoryInodePreserved: true,
+    profileStatePreserved: true,
+    baselineAppIdentity: {
+      bundleName: "Git Leaf.app",
+      productName: "Git Leaf",
+      executable: "Git Leaf",
+    },
+    candidateAppIdentity: {
+      bundleName: "OpenPeek.app",
+      productName: "OpenPeek",
+      executable: "OpenPeek",
+    },
+    installedAppIdentity: {
+      bundleName: "Git Leaf.app",
+      productName: "OpenPeek",
+      executable: "OpenPeek",
+    },
     installParentWritable: false,
     privilegedShipItJobObserved: false,
     squirrelPolicy: {

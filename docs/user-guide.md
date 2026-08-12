@@ -13,7 +13,7 @@ copy that repository into a separate knowledge service.
 This guide is for people who need to understand and maintain the repository without making Git,
 Markdown, or a developer tool part of their daily workflow. The screenshots and hands-on examples use
 the public
-[OpenPeek User Guide Demo repository](https://github.com/MangoFuture1210/git-leaf-example-knowledge-base).
+[OpenPeek User Guide Demo repository](https://github.com/MangoFuture1210/openpeek-example-knowledge-base).
 
 ## Start here
 
@@ -23,7 +23,7 @@ the public
    can prepare it for you, or you can clone the public example:
 
    ```bash
-   git clone https://github.com/MangoFuture1210/git-leaf-example-knowledge-base.git
+   git clone https://github.com/MangoFuture1210/openpeek-example-knowledge-base.git
    ```
 
 3. Open OpenPeek and choose the repository folder.
@@ -281,7 +281,7 @@ A two-passage collection is copied in this form:
 ````markdown
 # Agent Context
 
-Repository: git-leaf-example-knowledge-base
+Repository: openpeek-example-knowledge-base
 Worktree: main checkout
 Branch: main
 Revision: 0123456789abcdef
@@ -362,7 +362,7 @@ The normal Agent-to-person flow is:
 After installing OpenPeek and making the public example available locally, try the complete handoff:
 
 Open in OpenPeek:
-[OpenPeek user guide demo](https://gitleaf.mangofuture.com/open?repo=mangofuture1210%2Fgit-leaf-example-knowledge-base&path=guide%2Fuser-guide.md)
+[OpenPeek user guide demo](https://gitleaf.mangofuture.com/open?repo=mangofuture1210%2Fopenpeek-example-knowledge-base&path=guide%2Fuser-guide.md)
 
 ### Teach an Agent to return the link
 

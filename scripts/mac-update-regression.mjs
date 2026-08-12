@@ -28,7 +28,10 @@ import { pipeline } from "node:stream/promises";
 import { fileURLToPath } from "node:url";
 
 import { compareAppVersions } from "../src/desktop/app-updates.mjs";
-import { DEVELOPMENT_USER_DATA_ARG } from "../src/desktop/user-data.mjs";
+import {
+  DEVELOPMENT_USER_DATA_ARG,
+  LEGACY_DEVELOPMENT_USER_DATA_ARG,
+} from "../src/desktop/user-data.mjs";
 import { replaceMacAppContents } from "./mac-update-bridge.mjs";
 import { developmentProfileFingerprint } from "./release-mac.mjs";
 import { verifySquirrelMacPolicy } from "./squirrel-mac-policy.mjs";
@@ -39,7 +42,7 @@ export {
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const REPO_ROOT = path.dirname(path.dirname(SCRIPT_PATH));
 export const MAC_UPDATE_REGRESSION_ARTIFACT_PREFIX =
-  "git-leaf-macos-update-regression-";
+  "openpeek-macos-update-regression-";
 export const SHIPIT_JOB_LABEL = "com.mangofuture.gitleaf.ShipIt";
 export const SQUIRREL_DIRECT_CONTENTS_WRITE_KEY =
   "SquirrelMacEnableDirectContentsWrite";
@@ -70,7 +73,7 @@ export function assertSafeMacUpdateRegressionHost({
     throw new Error("The macOS update regression harness requires macOS");
   }
   const conflicts = [
-    [productionAppRunning, "the installed OpenPeek App is running"],
+    [productionAppRunning, "an installed OpenPeek or Git Leaf App is running"],
     [userShipItJobExists, "the per-user ShipIt launchd job exists"],
     [systemShipItJobExists, "the system ShipIt launchd job exists"],
   ].filter(([present]) => present).map(([, message]) => message);
@@ -169,7 +172,10 @@ export function launchctlJobDetails({
 
 function hostPaths({ homeDir = homedir() } = {}) {
   return {
-    productionAppPath: "/Applications/OpenPeek.app",
+    productionAppPaths: [
+      "/Applications/OpenPeek.app",
+      "/Applications/Git Leaf.app",
+    ],
     productionProfilePath: path.join(
       homeDir,
       "Library",
@@ -190,16 +196,16 @@ export function assertCurrentHostSafe() {
   const processes = spawnSync("ps", ["-axo", "command="], {
     encoding: "utf8",
   });
-  const productionExecutable = path.join(
-    paths.productionAppPath,
-    "Contents",
-    "MacOS",
-    "OpenPeek",
-  );
+  const productionExecutables = paths.productionAppPaths.flatMap((appPath) => [
+    path.join(appPath, "Contents", "MacOS", "OpenPeek"),
+    path.join(appPath, "Contents", "MacOS", "Git Leaf"),
+  ]);
   assertSafeMacUpdateRegressionHost({
     productionAppRunning: String(processes.stdout || "")
       .split("\n")
-      .some((command) => command.trim().startsWith(productionExecutable)),
+      .some((command) => productionExecutables.some(
+        (executable) => command.trim().startsWith(executable),
+      )),
     userShipItJobExists: launchctlJobExists({ domain: "user" }),
     systemShipItJobExists: launchctlJobExists({ domain: "system" }),
   });
@@ -391,6 +397,30 @@ export function readAppVersion(appPath) {
   );
 }
 
+export function readMacAppIdentity(appPath) {
+  const plistPath = path.join(appPath, "Contents", "Info.plist");
+  return {
+    bundleName: path.basename(appPath),
+    productName: runChecked(
+      "/usr/libexec/PlistBuddy",
+      ["-c", "Print:CFBundleDisplayName", plistPath],
+    ),
+    executable: runChecked(
+      "/usr/libexec/PlistBuddy",
+      ["-c", "Print:CFBundleExecutable", plistPath],
+    ),
+  };
+}
+
+export function macAppExecutablePath(appPath) {
+  return path.join(
+    appPath,
+    "Contents",
+    "MacOS",
+    readMacAppIdentity(appPath).executable,
+  );
+}
+
 export function extractSingleApp(zipPath, destinationDir) {
   mkdirSync(destinationDir, { recursive: true });
   runChecked("ditto", ["-x", "-k", zipPath, destinationDir]);
@@ -410,20 +440,71 @@ export function verifyAppSignature(appPath) {
   runChecked("codesign", ["--verify", "--deep", "--strict", "--verbose=2", appPath]);
 }
 
+function renameMigrationDesktopConfig({ repoRoot, targetVersion }) {
+  return {
+    renameMigrationSentinel: "git-leaf-1.x-to-openpeek-2.x",
+    repoRoot,
+    openRepoRoots: [repoRoot],
+    usageAnalyticsEnabled: false,
+    preferences: {
+      language: "zh-CN",
+      colorMode: "dark",
+      documentFont: "system-serif",
+      documentFontSize: 18,
+      fileTreeMode: "all",
+      showDocumentTitles: false,
+      mode: "live",
+      sidebarCollapsed: true,
+      sourcePreviewRatio: 61,
+      workbenchSessions: {
+        openpeek: {
+          tabs: [{ path: "README.md" }],
+          activeTabPath: "README.md",
+        },
+      },
+      updateRequestedVersion: targetVersion,
+    },
+  };
+}
+
 function writeDesktopConfig(userDataDir, { repoRoot, targetVersion }) {
   mkdirSync(userDataDir, { recursive: true });
+  const config = renameMigrationDesktopConfig({ repoRoot, targetVersion });
   writeFileSync(
     path.join(userDataDir, "desktop-config.json"),
-    `${JSON.stringify({
-      repoRoot,
-      openRepoRoots: [repoRoot],
-      usageAnalyticsEnabled: false,
-      preferences: {
-        updateRequestedVersion: targetVersion,
-      },
-    }, null, 2)}\n`,
+    `${JSON.stringify(config, null, 2)}\n`,
     { flag: "wx" },
   );
+  return config;
+}
+
+export function assertRenameMigrationUserState(actual, expected) {
+  const stablePreferenceKeys = [
+    "language",
+    "colorMode",
+    "documentFont",
+    "documentFontSize",
+    "fileTreeMode",
+    "showDocumentTitles",
+    "mode",
+    "sidebarCollapsed",
+    "sourcePreviewRatio",
+    "workbenchSessions",
+  ];
+  const preserved = actual?.renameMigrationSentinel === expected.renameMigrationSentinel
+    && actual?.repoRoot === expected.repoRoot
+    && JSON.stringify(actual?.openRepoRoots) === JSON.stringify(expected.openRepoRoots)
+    && actual?.usageAnalyticsEnabled === expected.usageAnalyticsEnabled
+    && stablePreferenceKeys.every((key) => (
+      JSON.stringify(actual?.preferences?.[key])
+      === JSON.stringify(expected.preferences[key])
+    ));
+  if (!preserved) {
+    throw new Error(
+      "OpenPeek did not preserve the Git Leaf repository list, workspace session, and preferences",
+    );
+  }
+  return true;
 }
 
 export function startUpdateServer({ serverRoot, telemetryRoot, logPath }) {
@@ -747,6 +828,8 @@ async function runHarness({
       candidateZipPath,
       candidateExtractDir,
     );
+    const baselineAppIdentity = readMacAppIdentity(appPath);
+    const candidateAppIdentity = readMacAppIdentity(candidateAppPath);
     verifyAppSignature(appPath);
     verifyAppSignature(candidateAppPath);
     const squirrelPolicy = verifySquirrelMacPolicy({
@@ -785,7 +868,7 @@ async function runHarness({
         candidateZipPath,
       });
 
-      writeDesktopConfig(userDataDir, {
+      const expectedUserState = writeDesktopConfig(userDataDir, {
         repoRoot: REPO_ROOT,
         targetVersion: candidateManifest.version,
       });
@@ -795,14 +878,17 @@ async function runHarness({
         CFFIXED_USER_HOME: isolatedHome,
         TMPDIR: `${isolatedTmp}${path.sep}`,
         OPENPEEK_UPDATE_BASE_URL: `http://127.0.0.1:${server.port}/git-leaf`,
+        GIT_LEAF_UPDATE_BASE_URL: `http://127.0.0.1:${server.port}/git-leaf`,
         OPENPEEK_DEV_USER_DATA_DIR: userDataDir,
+        GIT_LEAF_DEV_USER_DATA_DIR: userDataDir,
       };
       writeIsolatedSquirrelDefault(appEnv);
       const logDescriptor = openSync(logPath, "a");
       appProcess = spawn(
-        path.join(appPath, "Contents", "MacOS", "OpenPeek"),
+        macAppExecutablePath(appPath),
         [
           `${DEVELOPMENT_USER_DATA_ARG}=${userDataDir}`,
+          `${LEGACY_DEVELOPMENT_USER_DATA_ARG}=${userDataDir}`,
           "--remote-debugging-port=0",
           "--repo",
           REPO_ROOT,
@@ -846,6 +932,11 @@ async function runHarness({
         intervalMs: 2_000,
         label: `OpenPeek ${candidateManifest.version} to replace the baseline`,
       });
+      const preservedConfig = JSON.parse(readFileSync(
+        path.join(userDataDir, "desktop-config.json"),
+        "utf8",
+      ));
+      assertRenameMigrationUserState(preservedConfig, expectedUserState);
     }
 
     if (statSync(appPath).ino !== appDirectoryInode) {
@@ -858,13 +949,14 @@ async function runHarness({
       throw new Error("The installed App version does not match the candidate");
     }
     verifySquirrelMacPolicy({ appDir: appPath });
+    const installedAppIdentity = readMacAppIdentity(appPath);
     if (launchctlJobExists({ domain: "system" })) {
       throw new Error("The update registered a privileged ShipIt job");
     }
 
     passedEvidence = {
-      schemaVersion: 3,
-      source: "git-leaf-macos-update-regression",
+      schemaVersion: 4,
+      source: "openpeek-macos-update-regression",
       status: "passed",
       track,
       platform: PLATFORM_KEY,
@@ -879,6 +971,10 @@ async function runHarness({
       installMode,
       directContentsWrite: true,
       appDirectoryInodePreserved: true,
+      baselineAppIdentity,
+      candidateAppIdentity,
+      installedAppIdentity,
+      profileStatePreserved: true,
       installParentWritable: false,
       privilegedShipItJobObserved: false,
       squirrelPolicy,
@@ -995,7 +1091,7 @@ function printHelp() {
     [--base-url URL]
 
 This harness runs on the release Mac with an isolated HOME and Electron Profile.
-It refuses to start while the installed OpenPeek App is running or a ShipIt
+It refuses to start while an installed OpenPeek or Git Leaf App is running or a ShipIt
 launchd job already exists.`);
 }
 

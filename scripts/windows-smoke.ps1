@@ -185,6 +185,11 @@ $exePath = Join-Path $appRootPath "OpenPeek.exe"
 $installedRoot = Join-Path $env:LOCALAPPDATA "OpenPeek\app"
 $installedExe = Join-Path $installedRoot "OpenPeek.exe"
 $installedState = Join-Path $env:LOCALAPPDATA "OpenPeek\install-state.json"
+$legacyInstallParent = Join-Path $env:LOCALAPPDATA "GitLeaf"
+$legacyInstallRoot = Join-Path $legacyInstallParent "app"
+$legacyExe = Join-Path $legacyInstallRoot "Git Leaf.exe"
+$legacyState = Join-Path $legacyInstallParent "install-state.json"
+$legacyShortcut = Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs\Git Leaf.lnk"
 $desktopConfig = Join-Path $env:APPDATA "git-leaf\desktop-config.json"
 $protocolCommandKeys = @(
   "Registry::HKEY_CURRENT_USER\Software\Classes\openpeek\shell\open\command",
@@ -205,7 +210,30 @@ try {
   if (Test-Path -LiteralPath $installParent) {
     Remove-Item -LiteralPath $installParent -Recurse -Force
   }
-  Write-SmokeLog "Starting OpenPeek from $exePath"
+  if (Test-Path -LiteralPath $legacyInstallParent) {
+    Remove-Item -LiteralPath $legacyInstallParent -Recurse -Force
+  }
+  if (Test-Path -LiteralPath $desktopConfig) {
+    Remove-Item -LiteralPath $desktopConfig -Force
+  }
+  New-Item -ItemType Directory -Force -Path $legacyInstallRoot | Out-Null
+  Set-Content -LiteralPath $legacyExe -Encoding utf8 -Value "legacy Git Leaf executable"
+  @{ version = "1.21.0"; installedAt = (Get-Date -Format "o") } |
+    ConvertTo-Json |
+    Set-Content -LiteralPath $legacyState -Encoding utf8
+  New-Item -ItemType Directory -Force -Path (Split-Path -Parent $legacyShortcut) | Out-Null
+  Set-Content -LiteralPath $legacyShortcut -Encoding utf8 -Value "legacy Git Leaf shortcut"
+  New-Item -ItemType Directory -Force -Path (Split-Path -Parent $desktopConfig) | Out-Null
+  [ordered]@{
+    repoRoot = $repoRootPath
+    openRepoRoots = @($repoRootPath)
+    preferences = [ordered]@{
+      colorMode = "dark"
+      language = "zh-CN"
+    }
+  } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $desktopConfig -Encoding utf8
+
+  Write-SmokeLog "Starting OpenPeek 2.0 over a Git Leaf 1.21.0 fixed installation"
   Write-SmokeLog "Smoke repository root: $repoRootPath"
   $process = Start-Process -FilePath $exePath -ArgumentList @("--repo", "`"$repoRootPath`"") -PassThru
   Write-SmokeLog "Started OpenPeek process: $($process.Id)"
@@ -223,6 +251,23 @@ try {
   if ($installedVersion -ne $expectedVersion) {
     throw "Installed version state mismatch: expected=$expectedVersion actual=$installedVersion"
   }
+  if (Test-Path -LiteralPath $legacyInstallParent) {
+    throw "OpenPeek did not remove the superseded Git Leaf installation: $legacyInstallParent"
+  }
+  if (Test-Path -LiteralPath $legacyShortcut) {
+    throw "OpenPeek did not remove the superseded Git Leaf shortcut: $legacyShortcut"
+  }
+  $preservedConfig = Get-Content -LiteralPath $desktopConfig -Raw | ConvertFrom-Json
+  if ($preservedConfig.openRepoRoots -notcontains $repoRootPath) {
+    throw "OpenPeek did not preserve the Git Leaf repository list"
+  }
+  if (
+    $preservedConfig.preferences.colorMode -ne "dark" -or
+    $preservedConfig.preferences.language -ne "zh-CN"
+  ) {
+    throw "OpenPeek did not preserve Git Leaf appearance or language preferences"
+  }
+  Write-SmokeLog "Git Leaf 1.21.0 installation and Profile migrated with user state preserved"
   foreach ($protocolCommandKey in $protocolCommandKeys) {
     if (!(Test-Path -LiteralPath $protocolCommandKey)) {
       throw "OpenPeek did not register protocol key: $protocolCommandKey"

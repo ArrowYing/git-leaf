@@ -60,12 +60,12 @@ function releaseState(overrides = {}) {
     },
     windowsReleaseSmoke: {
       status: "verified",
-      repository: "MangoFuture1210/git-leaf",
+      repository: "MangoFuture1210/openpeek",
       workflowName: "Windows Release Smoke",
       workflowPath: ".github/workflows/windows-release-smoke.yml",
       runId: "123456789",
       runAttempt: 1,
-      url: "https://github.com/MangoFuture1210/git-leaf/actions/runs/123456789",
+      url: "https://github.com/MangoFuture1210/openpeek/actions/runs/123456789",
       headSha: "0123456789abcdef0123456789abcdef01234567",
       event: "push",
       runStatus: "completed",
@@ -96,8 +96,8 @@ function completedPublish(platform, phase, track = "public") {
 function macosUpdateEvidence(state, overrides = {}) {
   const fingerprint = { sha256: "a".repeat(64), fileCount: 3 };
   return {
-    schemaVersion: 3,
-    source: "git-leaf-macos-update-regression",
+    schemaVersion: 4,
+    source: "openpeek-macos-update-regression",
     status: "passed",
     track: state.track,
     platform: "darwin-universal",
@@ -110,6 +110,22 @@ function macosUpdateEvidence(state, overrides = {}) {
     installMode: "contents-bridge",
     directContentsWrite: true,
     appDirectoryInodePreserved: true,
+    profileStatePreserved: true,
+    baselineAppIdentity: {
+      bundleName: "Git Leaf.app",
+      productName: "Git Leaf",
+      executable: "Git Leaf",
+    },
+    candidateAppIdentity: {
+      bundleName: "OpenPeek.app",
+      productName: "OpenPeek",
+      executable: "OpenPeek",
+    },
+    installedAppIdentity: {
+      bundleName: "Git Leaf.app",
+      productName: "OpenPeek",
+      executable: "OpenPeek",
+    },
     installParentWritable: false,
     privilegedShipItJobObserved: false,
     squirrelPolicy: {
@@ -536,14 +552,14 @@ test("Windows Release Smoke evidence accepts only a successful run for the froze
   const state = releaseState();
   const run = {
     id: 30071711489,
-    repository: { full_name: "MangoFuture1210/git-leaf" },
+    repository: { full_name: "MangoFuture1210/openpeek" },
     name: "Windows Release Smoke",
     path: ".github/workflows/windows-release-smoke.yml",
     head_sha: state.commit,
     event: "push",
     status: "completed",
     conclusion: "success",
-    html_url: "https://github.com/MangoFuture1210/git-leaf/actions/runs/30071711489",
+    html_url: "https://github.com/MangoFuture1210/openpeek/actions/runs/30071711489",
     run_attempt: 1,
   };
   const artifacts = {
@@ -562,7 +578,7 @@ test("Windows Release Smoke evidence accepts only a successful run for the froze
     now: () => new Date("2026-07-24T06:20:00.000Z"),
   }), {
     status: "verified",
-    repository: "MangoFuture1210/git-leaf",
+    repository: "MangoFuture1210/openpeek",
     workflowName: "Windows Release Smoke",
     workflowPath: ".github/workflows/windows-release-smoke.yml",
     runId: "30071711489",
@@ -862,7 +878,7 @@ test("release controller prepares, validates, exports, and aborts an isolated wo
   assert.match(state.releaseProfile.sha256, /^[a-f0-9]{64}$/);
   assert.deepEqual(state.windowsReleaseSmoke, {
     status: "pending",
-    repository: "MangoFuture1210/git-leaf",
+    repository: "MangoFuture1210/openpeek",
     workflowPath: ".github/workflows/windows-release-smoke.yml",
     headSha: state.commit,
   });
@@ -1081,12 +1097,12 @@ test("release controller finish preserves verified stable artifacts outside the 
   state.candidateArtifactsVerifiedAt = "2026-07-24T10:00:00.000Z";
   state.windowsReleaseSmoke = {
     status: "verified",
-    repository: "MangoFuture1210/git-leaf",
+    repository: "MangoFuture1210/openpeek",
     workflowName: "Windows Release Smoke",
     workflowPath: ".github/workflows/windows-release-smoke.yml",
     runId: "123456789",
     runAttempt: 1,
-    url: "https://github.com/MangoFuture1210/git-leaf/actions/runs/123456789",
+    url: "https://github.com/MangoFuture1210/openpeek/actions/runs/123456789",
     headSha: state.commit,
     event: "push",
     runStatus: "completed",
