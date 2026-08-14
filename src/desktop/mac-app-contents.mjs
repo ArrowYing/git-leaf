@@ -15,6 +15,7 @@ import path from "node:path";
 
 export const OFFICIAL_MAC_BUNDLE_ID = "com.mangofuture.gitleaf";
 export const OFFICIAL_MAC_TEAM_IDENTIFIER = "HN6X79BUSR";
+export const OFFICIAL_MAC_EXECUTABLE_NAME = "Git Leaf";
 
 function runChecked(command, args) {
   const result = spawnSync(command, args, { encoding: "utf8" });
@@ -41,6 +42,14 @@ export function readMacAppBundleId(appPath) {
   return runChecked("/usr/libexec/PlistBuddy", [
     "-c",
     "Print:CFBundleIdentifier",
+    path.join(appPath, "Contents", "Info.plist"),
+  ]);
+}
+
+export function readMacAppExecutableName(appPath) {
+  return runChecked("/usr/libexec/PlistBuddy", [
+    "-c",
+    "Print:CFBundleExecutable",
     path.join(appPath, "Contents", "Info.plist"),
   ]);
 }

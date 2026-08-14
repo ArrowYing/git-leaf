@@ -117,14 +117,14 @@ function macosUpdateEvidence(state, overrides = {}) {
       executable: "Git Leaf",
     },
     candidateAppIdentity: {
-      bundleName: "Git Leaf.app",
+      bundleName: "OpenPeek.app",
       productName: "OpenPeek",
-      executable: "OpenPeek",
+      executable: "Git Leaf",
     },
     installedAppIdentity: {
       bundleName: "Git Leaf.app",
       productName: "OpenPeek",
-      executable: "OpenPeek",
+      executable: "Git Leaf",
     },
     installParentWritable: false,
     privilegedShipItJobObserved: false,

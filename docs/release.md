@@ -31,12 +31,7 @@ Build metadata is informational and can be changed by anyone compiling the sourc
 established by the Mango Future code signature, official download channel, SHA-256, release tag, and
 matching public commit.
 
-Version 2.0 is the product-name transition. Runtime readers continue to accept the 1.x
-`git-leaf-build-info.json` filename and `GIT_LEAF_*` environment names, but every newly prepared package
-and release environment must write the canonical OpenPeek filename and `OPENPEEK_*` names. Existing
-macOS Bundle IDs, the `git-leaf` Profile directory, and update-service coordinates remain stable
-compatibility identities and are not release-name substitutions. GitHub repository names use the
-canonical OpenPeek identity; GitHub preserves old repository URLs as redirects.
+Version 2.0 is the product-name transition. Runtime readers continue to accept the 1.x `git-leaf-build-info.json` filename and `GIT_LEAF_*` environment names, but every newly prepared package and release environment must write the canonical OpenPeek filename and `OPENPEEK_*` names. Existing macOS Bundle IDs, the official macOS `CFBundleExecutable=Git Leaf`, the `git-leaf` Profile directory, and update-service coordinates remain stable compatibility identities and are not release-name substitutions. GitHub repository names use the canonical OpenPeek identity; GitHub preserves old repository URLs as redirects.
 
 The analytics default is normally used only when initializing a new local setting. Once
 `usageAnalyticsEnabled` exists in userData, an ordinary update must preserve it. The bounded
@@ -431,7 +426,7 @@ therefore replaces its signed `Contents` directory without write access to the r
 `/Applications` parent; an App bundle that is itself not writable fails closed as an installation repair
 case. The regression requires the `.app` directory inode to remain unchanged.
 
-During the 1.x-to-2.x migration window, every official macOS update ZIP uses `Git Leaf.app` as its archive root even though its signed product name and executable are OpenPeek. This lets a 1.x ShipIt request update in place without renaming the App directory. OpenPeek itself atomically sets `useUpdateBundleName=false` before later installs, so the same ZIP also preserves a new `OpenPeek.app` installation. DMGs and source packages continue to use the canonical `OpenPeek.app` name.
+During the 1.x-to-2.x migration window, every official macOS package uses the canonical visible `OpenPeek.app` bundle and ZIP root while retaining `Git Leaf` as its hidden `CFBundleExecutable`. Legacy ShipIt decides whether to rename the installed App from executable identity rather than the ZIP root, so that machine-only identity lets an existing `Git Leaf.app` update in place. A new installation is still `OpenPeek.app`; OpenPeek also atomically sets `useUpdateBundleName=false` before later installs to preserve either installed bundle path. Community and source packages use the canonical `OpenPeek` executable name.
 
 This gate validates installation of the final signed package and its cleanup contract. It is not a
 feature-by-feature UI test, and it is not repeated after releases whose recorded risk assessment does
@@ -523,7 +518,7 @@ Before publication:
 2. Search for private repository names, personal paths, private email addresses, internal IPs, host aliases, server directories, and release credentials.
 3. Build macOS and Windows candidates.
 4. Inspect the DMG, ZIP, and `app.asar` file lists and text content.
-5. Confirm an official macOS update ZIP has the migration-compatible `Git Leaf.app` archive root while the DMG and signed inner product identity remain OpenPeek.
+5. Confirm an official macOS DMG and update ZIP use the visible `OpenPeek.app` identity and ZIP root while the signed App retains the migration-compatible hidden `CFBundleExecutable=Git Leaf`.
 6. Confirm packages exclude `.agents/`, `docs/`, `test/`, `dist/`, `.git/`, release profiles, signing material, and internal operations documents.
 7. Verify source, official public, and official internal behavior independently.
 8. Confirm track, channel, manifest, SHA-256, tag, and public commit correspondence.

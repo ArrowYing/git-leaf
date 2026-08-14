@@ -22,7 +22,11 @@ function valueAfter(argv, name) {
 function assertOpenPeekStopped() {
   for (const [command, args] of [
     ["pgrep", ["-x", "OpenPeek"]],
+    ["pgrep", ["-x", "Git Leaf"]],
     ["pgrep", ["-f", "/OpenPeek.app/Contents/MacOS/OpenPeek"]],
+    ["pgrep", ["-f", "/OpenPeek.app/Contents/MacOS/Git Leaf"]],
+    ["pgrep", ["-f", "/Git Leaf.app/Contents/MacOS/OpenPeek"]],
+    ["pgrep", ["-f", "/Git Leaf.app/Contents/MacOS/Git Leaf"]],
     ["pgrep", ["-f", "electron src/desktop/main.mjs"]],
   ]) {
     const result = spawnSync(command, args, { encoding: "utf8" });

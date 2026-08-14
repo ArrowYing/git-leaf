@@ -17,6 +17,7 @@ import {
   extractMacDevelopmentHandoffArchive,
   installPreparedMacDevelopmentHandoff,
   launchMacDevelopmentHandoffUpdate,
+  macAppBundlePathFromExecutable,
   macDevelopmentHandoffCachePaths,
   prepareMacDevelopmentHandoffUpdate,
 } from "../src/desktop/mac-development-handoff-update.mjs";
@@ -52,6 +53,7 @@ function manifest() {
 function inspectedTarget(receipt = RECEIPT) {
   return {
     bundleId: "com.mangofuture.gitleaf",
+    executableName: "Git Leaf",
     teamIdentifier: "HN6X79BUSR",
     version: receipt.version,
     buildInfo: {
@@ -110,7 +112,7 @@ test("mac development handoff prepares only the exact signed internal target", {
         body: Readable.from([ARCHIVE]),
       }),
       extractArchive: async (_archivePath, { dir }) => {
-        mkdirSync(path.join(dir, "Git Leaf.app"), { recursive: true });
+        mkdirSync(path.join(dir, "OpenPeek.app"), { recursive: true });
       },
       inspectApp: () => inspectedTarget(),
     });
@@ -119,12 +121,27 @@ test("mac development handoff prepares only the exact signed internal target", {
     assert.equal(prepared.handoff.buildId, RECEIPT.buildId);
     const ready = JSON.parse(readFileSync(prepared.readyFile, "utf8"));
     assert.equal(ready.schemaVersion, 1);
-    assert.equal(ready.sourceAppPath.endsWith("Git Leaf.app"), true);
+    assert.equal(ready.sourceAppPath.endsWith("OpenPeek.app"), true);
     assert.equal(ready.targetAppPath, targetAppPath);
     assert.deepEqual(ready.handoff, RECEIPT);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+test("mac App path detection accepts source and official compatibility executables", () => {
+  assert.equal(
+    macAppBundlePathFromExecutable("/Applications/OpenPeek.app/Contents/MacOS/OpenPeek"),
+    path.resolve("/Applications/OpenPeek.app"),
+  );
+  assert.equal(
+    macAppBundlePathFromExecutable("/Applications/Git Leaf.app/Contents/MacOS/Git Leaf"),
+    path.resolve("/Applications/Git Leaf.app"),
+  );
+  assert.throws(
+    () => macAppBundlePathFromExecutable("/Applications/OpenPeek.app/Contents/MacOS/Other"),
+    /not running from a macOS App bundle/,
+  );
 });
 
 test("a newer development handoff removes the older uninstalled package", {

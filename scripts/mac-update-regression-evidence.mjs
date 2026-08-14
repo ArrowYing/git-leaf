@@ -29,12 +29,12 @@ export function validateMacUpdateRegressionEvidence(evidence, {
     evidence.baselineAppIdentity?.bundleName === "Git Leaf.app"
     && evidence.baselineAppIdentity?.productName === "Git Leaf"
     && evidence.baselineAppIdentity?.executable === "Git Leaf"
-    && evidence.candidateAppIdentity?.bundleName === "Git Leaf.app"
+    && evidence.candidateAppIdentity?.bundleName === "OpenPeek.app"
     && evidence.candidateAppIdentity?.productName === "OpenPeek"
-    && evidence.candidateAppIdentity?.executable === "OpenPeek"
+    && evidence.candidateAppIdentity?.executable === "Git Leaf"
     && evidence.installedAppIdentity?.bundleName === "Git Leaf.app"
     && evidence.installedAppIdentity?.productName === "OpenPeek"
-    && evidence.installedAppIdentity?.executable === "OpenPeek"
+    && evidence.installedAppIdentity?.executable === "Git Leaf"
   );
   const inAppIsolationMatches = evidence.installMode !== "in-app-update" || (
     evidence.updateActionReady === true

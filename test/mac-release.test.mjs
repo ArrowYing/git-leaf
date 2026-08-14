@@ -34,8 +34,8 @@ import {
   macDevelopmentInstallPaths,
   macDmgLayoutPaths,
   macEntitlementsPath,
+  macExecutableName,
   macUpdateMetadataPaths,
-  macUpdateArchiveAppName,
   macReleasePaths,
   dmgBackgroundSvg,
   dmgFinderLayoutScript,
@@ -50,29 +50,29 @@ import {
   verifyProductionProfileUnchanged,
 } from "../scripts/release-mac.mjs";
 
-test("official macOS update ZIP preserves the Git Leaf 1.x bundle path", () => {
-  assert.equal(macUpdateArchiveAppName({
+test("official macOS packages preserve only the hidden Git Leaf executable identity", () => {
+  assert.equal(macExecutableName({
     appName: "OpenPeek",
     distribution: "official",
-  }), "Git Leaf.app");
-  assert.equal(macUpdateArchiveAppName({
+  }), "Git Leaf");
+  assert.equal(macExecutableName({
     appName: "OpenPeek",
     distribution: "source",
-  }), "OpenPeek.app");
+  }), "OpenPeek");
   assert.equal(assertMacUpdateArchiveEntries([
-    "Git Leaf.app/",
-    "Git Leaf.app/Contents/",
-    "Git Leaf.app/Contents/MacOS/OpenPeek",
+    "OpenPeek.app/",
+    "OpenPeek.app/Contents/",
+    "OpenPeek.app/Contents/MacOS/Git Leaf",
   ], {
     appName: "OpenPeek",
     distribution: "official",
-  }), "Git Leaf.app/");
+  }), "OpenPeek.app/");
   assert.throws(() => assertMacUpdateArchiveEntries([
-    "OpenPeek.app/Contents/MacOS/OpenPeek",
+    "Git Leaf.app/Contents/MacOS/Git Leaf",
   ], {
     appName: "OpenPeek",
     distribution: "official",
-  }), /must contain only Git Leaf\.app/);
+  }), /must contain only OpenPeek\.app/);
 });
 
 function assertSafeSigningKeychainRecovery(error) {
@@ -193,6 +193,7 @@ test("mac release package args exclude tests and generated outputs", () => {
   assert.ok(args.includes("--protocol=openpeek"));
   assert.ok(args.includes("--protocol-name=OpenPeek Document"));
   assert.ok(args.includes("--arch=universal"));
+  assert.ok(args.includes("--executable-name=OpenPeek"));
   assert.ok(args.includes("--app-version=1.9.1"));
 
   const ignoreValues = args
@@ -205,6 +206,17 @@ test("mac release package args exclude tests and generated outputs", () => {
   );
   assert.ok(ignoreValues.includes("^/dist($|/)"));
   assert.ok(ignoreValues.includes("^/\\.git($|/)"));
+});
+
+test("official mac release package args retain the legacy executable identity", () => {
+  const args = electronPackagerArgs({
+    appName: "OpenPeek",
+    distribution: "official",
+    bundleId: "com.mangofuture.gitleaf",
+    outDir: "dist",
+  });
+
+  assert.ok(args.includes("--executable-name=Git Leaf"));
 });
 
 test("mac release package args exclude internal docs, repository tools, and dev-only dependencies", () => {

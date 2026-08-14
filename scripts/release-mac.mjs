@@ -55,6 +55,7 @@ import {
   patchSquirrelMacPolicy,
   verifySquirrelMacPolicy,
 } from "./squirrel-mac-policy.mjs";
+import { OFFICIAL_MAC_EXECUTABLE_NAME } from "../src/desktop/mac-app-contents.mjs";
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const REPO_ROOT = path.dirname(path.dirname(SCRIPT_PATH));
@@ -81,15 +82,14 @@ export const DEFAULT_RELEASE_OPTIONS = {
 
 const APPLICATIONS_SHORTCUT_NAME = "Applications";
 const LEGACY_MAC_APP_NAME = "Git Leaf";
-export const LEGACY_MAC_UPDATE_ARCHIVE_APP_NAME = `${LEGACY_MAC_APP_NAME}.app`;
 
-export function macUpdateArchiveAppName({
+export function macExecutableName({
   appName = DEFAULT_RELEASE_OPTIONS.appName,
   distribution = "source",
 } = {}) {
   return distribution === "official"
-    ? LEGACY_MAC_UPDATE_ARCHIVE_APP_NAME
-    : `${appName}.app`;
+    ? OFFICIAL_MAC_EXECUTABLE_NAME
+    : appName;
 }
 
 export const releaseSteps = [
@@ -169,6 +169,7 @@ const DEVELOPMENT_PROFILE_MARKER_SCHEMA_VERSION = 2;
 
 export function electronPackagerArgs({
   appName = DEFAULT_RELEASE_OPTIONS.appName,
+  distribution = "source",
   version = DEFAULT_RELEASE_OPTIONS.version,
   arch = DEFAULT_RELEASE_OPTIONS.arch,
   bundleId = DEFAULT_RELEASE_OPTIONS.bundleId,
@@ -183,6 +184,7 @@ export function electronPackagerArgs({
     `--arch=${arch}`,
     `--out=${outDir}`,
     "--overwrite",
+    `--executable-name=${macExecutableName({ appName, distribution })}`,
     `--app-version=${version}`,
     `--app-bundle-id=${bundleId}`,
     `--protocol=${OPENPEEK_PROTOCOL}`,
@@ -1537,37 +1539,20 @@ function stapleRelease(paths) {
   run("xcrun", ["stapler", "validate", paths.appDir]);
 }
 
-function createZip(options, paths) {
+function createZip(paths) {
   rmSync(paths.zipPath, { force: true });
-  const archiveAppDir = path.join(
-    path.dirname(paths.appDir),
-    macUpdateArchiveAppName(options),
-  );
-  const renameForArchive = archiveAppDir !== paths.appDir;
-  if (renameForArchive && existsSync(archiveAppDir)) {
-    throw new Error(`Refusing to replace an existing update archive App: ${archiveAppDir}`);
-  }
-  if (renameForArchive) {
-    renameSync(paths.appDir, archiveAppDir);
-  }
-  try {
-    run("ditto", [
-      "-c",
-      "-k",
-      "--sequesterRsrc",
-      "--keepParent",
-      archiveAppDir,
-      paths.zipPath,
-    ]);
-  } finally {
-    if (renameForArchive && existsSync(archiveAppDir)) {
-      renameSync(archiveAppDir, paths.appDir);
-    }
-  }
+  run("ditto", [
+    "-c",
+    "-k",
+    "--sequesterRsrc",
+    "--keepParent",
+    paths.appDir,
+    paths.zipPath,
+  ]);
 }
 
 export function assertMacUpdateArchiveEntries(entries, options = {}) {
-  const expectedAppName = macUpdateArchiveAppName(options);
+  const expectedAppName = `${options.appName || DEFAULT_RELEASE_OPTIONS.appName}.app`;
   const expectedRoot = `${expectedAppName}/`;
   const archiveEntries = entries
     .map((entry) => String(entry || "").trim())
@@ -1926,7 +1911,7 @@ export function runReleaseCommand(command, options = releaseOptionsFromEnv()) {
     case "staple":
       return stapleRelease(paths);
     case "zip":
-      return createZip(options, paths);
+      return createZip(paths);
     case "verify":
       return verifyRelease(options, paths);
     case "stage-updates":

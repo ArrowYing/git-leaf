@@ -47,10 +47,7 @@ code editor.
 
 ## Product identity and 2.0 compatibility
 
-OpenPeek is the canonical product identity beginning with version 2.0. New desktop bundles, executable
-names, package artifacts, CLI output, generated deep links, environment variables, and embedded build
-metadata use `OpenPeek`, `openpeek`, `openpeek://`, `OPENPEEK_*`, and
-`openpeek-build-info.json` respectively.
+OpenPeek is the canonical product identity beginning with version 2.0. New visible desktop bundle names, package artifacts, CLI output, generated deep links, environment variables, and embedded build metadata use `OpenPeek`, `openpeek`, `openpeek://`, `OPENPEEK_*`, and `openpeek-build-info.json` respectively. The official macOS package alone retains `Git Leaf` as its hidden `CFBundleExecutable` machine identity so existing 1.x ShipIt installations update in place; Community and source builds use the canonical `OpenPeek` executable name.
 
 The rename must not create a second application state or strand 1.x callers. These identifiers remain
 stable compatibility contracts:
@@ -62,6 +59,7 @@ stable compatibility contracts:
   canonical OpenPeek form taking precedence;
 - the existing official and Community macOS Bundle IDs and the `git_leaf.*` analytics event namespace
   remain unchanged because they are persistent operating-system and data-schema identities;
+- the official macOS `CFBundleExecutable` remains `Git Leaf` while the visible App bundle, product name, DMG, ZIP root, and interface use `OpenPeek`; a new installation is `OpenPeek.app`, while an existing `Git Leaf.app` keeps that directory during an in-place update;
 - the former GitHub repository names redirect to `MangoFuture1210/openpeek` and
   `MangoFuture1210/openpeek-example-knowledge-base`, and the app canonicalizes both names when matching
   a local checkout;

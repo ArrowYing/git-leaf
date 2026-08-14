@@ -34,9 +34,11 @@ import {
 } from "./config.mjs";
 import {
   OFFICIAL_MAC_BUNDLE_ID,
+  OFFICIAL_MAC_EXECUTABLE_NAME,
   OFFICIAL_MAC_TEAM_IDENTIFIER,
   beginMacAppContentsReplacement,
   readMacAppBundleId,
+  readMacAppExecutableName,
   readMacAppVersion,
   verifySignedMacApp,
   waitForMacAppProcessesExit,
@@ -46,7 +48,7 @@ const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const READY_SCHEMA_VERSION = 1;
 const READY_FILENAME = "ready.json";
 const MAC_APP_NAMES = new Set(["OpenPeek.app", "Git Leaf.app"]);
-const MAC_EXECUTABLE_NAME = "OpenPeek";
+const MAC_EXECUTABLE_NAMES = new Set(["OpenPeek", OFFICIAL_MAC_EXECUTABLE_NAME]);
 const HELPER_READY_ARGUMENT = "--install-ready";
 const HELPER_PID_ARGUMENT = "--wait-pid";
 const activePreparations = new Map();
@@ -75,7 +77,7 @@ export function macDevelopmentHandoffCachePaths({
 export function macAppBundlePathFromExecutable(execPath = process.execPath) {
   const executable = path.resolve(requiredPath(execPath, "execPath"));
   if (
-    path.basename(executable) !== MAC_EXECUTABLE_NAME
+    !MAC_EXECUTABLE_NAMES.has(path.basename(executable))
     || path.basename(path.dirname(executable)) !== "MacOS"
     || path.basename(path.dirname(path.dirname(executable))) !== "Contents"
   ) {
@@ -396,6 +398,7 @@ export function inspectOfficialMacApp(appPath) {
   }
   return {
     bundleId: readMacAppBundleId(appPath),
+    executableName: readMacAppExecutableName(appPath),
     teamIdentifier: OFFICIAL_MAC_TEAM_IDENTIFIER,
     version: readMacAppVersion(appPath),
     buildInfo: JSON.parse(readFileSync(buildInfoPath, "utf8")),
@@ -478,6 +481,7 @@ function normalizedReadyPayload(value, { readyFile = "" } = {}) {
 function assertOfficialTargetIdentity({ inspected, receipt }) {
   if (
     inspected?.bundleId !== OFFICIAL_MAC_BUNDLE_ID
+    || inspected?.executableName !== OFFICIAL_MAC_EXECUTABLE_NAME
     || inspected?.teamIdentifier !== OFFICIAL_MAC_TEAM_IDENTIFIER
     || inspected?.version !== receipt.version
     || inspected?.buildInfo?.dev === true
@@ -632,11 +636,15 @@ async function launchAndConfirmMacApp({
   confirmationDelayMs = 2_000,
   wait = delay,
 } = {}) {
+  const executableName = readMacAppExecutableName(appPath);
+  if (!MAC_EXECUTABLE_NAMES.has(executableName)) {
+    throw new Error("The macOS App has an unsupported executable identity.");
+  }
   const executable = path.join(
     appPath,
     "Contents",
     "MacOS",
-    MAC_EXECUTABLE_NAME,
+    executableName,
   );
   const childEnvironment = { ...environment };
   delete childEnvironment.ELECTRON_RUN_AS_NODE;
