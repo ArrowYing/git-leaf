@@ -700,9 +700,15 @@ test("OpenPeek update server logs completed public download-page artifacts witho
     assert.equal(invalidManifestVersion.status, 200);
     await invalidManifestVersion.arrayBuffer();
 
-    const files = (await jsonlFiles(telemetryRoot)).filter((file) => file.includes(`${path.sep}downloads${path.sep}`));
+    const { files, records } = await waitForValue(async () => {
+      const files = (await jsonlFiles(telemetryRoot))
+        .filter((file) => file.includes(`${path.sep}downloads${path.sep}`));
+      if (files.length !== 1) return null;
+      const body = (await readFile(files[0], "utf8")).trim();
+      if (!body) return null;
+      return { files, records: body.split("\n").map(JSON.parse) };
+    }, { label: "the completed download record" });
     assert.equal(files.length, 1);
-    const records = (await readFile(files[0], "utf8")).trim().split("\n").map(JSON.parse);
     assert.equal(records.length, 1);
     assert.deepEqual({ ...records[0], download_id: undefined, occurred_at: undefined }, {
       schema_version: 1,
@@ -1266,6 +1272,27 @@ function waitForServerPort(server) {
       reject(new Error(`server exited with ${code}: ${stderr}`));
     });
   });
+}
+
+async function waitForValue(check, {
+  timeoutMs = 2_000,
+  intervalMs = 10,
+  label = "the expected value",
+} = {}) {
+  const deadline = Date.now() + timeoutMs;
+  let lastError;
+  while (Date.now() < deadline) {
+    try {
+      const value = await check();
+      if (value) return value;
+    } catch (error) {
+      lastError = error;
+    }
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  }
+  throw new Error(
+    `Timed out waiting for ${label}${lastError ? `: ${lastError.message}` : ""}`,
+  );
 }
 
 function decodeHtml(value) {

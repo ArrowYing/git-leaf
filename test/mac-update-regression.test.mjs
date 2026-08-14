@@ -21,8 +21,20 @@ import {
 } from "../scripts/mac-update-regression.mjs";
 
 test("mac update regression rejects a relaunched App that reaches the real Profile", () => {
-  const temporaryRoot = "/private/tmp/openpeek-update-regression.123";
-  const protectedProfilePath = "/Users/example/Library/Application Support/git-leaf";
+  const filesystemRoot = path.parse(process.cwd()).root;
+  const temporaryRoot = path.join(
+    filesystemRoot,
+    "tmp",
+    "openpeek-update-regression.123",
+  );
+  const protectedProfilePath = path.join(
+    filesystemRoot,
+    "Users",
+    "example",
+    "Library",
+    "Application Support",
+    "git-leaf",
+  );
   assert.deepEqual(assertTemporaryProcessIsolation({
     temporaryRoot,
     protectedProfilePath,
