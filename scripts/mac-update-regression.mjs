@@ -489,12 +489,19 @@ export function assertRenameMigrationUserState(actual, expected) {
     "mode",
     "sidebarCollapsed",
     "sourcePreviewRatio",
-    "workbenchSessions",
   ];
+  const expectedWorkbenchSessions = expected?.preferences?.workbenchSessions ?? {};
+  const actualWorkbenchSessions = actual?.preferences?.workbenchSessions ?? {};
+  const workbenchSessionsPreserved = Object.entries(expectedWorkbenchSessions).every(
+    ([worktreeId, session]) => (
+      JSON.stringify(actualWorkbenchSessions[worktreeId]) === JSON.stringify(session)
+    ),
+  );
   const preserved = actual?.renameMigrationSentinel === expected.renameMigrationSentinel
     && actual?.repoRoot === expected.repoRoot
     && JSON.stringify(actual?.openRepoRoots) === JSON.stringify(expected.openRepoRoots)
     && actual?.usageAnalyticsEnabled === expected.usageAnalyticsEnabled
+    && workbenchSessionsPreserved
     && stablePreferenceKeys.every((key) => (
       JSON.stringify(actual?.preferences?.[key])
       === JSON.stringify(expected.preferences[key])

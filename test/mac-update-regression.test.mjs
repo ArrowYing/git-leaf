@@ -188,11 +188,28 @@ test("mac product rename migration preserves repositories, workspace state, and 
   const afterUpdate = structuredClone(expected);
   afterUpdate.preferences.updateRequestedVersion = "";
   afterUpdate.preferences.updateAvailableVersion = "";
+  afterUpdate.preferences.workbenchSessions.currentWorktree = {
+    tabs: [],
+    activeTabPath: "",
+  };
   assert.equal(assertRenameMigrationUserState(afterUpdate, expected), true);
   assert.throws(
     () => assertRenameMigrationUserState({
       ...afterUpdate,
       preferences: { ...afterUpdate.preferences, language: "system" },
+    }, expected),
+    /did not preserve/,
+  );
+  assert.throws(
+    () => assertRenameMigrationUserState({
+      ...afterUpdate,
+      preferences: {
+        ...afterUpdate.preferences,
+        workbenchSessions: {
+          ...afterUpdate.preferences.workbenchSessions,
+          openpeek: { tabs: [], activeTabPath: "" },
+        },
+      },
     }, expected),
     /did not preserve/,
   );
