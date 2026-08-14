@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { renameSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, readdir, rm, stat, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -8,6 +9,7 @@ import test from "node:test";
 import {
   DEFAULT_RELEASE_OPTIONS,
   applyMacBundleIcon,
+  applyMacBundleProductName,
   applyMacBundleProtocols,
   assertMacUpdateArchiveEntries,
   assertDevelopmentSmokeUserDataPath,
@@ -483,6 +485,40 @@ test("mac bundle icon application refreshes the app bundle mtime for LaunchServi
       appStat.mtimeMs > oldDate.getTime(),
       "the .app root mtime must change so macOS refreshes cached app icons",
     );
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("official mac bundle keeps OpenPeek visible while retaining its compatibility executable", async () => {
+  const tempDir = await mkdtempPath("openpeek-mac-product-name-");
+  try {
+    const appDir = path.join(tempDir, "OpenPeek.app");
+    const contentsDir = path.join(appDir, "Contents");
+    await mkdir(contentsDir, { recursive: true });
+    await writeFile(
+      path.join(contentsDir, "Info.plist"),
+      `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>CFBundleDisplayName</key><string>Git Leaf</string>
+  <key>CFBundleName</key><string>Git Leaf</string>
+  <key>CFBundleExecutable</key><string>Git Leaf</string>
+</dict></plist>
+`,
+      "utf8",
+    );
+
+    assert.equal(applyMacBundleProductName({ appName: "OpenPeek" }, { appDir }), "OpenPeek");
+    const infoPlistPath = path.join(contentsDir, "Info.plist");
+    const plistValue = (key) => spawnSync(
+      "/usr/libexec/PlistBuddy",
+      ["-c", `Print:${key}`, infoPlistPath],
+      { encoding: "utf8" },
+    ).stdout.trim();
+    assert.equal(plistValue("CFBundleDisplayName"), "OpenPeek");
+    assert.equal(plistValue("CFBundleName"), "OpenPeek");
+    assert.equal(plistValue("CFBundleExecutable"), "Git Leaf");
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }

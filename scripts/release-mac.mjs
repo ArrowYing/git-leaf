@@ -1122,6 +1122,7 @@ function packageMac(options) {
     rootDir: REPO_ROOT,
   });
   applyMacBundleIcon(options, macDevelopmentInstallPaths(options));
+  applyMacBundleProductName(options, macDevelopmentInstallPaths(options));
   applyMacBundleProtocols(macDevelopmentInstallPaths(options));
   if (options.distribution === "source") {
     signMacAppAdHoc({ appDir: macReleasePaths(options).appDir });
@@ -1165,6 +1166,26 @@ export function applyMacBundleIcon(options, paths) {
     icon.infoPlistPath,
   ]);
   touchMacAppBundle(paths.appDir);
+}
+
+export function applyMacBundleProductName(options, paths) {
+  const appName = String(options?.appName || "").trim();
+  const infoPlistPath = path.join(paths.appDir, "Contents", "Info.plist");
+  if (!appName) {
+    throw new Error("A macOS product name is required.");
+  }
+  requirePath(infoPlistPath);
+  for (const key of ["CFBundleDisplayName", "CFBundleName"]) {
+    run("/usr/bin/plutil", [
+      "-replace",
+      key,
+      "-string",
+      appName,
+      infoPlistPath,
+    ]);
+  }
+  touchMacAppBundle(paths.appDir);
+  return appName;
 }
 
 export function applyMacBundleProtocols(paths) {
