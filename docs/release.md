@@ -105,11 +105,7 @@ official profile and track are present.
 
 ## Human and automation Profiles
 
-The installed formal app and a development build installed for human use are the same `OpenPeek.app`.
-They use the same real Electron Profile so replacing one build with the other preserves repositories,
-workbench sessions, favorites, language, and preferences. A packaged `dev=true, source, source` build
-may perform only the one-way internal handoff defined below; the build marker does not make it official,
-enable telemetry, or select a `git-leaf-dev` directory.
+The installed formal app and a development build installed for human use are the same App installation. A new installation is `OpenPeek.app`; an existing `Git Leaf.app` path is reused during the 2.0 transition. Both use the same real Electron Profile so replacing one build with the other preserves repositories, workbench sessions, favorites, language, and preferences. A packaged `dev=true, source, source` build may perform only the one-way internal handoff defined below; the build marker does not make it official, enable telemetry, or select a `git-leaf-dev` directory.
 
 Agent-driven automated UI verification, when run as a separate development task, is the only macOS flow
 that selects another Profile. It creates a one-time snapshot of the real Profile, passes its temporary
@@ -384,6 +380,8 @@ that legacy package's defective privileged Helper path. Its mandatory `finally` 
 state owned by that run. It then proves the real Profile and real ShipIt cache fingerprints did not change.
 A failure never creates passing evidence.
 
+For a Squirrel baseline, the harness waits until the real packaged update action is ready but does not activate `quitAndInstall`, because ShipIt's automatic relaunch cannot carry the explicit one-time Profile arguments. It instead confirms the isolated ShipIt request has `launchAfterInstallation=false`, stops only the temporary baseline process, lets ShipIt install the exact candidate, and manually relaunches the signed candidate with the same explicit isolated userData and sessionData. During both launches it inspects the real process command lines and fails immediately if any process under the temporary App root names the production Profile. This preserves the installation and ShipIt behavior under test without allowing an automated relaunch to touch real user data.
+
 The first public release after the internal migration bridge is one bounded exception to same-track
 baseline validation: physical `stable` still contains the exact `1.11.3 + internal + stable` bridge.
 The harness may use only that exact identity as the historical public-stable baseline, must install it
@@ -432,6 +430,8 @@ Squirrel policy that never launches a privileged Helper. A user-owned `/Applicat
 therefore replaces its signed `Contents` directory without write access to the root-owned
 `/Applications` parent; an App bundle that is itself not writable fails closed as an installation repair
 case. The regression requires the `.app` directory inode to remain unchanged.
+
+During the 1.x-to-2.x migration window, every official macOS update ZIP uses `Git Leaf.app` as its archive root even though its signed product name and executable are OpenPeek. This lets a 1.x ShipIt request update in place without renaming the App directory. OpenPeek itself atomically sets `useUpdateBundleName=false` before later installs, so the same ZIP also preserves a new `OpenPeek.app` installation. DMGs and source packages continue to use the canonical `OpenPeek.app` name.
 
 This gate validates installation of the final signed package and its cleanup contract. It is not a
 feature-by-feature UI test, and it is not repeated after releases whose recorded risk assessment does
@@ -523,8 +523,9 @@ Before publication:
 2. Search for private repository names, personal paths, private email addresses, internal IPs, host aliases, server directories, and release credentials.
 3. Build macOS and Windows candidates.
 4. Inspect the DMG, ZIP, and `app.asar` file lists and text content.
-5. Confirm packages exclude `.agents/`, `docs/`, `test/`, `dist/`, `.git/`, release profiles, signing material, and internal operations documents.
-6. Verify source, official public, and official internal behavior independently.
-7. Confirm track, channel, manifest, SHA-256, tag, and public commit correspondence.
+5. Confirm an official macOS update ZIP has the migration-compatible `Git Leaf.app` archive root while the DMG and signed inner product identity remain OpenPeek.
+6. Confirm packages exclude `.agents/`, `docs/`, `test/`, `dist/`, `.git/`, release profiles, signing material, and internal operations documents.
+7. Verify source, official public, and official internal behavior independently.
+8. Confirm track, channel, manifest, SHA-256, tag, and public commit correspondence.
 
 The formal release controller is the only supported path for publishing Mango Future official artifacts.

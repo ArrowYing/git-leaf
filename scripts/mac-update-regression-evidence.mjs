@@ -29,15 +29,21 @@ export function validateMacUpdateRegressionEvidence(evidence, {
     evidence.baselineAppIdentity?.bundleName === "Git Leaf.app"
     && evidence.baselineAppIdentity?.productName === "Git Leaf"
     && evidence.baselineAppIdentity?.executable === "Git Leaf"
-    && evidence.candidateAppIdentity?.bundleName === "OpenPeek.app"
+    && evidence.candidateAppIdentity?.bundleName === "Git Leaf.app"
     && evidence.candidateAppIdentity?.productName === "OpenPeek"
     && evidence.candidateAppIdentity?.executable === "OpenPeek"
     && evidence.installedAppIdentity?.bundleName === "Git Leaf.app"
     && evidence.installedAppIdentity?.productName === "OpenPeek"
     && evidence.installedAppIdentity?.executable === "OpenPeek"
   );
+  const inAppIsolationMatches = evidence.installMode !== "in-app-update" || (
+    evidence.updateActionReady === true
+    && evidence.shipItLaunchAfterInstallation === false
+    && evidence.installTrigger === "isolated-process-termination"
+    && evidence.candidateRelaunchedWithIsolatedProfile === true
+  );
   if (
-    evidence?.schemaVersion !== 4
+    evidence?.schemaVersion !== 5
     || evidence.source !== "openpeek-macos-update-regression"
     || evidence.status !== "passed"
     || evidence.track !== track
@@ -47,6 +53,7 @@ export function validateMacUpdateRegressionEvidence(evidence, {
     || evidence.commit !== commit
     || !String(evidence.buildId || "").startsWith(String(buildId || "missing"))
     || !["contents-bridge", "in-app-update"].includes(evidence.installMode)
+    || !inAppIsolationMatches
     || evidence.directContentsWrite !== true
     || evidence.appDirectoryInodePreserved !== true
     || evidence.profileStatePreserved !== true

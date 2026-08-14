@@ -20,6 +20,7 @@ import process from "node:process";
 import { openPeekEnvironmentValue } from "../environment.mjs";
 import { createDesktopUpdateController } from "./updates.mjs";
 import { configureMacUpdateInstallation } from "./mac-update-installation.mjs";
+import { preserveMacUpdateAppPath } from "./mac-update-cache.mjs";
 import {
   launchMacDevelopmentHandoffUpdate,
   macAppBundlePathFromExecutable,
@@ -845,6 +846,10 @@ function installUpdateController() {
         currentProcessId: process.pid,
       })
     ),
+    prepareMacUpdateInstallation: () => preserveMacUpdateAppPath({
+      homeDir: app.getPath("home"),
+      targetAppPath: macAppBundlePathFromExecutable(),
+    }),
     recordUpdateState: recordTelemetryUpdateState,
     translate: (key, values) => desktopText(key, values),
     prepareWindowsUpdate: (manifest) => prepareWindowsAppUpdate({

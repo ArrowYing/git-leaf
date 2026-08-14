@@ -45,7 +45,7 @@ import {
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const READY_SCHEMA_VERSION = 1;
 const READY_FILENAME = "ready.json";
-const MAC_APP_NAME = "OpenPeek.app";
+const MAC_APP_NAMES = new Set(["OpenPeek.app", "Git Leaf.app"]);
 const MAC_EXECUTABLE_NAME = "OpenPeek";
 const HELPER_READY_ARGUMENT = "--install-ready";
 const HELPER_PID_ARGUMENT = "--wait-pid";
@@ -450,7 +450,8 @@ function normalizedReadyPayload(value, { readyFile = "" } = {}) {
   const sourceAppPath = validatedExistingAppPath(value.sourceAppPath, "source");
   const targetAppPath = validatedExistingAppPath(value.targetAppPath, "target");
   if (
-    sourceAppPath !== path.join(paths.extractRoot, MAC_APP_NAME)
+    !MAC_APP_NAMES.has(path.basename(sourceAppPath))
+    || path.dirname(sourceAppPath) !== paths.extractRoot
     || targetAppPath.startsWith(`${paths.updateRoot}${path.sep}`)
   ) {
     throw new Error("Invalid macOS development handoff App path.");
@@ -544,19 +545,15 @@ async function downloadArchive({ url, destination, fetchFn }) {
 }
 
 async function findExtractedMacApp(extractRoot) {
-  const expected = path.join(extractRoot, MAC_APP_NAME);
-  if (existsSync(expected)) {
-    return validatedExistingAppPath(expected, "extracted");
-  }
   const entries = await readdir(extractRoot, { withFileTypes: true });
   const candidates = entries
     .filter((entry) => entry.isDirectory() && entry.name.endsWith(".app"))
     .map((entry) => path.join(extractRoot, entry.name));
-  if (candidates.length !== 1) {
+  if (
+    candidates.length !== 1
+    || !MAC_APP_NAMES.has(path.basename(candidates[0]))
+  ) {
     throw new Error("The internal archive does not contain one complete macOS App.");
-  }
-  if (path.basename(candidates[0]) !== MAC_APP_NAME) {
-    throw new Error(`The internal archive App must be named ${MAC_APP_NAME}.`);
   }
   return validatedExistingAppPath(candidates[0], "extracted");
 }

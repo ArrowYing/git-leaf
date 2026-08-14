@@ -635,6 +635,68 @@ test("desktop updater does not show transient macOS errors before a downloaded u
   assert.equal(await controller.installPendingUpdateOnQuit(), true);
 });
 
+test("desktop updater preserves the current macOS App path before ShipIt restarts", async () => {
+  const autoUpdater = fakeAutoUpdater();
+  const calls = [];
+  autoUpdater.quitAndInstall = () => {
+    calls.push("quit-and-install");
+    autoUpdater.installed = true;
+  };
+  const controller = createDesktopUpdateController({
+    autoUpdater,
+    buildInfo: { version: "1.2.0" },
+    dialog: fakeDialog(),
+    fetch: fakeMacManifestFetch(),
+    isPackaged: true,
+    platform: "darwin",
+    arch: "arm64",
+    prepareMacUpdateInstallation: async (update) => {
+      calls.push(`preserve-path:${update.version}`);
+    },
+  });
+
+  await controller.checkForUpdates({ manual: true });
+  autoUpdater.listeners.get("update-downloaded")();
+
+  assert.equal(await controller.installPendingUpdateOnQuit(), true);
+  assert.deepEqual(calls, [
+    "preserve-path:1.2.1",
+    "quit-and-install",
+  ]);
+});
+
+test("desktop updater fails closed when the macOS App path cannot be preserved", async () => {
+  const autoUpdater = fakeAutoUpdater();
+  const updates = [];
+  const controller = createDesktopUpdateController({
+    autoUpdater,
+    buildInfo: { version: "1.2.0" },
+    dialog: fakeDialog(),
+    fetch: fakeMacManifestFetch(),
+    isPackaged: true,
+    platform: "darwin",
+    arch: "arm64",
+    prepareMacUpdateInstallation: async () => {
+      throw new Error("ShipIt state mismatch");
+    },
+    recordUpdateState: (update) => updates.push(update),
+  });
+
+  await controller.checkForUpdates({ manual: true });
+  autoUpdater.listeners.get("update-downloaded")();
+
+  assert.equal(await controller.installPendingUpdateOnQuit(), false);
+  assert.equal(autoUpdater.installed, false);
+  assert.deepEqual(updates.at(-1), {
+    state: "failed",
+    trigger: "manual",
+    from_version: "1.2.0",
+    to_version: "1.2.1",
+    error_code: "launch",
+    stage: "install",
+  });
+});
+
 test("desktop updater reports macOS manual update progress", async () => {
   const autoUpdater = fakeAutoUpdater();
   const statuses = [];

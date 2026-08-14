@@ -68,10 +68,7 @@ stable compatibility contracts:
 - `gitleaf.mangofuture.com` and update-service `/git-leaf` roots remain unchanged until their separately
   coordinated domain migration.
 
-On macOS, a new installation uses `OpenPeek.app`, while an existing `Git Leaf.app` is reused for an
-in-place 2.0 update. On Windows, 2.0 accepts the old executable and updater arguments long enough to
-migrate the fixed app into `%LOCALAPPDATA%\OpenPeek\app`; only after the canonical executable confirms
-startup may the old install tree and shortcut be removed.
+On macOS, a new installation uses `OpenPeek.app`, while an existing `Git Leaf.app` is reused for an in-place 2.0 update. While a 1.x installation can still update directly to the current release, the official macOS update ZIP deliberately retains `Git Leaf.app` as its archive root; the signed bundle inside already has the OpenPeek product name and executable. Before OpenPeek invokes ShipIt on later updates, it atomically sets `useUpdateBundleName=false` in the identity-bound ShipIt request, so a new `OpenPeek.app` installation and a migrated `Git Leaf.app` installation both retain their current App directory. The DMG remains canonical and contains `OpenPeek.app`. On Windows, 2.0 accepts the old executable and updater arguments long enough to migrate the fixed app into `%LOCALAPPDATA%\OpenPeek\app`; only after the canonical executable confirms startup may the old install tree and shortcut be removed.
 
 ## Runtime model
 
@@ -669,6 +666,8 @@ Squirrel stages a newer official macOS target, OpenPeek removes every orphaned `
 preserving the one referenced by `ShipItState.plist`. The steady state therefore contains at most one
 complete downloaded-but-uninstalled package. Failed preparation remains retryable and must not
 masquerade as an active download.
+
+Immediately before a normal macOS installation, OpenPeek revalidates that `ShipItState.plist` is a regular file under the official per-user ShipIt cache, that its update bundle remains inside the staged `update.*` directory, and that its target is the currently running App. It then atomically disables ShipIt's bundle-name migration. A mismatch fails closed before `quitAndInstall`, preserving both the current `OpenPeek.app` path used by new installations and the legacy `Git Leaf.app` path reused by 1.x upgrades.
 
 Windows coordinates preparation and cleanup per update-cache root. A valid cached package is reusable
 only after its sibling entries are removed, and startup cleanup removes current, older, invalid, and

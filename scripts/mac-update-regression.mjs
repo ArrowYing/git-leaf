@@ -630,7 +630,7 @@ export async function waitFor(check, {
   );
 }
 
-export function updateRegressionInstallExpression() {
+export function updateRegressionInstallExpression({ activate = true } = {}) {
   return `(() => {
     const action = document.querySelector("#desktop-update-action");
     if (!action) {
@@ -643,10 +643,12 @@ export function updateRegressionInstallExpression() {
         label: action.textContent || "",
       };
     }
-    action.click();
+    if (${activate ? "true" : "false"}) {
+      action.click();
+    }
     return {
-      clicked: true,
-      reason: "action-clicked",
+      clicked: ${activate ? "true" : "false"},
+      reason: ${activate ? '"action-clicked"' : '"action-ready"'},
       label: action.textContent || "",
     };
   })()`;
@@ -695,6 +697,100 @@ export async function evaluateInRenderer({ userDataDir, expression }) {
       reject(new Error("Could not connect to the isolated renderer"));
     });
   });
+}
+
+export function assertTemporaryProcessIsolation({
+  commandOutput,
+  temporaryRoot,
+  protectedProfilePath,
+} = {}) {
+  const temporary = requiredRegressionPath(temporaryRoot, "temporaryRoot");
+  const protectedProfile = requiredRegressionPath(
+    protectedProfilePath,
+    "protectedProfilePath",
+  );
+  const relevant = String(commandOutput || "")
+    .split("\n")
+    .map((command) => command.trim())
+    .filter((command) => command.includes(temporary));
+  if (relevant.some((command) => command.includes(protectedProfile))) {
+    throw new Error(
+      "An isolated macOS update process attempted to use the real OpenPeek Profile",
+    );
+  }
+  return relevant;
+}
+
+export function assertIsolatedShipItRequest({ stateFile, temporaryRoot } = {}) {
+  const statePath = requiredRegressionPath(stateFile, "stateFile");
+  const temporary = requiredRegressionPath(temporaryRoot, "temporaryRoot");
+  const stateStat = lstatSync(statePath);
+  if (!stateStat.isFile() || stateStat.isSymbolicLink()) {
+    throw new Error("The isolated ShipIt state must be a regular file");
+  }
+  const request = JSON.parse(readFileSync(statePath, "utf8"));
+  const requestPaths = [request.updateBundleURL, request.targetBundleURL]
+    .map((value) => {
+      const url = new URL(String(value || ""));
+      if (url.protocol !== "file:") {
+        throw new Error("The isolated ShipIt request must use local App paths");
+      }
+      return path.resolve(fileURLToPath(url));
+    });
+  if (
+    request.launchAfterInstallation !== false
+    || requestPaths.some((requestPath) => {
+      const relative = path.relative(temporary, requestPath);
+      return relative.startsWith("..") || path.isAbsolute(relative);
+    })
+  ) {
+    throw new Error("The ShipIt request is not isolated to the update regression root");
+  }
+  return request;
+}
+
+function requiredRegressionPath(value, label) {
+  const candidate = typeof value === "string" ? value.trim() : "";
+  if (!candidate) {
+    throw new Error(`${label} is required for the macOS update regression`);
+  }
+  return path.resolve(candidate);
+}
+
+function assertRunningTemporaryProcessesIsolated({
+  temporaryRoot,
+  protectedProfilePath,
+} = {}) {
+  const processes = spawnSync("ps", ["-axo", "command="], { encoding: "utf8" });
+  if (processes.status !== 0) {
+    throw new Error("Could not inspect isolated macOS update processes");
+  }
+  return assertTemporaryProcessIsolation({
+    commandOutput: processes.stdout,
+    temporaryRoot,
+    protectedProfilePath,
+  });
+}
+
+function runningExecutableProcessIds(executablePath) {
+  const executable = path.resolve(executablePath);
+  const processes = spawnSync("ps", ["-axo", "pid=,command="], {
+    encoding: "utf8",
+  });
+  if (processes.status !== 0) {
+    throw new Error("Could not inspect the installed candidate process");
+  }
+  return String(processes.stdout || "")
+    .split("\n")
+    .map((line) => line.trim().match(/^(\d+)\s+(.+)$/))
+    .filter((match) => (
+      match
+      && (
+        match[2] === executable
+        || match[2].startsWith(`${executable} `)
+      )
+    ))
+    .map((match) => Number(match[1]));
 }
 
 export function terminateProcessesInside(temporaryRoot, signal = "SIGTERM") {
@@ -846,6 +942,7 @@ async function runHarness({
     installDirectoryLocked = true;
 
     let installMode;
+    let inAppUpdateIsolation = null;
     if (
       compareAppVersions(
         stableManifest.version,
@@ -907,9 +1004,13 @@ async function runHarness({
         "Caches",
         SHIPIT_JOB_LABEL,
       );
+      const isolatedShipItState = path.join(
+        isolatedShipItCache,
+        "ShipItState.plist",
+      );
       await waitFor(() => (
         existsSync(path.join(userDataDir, "DevToolsActivePort"))
-        && existsSync(path.join(isolatedShipItCache, "ShipItState.plist"))
+        && existsSync(isolatedShipItState)
       ), {
         timeoutMs: 240_000,
         label: "the signed candidate to download and prepare",
@@ -917,26 +1018,87 @@ async function runHarness({
       if (launchctlJobExists({ domain: "system" })) {
         throw new Error("The update attempted to register a privileged ShipIt job");
       }
+      const shipItRequest = assertIsolatedShipItRequest({
+        stateFile: isolatedShipItState,
+        temporaryRoot,
+      });
+      assertRunningTemporaryProcessesIsolated({
+        temporaryRoot,
+        protectedProfilePath: host.productionProfilePath,
+      });
+      const updateAction = await evaluateInRenderer({
+        userDataDir,
+        expression: updateRegressionInstallExpression({ activate: false }),
+      });
+      if (updateAction?.reason !== "action-ready") {
+        throw new Error("The packaged update action was not ready before installation");
+      }
+      if (!appProcess.kill("SIGTERM")) {
+        throw new Error("Could not stop the isolated baseline App for installation");
+      }
+      await waitFor(() => (
+        appProcess.exitCode !== null || appProcess.signalCode !== null
+      ), {
+        timeoutMs: 30_000,
+        intervalMs: 100,
+        label: "the isolated baseline App to exit",
+      });
 
-      await waitFor(async () => {
-        if (readAppVersion(appPath) === candidateManifest.version) {
-          return true;
-        }
-        await evaluateInRenderer({
-          userDataDir,
-          expression: updateRegressionInstallExpression(),
+      await waitFor(() => {
+        assertRunningTemporaryProcessesIsolated({
+          temporaryRoot,
+          protectedProfilePath: host.productionProfilePath,
         });
-        return false;
+        return readAppVersion(appPath) === candidateManifest.version;
       }, {
         timeoutMs: 180_000,
-        intervalMs: 2_000,
+        intervalMs: 500,
         label: `OpenPeek ${candidateManifest.version} to replace the baseline`,
+      });
+      const candidateExecutable = macAppExecutablePath(appPath);
+      if (runningExecutableProcessIds(candidateExecutable).length > 0) {
+        throw new Error("ShipIt relaunched the candidate outside the isolated harness");
+      }
+      rmSync(path.join(userDataDir, "DevToolsActivePort"), { force: true });
+      const candidateLogDescriptor = openSync(logPath, "a");
+      appProcess = spawn(
+        candidateExecutable,
+        [
+          `${DEVELOPMENT_USER_DATA_ARG}=${userDataDir}`,
+          `${LEGACY_DEVELOPMENT_USER_DATA_ARG}=${userDataDir}`,
+          "--remote-debugging-port=0",
+          "--repo",
+          REPO_ROOT,
+        ],
+        {
+          env: appEnv,
+          detached: false,
+          stdio: ["ignore", candidateLogDescriptor, candidateLogDescriptor],
+        },
+      );
+      closeSync(candidateLogDescriptor);
+      await waitFor(() => {
+        assertRunningTemporaryProcessesIsolated({
+          temporaryRoot,
+          protectedProfilePath: host.productionProfilePath,
+        });
+        return existsSync(path.join(userDataDir, "DevToolsActivePort"));
+      }, {
+        timeoutMs: 60_000,
+        intervalMs: 250,
+        label: "the installed candidate to relaunch with its isolated Profile",
       });
       const preservedConfig = JSON.parse(readFileSync(
         path.join(userDataDir, "desktop-config.json"),
         "utf8",
       ));
       assertRenameMigrationUserState(preservedConfig, expectedUserState);
+      inAppUpdateIsolation = {
+        updateActionReady: true,
+        shipItLaunchAfterInstallation: shipItRequest.launchAfterInstallation,
+        installTrigger: "isolated-process-termination",
+        candidateRelaunchedWithIsolatedProfile: true,
+      };
     }
 
     if (statSync(appPath).ino !== appDirectoryInode) {
@@ -955,7 +1117,7 @@ async function runHarness({
     }
 
     passedEvidence = {
-      schemaVersion: 4,
+      schemaVersion: 5,
       source: "openpeek-macos-update-regression",
       status: "passed",
       track,
@@ -969,6 +1131,7 @@ async function runHarness({
       baseline: baselineContract,
       candidate: candidateContract,
       installMode,
+      ...(inAppUpdateIsolation || {}),
       directContentsWrite: true,
       appDirectoryInodePreserved: true,
       baselineAppIdentity,

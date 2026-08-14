@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
-import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
+import {
+  mkdtemp,
+  mkdir,
+  readFile,
+  readdir,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -8,8 +14,95 @@ import test from "node:test";
 
 import {
   macUpdateCachePaths,
+  preserveMacUpdateAppPath,
   pruneObsoleteMacUpdatePackages,
 } from "../src/desktop/mac-update-cache.mjs";
+
+test("macOS update installation preserves the existing App directory name", async () => {
+  const homeDir = await mkdtemp(path.join(tmpdir(), "openpeek-mac-update-path-"));
+  const paths = macUpdateCachePaths({ homeDir });
+  const stagedDirectory = path.join(paths.updateRoot, "update.NEW5678");
+  const stagedApp = path.join(stagedDirectory, "Git Leaf.app");
+  const targetApp = path.join(homeDir, "Applications", "OpenPeek.app");
+  await Promise.all([
+    mkdir(stagedApp, { recursive: true }),
+    mkdir(targetApp, { recursive: true }),
+  ]);
+  const request = {
+    launchAfterInstallation: true,
+    updateBundleURL: pathToFileURL(stagedApp).href,
+    targetBundleURL: pathToFileURL(targetApp).href,
+    bundleIdentifier: "com.mangofuture.gitleaf",
+    useUpdateBundleName: true,
+  };
+  await writeFile(paths.stateFile, JSON.stringify(request));
+
+  const result = await preserveMacUpdateAppPath({
+    homeDir,
+    targetAppPath: targetApp,
+    now: () => 123,
+    processId: 456,
+  });
+  const persisted = JSON.parse(await readFile(paths.stateFile, "utf8"));
+
+  assert.equal(result.targetAppPath, targetApp);
+  assert.equal(result.stagedDirectory, stagedDirectory);
+  assert.equal(result.useUpdateBundleName, false);
+  assert.deepEqual(persisted, {
+    ...request,
+    useUpdateBundleName: false,
+  });
+  assert.deepEqual(
+    (await readdir(paths.updateRoot)).filter((name) => name.endsWith(".tmp")),
+    [],
+  );
+});
+
+test("macOS update installation refuses to rewrite state for another App path", async () => {
+  const homeDir = await mkdtemp(path.join(tmpdir(), "openpeek-mac-update-path-"));
+  const paths = macUpdateCachePaths({ homeDir });
+  const stagedApp = path.join(paths.updateRoot, "update.NEW5678", "Git Leaf.app");
+  const targetApp = path.join(homeDir, "Applications", "Git Leaf.app");
+  await mkdir(stagedApp, { recursive: true });
+  await writeFile(paths.stateFile, JSON.stringify({
+    updateBundleURL: pathToFileURL(stagedApp).href,
+    targetBundleURL: pathToFileURL(targetApp).href,
+    useUpdateBundleName: true,
+  }));
+
+  await assert.rejects(
+    preserveMacUpdateAppPath({
+      homeDir,
+      targetAppPath: path.join(homeDir, "Applications", "OpenPeek.app"),
+    }),
+    /targets another App path/,
+  );
+  assert.equal(
+    JSON.parse(await readFile(paths.stateFile, "utf8")).useUpdateBundleName,
+    true,
+  );
+});
+
+test("macOS update installation requires a direct App bundle in the ShipIt package", async () => {
+  const homeDir = await mkdtemp(path.join(tmpdir(), "openpeek-mac-update-path-"));
+  const paths = macUpdateCachePaths({ homeDir });
+  const stagedBundle = path.join(paths.updateRoot, "update.NEW5678", "payload");
+  const targetApp = path.join(homeDir, "Applications", "Git Leaf.app");
+  await Promise.all([
+    mkdir(stagedBundle, { recursive: true }),
+    mkdir(targetApp, { recursive: true }),
+  ]);
+  await writeFile(paths.stateFile, JSON.stringify({
+    updateBundleURL: pathToFileURL(stagedBundle).href,
+    targetBundleURL: pathToFileURL(targetApp).href,
+    useUpdateBundleName: true,
+  }));
+
+  await assert.rejects(
+    preserveMacUpdateAppPath({ homeDir, targetAppPath: targetApp }),
+    /outside the official ShipIt cache/,
+  );
+});
 
 test("macOS update cache keeps only the package staged by ShipIt", async () => {
   const homeDir = await mkdtemp(path.join(tmpdir(), "git-leaf-mac-update-cache-"));

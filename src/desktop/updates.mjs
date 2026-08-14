@@ -64,6 +64,7 @@ export function createDesktopUpdateController({
   launchWindowsUpdate = () => {
     throw new Error("Windows update launch is unavailable.");
   },
+  prepareMacUpdateInstallation = async () => {},
   cleanupMacUpdateCache = () => pruneObsoleteMacUpdatePackages({
     homeDir: app?.getPath?.("home") || "",
   }),
@@ -263,6 +264,7 @@ export function createDesktopUpdateController({
           launchWindowsUpdate(update.prepared);
           return false;
         }
+        await prepareMacUpdateInstallation(update);
         autoUpdater.quitAndInstall();
         return true;
       } catch {

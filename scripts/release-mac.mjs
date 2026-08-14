@@ -81,6 +81,16 @@ export const DEFAULT_RELEASE_OPTIONS = {
 
 const APPLICATIONS_SHORTCUT_NAME = "Applications";
 const LEGACY_MAC_APP_NAME = "Git Leaf";
+export const LEGACY_MAC_UPDATE_ARCHIVE_APP_NAME = `${LEGACY_MAC_APP_NAME}.app`;
+
+export function macUpdateArchiveAppName({
+  appName = DEFAULT_RELEASE_OPTIONS.appName,
+  distribution = "source",
+} = {}) {
+  return distribution === "official"
+    ? LEGACY_MAC_UPDATE_ARCHIVE_APP_NAME
+    : `${appName}.app`;
+}
 
 export const releaseSteps = [
   "check-version",
@@ -1527,16 +1537,48 @@ function stapleRelease(paths) {
   run("xcrun", ["stapler", "validate", paths.appDir]);
 }
 
-function createZip(paths) {
+function createZip(options, paths) {
   rmSync(paths.zipPath, { force: true });
-  run("ditto", [
-    "-c",
-    "-k",
-    "--sequesterRsrc",
-    "--keepParent",
-    paths.appDir,
-    paths.zipPath,
-  ]);
+  const archiveAppDir = path.join(
+    path.dirname(paths.appDir),
+    macUpdateArchiveAppName(options),
+  );
+  const renameForArchive = archiveAppDir !== paths.appDir;
+  if (renameForArchive && existsSync(archiveAppDir)) {
+    throw new Error(`Refusing to replace an existing update archive App: ${archiveAppDir}`);
+  }
+  if (renameForArchive) {
+    renameSync(paths.appDir, archiveAppDir);
+  }
+  try {
+    run("ditto", [
+      "-c",
+      "-k",
+      "--sequesterRsrc",
+      "--keepParent",
+      archiveAppDir,
+      paths.zipPath,
+    ]);
+  } finally {
+    if (renameForArchive && existsSync(archiveAppDir)) {
+      renameSync(archiveAppDir, paths.appDir);
+    }
+  }
+}
+
+export function assertMacUpdateArchiveEntries(entries, options = {}) {
+  const expectedAppName = macUpdateArchiveAppName(options);
+  const expectedRoot = `${expectedAppName}/`;
+  const archiveEntries = entries
+    .map((entry) => String(entry || "").trim())
+    .filter(Boolean);
+  if (
+    archiveEntries.length === 0
+    || archiveEntries.some((entry) => !entry.startsWith(expectedRoot))
+  ) {
+    throw new Error(`macOS update ZIP must contain only ${expectedAppName}`);
+  }
+  return expectedRoot;
 }
 
 export function stageMacUpdateMetadata(options, paths, { rootDir = REPO_ROOT } = {}) {
@@ -1633,7 +1675,7 @@ function publishMacUpdates(options, paths) {
   });
 }
 
-function verifyRelease(paths) {
+function verifyRelease(options, paths) {
   const [architectureCommand, architectureArgs] = universalMachOVerificationCommand(paths.appDir);
   run(architectureCommand, architectureArgs);
   verifySquirrelMacPolicy({ appDir: paths.appDir });
@@ -1651,6 +1693,10 @@ function verifyRelease(paths) {
     paths.dmgPath,
   ]);
   run("spctl", ["-a", "-vvv", "-t", "execute", paths.appDir]);
+  assertMacUpdateArchiveEntries(
+    output("unzip", ["-Z1", paths.zipPath]).split("\n"),
+    options,
+  );
   run("shasum", ["-a", "256", paths.dmgPath, paths.zipPath]);
 }
 
@@ -1880,9 +1926,9 @@ export function runReleaseCommand(command, options = releaseOptionsFromEnv()) {
     case "staple":
       return stapleRelease(paths);
     case "zip":
-      return createZip(paths);
+      return createZip(options, paths);
     case "verify":
-      return verifyRelease(paths);
+      return verifyRelease(options, paths);
     case "stage-updates":
       return stageMacUpdateMetadata(options, paths);
     case "publish-updates":

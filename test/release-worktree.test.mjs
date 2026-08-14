@@ -96,7 +96,7 @@ function completedPublish(platform, phase, track = "public") {
 function macosUpdateEvidence(state, overrides = {}) {
   const fingerprint = { sha256: "a".repeat(64), fileCount: 3 };
   return {
-    schemaVersion: 4,
+    schemaVersion: 5,
     source: "openpeek-macos-update-regression",
     status: "passed",
     track: state.track,
@@ -117,7 +117,7 @@ function macosUpdateEvidence(state, overrides = {}) {
       executable: "Git Leaf",
     },
     candidateAppIdentity: {
-      bundleName: "OpenPeek.app",
+      bundleName: "Git Leaf.app",
       productName: "OpenPeek",
       executable: "OpenPeek",
     },

@@ -9,6 +9,7 @@ import {
   DEFAULT_RELEASE_OPTIONS,
   applyMacBundleIcon,
   applyMacBundleProtocols,
+  assertMacUpdateArchiveEntries,
   assertDevelopmentSmokeUserDataPath,
   assertDevelopmentUserDataIsolation,
   cleanupDevelopmentSmokeUserData,
@@ -34,6 +35,7 @@ import {
   macDmgLayoutPaths,
   macEntitlementsPath,
   macUpdateMetadataPaths,
+  macUpdateArchiveAppName,
   macReleasePaths,
   dmgBackgroundSvg,
   dmgFinderLayoutScript,
@@ -47,6 +49,31 @@ import {
   universalMachOVerificationCommand,
   verifyProductionProfileUnchanged,
 } from "../scripts/release-mac.mjs";
+
+test("official macOS update ZIP preserves the Git Leaf 1.x bundle path", () => {
+  assert.equal(macUpdateArchiveAppName({
+    appName: "OpenPeek",
+    distribution: "official",
+  }), "Git Leaf.app");
+  assert.equal(macUpdateArchiveAppName({
+    appName: "OpenPeek",
+    distribution: "source",
+  }), "OpenPeek.app");
+  assert.equal(assertMacUpdateArchiveEntries([
+    "Git Leaf.app/",
+    "Git Leaf.app/Contents/",
+    "Git Leaf.app/Contents/MacOS/OpenPeek",
+  ], {
+    appName: "OpenPeek",
+    distribution: "official",
+  }), "Git Leaf.app/");
+  assert.throws(() => assertMacUpdateArchiveEntries([
+    "OpenPeek.app/Contents/MacOS/OpenPeek",
+  ], {
+    appName: "OpenPeek",
+    distribution: "official",
+  }), /must contain only Git Leaf\.app/);
+});
 
 function assertSafeSigningKeychainRecovery(error) {
   assert.match(error.message, /approved Keychain that actually holds the release private key/);

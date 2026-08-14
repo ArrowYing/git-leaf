@@ -1,21 +1,75 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import test from "node:test";
 import vm from "node:vm";
 
 import {
   assertRenameMigrationUserState,
+  assertIsolatedShipItRequest,
   assertSafeMacUpdateRegressionHost,
+  assertTemporaryProcessIsolation,
   downloadUpdateRegressionArtifact,
   updateRegressionInstallExpression,
   updateRegressionChannels,
   validateMacUpdateRegressionEvidence,
   validateUpdateRegressionManifest,
 } from "../scripts/mac-update-regression.mjs";
+
+test("mac update regression rejects a relaunched App that reaches the real Profile", () => {
+  const temporaryRoot = "/private/tmp/openpeek-update-regression.123";
+  const protectedProfilePath = "/Users/example/Library/Application Support/git-leaf";
+  assert.deepEqual(assertTemporaryProcessIsolation({
+    temporaryRoot,
+    protectedProfilePath,
+    commandOutput: [
+      `${temporaryRoot}/install/Git Leaf.app/Contents/MacOS/Git Leaf --git-leaf-dev-user-data-dir=${temporaryRoot}/user-data`,
+      `${temporaryRoot}/install/Git Leaf.app/Contents/Frameworks/Git Leaf Helper.app/Contents/MacOS/Git Leaf Helper --user-data-dir=${temporaryRoot}/user-data`,
+    ].join("\n"),
+  }).length, 2);
+  assert.throws(() => assertTemporaryProcessIsolation({
+    temporaryRoot,
+    protectedProfilePath,
+    commandOutput:
+      `${temporaryRoot}/install/Git Leaf.app/Contents/Frameworks/Git Leaf Helper.app/Contents/MacOS/Git Leaf Helper --user-data-dir=${protectedProfilePath}`,
+  }), /attempted to use the real OpenPeek Profile/);
+  assert.throws(
+    () => assertTemporaryProcessIsolation({
+      commandOutput: "",
+      protectedProfilePath,
+    }),
+    /temporaryRoot is required/,
+  );
+});
+
+test("mac update regression accepts only a non-relaunching isolated ShipIt request", async () => {
+  const temporaryRoot = await mkdtemp(path.join(tmpdir(), "openpeek-shipit-state."));
+  const stateFile = path.join(temporaryRoot, "ShipItState.plist");
+  const request = {
+    launchAfterInstallation: false,
+    updateBundleURL: pathToFileURL(path.join(temporaryRoot, "update", "Git Leaf.app")).href,
+    targetBundleURL: pathToFileURL(path.join(temporaryRoot, "install", "Git Leaf.app")).href,
+  };
+  await writeFile(stateFile, JSON.stringify(request));
+
+  assert.deepEqual(assertIsolatedShipItRequest({ stateFile, temporaryRoot }), request);
+  await writeFile(stateFile, JSON.stringify({
+    ...request,
+    launchAfterInstallation: true,
+  }));
+  assert.throws(
+    () => assertIsolatedShipItRequest({ stateFile, temporaryRoot }),
+    /not isolated/,
+  );
+  assert.throws(
+    () => assertIsolatedShipItRequest({ stateFile }),
+    /temporaryRoot is required/,
+  );
+});
 
 test("mac update regression maps release tracks to their stable and candidate lanes", () => {
   assert.deepEqual(updateRegressionChannels("public"), {
@@ -133,8 +187,8 @@ test("mac product rename migration preserves repositories, workspace state, and 
 });
 
 test("mac update regression uses the real enabled update action", () => {
-  const runWithAction = (action) => vm.runInNewContext(
-    updateRegressionInstallExpression(),
+  const runWithAction = (action, options) => vm.runInNewContext(
+    updateRegressionInstallExpression(options),
     {
       document: {
         querySelector: () => action,
@@ -175,6 +229,21 @@ test("mac update regression uses the real enabled update action", () => {
       }),
     },
     { clicked: true, reason: "action-clicked", label: "Install" },
+  );
+  assert.equal(clickCount, 1);
+
+  assert.deepEqual(
+    {
+      ...runWithAction({
+        hidden: false,
+        disabled: false,
+        textContent: "Install",
+        click: () => {
+          clickCount += 1;
+        },
+      }, { activate: false }),
+    },
+    { clicked: false, reason: "action-ready", label: "Install" },
   );
   assert.equal(clickCount, 1);
 });
@@ -269,7 +338,7 @@ test("mac update regression accepts only the exact internal 1.11.3 public stable
 test("mac update regression evidence binds installation and cleanup to the frozen release", () => {
   const fingerprint = { sha256: "a".repeat(64), fileCount: 3 };
   const evidence = {
-    schemaVersion: 4,
+    schemaVersion: 5,
     source: "openpeek-macos-update-regression",
     status: "passed",
     track: "internal",
@@ -290,7 +359,7 @@ test("mac update regression evidence binds installation and cleanup to the froze
       executable: "Git Leaf",
     },
     candidateAppIdentity: {
-      bundleName: "OpenPeek.app",
+      bundleName: "Git Leaf.app",
       productName: "OpenPeek",
       executable: "OpenPeek",
     },
@@ -324,6 +393,32 @@ test("mac update regression evidence binds installation and cleanup to the froze
     commit: evidence.commit,
     buildId: "0123456789ab.20260726T120000Z",
   }), evidence);
+  const inAppEvidence = {
+    ...evidence,
+    installMode: "in-app-update",
+    updateActionReady: true,
+    shipItLaunchAfterInstallation: false,
+    installTrigger: "isolated-process-termination",
+    candidateRelaunchedWithIsolatedProfile: true,
+  };
+  assert.equal(validateMacUpdateRegressionEvidence(inAppEvidence, {
+    track: "internal",
+    version: "1.12.1",
+    commit: evidence.commit,
+    buildId: "0123456789ab.20260726T120000Z",
+  }), inAppEvidence);
+  assert.throws(
+    () => validateMacUpdateRegressionEvidence({
+      ...inAppEvidence,
+      candidateRelaunchedWithIsolatedProfile: false,
+    }, {
+      track: "internal",
+      version: "1.12.1",
+      commit: evidence.commit,
+      buildId: "0123456789ab.20260726T120000Z",
+    }),
+    /mandatory cleanup contract/,
+  );
   assert.throws(
     () => validateMacUpdateRegressionEvidence({
       ...evidence,
