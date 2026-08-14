@@ -449,7 +449,7 @@ function renameMigrationDesktopConfig({ repoRoot, targetVersion }) {
     preferences: {
       language: "zh-CN",
       colorMode: "dark",
-      documentFont: "system-serif",
+      documentFont: "reading-serif",
       documentFontSize: 18,
       fileTreeMode: "all",
       showDocumentTitles: false,
@@ -492,23 +492,34 @@ export function assertRenameMigrationUserState(actual, expected) {
   ];
   const expectedWorkbenchSessions = expected?.preferences?.workbenchSessions ?? {};
   const actualWorkbenchSessions = actual?.preferences?.workbenchSessions ?? {};
-  const workbenchSessionsPreserved = Object.entries(expectedWorkbenchSessions).every(
-    ([worktreeId, session]) => (
-      JSON.stringify(actualWorkbenchSessions[worktreeId]) === JSON.stringify(session)
-    ),
-  );
-  const preserved = actual?.renameMigrationSentinel === expected.renameMigrationSentinel
-    && actual?.repoRoot === expected.repoRoot
-    && JSON.stringify(actual?.openRepoRoots) === JSON.stringify(expected.openRepoRoots)
-    && actual?.usageAnalyticsEnabled === expected.usageAnalyticsEnabled
-    && workbenchSessionsPreserved
-    && stablePreferenceKeys.every((key) => (
+  const mismatches = [];
+  for (const key of [
+    "renameMigrationSentinel",
+    "repoRoot",
+    "openRepoRoots",
+    "usageAnalyticsEnabled",
+  ]) {
+    if (JSON.stringify(actual?.[key]) !== JSON.stringify(expected[key])) {
+      mismatches.push(key);
+    }
+  }
+  for (const key of stablePreferenceKeys) {
+    if (
       JSON.stringify(actual?.preferences?.[key])
-      === JSON.stringify(expected.preferences[key])
-    ));
-  if (!preserved) {
+      !== JSON.stringify(expected.preferences[key])
+    ) {
+      mismatches.push(`preferences.${key}`);
+    }
+  }
+  for (const [worktreeId, session] of Object.entries(expectedWorkbenchSessions)) {
+    if (JSON.stringify(actualWorkbenchSessions[worktreeId]) !== JSON.stringify(session)) {
+      mismatches.push(`preferences.workbenchSessions.${worktreeId}`);
+    }
+  }
+  if (mismatches.length > 0) {
     throw new Error(
-      "OpenPeek did not preserve the Git Leaf repository list, workspace session, and preferences",
+      "OpenPeek did not preserve the Git Leaf repository list, workspace session, and preferences"
+      + `: ${mismatches.join(", ")}`,
     );
   }
   return true;

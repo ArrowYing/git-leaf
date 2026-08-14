@@ -172,7 +172,7 @@ test("mac product rename migration preserves repositories, workspace state, and 
     preferences: {
       language: "zh-CN",
       colorMode: "dark",
-      documentFont: "system-serif",
+      documentFont: "reading-serif",
       documentFontSize: 18,
       fileTreeMode: "all",
       showDocumentTitles: false,
