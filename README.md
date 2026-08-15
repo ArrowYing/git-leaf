@@ -1,5 +1,5 @@
 ---
-last_updated: 2026-08-12
+last_updated: 2026-08-15
 ---
 
 # OpenGlance
@@ -17,7 +17,7 @@ than Obsidian.
 > Git Leaf was the original 1.x name. Existing repositories, sessions, and preferences keep using the
 > same local Profile. The `openpeek` and `git-leaf` CLI commands and their URL schemes remain accepted as
 > compatibility aliases, while newly generated commands and links use `openglance` and `openglance://`.
-> GitHub redirects the earlier repository addresses to `MangoFuture1210/openglance`; the download host
+> GitHub redirects the earlier repository addresses to `openglance/openglance`; the download host
 > and update roots keep their existing addresses until a separate domain migration.
 
 ## Why OpenGlance?
@@ -69,10 +69,10 @@ than Obsidian.
 
 ![OpenGlance showing a shared context repository, local changes, and Agent Context](docs/assets/user-guide/workspace-overview.png)
 
-[![CI](https://github.com/MangoFuture1210/openglance/actions/workflows/ci.yml/badge.svg)](https://github.com/MangoFuture1210/openglance/actions/workflows/ci.yml)
+[![CI](https://github.com/openglance/openglance/actions/workflows/ci.yml/badge.svg)](https://github.com/openglance/openglance/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
-[Open the public User Guide Demo repository](https://gitleaf.mangofuture.com/open?repo=mangofuture1210%2Fopenglance-example-knowledge-base&path=README.md)
+[Open the public User Guide Demo repository](https://gitleaf.mangofuture.com/open?repo=openglance%2Fopenglance-example-knowledge-base&path=README.md)
 after installing OpenGlance, or clone it for a completely local first run.
 For a fuller visual tour and day-to-day workflows, read the [OpenGlance user guide](docs/user-guide.md).
 
@@ -215,7 +215,7 @@ npm run desktop -- --repo /path/to/docs-repo
 
 The complete [build-from-source guide](docs/build-from-source.md) explains source packaging, Community
 Build identity, and the difference from an official Mango Future distribution. The
-[public User Guide Demo repository](https://github.com/MangoFuture1210/openglance-example-knowledge-base)
+[public User Guide Demo repository](https://github.com/openglance/openglance-example-knowledge-base)
 provides a ready-to-open repository with Markdown and MDX content.
 
 The CLI and browser workspace are primarily for local development:

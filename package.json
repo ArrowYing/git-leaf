@@ -8,11 +8,11 @@
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/MangoFuture1210/openglance.git"
+    "url": "git+https://github.com/openglance/openglance.git"
   },
-  "homepage": "https://github.com/MangoFuture1210/openglance#readme",
+  "homepage": "https://github.com/openglance/openglance#readme",
   "bugs": {
-    "url": "https://github.com/MangoFuture1210/openglance/issues"
+    "url": "https://github.com/openglance/openglance/issues"
   },
   "scripts": {
     "build:client": "node scripts/build-client.mjs",

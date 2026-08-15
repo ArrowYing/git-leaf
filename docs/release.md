@@ -353,7 +353,7 @@ The frozen `RELEASE_COMMIT` must have a `Windows Release Smoke` workflow run wit
 properties:
 
 - the run has reached `completed` status with a `success` conclusion;
-- the run belongs to the `MangoFuture1210/openglance` repository;
+- the run belongs to the `openglance/openglance` repository;
 - the run uses `.github/workflows/windows-release-smoke.yml`;
 - the run's head SHA exactly equals the frozen `RELEASE_COMMIT`;
 - the run exposes a non-expired, non-empty smoke artifact whose name ends with that exact frozen commit.

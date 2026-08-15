@@ -3,7 +3,7 @@ title: OpenGlance system architecture
 domain: ai
 type: architecture
 owner: maintainer
-last_updated: 2026-08-12
+last_updated: 2026-08-15
 source: openglance
 canonical: true
 ai_snippet: "[Architecture] OpenGlance | human desktop interface for shared context repositories | local HTTP service | Git worktrees | Preview Source Live | CodeMirror 6 | guarded Git sync"
@@ -67,8 +67,8 @@ identifiers remain compatibility contracts:
   `org.openglance.community`; both use the canonical `OpenGlance` executable and their corresponding
   ShipIt cache identity;
 - the `git_leaf.*` analytics event namespace remains unchanged because it is a data-schema identity;
-- the former GitHub repository names redirect to `MangoFuture1210/openglance` and
-  `MangoFuture1210/openglance-example-knowledge-base`;
+- the former GitHub repository names redirect to `openglance/openglance` and
+  `openglance/openglance-example-knowledge-base`;
 - `gitleaf.mangofuture.com` and update-service `/git-leaf` roots remain unchanged until their separately
   coordinated domain migration.
 

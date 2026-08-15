@@ -3,7 +3,7 @@ title: OpenGlance MDX-lite renderer reference
 domain: ai
 type: guide
 owner: maintainer
-last_updated: 2026-08-04
+last_updated: 2026-08-15
 source: openglance
 canonical: true
 ai_snippet: "[AI Reference] OpenGlance MDX-lite renderer | inline data and repository-local dataset views | DataTable Timeline Chart DecisionBox MetricGrid FlowDiagram"
@@ -36,7 +36,7 @@ HTML or SVG.
 - A component change updates code, tests, this reference, and the demo together.
 - Content repositories may maintain their own adoption rules and selected examples, but cannot override
   OpenGlance's implementation contract. The
-  [public User Guide Demo repository](https://github.com/MangoFuture1210/openglance-example-knowledge-base)
+  [public User Guide Demo repository](https://github.com/openglance/openglance-example-knowledge-base)
   uses only a small, natural subset for first-run experience; it must not duplicate this full reference
   or regression matrix.
 

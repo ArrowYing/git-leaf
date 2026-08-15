@@ -84,7 +84,7 @@ test("release documentation requires GitHub-hosted Windows smoke evidence before
   assert.match(releaseDoc, /every macOS and Windows official stable publication/);
   assert.match(releaseDoc, /`Windows Release Smoke` workflow run/);
   assert.match(releaseDoc, /`completed` status with a `success` conclusion/);
-  assert.match(releaseDoc, /`MangoFuture1210\/openglance` repository/);
+  assert.match(releaseDoc, /`openglance\/openglance` repository/);
   assert.match(releaseDoc, /uses `\.github\/workflows\/windows-release-smoke\.yml`/);
   assert.match(releaseDoc, /head SHA exactly equals the frozen `RELEASE_COMMIT`/);
   assert.match(

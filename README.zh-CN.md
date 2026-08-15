@@ -1,5 +1,5 @@
 ---
-last_updated: 2026-08-12
+last_updated: 2026-08-15
 ---
 
 # OpenGlance
@@ -15,7 +15,7 @@ Markdown 知识库。
 > **名称迁移：** 从 3.0 开始，OpenGlance 替代短期使用的 OpenPeek；Git Leaf 是最初的 1.x 名称。已有仓库、
 > 会话和个人设置继续使用同一个本机 Profile；`openpeek`、`git-leaf` CLI 命令及其 URL scheme 继续作为兼容入口，
 > 新生成的命令和链接统一使用 `openglance` 与 `openglance://`。GitHub 会把之前的仓库地址重定向到
-> `MangoFuture1210/openglance`；下载域名和更新服务根路径暂时保持原地址，等待后续独立完成域名迁移。
+> `openglance/openglance`；下载域名和更新服务根路径暂时保持原地址，等待后续独立完成域名迁移。
 
 ## 为什么需要 OpenGlance？
 
@@ -57,10 +57,10 @@ Markdown 知识库。
 
 ![OpenGlance 展示共享上下文仓库、本地改动和 Agent 上下文](docs/assets/user-guide/workspace-overview.png)
 
-[![CI](https://github.com/MangoFuture1210/openglance/actions/workflows/ci.yml/badge.svg)](https://github.com/MangoFuture1210/openglance/actions/workflows/ci.yml)
+[![CI](https://github.com/openglance/openglance/actions/workflows/ci.yml/badge.svg)](https://github.com/openglance/openglance/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
-安装 OpenGlance 后，可以直接[打开公开使用指南 Demo 仓库](https://gitleaf.mangofuture.com/open?repo=mangofuture1210%2Fopenglance-example-knowledge-base&path=README.zh-CN.md)，
+安装 OpenGlance 后，可以直接[打开公开使用指南 Demo 仓库](https://gitleaf.mangofuture.com/open?repo=openglance%2Fopenglance-example-knowledge-base&path=README.zh-CN.md)，
 也可以先克隆到本机，完成一次完全本地的首次体验。
 更完整的界面介绍和日常工作方式见 [OpenGlance 用户手册](docs/user-guide.zh-CN.md)。
 
@@ -175,7 +175,7 @@ npm run desktop -- --repo /path/to/docs-repo
 ```
 
 [从源码构建指南](docs/build-from-source.md)说明了依赖、打包方式、Community Build 身份，以及它与
-Mango Future 官方发行版的区别。[公开使用指南 Demo 仓库](https://github.com/MangoFuture1210/openglance-example-knowledge-base)
+Mango Future 官方发行版的区别。[公开使用指南 Demo 仓库](https://github.com/openglance/openglance-example-knowledge-base)
 提供了一组可以直接打开的 Markdown／MDX 内容。
 
 CLI／Web 入口主要用于本机开发和浏览器工作台：

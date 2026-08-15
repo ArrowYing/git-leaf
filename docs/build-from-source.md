@@ -17,7 +17,7 @@ Future release profiles, signing credentials, update infrastructure, or the offi
 ## Run the desktop app
 
 ```bash
-git clone https://github.com/MangoFuture1210/openglance.git
+git clone https://github.com/openglance/openglance.git
 cd openglance
 npm ci
 npm run desktop
@@ -32,7 +32,7 @@ npm run desktop -- --repo /path/to/knowledge-repository
 To try OpenGlance with prepared public content:
 
 ```bash
-git clone https://github.com/MangoFuture1210/openglance-example-knowledge-base.git
+git clone https://github.com/openglance/openglance-example-knowledge-base.git
 npm run desktop -- --repo ../openglance-example-knowledge-base
 ```
 

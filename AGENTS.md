@@ -28,7 +28,7 @@ desktop shell, the web workspace, tests, and packaging configuration are all mai
 - End-user workflows and the visual product tour: `docs/user-guide.md`, with
   `docs/user-guide.zh-CN.md` as its Simplified Chinese counterpart.
 - The public runnable companion is
-  `MangoFuture1210/openglance-example-knowledge-base`. When a stable user-visible capability, workflow,
+  `openglance/openglance-example-knowledge-base`. When a stable user-visible capability, workflow,
   or screenshot scenario changes, review and update its matching guide or demo page in the same
   maintenance cycle. Product facts and regression contracts remain authoritative in this repository.
 - Architecture, service boundaries, worktrees, local editing, and the desktop wrapper:

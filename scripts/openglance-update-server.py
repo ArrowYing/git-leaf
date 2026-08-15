@@ -1491,7 +1491,7 @@ def download_page_html(language, downloads):
         {platform_card("windows", "Windows", copy["windows_status"], copy["windows_button"], copy["windows_unavailable"], windows, copy["windows_detail"])}
       </section>
       <footer class="source">
-        <a href="https://github.com/MangoFuture1210/openglance#run-from-source" rel="noopener noreferrer">{html.escape(copy["source"])}</a>
+        <a href="https://github.com/openglance/openglance#run-from-source" rel="noopener noreferrer">{html.escape(copy["source"])}</a>
         <p>{html.escape(copy["privacy"])}</p>
       </footer>
     </main>

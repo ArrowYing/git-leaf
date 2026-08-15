@@ -60,12 +60,12 @@ function releaseState(overrides = {}) {
     },
     windowsReleaseSmoke: {
       status: "verified",
-      repository: "MangoFuture1210/openglance",
+      repository: "openglance/openglance",
       workflowName: "Windows Release Smoke",
       workflowPath: ".github/workflows/windows-release-smoke.yml",
       runId: "123456789",
       runAttempt: 1,
-      url: "https://github.com/MangoFuture1210/openglance/actions/runs/123456789",
+      url: "https://github.com/openglance/openglance/actions/runs/123456789",
       headSha: "0123456789abcdef0123456789abcdef01234567",
       event: "push",
       runStatus: "completed",
@@ -564,14 +564,14 @@ test("Windows Release Smoke evidence accepts only a successful run for the froze
   const state = releaseState();
   const run = {
     id: 30071711489,
-    repository: { full_name: "MangoFuture1210/openglance" },
+    repository: { full_name: "openglance/openglance" },
     name: "Windows Release Smoke",
     path: ".github/workflows/windows-release-smoke.yml",
     head_sha: state.commit,
     event: "push",
     status: "completed",
     conclusion: "success",
-    html_url: "https://github.com/MangoFuture1210/openglance/actions/runs/30071711489",
+    html_url: "https://github.com/openglance/openglance/actions/runs/30071711489",
     run_attempt: 1,
   };
   const artifacts = {
@@ -590,7 +590,7 @@ test("Windows Release Smoke evidence accepts only a successful run for the froze
     now: () => new Date("2026-07-24T06:20:00.000Z"),
   }), {
     status: "verified",
-    repository: "MangoFuture1210/openglance",
+    repository: "openglance/openglance",
     workflowName: "Windows Release Smoke",
     workflowPath: ".github/workflows/windows-release-smoke.yml",
     runId: "30071711489",
@@ -890,7 +890,7 @@ test("release controller prepares, validates, exports, and aborts an isolated wo
   assert.match(state.releaseProfile.sha256, /^[a-f0-9]{64}$/);
   assert.deepEqual(state.windowsReleaseSmoke, {
     status: "pending",
-    repository: "MangoFuture1210/openglance",
+    repository: "openglance/openglance",
     workflowPath: ".github/workflows/windows-release-smoke.yml",
     headSha: state.commit,
   });
@@ -1109,12 +1109,12 @@ test("release controller finish preserves verified stable artifacts outside the 
   state.candidateArtifactsVerifiedAt = "2026-07-24T10:00:00.000Z";
   state.windowsReleaseSmoke = {
     status: "verified",
-    repository: "MangoFuture1210/openglance",
+    repository: "openglance/openglance",
     workflowName: "Windows Release Smoke",
     workflowPath: ".github/workflows/windows-release-smoke.yml",
     runId: "123456789",
     runAttempt: 1,
-    url: "https://github.com/MangoFuture1210/openglance/actions/runs/123456789",
+    url: "https://github.com/openglance/openglance/actions/runs/123456789",
     headSha: state.commit,
     event: "push",
     runStatus: "completed",

@@ -1,5 +1,5 @@
 ---
-last_updated: 2026-08-11
+last_updated: 2026-08-15
 ---
 
 # OpenGlance user guide
@@ -13,7 +13,7 @@ copy that repository into a separate knowledge service.
 This guide is for people who need to understand and maintain the repository without making Git,
 Markdown, or a developer tool part of their daily workflow. The screenshots and hands-on examples use
 the public
-[OpenGlance User Guide Demo repository](https://github.com/MangoFuture1210/openglance-example-knowledge-base).
+[OpenGlance User Guide Demo repository](https://github.com/openglance/openglance-example-knowledge-base).
 
 ## Start here
 
@@ -23,7 +23,7 @@ the public
    can prepare it for you, or you can clone the public example:
 
    ```bash
-   git clone https://github.com/MangoFuture1210/openglance-example-knowledge-base.git
+   git clone https://github.com/openglance/openglance-example-knowledge-base.git
    ```
 
 3. Open OpenGlance and choose the repository folder.
@@ -362,7 +362,7 @@ The normal Agent-to-person flow is:
 After installing OpenGlance and making the public example available locally, try the complete handoff:
 
 Open in OpenGlance:
-[OpenGlance user guide demo](https://gitleaf.mangofuture.com/open?repo=mangofuture1210%2Fopenglance-example-knowledge-base&path=guide%2Fuser-guide.md)
+[OpenGlance user guide demo](https://gitleaf.mangofuture.com/open?repo=openglance%2Fopenglance-example-knowledge-base&path=guide%2Fuser-guide.md)
 
 ### Teach an Agent to return the link
 
