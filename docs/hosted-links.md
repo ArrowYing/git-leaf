@@ -9,6 +9,11 @@ launch the installed desktop app.
 The service is a protocol handoff, not a hosted repository, knowledge base, or context service. It does
 not clone a repository, read a document body, grant GitHub access, or make a private repository public.
 
+OpenGlance itself generates canonical `openglance://` links. During the installed-client migration, the
+hosted page launches the equivalent `git-leaf://` compatibility link because it is the one protocol
+registered by Git Leaf 1.x, OpenPeek 2.x, and OpenGlance 3.x. This does not change the visible product
+name or the canonical link format copied by OpenGlance.
+
 ## `/open`
 
 An ordinary document link can transmit these URL fields:
@@ -72,5 +77,5 @@ link grants no access that the recipient does not already have.
 ## Downloads are separate
 
 `/open` and `/share` do not provide installers. The normal
-[download page](https://gitleaf.mangofuture.com/download) never triggers `openglance://` and shows only
+[download page](https://gitleaf.mangofuture.com/download) never triggers a desktop protocol and shows only
 explicit public release artifacts.

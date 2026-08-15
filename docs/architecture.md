@@ -583,7 +583,11 @@ metadata into a local protocol launch and maintain a random, in-memory handoff s
 minutes. They do not fetch a Git repository or document body. The exact transmitted metadata and normal
 HTTP exposure are documented in [Hosted link handoff](hosted-links.md).
 
-The separate `/download` page never launches `openglance://`. It shows only manifests explicitly marked
+During the installed-client migration, the hosted service emits the equivalent `git-leaf://` handoff
+because that compatibility scheme is registered by Git Leaf 1.x, OpenPeek 2.x, and OpenGlance 3.x.
+OpenGlance-generated links remain canonical `openglance://` links.
+
+The separate `/download` page never launches a desktop protocol. It shows only manifests explicitly marked
 `releaseTrack=public` whose channel, platform, HTTPS URL, SHA-256, size, and on-disk artifact agree.
 Internal, legacy, or missing-track manifests must never appear there.
 
@@ -593,7 +597,7 @@ Shared document links are versioned:
 
 ```text
 https://gitleaf.mangofuture.com/share?v=1&repo=<owner/repo>&path=<relative.md>&rev=<full-commit>&title=<title>
-openglance://open-shared?v=1&repo=<owner/repo>&path=<relative.md>&rev=<full-commit>&handoff=<id>
+git-leaf://open-shared?v=1&repo=<owner/repo>&path=<relative.md>&rev=<full-commit>&handoff=<id>
 ```
 
 Version 1 shares only a document from the primary checkout's `main`. `rev` is the full commit that last

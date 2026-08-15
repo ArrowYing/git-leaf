@@ -467,7 +467,7 @@ test("OpenGlance update server launches the app without binding to a repository"
     const html = await response.text();
 
     assert.equal(response.status, 200);
-    assert.match(html, /openglance:\/\/open/);
+    assert.match(html, /git-leaf:\/\/open/);
     assert.doesNotMatch(html, /repo=/);
     assert.match(html, /handoff=[A-Za-z0-9_-]+/);
     assert.match(html, /只启动或聚焦应用，不会切换当前仓库或文档/);
@@ -581,13 +581,13 @@ test("OpenGlance download page renders validated public macOS and Windows releas
     assert.equal(await head.text(), "");
 
     const openPage = await (await fetch(`http://127.0.0.1:${port}/open`)).text();
-    assert.match(openPage, /openglance:\/\/open/);
+    assert.match(openPage, /git-leaf:\/\/open/);
     assert.doesNotMatch(openPage, /source=download-page|Download for macOS|下载 macOS/);
 
     const sharePage = await (await fetch(
       `http://127.0.0.1:${port}/share?v=1&repo=ExampleOrg%2Fknowledge&path=README.md&rev=${"1".repeat(40)}`,
     )).text();
-    assert.match(sharePage, /openglance:\/\/open-shared/);
+    assert.match(sharePage, /git-leaf:\/\/open-shared/);
     assert.doesNotMatch(sharePage, /source=download-page|Download for macOS|下载 macOS/);
   } finally {
     server.kill("SIGTERM");
@@ -802,7 +802,7 @@ test("OpenGlance update server renders a safe optional document deep link", asyn
     assert.match(response.headers.get("content-security-policy"), /connect-src 'self'/);
     assert.match(
       html,
-      /openglance:\/\/open-worktree\?repo=exampleorg%2Fcompany-docs&amp;path=company%2Fstrategy\.md&amp;worktree=0123456789abcdef&amp;handoff=[A-Za-z0-9_-]+/,
+      /git-leaf:\/\/open-worktree\?repo=exampleorg%2Fcompany-docs&amp;path=company%2Fstrategy\.md&amp;worktree=0123456789abcdef&amp;handoff=[A-Za-z0-9_-]+/,
     );
     assert.match(html, /正在 OpenGlance 中打开文档/);
     assert.match(html, /exampleorg\/company-docs · company\/strategy\.md/);
@@ -878,7 +878,7 @@ test("OpenGlance update server renders versioned share links and reports handoff
     assert.equal(response.status, 200);
     assert.match(
       html,
-      new RegExp(`openglance:\\/\\/open-shared\\?v=1&amp;repo=exampleorg%2Fcompany-docs&amp;path=company%2Fstrategy\\.md&amp;rev=${rev}&amp;handoff=[A-Za-z0-9_-]+`),
+      new RegExp(`git-leaf:\\/\\/open-shared\\?v=1&amp;repo=exampleorg%2Fcompany-docs&amp;path=company%2Fstrategy\\.md&amp;rev=${rev}&amp;handoff=[A-Za-z0-9_-]+`),
     );
     assert.match(html, /\/share\/status\?id=/);
     assert.match(html, /已在 OpenGlance 中取消打开/);
@@ -890,7 +890,7 @@ test("OpenGlance update server renders versioned share links and reports handoff
     assert.match(html, /<meta property="og:site_name" content="OpenGlance">/);
     assert.match(html, /<meta property="og:type" content="article">/);
 
-    const deepLinkMatch = html.match(/href="(openglance:[^"]+)"/);
+    const deepLinkMatch = html.match(/href="(git-leaf:[^"]+)"/);
     assert.ok(deepLinkMatch);
     const deepLink = new URL(decodeHtml(deepLinkMatch[1]));
     assert.equal(deepLink.searchParams.has("title"), false);

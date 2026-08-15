@@ -8,6 +8,10 @@ OpenGlance 文档始终保存在本机 Git 仓库中。OpenGlance 生成的公�
 这个服务只负责协议中转，不是云端仓库、知识库或上下文服务。它不会克隆仓库、读取文档正文、授予 GitHub
 权限，也不会把私有仓库变成公开仓库。
 
+OpenGlance 自己复制的新链接统一使用规范的 `openglance://`。在已安装客户端迁移期间，托管页面会启动等价的
+`git-leaf://` 兼容链接，因为 Git Leaf 1.x、OpenPeek 2.x 和 OpenGlance 3.x 都注册了这个协议。这不会改变
+用户看到的产品名称，也不会改变 OpenGlance 复制的新链接格式。
+
 ## `/open`
 
 普通文档链接可能传输以下 URL 字段：
@@ -63,4 +67,4 @@ Mango Future 的中转服务不执行 Git fetch，也不会收到 Git 凭据。�
 ## 下载入口独立
 
 `/open` 和 `/share` 不提供安装包。普通[下载页](https://gitleaf.mangofuture.com/download?lang=zh-CN)
-不会触发 `openglance://`，只展示明确的公开发布制品。
+不会触发任何桌面协议，只展示明确的公开发布制品。

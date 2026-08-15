@@ -25,6 +25,10 @@ from urllib.parse import parse_qs, unquote, urlencode, urlparse
 
 HANDOFF_ID_PATTERN = re.compile(r"[A-Za-z0-9_-]{20,64}")
 HANDOFF_TTL_SECONDS = 600
+# The hosted handoff must reach Git Leaf 1.x, OpenPeek 2.x, and OpenGlance 3.x
+# during the installed-client migration. All three generations register this
+# protocol, while only OpenGlance 3.x registers the canonical openglance scheme.
+HOSTED_HANDOFF_PROTOCOL = "git-leaf"
 SHARE_PREVIEW_TITLE_MAX_LENGTH = 100
 SHARE_PREVIEW_SNIPPET_MAX_LENGTH = 200
 TELEMETRY_MAX_BODY_BYTES = 64 * 1024
@@ -529,7 +533,7 @@ class OpenGlanceUpdateHandler(SimpleHTTPRequestHandler):
             deep_link_params["worktree"] = worktree
         deep_link_params["handoff"] = handoff_id
         deep_link_host = "open-worktree" if worktree else "open"
-        deep_link = f"openglance://{deep_link_host}?" + urlencode(deep_link_params)
+        deep_link = f"{HOSTED_HANDOFF_PROTOCOL}://{deep_link_host}?" + urlencode(deep_link_params)
 
         if repository:
             title = "正在 OpenGlance 中打开文档"
@@ -594,7 +598,7 @@ class OpenGlanceUpdateHandler(SimpleHTTPRequestHandler):
             return True
 
         handoff_id = self.server.handoffs.create()
-        deep_link = "openglance://open-shared?" + urlencode({
+        deep_link = f"{HOSTED_HANDOFF_PROTOCOL}://open-shared?" + urlencode({
             "v": "1",
             "repo": repository,
             "path": document_path,
