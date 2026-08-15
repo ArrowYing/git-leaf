@@ -193,6 +193,26 @@ test("mac product rename migration preserves repositories, workspace state, and 
     activeTabPath: "",
   };
   assert.equal(assertRenameMigrationUserState(afterUpdate, expected), true);
+  const afterLinkedWorktreeStartup = structuredClone(afterUpdate);
+  afterLinkedWorktreeStartup.openRepoRoots.push("/primary-repository");
+  assert.equal(
+    assertRenameMigrationUserState(afterLinkedWorktreeStartup, expected),
+    true,
+  );
+  assert.throws(
+    () => assertRenameMigrationUserState({
+      ...afterUpdate,
+      openRepoRoots: ["/repo"],
+    }, expected),
+    /did not preserve/,
+  );
+  assert.throws(
+    () => assertRenameMigrationUserState({
+      ...afterUpdate,
+      openRepoRoots: ["/second", "/repo"],
+    }, expected),
+    /did not preserve/,
+  );
   assert.throws(
     () => assertRenameMigrationUserState({
       ...afterUpdate,

@@ -496,12 +496,28 @@ export function assertRenameMigrationUserState(actual, expected) {
   for (const key of [
     "renameMigrationSentinel",
     "repoRoot",
-    "openRepoRoots",
     "usageAnalyticsEnabled",
   ]) {
     if (JSON.stringify(actual?.[key]) !== JSON.stringify(expected[key])) {
       mismatches.push(key);
     }
+  }
+  const expectedOpenRepoRoots = expected?.openRepoRoots ?? [];
+  const actualOpenRepoRoots = actual?.openRepoRoots;
+  let expectedOpenRepoRootIndex = 0;
+  if (Array.isArray(actualOpenRepoRoots)) {
+    for (const repoRoot of actualOpenRepoRoots) {
+      if (repoRoot === expectedOpenRepoRoots[expectedOpenRepoRootIndex]) {
+        expectedOpenRepoRootIndex += 1;
+      }
+    }
+  }
+  if (
+    !Array.isArray(expectedOpenRepoRoots)
+    || !Array.isArray(actualOpenRepoRoots)
+    || expectedOpenRepoRootIndex !== expectedOpenRepoRoots.length
+  ) {
+    mismatches.push("openRepoRoots");
   }
   for (const key of stablePreferenceKeys) {
     if (
