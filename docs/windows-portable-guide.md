@@ -58,7 +58,7 @@ OpenGlance registers the `openglance://` protocol from its fixed installation:
 
 ```powershell
 Start-Process 'openglance://open'
-Start-Process 'openglance://open?repo=C%3A%5CUsers%5Cexample%5CProjects%5Cgit-leaf-guide-demo&path=README.md'
+Start-Process 'openglance://open?repo=C%3A%5CUsers%5Cexample%5CProjects%5Copenglance-guide-demo&path=README.md'
 ```
 
 Existing `openpeek://` and `git-leaf://` links remain accepted for 2.x and 1.x compatibility.

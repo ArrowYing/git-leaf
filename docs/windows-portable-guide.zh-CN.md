@@ -66,7 +66,7 @@ OpenGlance 从固定安装目录注册 `openglance://`：
 
 ```powershell
 Start-Process 'openglance://open'
-Start-Process 'openglance://open?repo=C%3A%5CUsers%5Cexample%5CProjects%5Cgit-leaf-guide-demo&path=README.md'
+Start-Process 'openglance://open?repo=C%3A%5CUsers%5Cexample%5CProjects%5Copenglance-guide-demo&path=README.md'
 ```
 
 已有 `git-leaf://` 链接继续作为 1.x 兼容入口；OpenGlance 新生成的链接只使用 `openglance://`。

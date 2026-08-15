@@ -207,7 +207,7 @@ test fixture.
   worktree parameters manually:
 
 ```bash
-node <git-leaf-repo>/scripts/generate-open-link.mjs \
+node <openglance-repo>/scripts/generate-open-link.mjs \
   --repo-root "$(git rev-parse --show-toplevel)" \
   --file "<repo-relative.md-or-mdx>"
 ```
