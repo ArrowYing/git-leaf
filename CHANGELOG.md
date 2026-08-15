@@ -4,7 +4,16 @@ OpenGlance follows Semantic Versioning for its shared app version. Git tags iden
 official public artifacts, signatures, checksums, and platform availability are authoritative only on
 the [OpenGlance download page](https://gitleaf.mangofuture.com/download).
 
-## 3.0.0 — Unreleased
+## 3.0.1 — Unreleased
+
+### Changed
+
+- Prepared the first public OpenGlance release at the globally unique `3.0.1` version after the
+  internal `3.0.0` migration release.
+- Public packages use the OpenGlance-native application identity while retaining the stable Profile,
+  legacy input aliases, and hosted handoff compatibility needed by existing repositories and links.
+
+## 3.0.0 — 2026-08-15 (internal release)
 
 ### Changed
 
@@ -34,8 +43,8 @@ the [OpenGlance download page](https://gitleaf.mangofuture.com/download).
 - The `git_leaf.*` analytics schema, hosted domain, update-service `/git-leaf` roots, and stable Profile
   directory remain unchanged. Domain migration is intentionally separate.
 
-This entry describes source changes only. It does not declare that a 3.0.0 package, tag, website, or
-formal release has been published.
+OpenGlance 3.0.0 was published on the internal track for the OpenPeek 2.x migration. It was not
+published on the public track.
 
 ## 2.0.0 — 2026-08-15 (source tag only)
 
