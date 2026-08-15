@@ -1,35 +1,55 @@
 # Changelog
 
-OpenPeek follows Semantic Versioning for its shared app version. Git tags identify source revisions;
+OpenGlance follows Semantic Versioning for its shared app version. Git tags identify source revisions;
 official public artifacts, signatures, checksums, and platform availability are authoritative only on
-the [OpenPeek download page](https://gitleaf.mangofuture.com/download).
+the [OpenGlance download page](https://gitleaf.mangofuture.com/download).
 
-## 2.0.0 — Unreleased
+## 3.0.0 — Unreleased
 
 ### Changed
 
-- Renamed the user-facing product, desktop app, packages, artifacts, primary CLI command, and generated
-  local protocol from Git Leaf to OpenPeek.
-- Raised the shared app version to `2.0.0` because the application and operating-system identity surface
-  changes across desktop installation, command-line use, deep links, and update packaging.
-- New packages use `OpenPeek.app`, `OpenPeek.exe`, the `openpeek` command, `openpeek://`,
-  `OPENPEEK_*`, and `openpeek-build-info.json` as their canonical names.
+- Renamed the short-lived OpenPeek product identity to OpenGlance across the desktop app, packages,
+  artifacts, CLI, documentation, repository references, and generated links.
+- Raised the shared app version to `3.0.0` because this changes the canonical application and
+  operating-system identity surface again.
+- New packages use `OpenGlance.app`, `OpenGlance.exe`, the `openglance` command, `openglance://`,
+  `OPENGLANCE_*`, and `openglance-build-info.json` as their canonical names.
+- Future official public macOS builds use `com.mangofuture.openglance`; Community Builds use
+  `org.openglance.community`. Both use `OpenGlance` as the executable name.
 
 ### Compatibility
 
-- Preserved the existing `git-leaf` Electron Profile so repositories, sessions, preferences, favorites,
-  and browser state survive the rename.
-- Kept the `git-leaf` CLI alias, `git-leaf://` deep links, `GIT_LEAF_*` environment fallbacks, and
-  `git-leaf-build-info.json` package reads for 1.x interoperability.
-- Existing macOS `Git Leaf.app` installations are updated in place instead of creating a duplicate.
-  Windows migrates the fixed installation to `%LOCALAPPDATA%\OpenPeek\app` and removes the superseded
-  shortcut and install tree after the canonical app confirms startup.
-- Retained the existing macOS Bundle IDs, `git_leaf.*` analytics schema, GitHub repository, hosted
-  domain, update-service paths, and stable Profile directory. Those externally coordinated identities
-  are intentionally outside this repository-only rename.
+- The Electron Profile remains `git-leaf`, preserving repositories, sessions, preferences, favorites,
+  browser state, and analytics consent through both renames.
+- The app accepts the `openpeek` and `git-leaf` CLI aliases, `openpeek://` and `git-leaf://` links,
+  `OPENPEEK_*` and `GIT_LEAF_*` environment inputs, and both earlier build-info filenames. New output
+  always uses OpenGlance.
+- Official internal macOS builds retain `com.mangofuture.gitleaf`, the hidden `Git Leaf` executable,
+  the existing ShipIt identity, and the `internal-stable` update coordinates so installed internal Apps
+  continue upgrading in place.
+- A macOS development install reuses an existing `OpenPeek.app` or `Git Leaf.app`. Windows packages on
+  the internal track carry bounded `OpenPeek.exe` and `Git Leaf.exe` launch bridges, migrate either old
+  fixed installation into `%LOCALAPPDATA%\OpenGlance\app`, and remove the old tree only after the new
+  executable confirms startup.
+- The `git_leaf.*` analytics schema, hosted domain, update-service `/git-leaf` roots, and stable Profile
+  directory remain unchanged. Domain migration is intentionally separate.
 
-This entry describes source changes only. It does not declare that a 2.0.0 package, tag, website, or
+This entry describes source changes only. It does not declare that a 3.0.0 package, tag, website, or
 formal release has been published.
+
+## 2.0.0 — 2026-08-15 (source tag only)
+
+### Changed
+
+- Renamed Git Leaf to OpenPeek in source and raised the shared app version to `2.0.0`.
+- Introduced `OpenPeek.app`, `OpenPeek.exe`, `openpeek`, `openpeek://`, `OPENPEEK_*`, and
+  `openpeek-build-info.json` as that revision's canonical names.
+
+### Compatibility
+
+- Preserved the `git-leaf` Profile, CLI and protocol aliases, environment fallbacks, official internal
+  macOS Bundle ID and hidden executable, update coordinates, and analytics schema.
+- The source tag did not have a corresponding GitHub binary release and was not publicly promoted.
 
 ## 1.14.0 — 2026-07-27
 

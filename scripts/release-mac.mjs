@@ -22,12 +22,11 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
-  OPENPEEK_LEGACY_PROTOCOL,
-  OPENPEEK_PROTOCOL,
+  OPENGLANCE_SUPPORTED_PROTOCOLS,
 } from "../src/product-identity.mjs";
 import {
-  openPeekEnvironmentFlag,
-  openPeekEnvironmentValue,
+  openGlanceEnvironmentFlag,
+  openGlanceEnvironmentValue,
 } from "../src/environment.mjs";
 import {
   assertPathIdentitiesDoNotOverlap,
@@ -55,22 +54,22 @@ import {
   patchSquirrelMacPolicy,
   verifySquirrelMacPolicy,
 } from "./squirrel-mac-policy.mjs";
-import { OFFICIAL_MAC_EXECUTABLE_NAME } from "../src/desktop/mac-app-contents.mjs";
+import { OFFICIAL_INTERNAL_MAC_EXECUTABLE_NAME } from "../src/desktop/mac-app-contents.mjs";
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const REPO_ROOT = path.dirname(path.dirname(SCRIPT_PATH));
 
 export const DEFAULT_RELEASE_OPTIONS = {
-  appName: "OpenPeek",
+  appName: "OpenGlance",
   arch: "universal",
-  bundleId: "org.gitleaf.community",
+  bundleId: "org.openglance.community",
   identity:
     "Developer ID Application: Shenzhen Mango Future Technology Co., Ltd. (HN6X79BUSR)",
   notaryProfile: "",
   version: packageVersion({ rootDir: REPO_ROOT, fallbackVersion: "0.1.1" }),
   outDir: "dist",
   applicationsDir: "/Applications",
-  iconPath: "assets/icons/openpeek",
+  iconPath: "assets/icons/openglance",
   entitlementsPath: "assets/entitlements.mac.plist",
   updateBaseUrl: "https://updates.mangofuture.com/git-leaf",
   updateChannel: "stable",
@@ -81,14 +80,16 @@ export const DEFAULT_RELEASE_OPTIONS = {
 };
 
 const APPLICATIONS_SHORTCUT_NAME = "Applications";
-const LEGACY_MAC_APP_NAME = "Git Leaf";
+const OPENPEEK_MAC_APP_NAME = "OpenPeek";
+const GIT_LEAF_MAC_APP_NAME = "Git Leaf";
 
 export function macExecutableName({
   appName = DEFAULT_RELEASE_OPTIONS.appName,
   distribution = "source",
+  releaseTrack = DEFAULT_RELEASE_OPTIONS.releaseTrack,
 } = {}) {
-  return distribution === "official"
-    ? OFFICIAL_MAC_EXECUTABLE_NAME
+  return distribution === "official" && releaseTrack === "internal"
+    ? OFFICIAL_INTERNAL_MAC_EXECUTABLE_NAME
     : appName;
 }
 
@@ -170,6 +171,7 @@ const DEVELOPMENT_PROFILE_MARKER_SCHEMA_VERSION = 2;
 export function electronPackagerArgs({
   appName = DEFAULT_RELEASE_OPTIONS.appName,
   distribution = "source",
+  releaseTrack = DEFAULT_RELEASE_OPTIONS.releaseTrack,
   version = DEFAULT_RELEASE_OPTIONS.version,
   arch = DEFAULT_RELEASE_OPTIONS.arch,
   bundleId = DEFAULT_RELEASE_OPTIONS.bundleId,
@@ -184,11 +186,13 @@ export function electronPackagerArgs({
     `--arch=${arch}`,
     `--out=${outDir}`,
     "--overwrite",
-    `--executable-name=${macExecutableName({ appName, distribution })}`,
+    `--executable-name=${macExecutableName({ appName, distribution, releaseTrack })}`,
     `--app-version=${version}`,
     `--app-bundle-id=${bundleId}`,
-    `--protocol=${OPENPEEK_PROTOCOL}`,
-    "--protocol-name=OpenPeek Document",
+    ...OPENGLANCE_SUPPORTED_PROTOCOLS.flatMap((protocol) => [
+      `--protocol=${protocol}`,
+      "--protocol-name=OpenGlance Document",
+    ]),
     ...(iconPath ? [`--icon=${iconPath}`] : []),
     ...(electronZipDir ? [`--electron-zip-dir=${electronZipDir}`] : []),
     ...RELEASE_PACKAGE_IGNORE_PATTERNS.map((pattern) => `--ignore=${pattern}`),
@@ -275,15 +279,22 @@ export function macDevelopmentInstallPaths({
   exists = existsSync,
 } = {}) {
   const canonicalInstalledAppDir = path.join(applicationsDir, `${appName}.app`);
-  const legacyInstalledAppDir = path.join(applicationsDir, `${LEGACY_MAC_APP_NAME}.app`);
-  const installedAppDir = exists(canonicalInstalledAppDir) || !exists(legacyInstalledAppDir)
-    ? canonicalInstalledAppDir
-    : legacyInstalledAppDir;
+  const openPeekInstalledAppDir = path.join(applicationsDir, `${OPENPEEK_MAC_APP_NAME}.app`);
+  const gitLeafInstalledAppDir = path.join(applicationsDir, `${GIT_LEAF_MAC_APP_NAME}.app`);
+  const installedAppDir = [
+    canonicalInstalledAppDir,
+    openPeekInstalledAppDir,
+    gitLeafInstalledAppDir,
+  ].find((candidate) => exists(candidate)) || canonicalInstalledAppDir;
   return {
     ...macReleasePaths({ rootDir, appName, arch, version, releaseTrack, buildId }),
     applicationsDir,
     canonicalInstalledAppDir,
-    legacyInstalledAppDir,
+    openPeekInstalledAppDir,
+    gitLeafInstalledAppDir,
+    legacyInstalledAppDirs: [openPeekInstalledAppDir, gitLeafInstalledAppDir],
+    // Compatibility alias for integrations that still mean the Git Leaf 1.x path.
+    legacyInstalledAppDir: gitLeafInstalledAppDir,
     installedAppDir,
   };
 }
@@ -912,10 +923,10 @@ function frameworkSigningTargets(appDir) {
 
 function helperAppSigningTargets(appDir) {
   return [
-    "Contents/Frameworks/OpenPeek Helper.app",
-    "Contents/Frameworks/OpenPeek Helper (Plugin).app",
-    "Contents/Frameworks/OpenPeek Helper (Renderer).app",
-    "Contents/Frameworks/OpenPeek Helper (GPU).app",
+    "Contents/Frameworks/OpenGlance Helper.app",
+    "Contents/Frameworks/OpenGlance Helper (Plugin).app",
+    "Contents/Frameworks/OpenGlance Helper (Renderer).app",
+    "Contents/Frameworks/OpenGlance Helper (GPU).app",
   ].map((target) => path.join(appDir, target));
 }
 
@@ -960,15 +971,15 @@ function releaseOptionsFromEnv() {
       || DEFAULT_RELEASE_OPTIONS.updateRemoteRoot,
     dmgLocale: detectedDmgLocale(),
     electronZipDir: process.env.ELECTRON_ZIP_DIR || undefined,
-    devUserDataDir: openPeekEnvironmentValue(process.env, "DEV_USER_DATA_DIR") || undefined,
+    devUserDataDir: openGlanceEnvironmentValue(process.env, "DEV_USER_DATA_DIR") || undefined,
     smokeUserDataDir:
-      openPeekEnvironmentValue(process.env, "SMOKE_USER_DATA_DIR")
+      openGlanceEnvironmentValue(process.env, "SMOKE_USER_DATA_DIR")
       || DEFAULT_SMOKE_USER_DATA_DIR,
-    smokeRepoRoot: openPeekEnvironmentValue(process.env, "SMOKE_REPO_ROOT") || "",
-    smokeFile: openPeekEnvironmentValue(process.env, "SMOKE_FILE") || "",
+    smokeRepoRoot: openGlanceEnvironmentValue(process.env, "SMOKE_REPO_ROOT") || "",
+    smokeFile: openGlanceEnvironmentValue(process.env, "SMOKE_FILE") || "",
     smokeRemoteDebuggingPort:
-      openPeekEnvironmentValue(process.env, "SMOKE_REMOTE_DEBUGGING_PORT") || "",
-    formalRelease: openPeekEnvironmentFlag(process.env, "FORMAL_RELEASE"),
+      openGlanceEnvironmentValue(process.env, "SMOKE_REMOTE_DEBUGGING_PORT") || "",
+    formalRelease: openGlanceEnvironmentFlag(process.env, "FORMAL_RELEASE"),
   };
 }
 
@@ -1055,7 +1066,7 @@ export function ensureReleaseSigningIdentityAccess({
     );
   }
 
-  const probeDir = mkdtempSync(path.join(temporaryRoot, "openpeek-release-signing-"));
+  const probeDir = mkdtempSync(path.join(temporaryRoot, "openglance-release-signing-"));
   const probePath = path.join(probeDir, "codesign-probe");
   try {
     copyFileSync(probeSource, probePath);
@@ -1192,8 +1203,8 @@ export function applyMacBundleProtocols(paths) {
   const infoPlistPath = path.join(paths.appDir, "Contents", "Info.plist");
   requirePath(infoPlistPath);
   const protocolRegistration = [{
-    CFBundleURLName: "OpenPeek Document",
-    CFBundleURLSchemes: [OPENPEEK_PROTOCOL, OPENPEEK_LEGACY_PROTOCOL],
+    CFBundleURLName: "OpenGlance Document",
+    CFBundleURLSchemes: [...OPENGLANCE_SUPPORTED_PROTOCOLS],
   }];
   run("/usr/bin/plutil", [
     "-replace",
@@ -1214,11 +1225,13 @@ export function touchMacAppBundle(appDir, { now = new Date() } = {}) {
 export function developmentAppQuitCommands(appName, paths) {
   return uniqueCommands([
     ["osascript", ["-e", `tell application "${appName}" to quit`]],
-    ["osascript", ["-e", `tell application "${LEGACY_MAC_APP_NAME}" to quit`]],
+    ["osascript", ["-e", `tell application "${OPENPEEK_MAC_APP_NAME}" to quit`]],
+    ["osascript", ["-e", `tell application "${GIT_LEAF_MAC_APP_NAME}" to quit`]],
     ["pkill", ["-x", appName]],
-    ["pkill", ["-x", LEGACY_MAC_APP_NAME]],
+    ["pkill", ["-x", OPENPEEK_MAC_APP_NAME]],
+    ["pkill", ["-x", GIT_LEAF_MAC_APP_NAME]],
     ["pkill", ["-f", paths.installedAppDir]],
-    ["pkill", ["-f", paths.legacyInstalledAppDir]],
+    ...legacyMacInstalledAppDirs(paths).map((appDir) => ["pkill", ["-f", appDir]]),
     ["pkill", ["-f", paths.appDir]],
   ]);
 }
@@ -1226,9 +1239,10 @@ export function developmentAppQuitCommands(appName, paths) {
 export function developmentAppForceQuitCommands(appName, paths) {
   return uniqueCommands([
     ["pkill", ["-9", "-x", appName]],
-    ["pkill", ["-9", "-x", LEGACY_MAC_APP_NAME]],
+    ["pkill", ["-9", "-x", OPENPEEK_MAC_APP_NAME]],
+    ["pkill", ["-9", "-x", GIT_LEAF_MAC_APP_NAME]],
     ["pkill", ["-9", "-f", paths.installedAppDir]],
-    ["pkill", ["-9", "-f", paths.legacyInstalledAppDir]],
+    ...legacyMacInstalledAppDirs(paths).map((appDir) => ["pkill", ["-9", "-f", appDir]]),
     ["pkill", ["-9", "-f", paths.appDir]],
   ]);
 }
@@ -1279,11 +1293,18 @@ function waitForDevelopmentAppExit(appName, paths, {
 export function developmentAppProcessQueries(appName, paths) {
   return uniqueValues([
     ["-x", appName],
-    ["-x", LEGACY_MAC_APP_NAME],
+    ["-x", OPENPEEK_MAC_APP_NAME],
+    ["-x", GIT_LEAF_MAC_APP_NAME],
     ["-f", paths.installedAppDir],
-    ["-f", paths.legacyInstalledAppDir],
+    ...legacyMacInstalledAppDirs(paths).map((appDir) => ["-f", appDir]),
     ["-f", paths.appDir],
   ]);
+}
+
+function legacyMacInstalledAppDirs(paths) {
+  return paths.legacyInstalledAppDirs
+    || [paths.openPeekInstalledAppDir, paths.gitLeafInstalledAppDir, paths.legacyInstalledAppDir]
+      .filter(Boolean);
 }
 
 function developmentAppIsRunning(appName, paths) {
@@ -1620,7 +1641,7 @@ export function stageMacUpdateMetadata(options, paths, { rootDir = REPO_ROOT } =
     buildId,
     commit: options.commit,
     builtAt: options.builtAt,
-    notes: `OpenPeek ${options.version}`,
+    notes: `OpenGlance ${options.version}`,
     artifacts,
   });
 
@@ -1649,7 +1670,7 @@ export function stageMacUpdateMetadata(options, paths, { rootDir = REPO_ROOT } =
     buildId,
     commit: options.commit,
     builtAt: options.builtAt,
-    notes: `OpenPeek ${options.version}`,
+    notes: `OpenGlance ${options.version}`,
     artifacts,
   });
   writeUpdateManifests(arm64MigrationPaths, arm64MigrationManifest);
@@ -1827,11 +1848,11 @@ Environment overrides:
   ENTITLEMENTS_PATH
   ELECTRON_VERSION
   ELECTRON_ZIP_DIR
-  OPENPEEK_DEV_USER_DATA_DIR
-  OPENPEEK_SMOKE_USER_DATA_DIR
-  OPENPEEK_SMOKE_REPO_ROOT
-  OPENPEEK_SMOKE_FILE
-  OPENPEEK_SMOKE_REMOTE_DEBUGGING_PORT
+  OPENGLANCE_DEV_USER_DATA_DIR
+  OPENGLANCE_SMOKE_USER_DATA_DIR
+  OPENGLANCE_SMOKE_REPO_ROOT
+  OPENGLANCE_SMOKE_FILE
+  OPENGLANCE_SMOKE_REMOTE_DEBUGGING_PORT
   UPDATE_BASE_URL
   UPDATE_CHANNEL
   UPDATE_REMOTE_HOST

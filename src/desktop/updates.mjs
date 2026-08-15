@@ -14,8 +14,8 @@ import {
   releaseTrackForBuildInfo,
 } from "../build-info.mjs";
 import {
-  openPeekEnvironmentFlag,
-  openPeekEnvironmentValue,
+  openGlanceEnvironmentFlag,
+  openGlanceEnvironmentValue,
 } from "../environment.mjs";
 import { createDesktopTranslator } from "./localization.mjs";
 import {
@@ -25,7 +25,10 @@ import {
   normalizeDevelopmentHandoffReceipt,
   sameDevelopmentHandoffReceipt,
 } from "./development-handoff.mjs";
-import { pruneObsoleteMacUpdatePackages } from "./mac-update-cache.mjs";
+import {
+  macShipItJobLabelForBuildInfo,
+  pruneObsoleteMacUpdatePackages,
+} from "./mac-update-cache.mjs";
 
 const DEFAULT_UPDATE_TRANSLATE = createDesktopTranslator({ language: "en" });
 
@@ -38,7 +41,7 @@ export function createDesktopUpdateController({
   isPackaged = app?.isPackaged ?? false,
   platform = process.platform,
   arch = process.arch,
-  baseUrl = openPeekEnvironmentValue(process.env, "UPDATE_BASE_URL") || DEFAULT_UPDATE_BASE_URL,
+  baseUrl = openGlanceEnvironmentValue(process.env, "UPDATE_BASE_URL") || DEFAULT_UPDATE_BASE_URL,
   channel: configuredChannel,
   environment = process.env,
   scheduleTimeout = setTimeout,
@@ -67,6 +70,7 @@ export function createDesktopUpdateController({
   prepareMacUpdateInstallation = async () => {},
   cleanupMacUpdateCache = () => pruneObsoleteMacUpdatePackages({
     homeDir: app?.getPath?.("home") || "",
+    jobLabel: macShipItJobLabelForBuildInfo(buildInfo),
   }),
   requestQuitForUpdate = async () => {},
   translate = DEFAULT_UPDATE_TRANSLATE,
@@ -94,7 +98,7 @@ export function createDesktopUpdateController({
   const channel = isPackaged
     ? releaseTrackChannel
     : configuredChannel
-      || openPeekEnvironmentValue(environment, "UPDATE_CHANNEL")
+      || openGlanceEnvironmentValue(environment, "UPDATE_CHANNEL")
       || releaseTrackChannel
       || DEFAULT_UPDATE_CHANNEL;
 
@@ -341,7 +345,7 @@ export function createDesktopUpdateController({
       }
       return "disabled";
     }
-    if (!isPackaged && !openPeekEnvironmentFlag(process.env, "ENABLE_UPDATES")) {
+    if (!isPackaged && !openGlanceEnvironmentFlag(process.env, "ENABLE_UPDATES")) {
       if (manual) {
         await showUpdateInfo("updates.disabledDevelopmentMode");
       }
@@ -617,7 +621,7 @@ export function createDesktopUpdateController({
 
     const pending = {
       version: String(manifest.version || "").trim(),
-      name: manifest?.autoUpdater?.name || `OpenPeek ${manifest.version}`,
+      name: manifest?.autoUpdater?.name || `OpenGlance ${manifest.version}`,
       trigger: manual ? "manual" : "automatic",
       platform,
       state: "available",

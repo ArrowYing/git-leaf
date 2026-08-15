@@ -1,19 +1,19 @@
 ---
-title: OpenPeek system architecture
+title: OpenGlance system architecture
 domain: ai
 type: architecture
 owner: maintainer
 last_updated: 2026-08-12
-source: openpeek
+source: openglance
 canonical: true
-ai_snippet: "[Architecture] OpenPeek | human desktop interface for shared context repositories | local HTTP service | Git worktrees | Preview Source Live | CodeMirror 6 | guarded Git sync"
+ai_snippet: "[Architecture] OpenGlance | human desktop interface for shared context repositories | local HTTP service | Git worktrees | Preview Source Live | CodeMirror 6 | guarded Git sync"
 ---
 
-# OpenPeek system architecture
+# OpenGlance system architecture
 
 [Documentation index](README.md)
 
-This document defines OpenPeek's system boundaries and long-lived behavioral contracts. It is not a
+This document defines OpenGlance's system boundaries and long-lived behavioral contracts. It is not a
 user guide or an MDX-lite syntax reference.
 
 - Product capabilities and user entry points: [README](../README.md).
@@ -25,52 +25,69 @@ user guide or an MDX-lite syntax reference.
 
 ## Product and data model
 
-OpenPeek is a local desktop interface for Git repositories used as durable shared context by teams and
+OpenGlance is a local desktop interface for Git repositories used as durable shared context by teams and
 AI agents. These repositories are primarily made of Markdown and MDX documents.
 
 The Git repository selected by the user is the shared context system of record. It may contain a
 knowledge base, but it can also contain agent instructions, decisions, plans, playbooks, and operational
-context. OpenPeek does not import documents into a separate database, CMS, context engine, or cloud
-store. Images, attachments, code, and other repository files remain ordinary files. OpenPeek provides
+context. OpenGlance does not import documents into a separate database, CMS, context engine, or cloud
+store. Images, attachments, code, and other repository files remain ordinary files. OpenGlance provides
 the human interface over that repository; AI agents, developers, and automation work with the same files
 directly.
 
-OpenPeek is optimized for three jobs:
+OpenGlance is optimized for three jobs:
 
 - give people who do not work in Git or Markdown a familiar way to read, search, inspect, and make
   focused edits;
 - preserve source paths, line ranges, revisions, branches, and worktrees for agents and automation;
 - let people return to the app to inspect and continue changes made by external agents and tools.
 
-OpenPeek is not an agent runtime, model host, account service, public documentation site, or general
+OpenGlance is not an agent runtime, model host, account service, public documentation site, or general
 code editor.
 
-## Product identity and 2.0 compatibility
+## Product identity and 3.0 compatibility
 
-OpenPeek is the canonical product identity beginning with version 2.0. New visible desktop bundle names, package artifacts, CLI output, generated deep links, environment variables, and embedded build metadata use `OpenPeek`, `openpeek`, `openpeek://`, `OPENPEEK_*`, and `openpeek-build-info.json` respectively. The official macOS package alone retains `Git Leaf` as its hidden `CFBundleExecutable` machine identity so existing 1.x ShipIt installations update in place; Community and source builds use the canonical `OpenPeek` executable name.
+OpenGlance is the canonical product identity beginning with version 3.0. OpenPeek was the short-lived
+2.0 source identity, and Git Leaf was the 1.x identity. New visible desktop bundle names, package
+artifacts, CLI output, generated deep links, environment variables, and embedded build metadata use
+`OpenGlance`, `openglance`, `openglance://`, `OPENGLANCE_*`, and `openglance-build-info.json`.
 
-The rename must not create a second application state or strand 1.x callers. These identifiers remain
-stable compatibility contracts:
+The rename must not create another application state or strand either earlier generation. These
+identifiers remain compatibility contracts:
 
 - Electron `userData` and `sessionData` stay under the `git-leaf` Profile directory on every platform;
-- `git-leaf` remains a CLI alias, and the app parses and registers `git-leaf://` alongside the canonical
-  protocol while generating only `openpeek://` links;
-- `GIT_LEAF_*` environment inputs and `git-leaf-build-info.json` remain read-only fallbacks, with the
-  canonical OpenPeek form taking precedence;
-- the existing official and Community macOS Bundle IDs and the `git_leaf.*` analytics event namespace
-  remain unchanged because they are persistent operating-system and data-schema identities;
-- the official macOS `CFBundleExecutable` remains `Git Leaf` while the visible App bundle, product name, DMG, ZIP root, and interface use `OpenPeek`; a new installation is `OpenPeek.app`, while an existing `Git Leaf.app` keeps that directory during an in-place update;
-- the former GitHub repository names redirect to `MangoFuture1210/openpeek` and
-  `MangoFuture1210/openpeek-example-knowledge-base`, and the app canonicalizes both names when matching
-  a local checkout;
+- `openpeek` and `git-leaf` remain CLI aliases, and the app parses and registers `openpeek://` and
+  `git-leaf://` alongside the canonical protocol while generating only `openglance://` links;
+- `OPENPEEK_*` and `GIT_LEAF_*` environment inputs plus `openpeek-build-info.json` and
+  `git-leaf-build-info.json` remain read-only fallbacks in newest-to-oldest order;
+- official internal macOS packages retain `com.mangofuture.gitleaf`, hidden
+  `CFBundleExecutable=Git Leaf`, and `com.mangofuture.gitleaf.ShipIt` because installed internal Apps
+  actively depend on those operating-system identities;
+- future official public macOS packages use `com.mangofuture.openglance`, and Community packages use
+  `org.openglance.community`; both use the canonical `OpenGlance` executable and their corresponding
+  ShipIt cache identity;
+- the `git_leaf.*` analytics event namespace remains unchanged because it is a data-schema identity;
+- the former GitHub repository names redirect to `MangoFuture1210/openglance` and
+  `MangoFuture1210/openglance-example-knowledge-base`;
 - `gitleaf.mangofuture.com` and update-service `/git-leaf` roots remain unchanged until their separately
   coordinated domain migration.
 
-On macOS, a new installation uses `OpenPeek.app`, while an existing `Git Leaf.app` is reused for an in-place 2.0 update. While a 1.x installation can still update directly to the current release, the official macOS update ZIP deliberately retains `Git Leaf.app` as its archive root; the signed bundle inside already has the OpenPeek product name and executable. Before OpenPeek invokes ShipIt on later updates, it atomically sets `useUpdateBundleName=false` in the identity-bound ShipIt request, so a new `OpenPeek.app` installation and a migrated `Git Leaf.app` installation both retain their current App directory. The DMG remains canonical and contains `OpenPeek.app`. On Windows, 2.0 accepts the old executable and updater arguments long enough to migrate the fixed app into `%LOCALAPPDATA%\OpenPeek\app`; only after the canonical executable confirms startup may the old install tree and shortcut be removed.
+On macOS, a new installation uses `OpenGlance.app`. A human development install reuses an existing
+`OpenPeek.app` or `Git Leaf.app` path, and an internal official update keeps the current App directory.
+Before ShipIt restarts an internal App, OpenGlance atomically sets `useUpdateBundleName=false` in the
+identity-bound request; therefore the canonical update ZIP and DMG can contain `OpenGlance.app` without
+creating a second installed App. Public packages have a clean OpenGlance Bundle ID and do not inherit
+the unpublished earlier public identity.
+
+On Windows, internal 3.0 packages contain bounded `OpenPeek.exe` and `Git Leaf.exe` copies so the baked-in
+2.x and 1.x updaters can launch the new code. The new process migrates either fixed installation into
+`%LOCALAPPDATA%\OpenGlance\app`, removes both compatibility executables from the canonical installation,
+and deletes an old install tree and shortcut only after `OpenGlance.exe` confirms startup. Public and
+Community packages contain only the canonical executable.
 
 ## Runtime model
 
-OpenPeek consists of:
+OpenGlance consists of:
 
 - a Node.js HTTP service bound to localhost;
 - a browser-based workbench served by that process;
@@ -99,12 +116,12 @@ pending Source or Live writes when possible, and restart without treating a stal
 
 ## Repository and worktree model
 
-OpenPeek can open any local Git repository. The OpenPeek source checkout does not need to be inside the
+OpenGlance can open any local Git repository. The OpenGlance source checkout does not need to be inside the
 content repository.
 
 A repository can be selected through the desktop UI, supplied with `--repo`, or discovered upward from
 the CLI working directory. When no saved session or explicit document exists, the initial document
-priority is `AGENTS.md`, `README.md`, then `CONTEXT.md`; if none exists, OpenPeek opens an empty
+priority is `AGENTS.md`, `README.md`, then `CONTEXT.md`; if none exists, OpenGlance opens an empty
 workbench.
 
 Repository identity and worktree state follow these rules:
@@ -138,7 +155,7 @@ panel button remains independent.
 
 Normal branches are editable. A detached worktree can be read and can enter an editing mode, but the
 first actual write must create a protective local branch named like
-`openpeek/detached-<commit>-<timestamp>`. If branch creation fails, the write fails without modifying the
+`openglance/detached-<commit>-<timestamp>`. If branch creation fails, the write fails without modifying the
 document. No write path may bypass this boundary.
 
 ### External command contract
@@ -148,7 +165,7 @@ check: remote operations use Git's configured credentials and remain available w
 Operating-system launch helpers are action-specific dependencies rather than prerequisites for opening a
 repository. Every external-command caller classifies both process execution and output:
 
-Before macOS desktop environment checks or repository services start, OpenPeek augments the inherited
+Before macOS desktop environment checks or repository services start, OpenGlance augments the inherited
 GUI `PATH` with entries missing from the user's login shell. Existing entry precedence is retained, and
 only `PATH` is imported. A missing shell, timeout, or malformed output leaves the inherited environment
 unchanged rather than blocking startup.
@@ -204,7 +221,7 @@ blob root; repositories without one keep that action disabled.
 Favorites are user preferences, not repository content. Desktop builds persist them in `userData`; the
 browser development entry uses repository-scoped `localStorage` as a best-effort fallback. Missing
 favorite paths are removed only after a complete repository tree loads successfully. Search, filtering,
-or a failed or invalid tree response must never prune favorites. Renames performed inside OpenPeek update
+or a failed or invalid tree response must never prune favorites. Renames performed inside OpenGlance update
 document favorites directly; external renames, deletions, and worktree changes may remove a favorite
 whose saved path is no longer present.
 
@@ -229,7 +246,7 @@ presentation:
   pointer crosses it but remains hit-test transparent, so the underlying file or navigation target keeps
   click ownership;
 - search, the current document, favorites, and Sync may reveal otherwise hidden paths;
-- OpenPeek-created empty folders contain a zero-byte `.gitkeep`; All and Content Files preserve the
+- OpenGlance-created empty folders contain a zero-byte `.gitkeep`; All and Content Files preserve the
   folder while hiding the placeholder, and Sync exposes the placeholder whenever Git reports its change;
 - text search combines whitespace-separated terms with AND, matches each folder or file on its own
   searchable fields, including document titles only while they are displayed, and initially keeps only
@@ -267,7 +284,7 @@ of exposing a second file set that includes ignored content.
 
 ## Document modes
 
-OpenPeek has exactly three document modes; their UI names remain `Preview`, `Source`, and `Live`.
+OpenGlance has exactly three document modes; their UI names remain `Preview`, `Source`, and `Live`.
 
 ### Preview
 
@@ -315,7 +332,7 @@ column; the whole column moves even when the selection covers only part of it. E
 CodeMirror transaction and rewrites only the current table block. Preview remains read-only.
 
 Source and Live reload external changes made by Git, editors, or AI agents. Git conflict markers remain
-ordinary source text; OpenPeek does not own conflict resolution.
+ordinary source text; OpenGlance does not own conflict resolution.
 
 ### Working-tree edit cues
 
@@ -346,9 +363,9 @@ Preview and CodeMirror, including while a changed or active line is highlighted 
 
 ### Markdown interoperability
 
-Except for explicitly allowlisted MDX-lite components, OpenPeek must prefer source syntax that remains
+Except for explicitly allowlisted MDX-lite components, OpenGlance must prefer source syntax that remains
 readable and editable in Obsidian and other CommonMark or GitHub-Flavored Markdown tools. A visual Live
-control is an interface over portable source, not permission to introduce an OpenPeek-only table schema,
+control is an interface over portable source, not permission to introduce an OpenGlance-only table schema,
 hidden metadata, or a second document representation. Exact rendering and editor affordances may still
 differ between applications.
 
@@ -356,13 +373,13 @@ In particular, table rows and alignment remain native pipe-table syntax. Bold, i
 strikethrough use standard Markdown delimiters. Foreground color and text-only highlight use one
 narrowly controlled inline HTML span whose `style` may contain only fixed-palette `color` and
 `background-color` values. Highlight never fills the table cell. No class, event handler, font size,
-arbitrary style declaration, hidden metadata, or OpenPeek data attribute is stored in the document.
-OpenPeek renders only the fixed palettes and escapes unsupported HTML. Alignment changes only the
+arbitrary style declaration, hidden metadata, or OpenGlance data attribute is stored in the document.
+OpenGlance renders only the fixed palettes and escapes unsupported HTML. Alignment changes only the
 colons in the native separator row; clearing text formatting does not change alignment. Column
 movement reorders the header cell, its separator/alignment cell, and every body cell together. These
 sources remain editable in Obsidian even though its toolbar and exact rendering affordances may differ.
 
-MDX-lite is the explicit interoperability exception. It is an OpenPeek-controlled extension and is not
+MDX-lite is the explicit interoperability exception. It is an OpenGlance-controlled extension and is not
 expected to open as an interactive component in Obsidian.
 
 ## Rendering, Mermaid, and MDX-lite
@@ -374,7 +391,7 @@ repository-local `.dataset.json` contract whose CSV, TSV, or JSON source remains
 authority. Rendering never creates a second authoritative data model. Preview renders the visual result,
 and Source and Live continue to edit the original MDX view definition.
 
-Markdown uses `markdown-it`. MDX-lite is parsed by OpenPeek before rendering and produces static HTML or
+Markdown uses `markdown-it`. MDX-lite is parsed by OpenGlance before rendering and produces static HTML or
 SVG. It is not a general MDX runtime and cannot execute imports, exports, arbitrary JSX, scripts,
 expressions, or event handlers.
 
@@ -406,7 +423,7 @@ Mermaid runs with strict security, disabled automatic startup, and a 100,000-cha
 The client accepts only an SVG result without executable elements, event-handler attributes, or
 JavaScript links, and rendered links are non-interactive. Invalid, unsafe, or oversized input leaves a
 localized error in the shell while the escaped source remains available through the explicit `</>`
-control. The source fence remains authoritative; OpenPeek does not persist SVG or diagram layout state.
+control. The source fence remains authoritative; OpenGlance does not persist SVG or diagram layout state.
 
 An external dataset component remains the existing allowlisted `Chart` or `DataTable`. The synchronous
 browser-safe renderer emits an inert view shell containing a finite JSON request, not data or executable
@@ -436,7 +453,7 @@ The component allowlist, attributes, input data formats, and rendering contracts
 
 ## Editing and write boundaries
 
-Source and Live write the current file after a short debounce. Watcher events caused by OpenPeek's own
+Source and Live write the current file after a short debounce. Watcher events caused by OpenGlance's own
 write are ignored by content state to avoid reload loops. External changes reload from disk. A narrow
 race may lose not-yet-flushed keystrokes rather than creating an independent hidden draft model.
 
@@ -447,7 +464,7 @@ File-tree mutations are deliberately narrower than a general file manager:
 
 - a context menu creates one folder with a zero-byte `.gitkeep`; creation is refused when Git ignores
   that marker;
-- when a document is then created in that folder during the same server session, OpenPeek removes only
+- when a document is then created in that folder during the same server session, OpenGlance removes only
   the marker it created, and only while it is still zero-byte and untracked;
 - F2 or the context menu renames one regular file within its existing directory and refuses overwrite,
   symlinks, and submodules;
@@ -484,9 +501,9 @@ preference clears the existing timer and schedules the next check from that mome
 visible window after a missed selected interval also triggers a check. Fetching only updates the
 remote-tracking ref:
 
-- when the current branch is behind and the worktree is clean, OpenPeek applies a safe fast-forward
+- when the current branch is behind and the worktree is clean, OpenGlance applies a safe fast-forward
   automatically and refreshes the open document without changing its tab or mode;
-- when the worktree has local changes, OpenPeek attempts the same protected object-layer merge used by
+- when the worktree has local changes, OpenGlance attempts the same protected object-layer merge used by
   the explicit action. A conflict-free result advances the local branch automatically while preserving
   the user's complete local workspace as uncommitted changes;
 - if that protected merge finds a conflict, repository drift, diverged history, or another unsafe
@@ -496,7 +513,7 @@ remote-tracking ref:
 - **Sync and publish** remains the explicit up action. It includes any required remote integration, then
   commits and pushes all local changes.
 
-For a dirty down-only merge, OpenPeek freezes the complete click-time workspace with an alternate Git
+For a dirty down-only merge, OpenGlance freezes the complete click-time workspace with an alternate Git
 index and an immutable snapshot commit. It merges that snapshot with the fetched remote commit in Git's
 object layer. Only a conflict-free result may be applied to the real files, and a final tree comparison
 must match the verified object-layer result. The branch ref advances with a compare-and-swap update, the
@@ -512,7 +529,7 @@ HEAD, remote commit, complete workspace fingerprint, and current editor revision
 workspace drift discards that result and prepares again after the next editing pause.
 
 If an incoming path is the focused Source or Live document, the verified result remains visibly pending
-and **Merge remote changes** stays available. OpenPeek applies it automatically after focus leaves the
+and **Merge remote changes** stays available. OpenGlance applies it automatically after focus leaves the
 editor while the application remains in the foreground; moving to another application leaves the result
 pending. Only the short, revalidated application phase makes that editor surface inert, so preparation
 never drops keystrokes or blocks continued typing. A minimal text update preserves the mapped cursor and
@@ -540,20 +557,20 @@ and the down-only prompt explicitly requires an uncommitted, unpushed result.
 
 ## Deep links and hosted handoff
 
-The desktop app registers `openpeek://`:
+The desktop app registers `openglance://`:
 
 ```text
-openpeek://open
-openpeek://open?repo=<absolute-local-path>&path=<repository-relative.md>
-openpeek://open?repo=<github-owner/repository>&path=<repository-relative.md>
-openpeek://open-worktree?repo=<github-owner/repository>&path=<relative.md>&worktree=<local-id>
+openglance://open
+openglance://open?repo=<absolute-local-path>&path=<repository-relative.md>
+openglance://open?repo=<github-owner/repository>&path=<repository-relative.md>
+openglance://open-worktree?repo=<github-owner/repository>&path=<relative.md>&worktree=<local-id>
 ```
 
 The app also registers and parses equivalent `git-leaf://` links created by 1.x, but never emits that
 legacy scheme for a new link.
 
 An empty link only launches or focuses the app. Shareable links use a lowercase GitHub
-`owner/repository` identity and do not expose the sender's absolute path. OpenPeek matches that identity
+`owner/repository` identity and do not expose the sender's absolute path. OpenGlance matches that identity
 against repositories already opened locally; if no match exists, it asks the user to select a local
 repository and verifies its origin before continuing.
 
@@ -566,7 +583,7 @@ metadata into a local protocol launch and maintain a random, in-memory handoff s
 minutes. They do not fetch a Git repository or document body. The exact transmitted metadata and normal
 HTTP exposure are documented in [Hosted link handoff](hosted-links.md).
 
-The separate `/download` page never launches `openpeek://`. It shows only manifests explicitly marked
+The separate `/download` page never launches `openglance://`. It shows only manifests explicitly marked
 `releaseTrack=public` whose channel, platform, HTTPS URL, SHA-256, size, and on-disk artifact agree.
 Internal, legacy, or missing-track manifests must never appear there.
 
@@ -576,7 +593,7 @@ Shared document links are versioned:
 
 ```text
 https://gitleaf.mangofuture.com/share?v=1&repo=<owner/repo>&path=<relative.md>&rev=<full-commit>&title=<title>
-openpeek://open-shared?v=1&repo=<owner/repo>&path=<relative.md>&rev=<full-commit>&handoff=<id>
+openglance://open-shared?v=1&repo=<owner/repo>&path=<relative.md>&rev=<full-commit>&handoff=<id>
 ```
 
 Version 1 shares only a document from the primary checkout's `main`. `rev` is the full commit that last
@@ -585,7 +602,7 @@ main that contains the revision; it does not detach at that commit.
 
 The HTTPS URL can include a document title of at most 100 characters for link previews. New links do not
 include `ai_snippet` or document body content. The hosted page accepts the legacy bounded `snippet`
-parameter for compatibility but OpenPeek no longer generates it.
+parameter for compatibility but OpenGlance no longer generates it.
 
 Before copying a link, the sender publishes local changes if the user confirms, fetches the remote, and
 proves the revision is on `origin/main`. A local commit or successful push process exit is not enough.
@@ -593,7 +610,7 @@ The receiver always resolves the primary checkout, fetches `origin/main`, retrie
 failure, and applies only a safe fast-forward or the same guarded sync flow. Ahead, diverged, conflicting,
 missing-revision, or continuously changing states stop without silent Git mutation.
 
-A shared URL grants no GitHub permission. The receiving OpenPeek installation uses that repository's
+A shared URL grants no GitHub permission. The receiving OpenGlance installation uses that repository's
 existing local Git credentials.
 
 ## Desktop Profile and preferences
@@ -634,15 +651,16 @@ No path may form a render → save session → save preference → broadcast →
 
 ## Build identity and updates
 
-Every packaged app embeds build metadata in `openpeek-build-info.json`; readers also accept the 1.x
-`git-leaf-build-info.json` filename. Community builds use the technical
+Every packaged app embeds build metadata in `openglance-build-info.json`; readers also accept the 2.x
+`openpeek-build-info.json` and 1.x `git-leaf-build-info.json` filenames. Community builds use the technical
 `distribution=source, releaseTrack=source` identity, display `Community build`, use the macOS bundle ID
-`org.gitleaf.community`, and use `OpenPeek Community` publisher metadata on Windows. They do not check
+`org.openglance.community`, and use `OpenGlance Community` publisher metadata on Windows. They do not check
 Mango Future update feeds or send usage analytics.
 
 Official builds require a reviewed release profile, use `distribution=official`, and select either the
-public or internal release track. Only official builds use Mango Future's macOS bundle ID, Windows
-CompanyName, code signature, and update services. See [Release process](release.md).
+public or internal release track. Public macOS builds use `com.mangofuture.openglance`; internal macOS
+builds retain `com.mangofuture.gitleaf`. Both use Mango Future's Windows CompanyName, code signature,
+and track-specific update services. See [Release process](release.md).
 
 A human-installed macOS build with `dev=true, distribution=source, releaseTrack=source` keeps the
 Community Bundle ID and remains telemetry-ineligible. It has one additional routing capability: it
@@ -660,12 +678,12 @@ valid newer package starts downloading and preparing automatically; the sidebar 
 after the package is ready. Choosing **Restart now** or quitting normally installs that ready package.
 Checks continue while a package is waiting, and a newer target supersedes it. Windows and development
 handoff preparation replace their whole private update cache before writing the new target; after
-Squirrel stages a newer official macOS target, OpenPeek removes every orphaned `update.*` directory while
+Squirrel stages a newer official macOS target, OpenGlance removes every orphaned `update.*` directory while
 preserving the one referenced by `ShipItState.plist`. The steady state therefore contains at most one
 complete downloaded-but-uninstalled package. Failed preparation remains retryable and must not
 masquerade as an active download.
 
-Immediately before a normal macOS installation, OpenPeek revalidates that `ShipItState.plist` is a regular file under the official per-user ShipIt cache, that its update bundle remains inside the staged `update.*` directory, and that its target is the currently running App. It then atomically disables ShipIt's bundle-name migration. A mismatch fails closed before `quitAndInstall`, preserving both the current `OpenPeek.app` path used by new installations and the legacy `Git Leaf.app` path reused by 1.x upgrades.
+Immediately before a normal macOS installation, OpenGlance revalidates that `ShipItState.plist` is a regular file under the official per-user ShipIt cache, that its update bundle remains inside the staged `update.*` directory, and that its target is the currently running App. It then atomically disables ShipIt's bundle-name migration. A mismatch fails closed before `quitAndInstall`, preserving both the current `OpenGlance.app` path used by new installations and the legacy `Git Leaf.app` path reused by 1.x upgrades.
 
 Windows coordinates preparation and cleanup per update-cache root. A valid cached package is reusable
 only after its sibling entries are removed, and startup cleanup removes current, older, invalid, and
@@ -722,7 +740,7 @@ The following files are key seams, not an exhaustive module inventory:
 | `src/server/index.mjs` | Local HTTP API, document IO, rendering, Git actions |
 | `src/server/repositories.mjs`, `src/server/git-worktrees.mjs` | Repository identity, worktree discovery, stable IDs |
 | `src/server/external-command.mjs` | Command execution and failure classification |
-| `src/server/hosted-links.mjs`, `src/server/openpeek-open-link.mjs` | Hosted HTTPS link validation and generation |
+| `src/server/hosted-links.mjs`, `src/server/openglance-open-link.mjs` | Hosted HTTPS link validation and generation |
 | `src/desktop/deep-link.mjs` | Local desktop protocol generation and parsing |
 | `src/server/git-share-publish.mjs`, `src/server/git-share-open.mjs` | Sender publication and receiver safety |
 | `src/content/markdown.mjs`, `src/content/mdx-lite.mjs` | Markdown shells, allowlisted MDX-lite rendering, and inert dataset view declarations |
@@ -740,7 +758,7 @@ another's responsibilities.
 
 ## Non-goals
 
-OpenPeek does not currently provide:
+OpenGlance does not currently provide:
 
 - real-time multi-user editing;
 - cloud accounts, SSO, permissions, or a hosted repository or context service;

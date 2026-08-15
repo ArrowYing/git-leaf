@@ -1,15 +1,25 @@
-export function openPeekEnvironmentValue(
+export const OPENGLANCE_ENVIRONMENT_PREFIXES = Object.freeze([
+  "OPENGLANCE",
+  "OPENPEEK",
+  "GIT_LEAF",
+]);
+
+export function openGlanceEnvironmentValue(
   env,
   suffix,
-  { canonicalPrefix = "OPENPEEK", legacyPrefix = "GIT_LEAF" } = {},
+  { prefixes = OPENGLANCE_ENVIRONMENT_PREFIXES } = {},
 ) {
-  const canonicalName = `${canonicalPrefix}_${suffix}`;
-  const legacyName = `${legacyPrefix}_${suffix}`;
-  return env?.[canonicalName] !== undefined ? env[canonicalName] : env?.[legacyName];
+  for (const prefix of prefixes) {
+    const name = `${prefix}_${suffix}`;
+    if (env?.[name] !== undefined) {
+      return env[name];
+    }
+  }
+  return undefined;
 }
 
-export function openPeekEnvironmentFlag(env, suffix) {
+export function openGlanceEnvironmentFlag(env, suffix) {
   return ["1", "true", "yes"].includes(
-    String(openPeekEnvironmentValue(env, suffix) ?? "").trim().toLowerCase(),
+    String(openGlanceEnvironmentValue(env, suffix) ?? "").trim().toLowerCase(),
   );
 }

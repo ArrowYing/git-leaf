@@ -2,10 +2,14 @@ import { lstatSync, mkdirSync, realpathSync } from "node:fs";
 import path from "node:path";
 
 export const STABLE_USER_DATA_DIRNAME = "git-leaf";
-export const DEVELOPMENT_USER_DATA_ARG = "--openpeek-dev-user-data-dir";
-export const DEVELOPMENT_USER_DATA_ENV = "OPENPEEK_DEV_USER_DATA_DIR";
-export const LEGACY_DEVELOPMENT_USER_DATA_ARG = "--git-leaf-dev-user-data-dir";
-export const LEGACY_DEVELOPMENT_USER_DATA_ENV = "GIT_LEAF_DEV_USER_DATA_DIR";
+export const DEVELOPMENT_USER_DATA_ARG = "--openglance-dev-user-data-dir";
+export const DEVELOPMENT_USER_DATA_ENV = "OPENGLANCE_DEV_USER_DATA_DIR";
+export const OPENPEEK_DEVELOPMENT_USER_DATA_ARG = "--openpeek-dev-user-data-dir";
+export const OPENPEEK_DEVELOPMENT_USER_DATA_ENV = "OPENPEEK_DEV_USER_DATA_DIR";
+export const GIT_LEAF_DEVELOPMENT_USER_DATA_ARG = "--git-leaf-dev-user-data-dir";
+export const GIT_LEAF_DEVELOPMENT_USER_DATA_ENV = "GIT_LEAF_DEV_USER_DATA_DIR";
+export const LEGACY_DEVELOPMENT_USER_DATA_ARG = GIT_LEAF_DEVELOPMENT_USER_DATA_ARG;
+export const LEGACY_DEVELOPMENT_USER_DATA_ENV = GIT_LEAF_DEVELOPMENT_USER_DATA_ENV;
 
 function lstatIfPresent(filePath) {
   try {
@@ -73,7 +77,11 @@ export function assertPathIdentitiesDoNotOverlap({ requestedIdentity, protectedI
 }
 
 export function requestedDevelopmentUserDataDir({ argv = [], env = {} } = {}) {
-  for (const argumentName of [DEVELOPMENT_USER_DATA_ARG, LEGACY_DEVELOPMENT_USER_DATA_ARG]) {
+  for (const argumentName of [
+    DEVELOPMENT_USER_DATA_ARG,
+    OPENPEEK_DEVELOPMENT_USER_DATA_ARG,
+    GIT_LEAF_DEVELOPMENT_USER_DATA_ARG,
+  ]) {
     const inlinePrefix = `${argumentName}=`;
     const inlineValue = argv.find((argument) => String(argument).startsWith(inlinePrefix));
     if (inlineValue) {
@@ -88,7 +96,8 @@ export function requestedDevelopmentUserDataDir({ argv = [], env = {} } = {}) {
 
   return String(
     env[DEVELOPMENT_USER_DATA_ENV]
-    ?? env[LEGACY_DEVELOPMENT_USER_DATA_ENV]
+    ?? env[OPENPEEK_DEVELOPMENT_USER_DATA_ENV]
+    ?? env[GIT_LEAF_DEVELOPMENT_USER_DATA_ENV]
     ?? "",
   ).trim();
 }
@@ -133,7 +142,7 @@ export function applyDevelopmentUserDataOverride({
   assertDevelopmentUserDataOverride({ requestedDir: userDataDir, defaultDir: defaultSessionDir });
   app.setPath("userData", userDataDir);
   app.setPath("sessionData", userDataDir);
-  log(`[OpenPeek dev] Isolated userData/sessionData: ${userDataDir}`);
+  log(`[OpenGlance dev] Isolated userData/sessionData: ${userDataDir}`);
   return {
     applied: true,
     defaultDir: path.resolve(defaultDir),

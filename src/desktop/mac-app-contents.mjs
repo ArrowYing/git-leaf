@@ -13,9 +13,13 @@ import {
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-export const OFFICIAL_MAC_BUNDLE_ID = "com.mangofuture.gitleaf";
+export const OFFICIAL_PUBLIC_MAC_BUNDLE_ID = "com.mangofuture.openglance";
+export const OFFICIAL_INTERNAL_MAC_BUNDLE_ID = "com.mangofuture.gitleaf";
+export const OFFICIAL_MAC_BUNDLE_ID = OFFICIAL_INTERNAL_MAC_BUNDLE_ID;
 export const OFFICIAL_MAC_TEAM_IDENTIFIER = "HN6X79BUSR";
-export const OFFICIAL_MAC_EXECUTABLE_NAME = "Git Leaf";
+export const OFFICIAL_PUBLIC_MAC_EXECUTABLE_NAME = "OpenGlance";
+export const OFFICIAL_INTERNAL_MAC_EXECUTABLE_NAME = "Git Leaf";
+export const OFFICIAL_MAC_EXECUTABLE_NAME = OFFICIAL_INTERNAL_MAC_EXECUTABLE_NAME;
 
 function runChecked(command, args) {
   const result = spawnSync(command, args, { encoding: "utf8" });
@@ -54,7 +58,10 @@ export function readMacAppExecutableName(appPath) {
   ]);
 }
 
-export function verifySignedMacApp(appPath) {
+export function verifySignedMacApp(appPath, {
+  expectedBundleId = OFFICIAL_INTERNAL_MAC_BUNDLE_ID,
+  expectedTeamIdentifier = OFFICIAL_MAC_TEAM_IDENTIFIER,
+} = {}) {
   runChecked("codesign", [
     "--verify",
     "--deep",
@@ -71,10 +78,10 @@ export function verifySignedMacApp(appPath) {
   const identity = `${details.stdout || ""}\n${details.stderr || ""}`;
   if (
     details.status !== 0
-    || !identity.includes(`Identifier=${OFFICIAL_MAC_BUNDLE_ID}`)
-    || !identity.includes(`TeamIdentifier=${OFFICIAL_MAC_TEAM_IDENTIFIER}`)
+    || !identity.includes(`Identifier=${expectedBundleId}`)
+    || !identity.includes(`TeamIdentifier=${expectedTeamIdentifier}`)
   ) {
-    throw new Error("The App is not signed as the official Mango Future OpenPeek");
+    throw new Error("The App is not signed as the official Mango Future OpenGlance");
   }
   return true;
 }
@@ -139,7 +146,7 @@ export async function waitForMacAppProcessesExit(appPath, {
   while (processIds.length > 0) {
     if (now() - startedAt >= timeoutMs) {
       throw new Error(
-        `Timed out waiting for OpenPeek App processes to exit: ${
+        `Timed out waiting for OpenGlance App processes to exit: ${
           processIds.join(", ")
         }`,
       );
@@ -170,7 +177,7 @@ export function beginMacAppContentsReplacement({
   accessSync(target, constants.W_OK);
   verifyApp(source);
   if (readVersion(source) !== expectedVersion) {
-    throw new Error(`The source App is not OpenPeek ${expectedVersion}`);
+    throw new Error(`The source App is not OpenGlance ${expectedVersion}`);
   }
 
   const targetInode = statSync(target).ino;
@@ -222,7 +229,7 @@ export function beginMacAppContentsReplacement({
 
     verifyApp(target);
     if (readVersion(target) !== expectedVersion) {
-      throw new Error(`The installed App is not OpenPeek ${expectedVersion}`);
+      throw new Error(`The installed App is not OpenGlance ${expectedVersion}`);
     }
     if (statSync(target).ino !== targetInode) {
       throw new Error("The App directory inode changed during Contents replacement");

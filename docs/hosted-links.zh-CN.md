@@ -2,7 +2,7 @@
 
 [English](hosted-links.md) | 简体中文
 
-OpenPeek 文档始终保存在本机 Git 仓库中。OpenPeek 生成的公开 HTTPS 链接使用 Mango Future 托管在
+OpenGlance 文档始终保存在本机 Git 仓库中。OpenGlance 生成的公开 HTTPS 链接使用 Mango Future 托管在
 `gitleaf.mangofuture.com` 的轻量中转服务，让浏览器和聊天客户端可以启动已安装的桌面 App。
 
 这个服务只负责协议中转，不是云端仓库、知识库或上下文服务。它不会克隆仓库、读取文档正文、授予 GitHub
@@ -18,7 +18,7 @@ OpenPeek 文档始终保存在本机 Git 仓库中。OpenPeek 生成的公开 HT
 | `path` | 仓库相对 `.md` 或 `.mdx` 路径 |
 | `worktree` | 可选的 16 位本机 worktree ID，仅用于同一台机器精确打开 |
 
-Worktree ID 由规范化的本机路径派生，但不包含绝对路径，也不能在另一台电脑上使用。不带仓库参数的链接只启动或聚焦 OpenPeek。
+Worktree ID 由规范化的本机路径派生，但不包含绝对路径，也不能在另一台电脑上使用。不带仓库参数的链接只启动或聚焦 OpenGlance。
 
 ## `/share`
 
@@ -32,7 +32,7 @@ Worktree ID 由规范化的本机路径派生，但不包含绝对路径，也�
 | `rev` | 必须已经位于 `origin/main` 的完整 Git commit |
 | `title` | 可选的文档标题，最多 100 个字符，用于链接预览 |
 
-OpenPeek 已不再发送文档摘要或 `ai_snippet`。托管端只为兼容旧链接继续接受有长度限制的历史 `snippet` 参数。
+OpenGlance 已不再发送文档摘要或 `ai_snippet`。托管端只为兼容旧链接继续接受有长度限制的历史 `snippet` 参数。
 
 收到链接的人可以看到仓库身份、路径、revision 和可选标题，因此不要在路径或标题中写入敏感信息。链接不包含文档正文、
 本机绝对路径、Git 凭据、访问令牌、diff、剪贴板内容或发送者的 Git 身份。
@@ -63,4 +63,4 @@ Mango Future 的中转服务不执行 Git fetch，也不会收到 Git 凭据。�
 ## 下载入口独立
 
 `/open` 和 `/share` 不提供安装包。普通[下载页](https://gitleaf.mangofuture.com/download?lang=zh-CN)
-不会触发 `openpeek://`，只展示明确的公开发布制品。
+不会触发 `openglance://`，只展示明确的公开发布制品。

@@ -121,13 +121,13 @@ export function squirrelMacPolicyMarkerPath(appDir) {
     appDir,
     "Contents",
     "Resources",
-    "git-leaf-squirrel-policy.json",
+    "openglance-squirrel-policy.json",
   );
 }
 
 function withThinArchitectures(binaryPath, callback) {
   const temporaryRoot = mkdtempSync(
-    path.join(tmpdir(), "git-leaf-squirrel-policy."),
+    path.join(tmpdir(), "openglance-squirrel-policy."),
   );
   const slices = Object.keys(ARCHITECTURE_PATCHES).map((architecture) => ({
     architecture,
@@ -168,7 +168,7 @@ export function patchSquirrelMacPolicy({
       );
       writeFileSync(slice.path, patched);
     }
-    const replacementPath = `${binaryPath}.git-leaf-policy`;
+    const replacementPath = `${binaryPath}.openglance-policy`;
     runChecked("lipo", [
       "-create",
       ...slices.map((slice) => slice.path),

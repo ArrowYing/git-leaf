@@ -26,7 +26,7 @@ test("Command-question-mark and Ctrl-question-mark open keyboard shortcut help",
   );
 });
 
-test("keyboard shortcut help keeps the agreed OpenPeek shortcuts", () => {
+test("keyboard shortcut help keeps the agreed OpenGlance shortcuts", () => {
   const text = keyboardShortcutsPlainText();
 
   assert.match(text, /Command\+O\s+Open Repository Panel/);

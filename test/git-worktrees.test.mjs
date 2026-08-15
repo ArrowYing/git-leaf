@@ -257,7 +257,7 @@ test("ensureWorktreeBranch creates a stable protection branch before detached ed
   });
 
   assert.equal(result.created, true);
-  assert.equal(result.branch, `openpeek/detached-${result.head.slice(0, 7)}-20260710-143205`);
+  assert.equal(result.branch, `openglance/detached-${result.head.slice(0, 7)}-20260710-143205`);
   assert.equal(branchOutput.trim(), result.branch);
   assert.equal(await readFile(path.join(detachedRoot, "README.md"), "utf8"), "# Edited while detached\n");
 });
@@ -291,7 +291,7 @@ test("ensureWorktreeBranch does not mistake a dependency failure for an availabl
 test("generatedDetachedBranchName is readable and commit-specific", () => {
   assert.equal(
     generatedDetachedBranchName("1234567890abcdef", new Date("2026-07-10T14:32:05.000Z")),
-    "openpeek/detached-1234567-20260710-143205",
+    "openglance/detached-1234567-20260710-143205",
   );
 });
 
@@ -301,7 +301,7 @@ async function createRepoWithDetachedWorktree() {
   const detachedRoot = path.join(rootDir, "docs-review");
   await mkdir(repoRoot, { recursive: true });
   await execFileAsync("git", ["init", "-b", "main"], { cwd: repoRoot });
-  await execFileAsync("git", ["config", "user.name", "OpenPeek Tests"], { cwd: repoRoot });
+  await execFileAsync("git", ["config", "user.name", "OpenGlance Tests"], { cwd: repoRoot });
   await execFileAsync("git", ["config", "user.email", "git-leaf@example.test"], { cwd: repoRoot });
   await writeFile(path.join(repoRoot, "README.md"), "# Docs\n");
   await execFileAsync("git", ["add", "README.md"], { cwd: repoRoot });

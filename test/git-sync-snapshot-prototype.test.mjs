@@ -147,7 +147,7 @@ async function initializeRepository(root) {
 }
 
 async function initializeIdentity(root) {
-  await git(root, ["config", "user.name", "OpenPeek Tests"]);
+  await git(root, ["config", "user.name", "OpenGlance Tests"]);
   await git(root, ["config", "user.email", "git-leaf@example.test"]);
 }
 

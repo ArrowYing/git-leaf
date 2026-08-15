@@ -15,23 +15,21 @@ import {
   waitForWindowsRelaunchConfirmation,
 } from "../src/desktop/windows-app-install.mjs";
 
-test("Windows OpenPeek uses a stable per-user executable path", () => {
-  assert.deepEqual(
-    windowsInstalledAppPaths({
-      localAppData: "C:\\Users\\mango\\AppData\\Local",
-    }),
-    {
-      installRoot: "C:\\Users\\mango\\AppData\\Local\\OpenPeek\\app",
-      executable: "C:\\Users\\mango\\AppData\\Local\\OpenPeek\\app\\OpenPeek.exe",
-      stateFile: "C:\\Users\\mango\\AppData\\Local\\OpenPeek\\install-state.json",
-      shortcut: "C:\\Users\\mango\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\OpenPeek.lnk",
-      legacyInstallParent: "C:\\Users\\mango\\AppData\\Local\\GitLeaf",
-      legacyInstallRoot: "C:\\Users\\mango\\AppData\\Local\\GitLeaf\\app",
-      legacyExecutable: "C:\\Users\\mango\\AppData\\Local\\GitLeaf\\app\\Git Leaf.exe",
-      legacyStateFile: "C:\\Users\\mango\\AppData\\Local\\GitLeaf\\install-state.json",
-      legacyShortcut: "C:\\Users\\mango\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Git Leaf.lnk",
-    },
-  );
+test("Windows OpenGlance uses a stable per-user executable path", () => {
+  const paths = windowsInstalledAppPaths({
+    localAppData: "C:\\Users\\mango\\AppData\\Local",
+  });
+  assert.equal(paths.installRoot, "C:\\Users\\mango\\AppData\\Local\\OpenGlance\\app");
+  assert.equal(paths.executable, `${paths.installRoot}\\OpenGlance.exe`);
+  assert.equal(paths.stateFile, "C:\\Users\\mango\\AppData\\Local\\OpenGlance\\install-state.json");
+  assert.equal(paths.shortcut, "C:\\Users\\mango\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\OpenGlance.lnk");
+  assert.deepEqual(paths.legacyInstallations.map((entry) => entry.name), [
+    "OpenPeek",
+    "Git Leaf",
+  ]);
+  assert.equal(paths.openPeekExecutable, "C:\\Users\\mango\\AppData\\Local\\OpenPeek\\app\\OpenPeek.exe");
+  assert.equal(paths.gitLeafExecutable, "C:\\Users\\mango\\AppData\\Local\\GitLeaf\\app\\Git Leaf.exe");
+  assert.equal(paths.legacyExecutable, paths.gitLeafExecutable);
 });
 
 test("packaged Windows apps bootstrap unless already running from the stable path", () => {
@@ -43,12 +41,16 @@ test("packaged Windows apps bootstrap unless already running from the stable pat
 
   assert.equal(shouldBootstrapWindowsApp({
     ...options,
-    execPath: "D:\\Downloads\\OpenPeek-win32-x64\\OpenPeek.exe",
+    execPath: "D:\\Downloads\\OpenGlance-win32-x64\\OpenGlance.exe",
   }), true);
   assert.equal(shouldBootstrapWindowsApp({
     ...options,
-    execPath: "C:\\Users\\mango\\AppData\\Local\\OpenPeek\\app\\OpenPeek.exe",
+    execPath: "C:\\Users\\mango\\AppData\\Local\\OpenGlance\\app\\OpenGlance.exe",
   }), false);
+  assert.equal(shouldBootstrapWindowsApp({
+    ...options,
+    execPath: "C:\\Users\\mango\\AppData\\Local\\OpenPeek\\app\\OpenPeek.exe",
+  }), true);
   assert.equal(shouldBootstrapWindowsApp({
     ...options,
     execPath: "C:\\Users\\mango\\AppData\\Local\\GitLeaf\\app\\Git Leaf.exe",
@@ -61,7 +63,7 @@ test("packaged Windows apps bootstrap unless already running from the stable pat
   assert.equal(shouldBootstrapWindowsApp({
     ...options,
     platform: "darwin",
-    execPath: "/Applications/OpenPeek.app/Contents/MacOS/OpenPeek",
+    execPath: "/Applications/OpenGlance.app/Contents/MacOS/OpenGlance",
   }), false);
 });
 
@@ -69,7 +71,7 @@ test("Windows bootstrap plan distinguishes first install from an update", () => 
   const options = {
     platform: "win32",
     isPackaged: true,
-    execPath: "D:\\Downloads\\OpenPeek-win32-x64\\OpenPeek.exe",
+    execPath: "D:\\Downloads\\OpenGlance-win32-x64\\OpenGlance.exe",
     localAppData: "C:\\Users\\mango\\AppData\\Local",
     processId: 42,
     version: "1.4.0",
@@ -95,7 +97,7 @@ test("Windows bootstrap plan distinguishes first install from an update", () => 
   }).status, "outdated");
 });
 
-test("OpenPeek migrates a Git Leaf 1.x fixed installation into its canonical app path", () => {
+test("OpenGlance migrates a Git Leaf 1.x fixed installation into its canonical app path", () => {
   const localAppData = "C:\\Users\\mango\\AppData\\Local";
   const legacyRoot = `${localAppData}\\GitLeaf\\app`;
   const plan = windowsAppBootstrapPlan({
@@ -118,8 +120,8 @@ test("OpenPeek migrates a Git Leaf 1.x fixed installation into its canonical app
   assert.equal(plan.status, "update");
   assert.equal(plan.installedVersion, "1.21.0");
   assert.equal(plan.waitForPid, 4321);
-  assert.equal(plan.installRoot, `${localAppData}\\OpenPeek\\app`);
-  assert.equal(plan.executable, `${localAppData}\\OpenPeek\\app\\OpenPeek.exe`);
+  assert.equal(plan.installRoot, `${localAppData}\\OpenGlance\\app`);
+  assert.equal(plan.executable, `${localAppData}\\OpenGlance\\app\\OpenGlance.exe`);
   assert.equal(plan.legacyInstallParent, `${localAppData}\\GitLeaf`);
   assert.equal(plan.legacyInstallRoot, legacyRoot);
   assert.deepEqual(plan.args, [
@@ -127,11 +129,47 @@ test("OpenPeek migrates a Git Leaf 1.x fixed installation into its canonical app
   ]);
 });
 
-test("the confirmed canonical Windows app removes the superseded Git Leaf install", async () => {
+test("OpenGlance migrates an OpenPeek 2.x fixed installation into its canonical app path", () => {
+  const localAppData = "C:\\Users\\mango\\AppData\\Local";
+  const previousRoot = `${localAppData}\\OpenPeek\\app`;
+  const plan = windowsAppBootstrapPlan({
+    platform: "win32",
+    isPackaged: true,
+    execPath: `${localAppData}\\OpenPeek\\updates\\3.0.0\\app\\OpenPeek.exe`,
+    args: [
+      "--openpeek-update-wait-pid=4321",
+      "openpeek://open?repo=owner%2Frepo&path=README.md",
+    ],
+    localAppData,
+    processId: 53,
+    version: "3.0.0",
+    pathExists: (value) => value === previousRoot,
+    readInstalledVersion: (value) => (
+      value === `${localAppData}\\OpenPeek\\install-state.json` ? "2.0.0" : ""
+    ),
+  });
+
+  assert.equal(plan.status, "update");
+  assert.equal(plan.previousProductName, "OpenPeek");
+  assert.equal(plan.installedVersion, "2.0.0");
+  assert.equal(plan.waitForPid, 4321);
+  assert.equal(plan.installRoot, `${localAppData}\\OpenGlance\\app`);
+  assert.equal(plan.legacyInstallParent, `${localAppData}\\OpenPeek`);
+  assert.equal(plan.legacyInstallRoot, previousRoot);
+  assert.deepEqual(plan.args, [
+    "openpeek://open?repo=owner%2Frepo&path=README.md",
+  ]);
+});
+
+test("the confirmed canonical Windows app removes superseded OpenPeek and Git Leaf installs", async () => {
   const localAppData = "C:\\Users\\mango\\AppData\\Local";
   const roamingAppData = "C:\\Users\\mango\\AppData\\Roaming";
   const paths = windowsInstalledAppPaths({ localAppData, roamingAppData });
-  const existing = new Set([paths.executable, paths.legacyInstallParent]);
+  const existing = new Set([
+    paths.executable,
+    paths.openPeekInstallParent,
+    paths.gitLeafInstallParent,
+  ]);
   const removals = [];
 
   assert.equal(await cleanupLegacyWindowsInstallationAfterRename({
@@ -147,8 +185,10 @@ test("the confirmed canonical Windows app removes the superseded Git Leaf instal
     },
   }), true);
   assert.deepEqual(removals, [
-    [paths.legacyShortcut, { recursive: false, force: true }],
-    [paths.legacyInstallParent, { recursive: true, force: true }],
+    [paths.openPeekShortcut, { recursive: false, force: true }],
+    [paths.openPeekInstallParent, { recursive: true, force: true }],
+    [paths.gitLeafShortcut, { recursive: false, force: true }],
+    [paths.gitLeafInstallParent, { recursive: true, force: true }],
   ]);
 
   removals.length = 0;
@@ -178,19 +218,22 @@ test("manual Windows installs require the app lock before touching the fixed dir
 
 test("Windows launch confirmation accepts only installer-owned LOCALAPPDATA files", async () => {
   const localAppData = "C:\\Users\\mango\\AppData\\Local";
-  const valid = "C:\\Users\\mango\\AppData\\Local\\OpenPeek\\.launch-confirm-42.json";
+  const valid = "C:\\Users\\mango\\AppData\\Local\\OpenGlance\\.launch-confirm-42.json";
   const written = [];
   assert.equal(windowsInstallConfirmationPath([
-    `--openpeek-install-confirm=${valid}`,
+    `--openglance-install-confirm=${valid}`,
   ], { localAppData }), valid);
+  assert.equal(windowsInstallConfirmationPath([
+    `--openpeek-install-confirm=${valid}`,
+  ], { localAppData }), valid, "the OpenPeek 2.x handoff remains compatible");
   assert.equal(windowsInstallConfirmationPath([
     `--git-leaf-install-confirm=${valid}`,
   ], { localAppData }), valid, "the Git Leaf 1.x handoff remains compatible");
   assert.equal(windowsInstallConfirmationPath([
-    "--openpeek-install-confirm=C:\\Users\\mango\\Desktop\\forged.json",
+    "--openglance-install-confirm=C:\\Users\\mango\\Desktop\\forged.json",
   ], { localAppData }), "");
   assert.equal(await confirmWindowsAppLaunch({
-    args: [`--openpeek-install-confirm=${valid}`],
+    args: [`--openglance-install-confirm=${valid}`],
     localAppData,
     async writeTextFile(filePath, contents) {
       written.push({ filePath, contents });
@@ -203,7 +246,7 @@ test("Windows launch confirmation accepts only installer-owned LOCALAPPDATA file
 test("Windows installed version state is replaced atomically", async () => {
   const operations = [];
   await persistWindowsInstalledVersion({
-    stateFile: "C:\\Users\\mango\\AppData\\Local\\OpenPeek\\install-state.json",
+    stateFile: "C:\\Users\\mango\\AppData\\Local\\OpenGlance\\install-state.json",
     processId: 42,
     version: "1.7.1",
   }, {
@@ -218,14 +261,14 @@ test("Windows installed version state is replaced atomically", async () => {
     },
   });
 
-  const tempFile = "C:\\Users\\mango\\AppData\\Local\\OpenPeek\\install-state.json.installing-42";
+  const tempFile = "C:\\Users\\mango\\AppData\\Local\\OpenGlance\\install-state.json.installing-42";
   assert.equal(operations[0][0], "write");
   assert.equal(operations[0][1], tempFile);
   assert.match(operations[0][2], /"version": "1\.7\.1"/);
   assert.deepEqual(operations[1], [
     "move",
     tempFile,
-    "C:\\Users\\mango\\AppData\\Local\\OpenPeek\\install-state.json",
+    "C:\\Users\\mango\\AppData\\Local\\OpenGlance\\install-state.json",
   ]);
   assert.deepEqual(operations[2], ["remove", tempFile]);
 });
@@ -253,10 +296,10 @@ test("Windows update handoff waits for the old process without forwarding intern
   const plan = windowsAppBootstrapPlan({
     platform: "win32",
     isPackaged: true,
-    execPath: "D:\\Updates\\OpenPeek-win32-x64\\OpenPeek.exe",
+    execPath: "D:\\Updates\\OpenGlance-win32-x64\\OpenGlance.exe",
     args: [
       "--git-leaf-update-wait-pid=4321",
-      "openpeek://open?repo=owner%2Frepo&path=README.md",
+      "openglance://open?repo=owner%2Frepo&path=README.md",
     ],
     localAppData: "C:\\Users\\mango\\AppData\\Local",
     version: "1.7.0",
@@ -267,7 +310,7 @@ test("Windows update handoff waits for the old process without forwarding intern
   const existing = new Set([plan.installRoot]);
 
   assert.equal(plan.waitForPid, 4321);
-  assert.deepEqual(plan.args, ["openpeek://open?repo=owner%2Frepo&path=README.md"]);
+  assert.deepEqual(plan.args, ["openglance://open?repo=owner%2Frepo&path=README.md"]);
   await bootstrapWindowsApp({
     plan,
     pathExists: (value) => existing.has(value),
@@ -306,7 +349,7 @@ test("Windows update handoff waits for the old process without forwarding intern
 
 test("Windows bootstrap reports visible progress before relaunching", async () => {
   const existing = new Set([
-    "C:\\Users\\mango\\AppData\\Local\\OpenPeek\\app",
+    "C:\\Users\\mango\\AppData\\Local\\OpenGlance\\app",
   ]);
   const moves = [];
   const copies = [];
@@ -318,8 +361,8 @@ test("Windows bootstrap reports visible progress before relaunching", async () =
   const plan = windowsAppBootstrapPlan({
     platform: "win32",
     isPackaged: true,
-    execPath: "D:\\Downloads\\OpenPeek-win32-x64\\OpenPeek.exe",
-    args: ["openpeek://open?repo=C%3A%5CProjects%5Cdocs&path=README.md"],
+    execPath: "D:\\Downloads\\OpenGlance-win32-x64\\OpenGlance.exe",
+    args: ["openglance://open?repo=C%3A%5CProjects%5Cdocs&path=README.md"],
     localAppData: "C:\\Users\\mango\\AppData\\Local",
     processId: 42,
     version: "1.4.0",
@@ -353,12 +396,12 @@ test("Windows bootstrap reports visible progress before relaunching", async () =
       return { unref() {} };
     },
     async writeTextFile(filePath, contents) {
-      assert.equal(filePath, "C:\\Users\\mango\\AppData\\Local\\OpenPeek\\install-state.json.installing-42");
+      assert.equal(filePath, "C:\\Users\\mango\\AppData\\Local\\OpenGlance\\install-state.json.installing-42");
       assert.match(contents, /"version": "1\.4\.0"/);
     },
     async moveStateFile(source, destination) {
-      assert.equal(source, "C:\\Users\\mango\\AppData\\Local\\OpenPeek\\install-state.json.installing-42");
-      assert.equal(destination, "C:\\Users\\mango\\AppData\\Local\\OpenPeek\\install-state.json");
+      assert.equal(source, "C:\\Users\\mango\\AppData\\Local\\OpenGlance\\install-state.json.installing-42");
+      assert.equal(destination, "C:\\Users\\mango\\AppData\\Local\\OpenGlance\\install-state.json");
     },
     async onProgress(state) {
       events.push(["progress", state]);
@@ -376,32 +419,32 @@ test("Windows bootstrap reports visible progress before relaunching", async () =
 
   assert.deepEqual(result, {
     status: "relaunch",
-    executable: "C:\\Users\\mango\\AppData\\Local\\OpenPeek\\app\\OpenPeek.exe",
+    executable: "C:\\Users\\mango\\AppData\\Local\\OpenGlance\\app\\OpenGlance.exe",
   });
   assert.deepEqual(copies, [{
-    source: "D:\\Downloads\\OpenPeek-win32-x64",
-    destination: "C:\\Users\\mango\\AppData\\Local\\OpenPeek\\.installing-42",
+    source: "D:\\Downloads\\OpenGlance-win32-x64",
+    destination: "C:\\Users\\mango\\AppData\\Local\\OpenGlance\\.installing-42",
     options: { recursive: true },
   }]);
   assert.deepEqual(removals.find(({ value }) => value.endsWith("\\Git Leaf.exe")), {
-    value: "C:\\Users\\mango\\AppData\\Local\\OpenPeek\\.installing-42\\Git Leaf.exe",
+    value: "C:\\Users\\mango\\AppData\\Local\\OpenGlance\\.installing-42\\Git Leaf.exe",
     options: { recursive: false, force: true },
   }, "the extracted-package compatibility launcher must not remain in the canonical install");
   assert.deepEqual(moves, [
     [
-      "C:\\Users\\mango\\AppData\\Local\\OpenPeek\\app",
-      "C:\\Users\\mango\\AppData\\Local\\OpenPeek\\.previous-42",
+      "C:\\Users\\mango\\AppData\\Local\\OpenGlance\\app",
+      "C:\\Users\\mango\\AppData\\Local\\OpenGlance\\.previous-42",
     ],
     [
-      "C:\\Users\\mango\\AppData\\Local\\OpenPeek\\.installing-42",
-      "C:\\Users\\mango\\AppData\\Local\\OpenPeek\\app",
+      "C:\\Users\\mango\\AppData\\Local\\OpenGlance\\.installing-42",
+      "C:\\Users\\mango\\AppData\\Local\\OpenGlance\\app",
     ],
   ]);
-  assert.equal(removals.at(-1).value, "C:\\Users\\mango\\AppData\\Local\\OpenPeek\\.previous-42");
+  assert.equal(removals.at(-1).value, "C:\\Users\\mango\\AppData\\Local\\OpenGlance\\.previous-42");
   assert.equal(launches[0].executable, result.executable);
   assert.deepEqual(launches[0].args, [
-    `--openpeek-install-confirm=${plan.confirmFile}`,
-    "openpeek://open?repo=C%3A%5CProjects%5Cdocs&path=README.md",
+    `--openglance-install-confirm=${plan.confirmFile}`,
+    "openglance://open?repo=C%3A%5CProjects%5Cdocs&path=README.md",
   ]);
   assert.deepEqual(events.map(([kind, value]) => [
     kind,
@@ -414,15 +457,15 @@ test("Windows bootstrap reports visible progress before relaunching", async () =
     ["progress", "complete"],
     ["wait", 2_000],
   ]);
-  assert.equal(events[0][1].title, "Updating OpenPeek 1.4.0");
+  assert.equal(events[0][1].title, "Updating OpenGlance 1.4.0");
   assert.equal(events[0][1].message, "Copying the new version…");
   assert.equal(events[0][1].stage, "Copying files");
   assert.equal(events[1][1].message, "Files copied. Switching to the new version…");
   assert.equal(events[2][1].message, "Starting the new version from its fixed location…");
   assert.equal(events[4][1].percent, 100);
-  assert.equal(events[4][1].title, "OpenPeek update complete");
-  assert.equal(events[4][1].message, "Updated OpenPeek 1.4.0 has started.");
-  assert.match(events[4][1].detail, /Continue to start OpenPeek from the Start menu/);
+  assert.equal(events[4][1].title, "OpenGlance update complete");
+  assert.equal(events[4][1].message, "Updated OpenGlance 1.4.0 has started.");
+  assert.match(events[4][1].detail, /Continue to start OpenGlance from the Start menu/);
   assert.match(events[4][1].detail, /delete this and older extracted folders/);
   assert.equal(process.noAsar, originalNoAsar, "ASAR interception state must be restored after copying");
 });
@@ -431,7 +474,7 @@ test("Windows update restores the fixed app even when rename rollback also fails
   const plan = windowsAppBootstrapPlan({
     platform: "win32",
     isPackaged: true,
-    execPath: "D:\\Downloads\\OpenPeek-win32-x64\\OpenPeek.exe",
+    execPath: "D:\\Downloads\\OpenGlance-win32-x64\\OpenGlance.exe",
     localAppData: "C:\\Users\\mango\\AppData\\Local",
     processId: 700,
     version: "1.7.1",
@@ -485,7 +528,7 @@ test("Windows update rolls back when the relaunched app never confirms startup",
   const plan = windowsAppBootstrapPlan({
     platform: "win32",
     isPackaged: true,
-    execPath: "D:\\Downloads\\OpenPeek-win32-x64\\OpenPeek.exe",
+    execPath: "D:\\Downloads\\OpenGlance-win32-x64\\OpenGlance.exe",
     localAppData: "C:\\Users\\mango\\AppData\\Local",
     processId: 701,
     version: "1.7.1",
@@ -542,7 +585,7 @@ test("Windows update preserves the backup when a failed new process still locks 
   const plan = windowsAppBootstrapPlan({
     platform: "win32",
     isPackaged: true,
-    execPath: "D:\\Downloads\\OpenPeek-win32-x64\\OpenPeek.exe",
+    execPath: "D:\\Downloads\\OpenGlance-win32-x64\\OpenGlance.exe",
     localAppData: "C:\\Users\\mango\\AppData\\Local",
     processId: 702,
     version: "1.7.1",
@@ -592,7 +635,7 @@ test("same-version packages redirect to the stable app without copying", async (
   const plan = windowsAppBootstrapPlan({
     platform: "win32",
     isPackaged: true,
-    execPath: "D:\\Downloads\\OpenPeek-win32-x64\\OpenPeek.exe",
+    execPath: "D:\\Downloads\\OpenGlance-win32-x64\\OpenGlance.exe",
     localAppData: "C:\\Users\\mango\\AppData\\Local",
     version: "1.4.0",
     pathExists: () => true,
@@ -621,7 +664,7 @@ test("same-version packages redirect to the stable app without copying", async (
   assert.equal(progress[0].percent, 100);
   assert.match(progress[0].title, /1\.4\.0 已安装/);
   assert.match(progress[0].message, /正在从固定位置启动/);
-  assert.match(progress[0].detail, /以后请从开始菜单启动 OpenPeek/);
+  assert.match(progress[0].detail, /以后请从开始菜单启动 OpenGlance/);
   assert.match(progress[0].detail, /当前和旧版解压目录均可删除/);
   assert.equal(launches[0].executable, plan.executable);
 });
@@ -632,7 +675,7 @@ test("older packages refuse to overwrite and launch the newer stable app", async
   const plan = windowsAppBootstrapPlan({
     platform: "win32",
     isPackaged: true,
-    execPath: "D:\\Downloads\\OpenPeek-1.3.0\\OpenPeek.exe",
+    execPath: "D:\\Downloads\\OpenGlance-1.3.0\\OpenGlance.exe",
     localAppData: "C:\\Users\\mango\\AppData\\Local",
     version: "1.3.0",
     pathExists: () => true,
@@ -657,10 +700,10 @@ test("older packages refuse to overwrite and launch the newer stable app", async
   assert.equal(plan.status, "outdated");
   assert.equal(result.status, "relaunch");
   assert.equal(progress[0].phase, "outdated");
-  assert.match(progress[0].title, /older version of OpenPeek 1\.3\.0/);
-  assert.match(progress[0].message, /newer OpenPeek 1\.4\.0 is already installed/);
+  assert.match(progress[0].title, /older version of OpenGlance 1\.3\.0/);
+  assert.match(progress[0].message, /newer OpenGlance 1\.4\.0 is already installed/);
   assert.match(progress[0].message, /older package will not overwrite it/);
   assert.match(progress[0].detail, /delete this older extracted folder/);
-  assert.match(progress[0].detail, /Start OpenPeek from the Start menu/);
+  assert.match(progress[0].detail, /Start OpenGlance from the Start menu/);
   assert.equal(launches[0].executable, plan.executable);
 });

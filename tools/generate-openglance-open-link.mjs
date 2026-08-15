@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 
 /**
- * Standalone OpenPeek `/open` link generator for Git-backed content repositories.
+ * Standalone OpenGlance `/open` link generator for Git-backed content repositories.
  *
  * This file is intentionally self-contained and uses only Node.js built-ins. It is ready to copy to
- * `tools/generate-openpeek-open-link.mjs` in another repository and call from that repository's
+ * `tools/generate-openglance-open-link.mjs` in another repository and call from that repository's
  * `AGENTS.md` or equivalent Agent instructions.
  *
  * Requirements:
@@ -17,7 +17,7 @@
  * from its canonical path. It never includes the document body, Git credentials, or an absolute path.
  *
  * `/open` is a navigation and preview link. It does not sync or publish the file and does not prove a
- * revision exists on `origin/main`. Use OpenPeek's in-app Copy share link flow for a published document
+ * revision exists on `origin/main`. Use OpenGlance's in-app Copy share link flow for a published document
  * intended for another person.
  */
 
@@ -29,7 +29,7 @@ import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
-const OPENPEEK_OPEN_URL = "https://gitleaf.mangofuture.com/open";
+const OPENGLANCE_OPEN_URL = "https://gitleaf.mangofuture.com/open";
 
 export function parseArguments(args) {
   const options = { repoRoot: process.cwd(), file: "", help: false };
@@ -132,7 +132,7 @@ export function worktreeIdForPath(worktreeRoot) {
     .slice(0, 16);
 }
 
-export async function createOpenPeekOpenLink({
+export async function createOpenGlanceOpenLink({
   repoRoot = process.cwd(),
   file,
   gitRunner = runGit,
@@ -144,7 +144,7 @@ export async function createOpenPeekOpenLink({
   const remote = (await gitRunner(currentRoot, ["remote", "get-url", "origin"])).trim();
   const repository = githubRepositoryIdentityFromRemote(remote);
   if (!repository) {
-    throw new Error("The repository must have a GitHub origin before creating a OpenPeek link.");
+    throw new Error("The repository must have a GitHub origin before creating a OpenGlance link.");
   }
 
   const worktreeOutput = await readWorktreeList(currentRoot, gitRunner);
@@ -161,7 +161,7 @@ export async function createOpenPeekOpenLink({
     throw new Error("Could not identify the current Git worktree.");
   }
 
-  const url = new URL(OPENPEEK_OPEN_URL);
+  const url = new URL(OPENGLANCE_OPEN_URL);
   url.searchParams.set("repo", repository);
   url.searchParams.set("path", normalizeMarkdownPath(file));
   if (currentIndex > 0) {
@@ -180,7 +180,7 @@ export async function main(args = process.argv.slice(2)) {
     throw new Error("--file is required.");
   }
 
-  console.log(await createOpenPeekOpenLink(options));
+  console.log(await createOpenGlanceOpenLink(options));
 }
 
 async function readWorktreeList(repoRoot, gitRunner) {
@@ -220,7 +220,7 @@ function normalizeRepositoryIdentity(owner, name) {
 }
 
 function printHelp() {
-  console.log(`Usage: node tools/generate-openpeek-open-link.mjs --file <repo-relative.md> [--repo-root <path>]
+  console.log(`Usage: node tools/generate-openglance-open-link.mjs --file <repo-relative.md> [--repo-root <path>]
 
 Creates a portable link for the primary worktree or a local-exact link containing the
 worktree id for a linked worktree. The target repository must have a GitHub origin.`);

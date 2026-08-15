@@ -18,7 +18,7 @@ test("repository selection defaults to English for non-Git directories", () => {
     "This folder is not inside a Git repository.",
     "Choose a Git repository folder or any folder inside one.",
   ].join("\n"));
-  assert.doesNotMatch(message, /Could not find|Command failed|升级 Git|旧版 OpenPeek/);
+  assert.doesNotMatch(message, /Could not find|Command failed|升级 Git|旧版 OpenGlance/);
 });
 
 test("repository selection accepts language and locale options for Chinese", () => {
@@ -55,16 +55,16 @@ test("repository selection keeps unexpected Git failures concise", () => {
   ].join("\n"));
   const message = repositorySelectionErrorMessage("/Users/example/repo", error);
 
-  assert.match(message, /OpenPeek encountered a problem while reading this repository\./);
+  assert.match(message, /OpenGlance encountered a problem while reading this repository\./);
   assert.match(message, /Technical information: fatal: repository metadata is corrupt/);
-  assert.doesNotMatch(message, /请选择 Git 仓库目录|usage:|升级 Git|旧版 OpenPeek/);
+  assert.doesNotMatch(message, /请选择 Git 仓库目录|usage:|升级 Git|旧版 OpenGlance/);
 
   const chinese = repositorySelectionErrorMessage(
     "/Users/example/repo",
     error,
     { language: "zh-CN" },
   );
-  assert.match(chinese, /OpenPeek 读取这个仓库时遇到问题。/);
+  assert.match(chinese, /OpenGlance 读取这个仓库时遇到问题。/);
   assert.match(chinese, /技术信息：fatal: repository metadata is corrupt/);
 });
 
@@ -113,7 +113,7 @@ test("repository selection explains each actionable command dependency state", (
   invalidOutput.externalCommandState = "invalid_output";
   assert.match(
     repositorySelectionErrorMessage("/repo", invalidOutput),
-    /Git returned a result that OpenPeek could not recognize/,
+    /Git returned a result that OpenGlance could not recognize/,
   );
 });
 

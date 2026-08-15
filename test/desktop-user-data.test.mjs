@@ -9,6 +9,8 @@ import {
   DEVELOPMENT_USER_DATA_ENV,
   LEGACY_DEVELOPMENT_USER_DATA_ARG,
   LEGACY_DEVELOPMENT_USER_DATA_ENV,
+  OPENPEEK_DEVELOPMENT_USER_DATA_ARG,
+  OPENPEEK_DEVELOPMENT_USER_DATA_ENV,
   applyDevelopmentUserDataOverride,
   applyStableUserDataPath,
   assertDevelopmentUserDataOverride,
@@ -18,14 +20,22 @@ import {
 test("development user-data flag takes precedence over the environment", () => {
   assert.equal(
     requestedDevelopmentUserDataDir({
-      argv: ["electron", `${DEVELOPMENT_USER_DATA_ARG}=/tmp/openpeek-smoke`],
-      env: { [DEVELOPMENT_USER_DATA_ENV]: "/tmp/openpeek-dev" },
+      argv: ["electron", `${DEVELOPMENT_USER_DATA_ARG}=/tmp/openglance-smoke`],
+      env: { [DEVELOPMENT_USER_DATA_ENV]: "/tmp/openglance-dev" },
     }),
-    "/tmp/openpeek-smoke",
+    "/tmp/openglance-smoke",
   );
 });
 
-test("Git Leaf 1.x development user-data inputs remain accepted", () => {
+test("OpenPeek 2.x and Git Leaf 1.x development user-data inputs remain accepted", () => {
+  assert.equal(requestedDevelopmentUserDataDir({
+    argv: ["electron", `${OPENPEEK_DEVELOPMENT_USER_DATA_ARG}=/tmp/openpeek-smoke`],
+    env: {},
+  }), "/tmp/openpeek-smoke");
+  assert.equal(requestedDevelopmentUserDataDir({
+    argv: [],
+    env: { [OPENPEEK_DEVELOPMENT_USER_DATA_ENV]: "/tmp/openpeek-env" },
+  }), "/tmp/openpeek-env");
   assert.equal(requestedDevelopmentUserDataDir({
     argv: ["electron", `${LEGACY_DEVELOPMENT_USER_DATA_ARG}=/tmp/legacy-smoke`],
     env: {},
@@ -37,13 +47,14 @@ test("Git Leaf 1.x development user-data inputs remain accepted", () => {
   assert.equal(requestedDevelopmentUserDataDir({
     argv: [],
     env: {
-      [DEVELOPMENT_USER_DATA_ENV]: "/tmp/openpeek-env",
+      [DEVELOPMENT_USER_DATA_ENV]: "/tmp/openglance-env",
+      [OPENPEEK_DEVELOPMENT_USER_DATA_ENV]: "/tmp/openpeek-env",
       [LEGACY_DEVELOPMENT_USER_DATA_ENV]: "/tmp/legacy-env",
     },
-  }), "/tmp/openpeek-env");
+  }), "/tmp/openglance-env");
 });
 
-test("OpenPeek keeps the Git Leaf profile directory stable across the rename", () => {
+test("OpenGlance keeps the Git Leaf profile directory stable across both renames", () => {
   for (const {
     appDataDir,
     expectedUserDataDir,
@@ -175,13 +186,13 @@ test("human dev builds share Electron default userData and sessionData", () => {
 test("one-time Agent smoke explicitly isolates userData and sessionData", () => {
   const calls = [];
   const defaultDir = path.resolve("/profiles/git-leaf");
-  const smokeDir = path.resolve("/tmp/openpeek-agent-smoke");
+  const smokeDir = path.resolve("/tmp/openglance-agent-smoke");
   const result = applyDevelopmentUserDataOverride({
     app: {
       getPath: () => defaultDir,
       setPath: (...args) => calls.push(args),
     },
-    argv: [`${DEVELOPMENT_USER_DATA_ARG}=/tmp/openpeek-agent-smoke`],
+    argv: [`${DEVELOPMENT_USER_DATA_ARG}=/tmp/openglance-agent-smoke`],
     env: {},
     isDevBuild: true,
     makeDir: () => {},

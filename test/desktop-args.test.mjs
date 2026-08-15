@@ -5,7 +5,7 @@ import { parseDesktopArgs } from "../src/desktop/args.mjs";
 
 test("parseDesktopArgs reads repository and file launch arguments", () => {
   assert.deepEqual(
-    parseDesktopArgs(["/Applications/OpenPeek.app", "--repo", "/repo/a", "--file", "docs/a.md"]),
+    parseDesktopArgs(["/Applications/OpenGlance.app", "--repo", "/repo/a", "--file", "docs/a.md"]),
     {
       repoRoot: "/repo/a",
       file: "docs/a.md",
@@ -40,11 +40,11 @@ test("parseDesktopArgs accepts equals-style launch arguments", () => {
   );
 });
 
-test("parseDesktopArgs reads an OpenPeek document deep link", () => {
+test("parseDesktopArgs reads an OpenGlance document deep link", () => {
   assert.deepEqual(
     parseDesktopArgs([
-      "C:\\Program Files\\OpenPeek\\OpenPeek.exe",
-      "openpeek://open?repo=C%3A%5CProjects%5Ccompany-docs&path=docs%2Fstrategy.md&handoff=handoff_1234567890abcdef",
+      "C:\\Program Files\\OpenGlance\\OpenGlance.exe",
+      "openglance://open?repo=C%3A%5CProjects%5Ccompany-docs&path=docs%2Fstrategy.md&handoff=handoff_1234567890abcdef",
     ], { platform: "win32" }),
     {
       repoRoot: "C:\\Projects\\company-docs",
@@ -58,7 +58,7 @@ test("parseDesktopArgs reads a versioned shared document link", () => {
   const rev = "a".repeat(40);
   assert.deepEqual(
     parseDesktopArgs([
-      `openpeek://open-shared?v=1&repo=exampleorg%2Fcompany-docs&path=docs%2Fstrategy.md&rev=${rev}&handoff=handoff_1234567890abcdef`,
+      `openglance://open-shared?v=1&repo=exampleorg%2Fcompany-docs&path=docs%2Fstrategy.md&rev=${rev}&handoff=handoff_1234567890abcdef`,
     ]),
     {
       repository: "exampleorg/company-docs",

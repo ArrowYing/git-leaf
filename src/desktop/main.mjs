@@ -17,10 +17,13 @@ import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 
-import { openPeekEnvironmentValue } from "../environment.mjs";
+import { openGlanceEnvironmentValue } from "../environment.mjs";
 import { createDesktopUpdateController } from "./updates.mjs";
 import { configureMacUpdateInstallation } from "./mac-update-installation.mjs";
-import { preserveMacUpdateAppPath } from "./mac-update-cache.mjs";
+import {
+  macShipItJobLabelForBuildInfo,
+  preserveMacUpdateAppPath,
+} from "./mac-update-cache.mjs";
 import {
   launchMacDevelopmentHandoffUpdate,
   macAppBundlePathFromExecutable,
@@ -85,13 +88,13 @@ import {
 import {
   repositorySelectionErrorMessage,
 } from "./repository-errors.mjs";
-import { startDesktopOpenPeekServer } from "./server.mjs";
+import { startDesktopOpenGlanceServer } from "./server.mjs";
 import {
-  OPENPEEK_SUPPORTED_PROTOCOLS,
+  OPENGLANCE_SUPPORTED_PROTOCOLS,
 } from "./deep-link.mjs";
 import {
-  confirmOpenPeekHandoff,
-  reportOpenPeekShareHandoffState,
+  confirmOpenGlanceHandoff,
+  reportOpenGlanceShareHandoffState,
   writeDesktopDeepLinkLog,
 } from "./handoff.mjs";
 import { initializeDesktopCommandEnvironment } from "./command-environment.mjs";
@@ -149,7 +152,7 @@ import {
 import { initializeUsageAnalyticsSetting } from "./usage-analytics-setting.mjs";
 import {
   getFileTypeHelpRows,
-  getOpenPeekHelpSections,
+  getOpenGlanceHelpSections,
 } from "../../public/help-content.js";
 import {
   getKeyboardShortcutGroups,
@@ -191,7 +194,7 @@ let desktopRepositoryState = {
 };
 const DESKTOP_OPEN_REPOSITORY_ACTION = new URL(DESKTOP_OPEN_REPOSITORY_URL);
 const DESKTOP_OPEN_WORKTREE_ACTION = new URL(DESKTOP_OPEN_WORKTREE_URL);
-const DESKTOP_INSTALL_UPDATE_ACTION = new URL("openpeek://install-update");
+const DESKTOP_INSTALL_UPDATE_ACTION = new URL("openglance://install-update");
 const DESKTOP_SHOW_REPOSITORIES_ACTION = new URL(REPOSITORY_PANEL_SHOW_URL);
 const DESKTOP_CLOSE_REPOSITORIES_ACTION = new URL(REPOSITORY_PANEL_CLOSE_URL);
 const DESKTOP_SWITCH_REPOSITORY_ACTION = new URL(REPOSITORY_PANEL_SWITCH_URL);
@@ -367,7 +370,7 @@ async function releaseManualWindowsBootstrapLock() {
 }
 
 function registerDesktopProtocol() {
-  const results = OPENPEEK_SUPPORTED_PROTOCOLS.map((protocol) => {
+  const results = OPENGLANCE_SUPPORTED_PROTOCOLS.map((protocol) => {
     if (process.defaultApp && process.argv[1]) {
       return app.setAsDefaultProtocolClient(
         protocol,
@@ -398,7 +401,7 @@ function installWindowsStartMenuShortcut() {
       ),
     );
   } catch {
-    // A missing Start Menu shortcut must not prevent OpenPeek from opening.
+    // A missing Start Menu shortcut must not prevent OpenGlance from opening.
   }
 }
 
@@ -448,8 +451,8 @@ async function initializeDesktopTelemetry() {
       userDataDir: userDataDir(),
       buildInfo: BUILD_INFO,
       channel: TELEMETRY_CHANNEL,
-      ...(openPeekEnvironmentValue(process.env, "TELEMETRY_ENDPOINT")
-        ? { endpoint: openPeekEnvironmentValue(process.env, "TELEMETRY_ENDPOINT") }
+      ...(openGlanceEnvironmentValue(process.env, "TELEMETRY_ENDPOINT")
+        ? { endpoint: openGlanceEnvironmentValue(process.env, "TELEMETRY_ENDPOINT") }
         : {}),
       platform: process.platform,
       arch: process.arch,
@@ -480,12 +483,13 @@ async function initializeDesktopTelemetry() {
 
 function initialTelemetryEntryKind() {
   if (process.argv.some((argument) => [
+    "--openglance-install-confirm=",
     "--openpeek-install-confirm=",
     "--git-leaf-install-confirm=",
   ].some((prefix) => String(argument).startsWith(prefix)))) {
     return "windows_bootstrap";
   }
-  return process.argv.some((argument) => OPENPEEK_SUPPORTED_PROTOCOLS.some(
+  return process.argv.some((argument) => OPENGLANCE_SUPPORTED_PROTOCOLS.some(
     (protocol) => String(argument).startsWith(`${protocol}://`),
   ))
     ? "deep_link"
@@ -848,6 +852,7 @@ function installUpdateController() {
     ),
     prepareMacUpdateInstallation: () => preserveMacUpdateAppPath({
       homeDir: app.getPath("home"),
+      jobLabel: macShipItJobLabelForBuildInfo(BUILD_INFO),
       targetAppPath: macAppBundlePathFromExecutable(),
     }),
     recordUpdateState: recordTelemetryUpdateState,
@@ -1267,8 +1272,8 @@ async function showDesktopUpdateStatusFallback(status) {
       }
       toast.textContent = ${message};
       toast.hidden = false;
-      window.clearTimeout(window.__openPeekDesktopUpdateToastTimer);
-      window.__openPeekDesktopUpdateToastTimer = window.setTimeout(() => {
+      window.clearTimeout(window.__openGlanceDesktopUpdateToastTimer);
+      window.__openGlanceDesktopUpdateToastTimer = window.setTimeout(() => {
         toast.hidden = true;
       }, 7000);
       return true;
@@ -1316,7 +1321,7 @@ async function showSettingsAndHelpCenter(section = "general") {
 function settingsCenterHelpSections(resolvedLanguage) {
   const translate = createDesktopTranslatorForLanguage(resolvedLanguage);
   return [
-    ...getOpenPeekHelpSections(resolvedLanguage),
+    ...getOpenGlanceHelpSections(resolvedLanguage),
     {
       id: "file-types",
       title: translate("settings.fileTypes.title"),
@@ -1459,7 +1464,7 @@ async function exportCurrentDocumentPdf() {
   let metadata = null;
   try {
     metadata = await mainWindow.webContents.executeJavaScript(
-      "window.openPeekPreparePdfExport ? window.openPeekPreparePdfExport() : null",
+      "window.openGlancePreparePdfExport ? window.openGlancePreparePdfExport() : null",
       true,
     );
   } catch (error) {
@@ -1509,7 +1514,7 @@ async function finishCurrentDocumentPdfExport(metadata) {
   }
   const detail = JSON.stringify(metadata || {});
   await mainWindow.webContents.executeJavaScript(
-    `window.openPeekFinishPdfExport && window.openPeekFinishPdfExport(${detail});`,
+    `window.openGlanceFinishPdfExport && window.openGlanceFinishPdfExport(${detail});`,
     true,
   ).catch(() => {});
 }
@@ -1527,7 +1532,7 @@ function pdfExportBaseName(metadata) {
   }
   const documentPath = String(metadata?.path || "").trim();
   if (!documentPath) {
-    return "OpenPeek Document";
+    return "OpenGlance Document";
   }
   return path.basename(documentPath, path.extname(documentPath));
 }
@@ -1538,7 +1543,7 @@ function pdfFileName(value) {
     .replace(/[<>:"/\\|?*\x00-\x1F]/g, "-")
     .replace(/\s+/g, " ")
     .replace(/^\.+$/, "")
-    .slice(0, 120) || "OpenPeek Document";
+    .slice(0, 120) || "OpenGlance Document";
   return safeName.toLowerCase().endsWith(".pdf") ? safeName : `${safeName}.pdf`;
 }
 
@@ -1890,7 +1895,7 @@ async function openRepository(
     await previousServer.close();
   }
 
-  const nextServer = await startDesktopOpenPeekServer({
+  const nextServer = await startDesktopOpenGlanceServer({
     repoRoot,
     initialFilePath,
     desktopPreferences: preferencesForRenderer(),
@@ -2303,7 +2308,7 @@ function installMenu() {
       label: translate("menu.help"),
       submenu: [
         {
-          label: translate("menu.openPeekHelp"),
+          label: translate("menu.openGlanceHelp"),
           click: () => {
             void showSettingsAndHelpCenter("help");
           },
@@ -2902,7 +2907,7 @@ async function confirmDesktopHandoff(options) {
     return false;
   }
   await logDesktopHandoff("opened", options);
-  const confirmed = await confirmOpenPeekHandoff(options.handoff);
+  const confirmed = await confirmOpenGlanceHandoff(options.handoff);
   await logDesktopHandoff(confirmed ? "confirmed" : "confirm-failed", options);
   return confirmed;
 }
@@ -2916,7 +2921,7 @@ async function logDesktopHandoff(event, request, detail = "") {
       detail,
     });
     if (request?.share && ["received", "cancelled", "failed"].includes(event)) {
-      void reportOpenPeekShareHandoffState(request.handoff, event);
+      void reportOpenGlanceShareHandoffState(request.handoff, event);
     }
     return logged;
   } catch {
@@ -3037,7 +3042,7 @@ if (manualWindowsBootstrapBlocked) {
 
 function handleDesktopStartupFailure(error) {
   const invalidConfig = error?.code === "DESKTOP_CONFIG_INVALID";
-  console.error("OpenPeek desktop startup failed", error);
+  console.error("OpenGlance desktop startup failed", error);
   dialog.showErrorBox(
     invalidConfig
       ? desktopText("startup.configInvalidTitle")

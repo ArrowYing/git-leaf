@@ -29,6 +29,14 @@ import { fileURLToPath } from "node:url";
 
 import { compareAppVersions } from "../src/desktop/app-updates.mjs";
 import {
+  OFFICIAL_INTERNAL_MAC_BUNDLE_ID,
+  OFFICIAL_PUBLIC_MAC_BUNDLE_ID,
+} from "../src/desktop/mac-app-contents.mjs";
+import {
+  OFFICIAL_INTERNAL_MAC_SHIPIT_JOB_LABEL,
+  OFFICIAL_PUBLIC_MAC_SHIPIT_JOB_LABEL,
+} from "../src/desktop/mac-update-cache.mjs";
+import {
   DEVELOPMENT_USER_DATA_ARG,
   LEGACY_DEVELOPMENT_USER_DATA_ARG,
 } from "../src/desktop/user-data.mjs";
@@ -42,8 +50,10 @@ export {
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const REPO_ROOT = path.dirname(path.dirname(SCRIPT_PATH));
 export const MAC_UPDATE_REGRESSION_ARTIFACT_PREFIX =
-  "openpeek-macos-update-regression-";
-export const SHIPIT_JOB_LABEL = "com.mangofuture.gitleaf.ShipIt";
+  "openglance-macos-update-regression-";
+export const SHIPIT_JOB_LABEL = OFFICIAL_INTERNAL_MAC_SHIPIT_JOB_LABEL;
+export const PUBLIC_SHIPIT_JOB_LABEL = OFFICIAL_PUBLIC_MAC_SHIPIT_JOB_LABEL;
+const OFFICIAL_SHIPIT_JOB_LABELS = [SHIPIT_JOB_LABEL, PUBLIC_SHIPIT_JOB_LABEL];
 export const SQUIRREL_DIRECT_CONTENTS_WRITE_KEY =
   "SquirrelMacEnableDirectContentsWrite";
 const PLATFORM_KEY = "darwin-universal";
@@ -73,7 +83,7 @@ export function assertSafeMacUpdateRegressionHost({
     throw new Error("The macOS update regression harness requires macOS");
   }
   const conflicts = [
-    [productionAppRunning, "an installed OpenPeek or Git Leaf App is running"],
+    [productionAppRunning, "an installed OpenGlance, OpenPeek, or Git Leaf App is running"],
     [userShipItJobExists, "the per-user ShipIt launchd job exists"],
     [systemShipItJobExists, "the system ShipIt launchd job exists"],
   ].filter(([present]) => present).map(([, message]) => message);
@@ -173,6 +183,7 @@ export function launchctlJobDetails({
 function hostPaths({ homeDir = homedir() } = {}) {
   return {
     productionAppPaths: [
+      "/Applications/OpenGlance.app",
       "/Applications/OpenPeek.app",
       "/Applications/Git Leaf.app",
     ],
@@ -182,12 +193,7 @@ function hostPaths({ homeDir = homedir() } = {}) {
       "Application Support",
       "git-leaf",
     ),
-    realShipItCachePath: path.join(
-      homeDir,
-      "Library",
-      "Caches",
-      SHIPIT_JOB_LABEL,
-    ),
+    realShipItCacheRoot: path.join(homeDir, "Library", "Caches"),
   };
 }
 
@@ -197,6 +203,7 @@ export function assertCurrentHostSafe() {
     encoding: "utf8",
   });
   const productionExecutables = paths.productionAppPaths.flatMap((appPath) => [
+    path.join(appPath, "Contents", "MacOS", "OpenGlance"),
     path.join(appPath, "Contents", "MacOS", "OpenPeek"),
     path.join(appPath, "Contents", "MacOS", "Git Leaf"),
   ]);
@@ -206,8 +213,12 @@ export function assertCurrentHostSafe() {
       .some((command) => productionExecutables.some(
         (executable) => command.trim().startsWith(executable),
       )),
-    userShipItJobExists: launchctlJobExists({ domain: "user" }),
-    systemShipItJobExists: launchctlJobExists({ domain: "system" }),
+    userShipItJobExists: OFFICIAL_SHIPIT_JOB_LABELS.some((label) => (
+      launchctlJobExists({ domain: "user", label })
+    )),
+    systemShipItJobExists: OFFICIAL_SHIPIT_JOB_LABELS.some((label) => (
+      launchctlJobExists({ domain: "system", label })
+    )),
   });
   return {
     ...paths,
@@ -215,8 +226,8 @@ export function assertCurrentHostSafe() {
       productionUserDataDir: paths.productionProfilePath,
     }),
     realShipItFingerprint: developmentProfileFingerprint({
-      productionUserDataDir: paths.realShipItCachePath,
-      entries: ["."],
+      productionUserDataDir: paths.realShipItCacheRoot,
+      entries: OFFICIAL_SHIPIT_JOB_LABELS,
     }),
   };
 }
@@ -401,6 +412,10 @@ export function readMacAppIdentity(appPath) {
   const plistPath = path.join(appPath, "Contents", "Info.plist");
   return {
     bundleName: path.basename(appPath),
+    bundleIdentifier: runChecked(
+      "/usr/libexec/PlistBuddy",
+      ["-c", "Print:CFBundleIdentifier", plistPath],
+    ),
     productName: runChecked(
       "/usr/libexec/PlistBuddy",
       ["-c", "Print:CFBundleDisplayName", plistPath],
@@ -442,7 +457,7 @@ export function verifyAppSignature(appPath) {
 
 function renameMigrationDesktopConfig({ repoRoot, targetVersion }) {
   return {
-    renameMigrationSentinel: "git-leaf-1.x-to-openpeek-2.x",
+    renameMigrationSentinel: "git-leaf-1.x-openpeek-2.x-to-openglance-3.x",
     repoRoot,
     openRepoRoots: [repoRoot],
     usageAnalyticsEnabled: false,
@@ -457,7 +472,7 @@ function renameMigrationDesktopConfig({ repoRoot, targetVersion }) {
       sidebarCollapsed: true,
       sourcePreviewRatio: 61,
       workbenchSessions: {
-        openpeek: {
+        openglance: {
           tabs: [{ path: "README.md" }],
           activeTabPath: "README.md",
         },
@@ -534,7 +549,7 @@ export function assertRenameMigrationUserState(actual, expected) {
   }
   if (mismatches.length > 0) {
     throw new Error(
-      "OpenPeek did not preserve the Git Leaf repository list, workspace session, and preferences"
+      "OpenGlance did not preserve the Git Leaf repository list, workspace session, and preferences"
       + `: ${mismatches.join(", ")}`,
     );
   }
@@ -546,7 +561,7 @@ export function startUpdateServer({ serverRoot, telemetryRoot, logPath }) {
     "python3",
     [
       "-u",
-      path.join(REPO_ROOT, "scripts", "openpeek-update-server.py"),
+      path.join(REPO_ROOT, "scripts", "openglance-update-server.py"),
       "--root",
       serverRoot,
       "--telemetry-root",
@@ -623,15 +638,15 @@ export function rewriteCandidateForLocalStable({
   );
 }
 
-function writeIsolatedSquirrelDefault(env) {
+function writeIsolatedSquirrelDefault(env, bundleIdentifier) {
   runChecked(
     "defaults",
-    ["write", "com.mangofuture.gitleaf", SQUIRREL_DIRECT_CONTENTS_WRITE_KEY, "-bool", "true"],
+    ["write", bundleIdentifier, SQUIRREL_DIRECT_CONTENTS_WRITE_KEY, "-bool", "true"],
     { env },
   );
   const stored = runChecked(
     "defaults",
-    ["read", "com.mangofuture.gitleaf", SQUIRREL_DIRECT_CONTENTS_WRITE_KEY],
+    ["read", bundleIdentifier, SQUIRREL_DIRECT_CONTENTS_WRITE_KEY],
     { env },
   );
   if (stored !== "1") {
@@ -749,7 +764,7 @@ export function assertTemporaryProcessIsolation({
     .filter((command) => command.includes(temporary));
   if (relevant.some((command) => command.includes(protectedProfile))) {
     throw new Error(
-      "An isolated macOS update process attempted to use the real OpenPeek Profile",
+      "An isolated macOS update process attempted to use the real OpenGlance Profile",
     );
   }
   return relevant;
@@ -960,6 +975,23 @@ async function runHarness({
     );
     const baselineAppIdentity = readMacAppIdentity(appPath);
     const candidateAppIdentity = readMacAppIdentity(candidateAppPath);
+    const expectedCandidateBundleId = track === "internal"
+      ? OFFICIAL_INTERNAL_MAC_BUNDLE_ID
+      : OFFICIAL_PUBLIC_MAC_BUNDLE_ID;
+    if (candidateAppIdentity.bundleIdentifier !== expectedCandidateBundleId) {
+      throw new Error(
+        `Candidate Bundle ID ${candidateAppIdentity.bundleIdentifier || "missing"} does not match ${track}`,
+      );
+    }
+    if (
+      stableManifest.releaseTrack === track
+      && baselineAppIdentity.bundleIdentifier !== expectedCandidateBundleId
+    ) {
+      throw new Error(
+        `Baseline Bundle ID ${baselineAppIdentity.bundleIdentifier || "missing"} does not match ${track}`,
+      );
+    }
+    const shipItJobLabel = `${baselineAppIdentity.bundleIdentifier}.ShipIt`;
     verifyAppSignature(appPath);
     verifyAppSignature(candidateAppPath);
     const squirrelPolicy = verifySquirrelMacPolicy({
@@ -1008,12 +1040,12 @@ async function runHarness({
         HOME: isolatedHome,
         CFFIXED_USER_HOME: isolatedHome,
         TMPDIR: `${isolatedTmp}${path.sep}`,
-        OPENPEEK_UPDATE_BASE_URL: `http://127.0.0.1:${server.port}/git-leaf`,
+        OPENGLANCE_UPDATE_BASE_URL: `http://127.0.0.1:${server.port}/git-leaf`,
         GIT_LEAF_UPDATE_BASE_URL: `http://127.0.0.1:${server.port}/git-leaf`,
-        OPENPEEK_DEV_USER_DATA_DIR: userDataDir,
+        OPENGLANCE_DEV_USER_DATA_DIR: userDataDir,
         GIT_LEAF_DEV_USER_DATA_DIR: userDataDir,
       };
-      writeIsolatedSquirrelDefault(appEnv);
+      writeIsolatedSquirrelDefault(appEnv, baselineAppIdentity.bundleIdentifier);
       const logDescriptor = openSync(logPath, "a");
       appProcess = spawn(
         macAppExecutablePath(appPath),
@@ -1036,7 +1068,7 @@ async function runHarness({
         isolatedHome,
         "Library",
         "Caches",
-        SHIPIT_JOB_LABEL,
+        shipItJobLabel,
       );
       const isolatedShipItState = path.join(
         isolatedShipItCache,
@@ -1049,7 +1081,7 @@ async function runHarness({
         timeoutMs: 240_000,
         label: "the signed candidate to download and prepare",
       });
-      if (launchctlJobExists({ domain: "system" })) {
+      if (launchctlJobExists({ domain: "system", label: shipItJobLabel })) {
         throw new Error("The update attempted to register a privileged ShipIt job");
       }
       const shipItRequest = assertIsolatedShipItRequest({
@@ -1087,7 +1119,7 @@ async function runHarness({
       }, {
         timeoutMs: 180_000,
         intervalMs: 500,
-        label: `OpenPeek ${candidateManifest.version} to replace the baseline`,
+        label: `OpenGlance ${candidateManifest.version} to replace the baseline`,
       });
       const candidateExecutable = macAppExecutablePath(appPath);
       if (runningExecutableProcessIds(candidateExecutable).length > 0) {
@@ -1146,13 +1178,13 @@ async function runHarness({
     }
     verifySquirrelMacPolicy({ appDir: appPath });
     const installedAppIdentity = readMacAppIdentity(appPath);
-    if (launchctlJobExists({ domain: "system" })) {
+    if (launchctlJobExists({ domain: "system", label: shipItJobLabel })) {
       throw new Error("The update registered a privileged ShipIt job");
     }
 
     passedEvidence = {
       schemaVersion: 5,
-      source: "openpeek-macos-update-regression",
+      source: "openglance-macos-update-regression",
       status: "passed",
       track,
       platform: PLATFORM_KEY,
@@ -1210,15 +1242,21 @@ async function runHarness({
       cleanupErrors.push(error);
     }
     try {
-      bootoutUserShipItJob(temporaryRoot);
+      for (const label of OFFICIAL_SHIPIT_JOB_LABELS) {
+        bootoutUserShipItJob(temporaryRoot, { label });
+      }
     } catch (error) {
       cleanupErrors.push(error);
     }
     try {
-      if (launchctlJobExists({ domain: "user" })) {
+      if (OFFICIAL_SHIPIT_JOB_LABELS.some((label) => (
+        launchctlJobExists({ domain: "user", label })
+      ))) {
         throw new Error("The per-user ShipIt launchd job remained after cleanup");
       }
-      if (launchctlJobExists({ domain: "system" })) {
+      if (OFFICIAL_SHIPIT_JOB_LABELS.some((label) => (
+        launchctlJobExists({ domain: "system", label })
+      ))) {
         throw new Error("A system ShipIt launchd job remained after cleanup");
       }
     } catch (error) {
@@ -1229,11 +1267,11 @@ async function runHarness({
         productionUserDataDir: host.productionProfilePath,
       });
       if (after.sha256 !== host.productionFingerprint.sha256) {
-        throw new Error("The real OpenPeek Profile changed during update regression");
+        throw new Error("The real OpenGlance Profile changed during update regression");
       }
       const realShipItCacheAfter = developmentProfileFingerprint({
-        productionUserDataDir: host.realShipItCachePath,
-        entries: ["."],
+        productionUserDataDir: host.realShipItCacheRoot,
+        entries: OFFICIAL_SHIPIT_JOB_LABELS,
       });
       if (
         realShipItCacheAfter.sha256 !== host.realShipItFingerprint.sha256
@@ -1288,7 +1326,7 @@ function printHelp() {
     [--base-url URL]
 
 This harness runs on the release Mac with an isolated HOME and Electron Profile.
-It refuses to start while an installed OpenPeek or Git Leaf App is running or a ShipIt
+It refuses to start while an installed OpenGlance, OpenPeek, or Git Leaf App is running or a ShipIt
 launchd job already exists.`);
 }
 

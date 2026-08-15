@@ -5,24 +5,24 @@ import path from "node:path";
 import test from "node:test";
 
 import {
-  confirmOpenPeekHandoff,
-  openPeekHandoffConfirmUrl,
-  normalizeOpenPeekHandoffId,
-  reportOpenPeekShareHandoffState,
+  confirmOpenGlanceHandoff,
+  openGlanceHandoffConfirmUrl,
+  normalizeOpenGlanceHandoffId,
+  reportOpenGlanceShareHandoffState,
   writeDesktopDeepLinkLog,
 } from "../src/desktop/handoff.mjs";
 
-test("OpenPeek confirms only safe one-time handoff ids to the fixed update service endpoint", async () => {
+test("OpenGlance confirms only safe one-time handoff ids to the fixed update service endpoint", async () => {
   const requests = [];
   const handoff = "handoff_1234567890abcdef";
 
-  assert.equal(normalizeOpenPeekHandoffId(handoff), handoff);
-  assert.equal(normalizeOpenPeekHandoffId("short"), "");
+  assert.equal(normalizeOpenGlanceHandoffId(handoff), handoff);
+  assert.equal(normalizeOpenGlanceHandoffId("short"), "");
   assert.equal(
-    openPeekHandoffConfirmUrl(handoff),
+    openGlanceHandoffConfirmUrl(handoff),
     "https://gitleaf.mangofuture.com/open/confirm?id=handoff_1234567890abcdef",
   );
-  assert.equal(await confirmOpenPeekHandoff(handoff, {
+  assert.equal(await confirmOpenGlanceHandoff(handoff, {
     fetchImpl: async (url, options) => {
       requests.push({ url, options });
       return { ok: true };
@@ -34,10 +34,10 @@ test("OpenPeek confirms only safe one-time handoff ids to the fixed update servi
   }]);
 });
 
-test("OpenPeek reports only safe shared-link handoff states", async () => {
+test("OpenGlance reports only safe shared-link handoff states", async () => {
   const requests = [];
   const handoff = "handoff_1234567890abcdef";
-  assert.equal(await reportOpenPeekShareHandoffState(handoff, "cancelled", {
+  assert.equal(await reportOpenGlanceShareHandoffState(handoff, "cancelled", {
     fetchImpl: async (url, options) => {
       requests.push({ url, options });
       return { ok: true };
@@ -47,27 +47,27 @@ test("OpenPeek reports only safe shared-link handoff states", async () => {
     url: "https://gitleaf.mangofuture.com/share/state?id=handoff_1234567890abcdef&state=cancelled",
     options: { method: "POST", cache: "no-store" },
   }]);
-  assert.equal(await reportOpenPeekShareHandoffState(handoff, "opened"), false);
-  assert.equal(await reportOpenPeekShareHandoffState("short", "failed"), false);
+  assert.equal(await reportOpenGlanceShareHandoffState(handoff, "opened"), false);
+  assert.equal(await reportOpenGlanceShareHandoffState("short", "failed"), false);
 });
 
-test("OpenPeek handoff confirmation fails closed for invalid ids and network errors", async () => {
+test("OpenGlance handoff confirmation fails closed for invalid ids and network errors", async () => {
   let fetchCalls = 0;
-  assert.equal(await confirmOpenPeekHandoff("short", {
+  assert.equal(await confirmOpenGlanceHandoff("short", {
     fetchImpl: async () => {
       fetchCalls += 1;
     },
   }), false);
   assert.equal(fetchCalls, 0);
 
-  assert.equal(await confirmOpenPeekHandoff("handoff_1234567890abcdef", {
+  assert.equal(await confirmOpenGlanceHandoff("handoff_1234567890abcdef", {
     fetchImpl: async () => {
       throw new Error("offline");
     },
   }), false);
 });
 
-test("OpenPeek writes durable deep-link lifecycle records for later diagnosis", async () => {
+test("OpenGlance writes durable deep-link lifecycle records for later diagnosis", async () => {
   const userDataDir = await mkdtemp(path.join(tmpdir(), "git-leaf-handoff-log-"));
   const request = {
     repository: "exampleorg/company-docs",

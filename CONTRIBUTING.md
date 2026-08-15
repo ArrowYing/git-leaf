@@ -1,6 +1,6 @@
-# Contributing to OpenPeek
+# Contributing to OpenGlance
 
-Thank you for helping improve OpenPeek.
+Thank you for helping improve OpenGlance.
 
 ## Before opening a change
 
@@ -13,7 +13,7 @@ For substantial behavior or UX changes, start with an issue that explains the us
 
 ## Development
 
-OpenPeek requires Node.js 22 or newer and Git.
+OpenGlance requires Node.js 22 or newer and Git.
 
 ```bash
 npm ci

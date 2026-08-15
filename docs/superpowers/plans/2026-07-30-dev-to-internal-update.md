@@ -293,10 +293,10 @@ Change the Squirrel policy expectation so an eligible packaged source dev build 
 
 Add pure harness tests for:
 
-- validating a local dev app as `org.gitleaf.community`, `dev: true`, `source`;
+- validating a local dev app as `org.openglance.community`, `dev: true`, `source`;
 - validating the target as `com.mangofuture.gitleaf`, non-dev, official/internal;
 - requiring equal versions and exact receipt identity;
-- requiring the expected Developer ID signature, preserved app-directory inode, no privileged ShipIt job, analytics enabled after first target launch, consumed receipt, official `openpeek://` resolution, unchanged real Profile/cache, and isolated cleanup.
+- requiring the expected Developer ID signature, preserved app-directory inode, no privileged ShipIt job, analytics enabled after first target launch, consumed receipt, official `openglance://` resolution, unchanged real Profile/cache, and isolated cleanup.
 
 - [ ] **Step 2: Run focused tests and verify failure**
 
@@ -363,7 +363,7 @@ Document that:
 
 - there are still two official release tracks and two Bundle IDs, not a third release;
 - Community builds do not receive official updates;
-- only locally packaged `OpenPeek dev` builds may opt into the internal official build;
+- only locally packaged `OpenGlance dev` builds may opt into the internal official build;
 - equal-version targets are current and only strictly newer internal versions may hand off;
 - the switch adopts the internal package's analytics default;
 - ordinary future internal upgrades preserve the user's analytics choice.
@@ -441,15 +441,15 @@ Run:
 make install-dev-mac
 ```
 
-Expected: `/Applications/OpenPeek.app` is replaced by a packaged `1.16.0` source/dev build with Bundle ID `org.gitleaf.community`, using the existing real human Profile.
+Expected: `/Applications/OpenGlance.app` is replaced by a packaged `1.16.0` source/dev build with Bundle ID `org.openglance.community`, using the existing real human Profile.
 
 - [ ] **Step 5: Verify the installed development identity without automating the real Profile**
 
 Run:
 
 ```bash
-/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' '/Applications/OpenPeek.app/Contents/Info.plist'
-node -e 'const fs=require("fs"); console.log(JSON.parse(fs.readFileSync("/Applications/OpenPeek.app/Contents/Resources/app/git-leaf-build-info.json","utf8")))'
+/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' '/Applications/OpenGlance.app/Contents/Info.plist'
+node -e 'const fs=require("fs"); console.log(JSON.parse(fs.readFileSync("/Applications/OpenGlance.app/Contents/Resources/app/git-leaf-build-info.json","utf8")))'
 ```
 
 Expected: community Bundle ID, `dev: true`, `distribution: "source"`, `releaseTrack: "source"`. Do not script UI interaction against the installed app.

@@ -327,7 +327,7 @@ test("renderMarkdown treats leading slash links as repository-root relative path
   assert.doesNotMatch(html, /company%2Fdocs%2Froot/);
 });
 
-test("renderMarkdown preserves OpenPeek document links without rewriting them as raw assets or token links", () => {
+test("renderMarkdown preserves OpenGlance document links without rewriting them as raw assets or token links", () => {
   const html = renderMarkdown(
     "[Content Doc](/?repo=content-repo&file=docs%2Fcontent-archive-frontmatter-standard.md&unused=old#L12)",
     {

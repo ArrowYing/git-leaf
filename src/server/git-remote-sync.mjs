@@ -26,18 +26,18 @@ import {
 const REMOTE_SYNC_MESSAGES = {
   en: {
     "result.title": "Remote merge needs attention",
-    "result.help": "OpenPeek left your local files uncommitted. Copy the prompt only if you want an AI Agent to continue.",
-    "error.noBranch": "The current worktree is not on a branch, so OpenPeek cannot check its remote branch.",
+    "result.help": "OpenGlance left your local files uncommitted. Copy the prompt only if you want an AI Agent to continue.",
+    "error.noBranch": "The current worktree is not on a branch, so OpenGlance cannot check its remote branch.",
     "error.noOrigin": "Git remote `origin` is not configured.",
     "error.remoteBranchMissing": "Remote branch origin/{branch} does not exist yet.",
-    "error.diverged": "The current branch and origin/{branch} have diverged. OpenPeek did not rewrite either history.",
-    "error.remoteChanged": "The fetched remote version changed before OpenPeek could apply it. Nothing was changed; OpenPeek will check the newer version.",
-    "error.preparationExpired": "The prepared remote update expired before it could be applied. Nothing was changed; OpenPeek will prepare it again.",
-    "error.confirmLocalChanges": "Local files changed while OpenPeek checked the remote. Review the changes and choose “Merge remote changes” if you want to continue.",
-    "error.workspaceChanged": "The workspace changed while OpenPeek prepared the remote merge. Nothing was applied. Try again after the current edit is saved.",
-    "error.conflict": "The remote update conflicts with local edits. OpenPeek did not apply the merge to the real workspace.",
-    "error.rollback": "OpenPeek could not fully roll back an interrupted remote merge. Preserve the recovery ref and hand the repository to an AI Agent.",
-    "prompt.title": "Please finish this OpenPeek remote merge:",
+    "error.diverged": "The current branch and origin/{branch} have diverged. OpenGlance did not rewrite either history.",
+    "error.remoteChanged": "The fetched remote version changed before OpenGlance could apply it. Nothing was changed; OpenGlance will check the newer version.",
+    "error.preparationExpired": "The prepared remote update expired before it could be applied. Nothing was changed; OpenGlance will prepare it again.",
+    "error.confirmLocalChanges": "Local files changed while OpenGlance checked the remote. Review the changes and choose “Merge remote changes” if you want to continue.",
+    "error.workspaceChanged": "The workspace changed while OpenGlance prepared the remote merge. Nothing was applied. Try again after the current edit is saved.",
+    "error.conflict": "The remote update conflicts with local edits. OpenGlance did not apply the merge to the real workspace.",
+    "error.rollback": "OpenGlance could not fully roll back an interrupted remote merge. Preserve the recovery ref and hand the repository to an AI Agent.",
+    "prompt.title": "Please finish this OpenGlance remote merge:",
     "prompt.repository": "Repository: {repo}",
     "prompt.repositoryPath": "Repository path: {path}",
     "prompt.branch": "Current branch: {branch}",
@@ -52,18 +52,18 @@ const REMOTE_SYNC_MESSAGES = {
   },
   "zh-CN": {
     "result.title": "合并远端修改需要处理",
-    "result.help": "OpenPeek 会保留本地文件为未提交状态。只有需要 AI Agent 继续处理时，才复制下面的提示词。",
-    "error.noBranch": "当前工作树不在分支上，OpenPeek 无法检查对应的远端分支。",
+    "result.help": "OpenGlance 会保留本地文件为未提交状态。只有需要 AI Agent 继续处理时，才复制下面的提示词。",
+    "error.noBranch": "当前工作树不在分支上，OpenGlance 无法检查对应的远端分支。",
     "error.noOrigin": "尚未配置 Git 远端 `origin`。",
     "error.remoteBranchMissing": "远端分支 origin/{branch} 尚不存在。",
-    "error.diverged": "当前分支与 origin/{branch} 已经分叉。OpenPeek 没有改写任何一侧的历史。",
-    "error.remoteChanged": "准备应用期间，已获取的远端版本发生了变化。OpenPeek 没有修改工作区，并会按较新的版本重新检查。",
-    "error.preparationExpired": "远端更新的准备结果在应用前已经失效。OpenPeek 没有修改工作区，并会重新准备。",
+    "error.diverged": "当前分支与 origin/{branch} 已经分叉。OpenGlance 没有改写任何一侧的历史。",
+    "error.remoteChanged": "准备应用期间，已获取的远端版本发生了变化。OpenGlance 没有修改工作区，并会按较新的版本重新检查。",
+    "error.preparationExpired": "远端更新的准备结果在应用前已经失效。OpenGlance 没有修改工作区，并会重新准备。",
     "error.confirmLocalChanges": "检查远端期间本地文件发生了变化。请查看改动，并在愿意继续时点击“合并远端修改”。",
-    "error.workspaceChanged": "准备合并期间工作区仍在变化。OpenPeek 没有应用任何修改；请等待当前编辑保存后重试。",
-    "error.conflict": "远端更新与本地编辑发生冲突。OpenPeek 没有把冲突应用到真实工作区。",
-    "error.rollback": "OpenPeek 未能完整回退一次中断的远端合并。请保留恢复引用，并交给 AI Agent 处理。",
-    "prompt.title": "请继续处理 OpenPeek 的远端合并：",
+    "error.workspaceChanged": "准备合并期间工作区仍在变化。OpenGlance 没有应用任何修改；请等待当前编辑保存后重试。",
+    "error.conflict": "远端更新与本地编辑发生冲突。OpenGlance 没有把冲突应用到真实工作区。",
+    "error.rollback": "OpenGlance 未能完整回退一次中断的远端合并。请保留恢复引用，并交给 AI Agent 处理。",
+    "prompt.title": "请继续处理 OpenGlance 的远端合并：",
     "prompt.repository": "仓库：{repo}",
     "prompt.repositoryPath": "仓库路径：{path}",
     "prompt.branch": "当前分支：{branch}",
@@ -660,7 +660,7 @@ async function applyPreparedDirtyRemoteMerge({
     await runRemoteStep(repo, "create recovery ref", gitRunner, [
       "update-ref",
       "-m",
-      "OpenPeek remote merge recovery",
+      "OpenGlance remote merge recovery",
       recoveryRef,
       snapshot.snapshotCommit,
     ]);
@@ -676,7 +676,7 @@ async function applyPreparedDirtyRemoteMerge({
     await runRemoteStep(repo, "advance branch", gitRunner, [
       "update-ref",
       "-m",
-      "OpenPeek merged remote changes",
+      "OpenGlance merged remote changes",
       `refs/heads/${repo.branch}`,
       remote.remoteCommit,
       snapshot.baseCommit,
@@ -858,7 +858,7 @@ async function rollbackInterruptedMerge({
       await gitRunner(repo.root, [
         "update-ref",
         "-m",
-        "OpenPeek rolled back remote merge",
+        "OpenGlance rolled back remote merge",
         `refs/heads/${repo.branch}`,
         baseline.head,
         remote.remoteCommit,
@@ -1009,7 +1009,7 @@ async function deleteRecoveryReference(repo, recoveryRef, oldValue, gitRunner) {
 }
 
 function recoveryReference() {
-  return `refs/openpeek/recovery/remote-merge-${Date.now()}-${randomBytes(4).toString("hex")}`;
+  return `refs/openglance/recovery/remote-merge-${Date.now()}-${randomBytes(4).toString("hex")}`;
 }
 
 function remoteTrackingRef(branch) {

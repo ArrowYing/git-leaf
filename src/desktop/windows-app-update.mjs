@@ -16,18 +16,20 @@ import { pipeline } from "node:stream/promises";
 import extractZip from "extract-zip";
 import { compareAppVersions } from "./app-updates.mjs";
 
-const WINDOWS_UPDATE_WAIT_ARGUMENT = "--openpeek-update-wait-pid=";
-const LEGACY_WINDOWS_UPDATE_WAIT_ARGUMENT = "--git-leaf-update-wait-pid=";
+const WINDOWS_UPDATE_WAIT_ARGUMENT = "--openglance-update-wait-pid=";
+const OPENPEEK_WINDOWS_UPDATE_WAIT_ARGUMENT = "--openpeek-update-wait-pid=";
+const GIT_LEAF_WINDOWS_UPDATE_WAIT_ARGUMENT = "--git-leaf-update-wait-pid=";
 const WINDOWS_UPDATE_WAIT_ARGUMENTS = [
   WINDOWS_UPDATE_WAIT_ARGUMENT,
-  LEGACY_WINDOWS_UPDATE_WAIT_ARGUMENT,
+  OPENPEEK_WINDOWS_UPDATE_WAIT_ARGUMENT,
+  GIT_LEAF_WINDOWS_UPDATE_WAIT_ARGUMENT,
 ];
-const WINDOWS_EXECUTABLE = "OpenPeek.exe";
+const WINDOWS_EXECUTABLE = "OpenGlance.exe";
 const activePreparations = new Map();
 const activeCleanups = new Map();
 
 export function windowsUpdateCachePaths({ localAppData, version } = {}) {
-  const updateRoot = path.join(localAppData, "OpenPeek", "updates");
+  const updateRoot = path.join(localAppData, "OpenGlance", "updates");
   const versionRoot = path.join(updateRoot, safeVersion(version));
   return {
     updateRoot,
@@ -155,7 +157,7 @@ export async function cleanupWindowsUpdateCache({
   if (!localAppData) {
     return false;
   }
-  const updateRoot = path.join(localAppData, "OpenPeek", "updates");
+  const updateRoot = path.join(localAppData, "OpenGlance", "updates");
   const activeCleanup = activeCleanups.get(updateRoot);
   if (activeCleanup) {
     return activeCleanup;
@@ -291,7 +293,7 @@ async function findExtractedWindowsApp(extractRoot, pathExists) {
     .map((entry) => path.join(extractRoot, entry.name))
     .filter((candidate) => pathExists(path.join(candidate, WINDOWS_EXECUTABLE)));
   if (candidates.length !== 1) {
-    throw new Error("Windows update archive does not contain one complete OpenPeek app directory.");
+    throw new Error("Windows update archive does not contain one complete OpenGlance app directory.");
   }
   return candidates[0];
 }

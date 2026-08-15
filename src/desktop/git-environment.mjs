@@ -21,11 +21,11 @@ const GIT_ENVIRONMENT_MESSAGES = Object.freeze({
     "git.required.other":
       "Git is required to open local repositories. Install Git, or make sure `git` is available on PATH.",
     "git.permission":
-      "OpenPeek found Git, but does not have permission to run it or access its files.",
+      "OpenGlance found Git, but does not have permission to run it or access its files.",
     "git.interrupted": "The Git version check was interrupted before it completed.",
     "git.invalidOutput":
-      "The Git command returned an unexpected response, so OpenPeek cannot verify the environment.",
-    "git.checkFailed": "Git is present, but OpenPeek could not complete the Git environment check.",
+      "The Git command returned an unexpected response, so OpenGlance cannot verify the environment.",
+    "git.checkFailed": "Git is present, but OpenGlance could not complete the Git environment check.",
     "desktop.git.missing.win32":
       "Git was not detected. Install Git for Windows and make sure git is available on PATH.",
     "desktop.git.missing.darwin":
@@ -33,18 +33,18 @@ const GIT_ENVIRONMENT_MESSAGES = Object.freeze({
     "desktop.git.missing.other":
       "Git was not detected. Install Git, or make sure git is available on PATH.",
     "desktop.git.permission":
-      "Git was detected, but OpenPeek does not have permission to run it. Check the Git command permissions.",
+      "Git was detected, but OpenGlance does not have permission to run it. Check the Git command permissions.",
     "desktop.git.interrupted": "The Git version check was interrupted. Try again.",
     "desktop.git.invalidOutput":
-      "The Git command returned an unrecognized version, so OpenPeek cannot verify the environment.",
+      "The Git command returned an unrecognized version, so OpenGlance cannot verify the environment.",
     "desktop.git.checkFailed": "Git is present, but the environment check did not complete.",
     "identity.waitForGit":
-      "Git must be detected before OpenPeek can check user.name and user.email.",
+      "Git must be detected before OpenGlance can check user.name and user.email.",
     "identity.missing":
       "Git user.name / user.email is not configured. Before syncing commits, run git config --global user.name and git config --global user.email.",
     "github.loggedIn": "GitHub CLI is logged in.",
     "github.cliMissing":
-      "GitHub CLI was not detected. OpenPeek can still open local repositories; syncing to GitHub will use local Git credentials.",
+      "GitHub CLI was not detected. OpenGlance can still open local repositories; syncing to GitHub will use local Git credentials.",
     "github.notLoggedIn":
       "GitHub CLI is not logged in. To sync to GitHub, run gh auth login or configure Git credentials.",
   }),
@@ -58,27 +58,27 @@ const GIT_ENVIRONMENT_MESSAGES = Object.freeze({
     "git.required.darwin":
       "打开本地仓库需要 Git。请运行 `xcode-select --install` 安装 Xcode Command Line Tools，或确认 `git` 已加入 PATH。",
     "git.required.other": "打开本地仓库需要 Git。请安装 Git，或确认 `git` 已加入 PATH。",
-    "git.permission": "已检测到 Git，但 OpenPeek 没有权限运行它或访问相关文件。",
+    "git.permission": "已检测到 Git，但 OpenGlance 没有权限运行它或访问相关文件。",
     "git.interrupted": "Git 版本检查在完成前被中断。",
-    "git.invalidOutput": "Git 命令返回了无法识别的结果，OpenPeek 无法确认环境状态。",
-    "git.checkFailed": "Git 命令存在，但 OpenPeek 没有完成 Git 环境检查。",
+    "git.invalidOutput": "Git 命令返回了无法识别的结果，OpenGlance 无法确认环境状态。",
+    "git.checkFailed": "Git 命令存在，但 OpenGlance 没有完成 Git 环境检查。",
     "desktop.git.missing.win32":
       "未检测到 Git 命令。请先安装 Git for Windows，并确认 git 在 PATH 中。",
     "desktop.git.missing.darwin":
       "未检测到 Git 命令。请先安装 Xcode Command Line Tools，或确认 git 在 PATH 中。",
     "desktop.git.missing.other": "未检测到 Git 命令。请先安装 Git，或确认 git 在 PATH 中。",
     "desktop.git.permission":
-      "已检测到 Git，但 OpenPeek 没有权限运行它。请检查 Git 命令的执行权限。",
+      "已检测到 Git，但 OpenGlance 没有权限运行它。请检查 Git 命令的执行权限。",
     "desktop.git.interrupted": "Git 版本检查在完成前被中断，请重试。",
     "desktop.git.invalidOutput":
-      "Git 命令返回了无法识别的版本信息，OpenPeek 无法确认环境状态。",
+      "Git 命令返回了无法识别的版本信息，OpenGlance 无法确认环境状态。",
     "desktop.git.checkFailed": "Git 命令存在，但环境检查没有正常完成。",
     "identity.waitForGit": "需要先检测到 Git 命令，才能检查 user.name 和 user.email。",
     "identity.missing":
       "还没有配置 Git user.name / user.email。同步提交前请运行 git config --global user.name 和 git config --global user.email。",
     "github.loggedIn": "GitHub CLI 已登录。",
     "github.cliMissing":
-      "未检测到 GitHub CLI。OpenPeek 仍可打开本地仓库；需要同步到 GitHub 时会依赖本机 Git 凭据。",
+      "未检测到 GitHub CLI。OpenGlance 仍可打开本地仓库；需要同步到 GitHub 时会依赖本机 Git 凭据。",
     "github.notLoggedIn":
       "GitHub CLI 尚未登录；如需同步到 GitHub，请运行 gh auth login 或配置 Git 凭据。",
   }),

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { createOpenPeekOpenLink } from "../src/server/openpeek-open-link.mjs";
+import { createOpenGlanceOpenLink } from "../src/server/openglance-open-link.mjs";
 import { findRepoRoot } from "../src/server/paths.mjs";
 
 function parseArguments(args) {
@@ -43,7 +43,7 @@ async function main() {
     throw new Error("--file is required.");
   }
   const repoRoot = await findRepoRoot(options.repoRoot);
-  console.log(await createOpenPeekOpenLink({ repoRoot, file: options.file }));
+  console.log(await createOpenGlanceOpenLink({ repoRoot, file: options.file }));
 }
 
 main().catch((error) => {

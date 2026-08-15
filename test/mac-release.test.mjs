@@ -52,29 +52,37 @@ import {
   verifyProductionProfileUnchanged,
 } from "../scripts/release-mac.mjs";
 
-test("official macOS packages preserve only the hidden Git Leaf executable identity", () => {
+test("internal macOS packages preserve the hidden Git Leaf executable identity", () => {
   assert.equal(macExecutableName({
-    appName: "OpenPeek",
+    appName: "OpenGlance",
     distribution: "official",
+    releaseTrack: "internal",
   }), "Git Leaf");
   assert.equal(macExecutableName({
-    appName: "OpenPeek",
-    distribution: "source",
-  }), "OpenPeek");
-  assert.equal(assertMacUpdateArchiveEntries([
-    "OpenPeek.app/",
-    "OpenPeek.app/Contents/",
-    "OpenPeek.app/Contents/MacOS/Git Leaf",
-  ], {
-    appName: "OpenPeek",
+    appName: "OpenGlance",
     distribution: "official",
-  }), "OpenPeek.app/");
+    releaseTrack: "public",
+  }), "OpenGlance");
+  assert.equal(macExecutableName({
+    appName: "OpenGlance",
+    distribution: "source",
+  }), "OpenGlance");
+  assert.equal(assertMacUpdateArchiveEntries([
+    "OpenGlance.app/",
+    "OpenGlance.app/Contents/",
+    "OpenGlance.app/Contents/MacOS/Git Leaf",
+  ], {
+    appName: "OpenGlance",
+    distribution: "official",
+    releaseTrack: "internal",
+  }), "OpenGlance.app/");
   assert.throws(() => assertMacUpdateArchiveEntries([
     "Git Leaf.app/Contents/MacOS/Git Leaf",
   ], {
-    appName: "OpenPeek",
+    appName: "OpenGlance",
     distribution: "official",
-  }), /must contain only OpenPeek\.app/);
+    releaseTrack: "internal",
+  }), /must contain only OpenGlance\.app/);
 });
 
 function assertSafeSigningKeychainRecovery(error) {
@@ -116,7 +124,7 @@ test("mac release prerequisites prove the exact identity can sign without unlock
   ]);
   assert.deepEqual(calls[1].slice(0, 1), ["codesign"]);
   assert.deepEqual(calls[1][1].slice(0, -1), ["--force", "--sign", identity]);
-  assert.match(calls[1][1].at(-1), /openpeek-release-signing-.*\/codesign-probe$/);
+  assert.match(calls[1][1].at(-1), /openglance-release-signing-.*\/codesign-probe$/);
   assert.deepEqual(calls[2].slice(0, 1), ["codesign"]);
   assert.deepEqual(
     calls[2][1].slice(0, -1),
@@ -186,16 +194,16 @@ test("mac release prerequisites report private-key denial and remove the tempora
 
 test("mac release package args exclude tests and generated outputs", () => {
   const args = electronPackagerArgs({
-    appName: "OpenPeek",
+    appName: "OpenGlance",
     version: "1.9.1",
     bundleId: "com.mangofuture.gitleaf",
     outDir: "dist",
   });
 
-  assert.ok(args.includes("--protocol=openpeek"));
-  assert.ok(args.includes("--protocol-name=OpenPeek Document"));
+  assert.ok(args.includes("--protocol=openglance"));
+  assert.ok(args.includes("--protocol-name=OpenGlance Document"));
   assert.ok(args.includes("--arch=universal"));
-  assert.ok(args.includes("--executable-name=OpenPeek"));
+  assert.ok(args.includes("--executable-name=OpenGlance"));
   assert.ok(args.includes("--app-version=1.9.1"));
 
   const ignoreValues = args
@@ -210,10 +218,11 @@ test("mac release package args exclude tests and generated outputs", () => {
   assert.ok(ignoreValues.includes("^/\\.git($|/)"));
 });
 
-test("official mac release package args retain the legacy executable identity", () => {
+test("internal mac release package args retain the legacy executable identity", () => {
   const args = electronPackagerArgs({
-    appName: "OpenPeek",
+    appName: "OpenGlance",
     distribution: "official",
+    releaseTrack: "internal",
     bundleId: "com.mangofuture.gitleaf",
     outDir: "dist",
   });
@@ -223,7 +232,7 @@ test("official mac release package args retain the legacy executable identity", 
 
 test("mac release package args exclude internal docs, repository tools, and dev-only dependencies", () => {
   const args = electronPackagerArgs({
-    appName: "OpenPeek",
+    appName: "OpenGlance",
     bundleId: "com.mangofuture.gitleaf",
     outDir: "dist",
   });
@@ -234,7 +243,7 @@ test("mac release package args exclude internal docs, repository tools, and dev-
 
   for (const filePath of [
     "/scripts/release-mac.mjs",
-    "/tools/generate-openpeek-open-link.mjs",
+    "/tools/generate-openglance-open-link.mjs",
     "/Makefile",
     "/AGENTS.md",
     "/CLAUDE.md",
@@ -252,8 +261,8 @@ test("mac release package args exclude internal docs, repository tools, and dev-
     "/.gitignore",
     "/.gitleaks.toml",
     "/.github/workflows/windows-release-smoke.yml",
-    "/.agents/skills/openpeek-release/SKILL.md",
-    "/assets/icons/openpeek.png",
+    "/.agents/skills/openglance-release/SKILL.md",
+    "/assets/icons/openglance.png",
     "/node_modules/@electron/get/package.json",
     "/node_modules/@electron-internal/extract-zip/package.json",
     "/node_modules/@esbuild/darwin-arm64/bin/esbuild",
@@ -268,7 +277,7 @@ test("mac release package args exclude internal docs, repository tools, and dev-
 
 test("mac release package args can reuse a local Electron zip cache", () => {
   const args = electronPackagerArgs({
-    appName: "OpenPeek",
+    appName: "OpenGlance",
     bundleId: "com.mangofuture.gitleaf",
     outDir: "dist",
     electronZipDir: "/Users/example/Library/Caches/electron/cache-id",
@@ -277,15 +286,15 @@ test("mac release package args can reuse a local Electron zip cache", () => {
   assert.ok(args.includes("--electron-zip-dir=/Users/example/Library/Caches/electron/cache-id"));
 });
 
-test("mac release package args include the OpenPeek app icon", () => {
+test("mac release package args include the OpenGlance app icon", () => {
   const args = electronPackagerArgs({
-    appName: "OpenPeek",
+    appName: "OpenGlance",
     bundleId: "com.mangofuture.gitleaf",
     outDir: "dist",
-    iconPath: "assets/icons/openpeek",
+    iconPath: "assets/icons/openglance",
   });
 
-  assert.ok(args.includes("--icon=assets/icons/openpeek"));
+  assert.ok(args.includes("--icon=assets/icons/openglance"));
 });
 
 test("mac release signing targets include Electron nested binaries notarization checks reject", () => {
@@ -302,36 +311,36 @@ test("mac release signing targets include Electron nested binaries notarization 
 });
 
 test("mac release verification checks every Mach-O for both supported architectures", () => {
-  const [command, args] = universalMachOVerificationCommand("/repo/dist/OpenPeek.app");
+  const [command, args] = universalMachOVerificationCommand("/repo/dist/OpenGlance.app");
 
   assert.equal(command, "bash");
   assert.match(args[1], /find "\$1" -type f -print0/);
   assert.match(args[1], /lipo "\$target" -verify_arch arm64 x86_64/);
-  assert.equal(args.at(-1), "/repo/dist/OpenPeek.app");
+  assert.equal(args.at(-1), "/repo/dist/OpenGlance.app");
 });
 
 test("mac release paths use friendly versioned artifact filenames", () => {
   const paths = macReleasePaths({
     rootDir: "/repo",
-    appName: "OpenPeek",
+    appName: "OpenGlance",
     version: "0.1.1",
   });
 
-  assert.equal(slashPath(paths.appDir), "/repo/dist/OpenPeek-darwin-universal/OpenPeek.app");
+  assert.equal(slashPath(paths.appDir), "/repo/dist/OpenGlance-darwin-universal/OpenGlance.app");
   assert.equal(
     slashPath(paths.dmgPath),
-    "/repo/dist/OpenPeek-0.1.1-source-darwin-universal.dmg",
+    "/repo/dist/OpenGlance-0.1.1-source-darwin-universal.dmg",
   );
   assert.equal(
     slashPath(paths.zipPath),
-    "/repo/dist/OpenPeek-0.1.1-source-darwin-universal.zip",
+    "/repo/dist/OpenGlance-0.1.1-source-darwin-universal.zip",
   );
 });
 
 test("mac internal release filenames cannot collide with the same public semver", () => {
   const paths = macReleasePaths({
     rootDir: "/repo",
-    appName: "OpenPeek",
+    appName: "OpenGlance",
     version: "0.1.1",
     releaseTrack: "internal",
     buildId: "93458e1.20260705T114700Z",
@@ -339,29 +348,29 @@ test("mac internal release filenames cannot collide with the same public semver"
 
   assert.equal(
     slashPath(paths.dmgPath),
-    "/repo/dist/OpenPeek-0.1.1-internal-darwin-universal.dmg",
+    "/repo/dist/OpenGlance-0.1.1-internal-darwin-universal.dmg",
   );
   assert.equal(
     slashPath(paths.zipPath),
-    "/repo/dist/OpenPeek-0.1.1-internal-darwin-universal.zip",
+    "/repo/dist/OpenGlance-0.1.1-internal-darwin-universal.zip",
   );
 });
 
 test("mac development install paths reuse friendly release artifact filenames", () => {
   const paths = macDevelopmentInstallPaths({
     rootDir: "/repo",
-    appName: "OpenPeek",
+    appName: "OpenGlance",
     version: "0.1.2",
     buildId: "71560e5557a8.20260706T031909Z",
   });
 
   assert.equal(
     slashPath(paths.dmgPath),
-    "/repo/dist/OpenPeek-0.1.2-source-darwin-universal.dmg",
+    "/repo/dist/OpenGlance-0.1.2-source-darwin-universal.dmg",
   );
   assert.equal(
     slashPath(paths.zipPath),
-    "/repo/dist/OpenPeek-0.1.2-source-darwin-universal.zip",
+    "/repo/dist/OpenGlance-0.1.2-source-darwin-universal.zip",
   );
 });
 
@@ -381,13 +390,13 @@ test("mac update metadata paths mirror the update service update directory shape
 test("mac update staging keeps artifacts universal and publishes only an ARM migration manifest", async () => {
   const rootDir = await mkdtempPath("git-leaf-universal-update-");
   try {
-    const dmgPath = path.join(rootDir, "OpenPeek-1.9.0-internal-darwin-universal.dmg");
-    const zipPath = path.join(rootDir, "OpenPeek-1.9.0-internal-darwin-universal.zip");
+    const dmgPath = path.join(rootDir, "OpenGlance-1.9.0-internal-darwin-universal.dmg");
+    const zipPath = path.join(rootDir, "OpenGlance-1.9.0-internal-darwin-universal.zip");
     await writeFile(dmgPath, "universal dmg");
     await writeFile(zipPath, "universal zip");
 
     const { universalPaths, arm64MigrationPaths } = stageMacUpdateMetadata({
-      appName: "OpenPeek",
+      appName: "OpenGlance",
       updateBaseUrl: "https://updates.mangofuture.com/git-leaf",
       updateChannel: "internal-stable",
       releaseTrack: "internal",
@@ -398,8 +407,8 @@ test("mac update staging keeps artifacts universal and publishes only an ARM mig
     }, { dmgPath, zipPath }, { rootDir });
 
     assert.deepEqual((await readdir(universalPaths.updateDir)).sort(), [
-      "OpenPeek-1.9.0-internal-darwin-universal.dmg",
-      "OpenPeek-1.9.0-internal-darwin-universal.zip",
+      "OpenGlance-1.9.0-internal-darwin-universal.dmg",
+      "OpenGlance-1.9.0-internal-darwin-universal.zip",
       "latest.json",
       "releases.json",
       "sha256sums.txt",
@@ -420,7 +429,7 @@ test("mac update staging keeps artifacts universal and publishes only an ARM mig
     assert.equal(migrationManifest.files.zip.url, universalManifest.files.zip.url);
     assert.match(
       migrationManifest.files.zip.url,
-      /\/internal-stable\/darwin-universal\/OpenPeek-1\.9\.0-internal-darwin-universal\.zip$/,
+      /\/internal-stable\/darwin-universal\/OpenGlance-1\.9\.0-internal-darwin-universal\.zip$/,
     );
   } finally {
     await rm(rootDir, { recursive: true, force: true });
@@ -435,29 +444,29 @@ test("formal mac package fails closed before packaging when its release profile 
       releaseTrack: "source",
       usageAnalyticsDefault: false,
     }),
-    /Official release commands require OPENPEEK_RELEASE_PROFILE/,
+    /Official release commands require OPENGLANCE_RELEASE_PROFILE/,
   );
 });
 
-test("mac bundle icon uses an OpenPeek resource name instead of the Electron default", () => {
+test("mac bundle icon uses an OpenGlance resource name instead of the Electron default", () => {
   const paths = macBundleIconPaths({
     rootDir: "/repo",
-    appDir: "/repo/dist/OpenPeek-darwin-universal/OpenPeek.app",
-    iconPath: "assets/icons/openpeek",
+    appDir: "/repo/dist/OpenGlance-darwin-universal/OpenGlance.app",
+    iconPath: "assets/icons/openglance",
   });
 
-  assert.equal(slashPath(paths.sourceIconPath), "/repo/assets/icons/openpeek.icns");
-  assert.equal(paths.bundleIconFile, "openpeek.icns");
+  assert.equal(slashPath(paths.sourceIconPath), "/repo/assets/icons/openglance.icns");
+  assert.equal(paths.bundleIconFile, "openglance.icns");
   assert.equal(
     slashPath(paths.bundleIconPath),
-    "/repo/dist/OpenPeek-darwin-universal/OpenPeek.app/Contents/Resources/openpeek.icns",
+    "/repo/dist/OpenGlance-darwin-universal/OpenGlance.app/Contents/Resources/openglance.icns",
   );
 });
 
 test("mac bundle icon application refreshes the app bundle mtime for LaunchServices", async () => {
   const tempDir = await mkdtempPath("git-leaf-mac-icon-");
   try {
-    const appDir = path.join(tempDir, "OpenPeek.app");
+    const appDir = path.join(tempDir, "OpenGlance.app");
     const resourcesDir = path.join(appDir, "Contents", "Resources");
     await mkdir(resourcesDir, { recursive: true });
     await writeFile(
@@ -480,7 +489,7 @@ test("mac bundle icon application refreshes the app bundle mtime for LaunchServi
 
     const appStat = await stat(appDir);
     const infoPlist = await readFile(path.join(appDir, "Contents", "Info.plist"), "utf8");
-    assert.match(infoPlist, /<string>openpeek\.icns<\/string>/);
+    assert.match(infoPlist, /<string>openglance\.icns<\/string>/);
     assert.ok(
       appStat.mtimeMs > oldDate.getTime(),
       "the .app root mtime must change so macOS refreshes cached app icons",
@@ -490,10 +499,10 @@ test("mac bundle icon application refreshes the app bundle mtime for LaunchServi
   }
 });
 
-test("official mac bundle keeps OpenPeek visible while retaining its compatibility executable", async () => {
-  const tempDir = await mkdtempPath("openpeek-mac-product-name-");
+test("official mac bundle keeps OpenGlance visible while retaining its compatibility executable", async () => {
+  const tempDir = await mkdtempPath("openglance-mac-product-name-");
   try {
-    const appDir = path.join(tempDir, "OpenPeek.app");
+    const appDir = path.join(tempDir, "OpenGlance.app");
     const contentsDir = path.join(appDir, "Contents");
     await mkdir(contentsDir, { recursive: true });
     await writeFile(
@@ -509,25 +518,25 @@ test("official mac bundle keeps OpenPeek visible while retaining its compatibili
       "utf8",
     );
 
-    assert.equal(applyMacBundleProductName({ appName: "OpenPeek" }, { appDir }), "OpenPeek");
+    assert.equal(applyMacBundleProductName({ appName: "OpenGlance" }, { appDir }), "OpenGlance");
     const infoPlistPath = path.join(contentsDir, "Info.plist");
     const plistValue = (key) => spawnSync(
       "/usr/libexec/PlistBuddy",
       ["-c", `Print:${key}`, infoPlistPath],
       { encoding: "utf8" },
     ).stdout.trim();
-    assert.equal(plistValue("CFBundleDisplayName"), "OpenPeek");
-    assert.equal(plistValue("CFBundleName"), "OpenPeek");
+    assert.equal(plistValue("CFBundleDisplayName"), "OpenGlance");
+    assert.equal(plistValue("CFBundleName"), "OpenGlance");
     assert.equal(plistValue("CFBundleExecutable"), "Git Leaf");
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
 });
 
-test("mac bundle registers OpenPeek and Git Leaf 1.x URL schemes", async () => {
-  const tempDir = await mkdtempPath("openpeek-mac-protocols-");
+test("mac bundle registers OpenGlance plus OpenPeek 2.x and Git Leaf 1.x URL schemes", async () => {
+  const tempDir = await mkdtempPath("openglance-mac-protocols-");
   try {
-    const appDir = path.join(tempDir, "OpenPeek.app");
+    const appDir = path.join(tempDir, "OpenGlance.app");
     const contentsDir = path.join(appDir, "Contents");
     await mkdir(contentsDir, { recursive: true });
     await writeFile(
@@ -540,10 +549,11 @@ test("mac bundle registers OpenPeek and Git Leaf 1.x URL schemes", async () => {
     );
 
     assert.deepEqual(applyMacBundleProtocols({ appDir }), [{
-      CFBundleURLName: "OpenPeek Document",
-      CFBundleURLSchemes: ["openpeek", "git-leaf"],
+      CFBundleURLName: "OpenGlance Document",
+      CFBundleURLSchemes: ["openglance", "openpeek", "git-leaf"],
     }]);
     const infoPlist = await readFile(path.join(contentsDir, "Info.plist"), "utf8");
+    assert.match(infoPlist, /<string>openglance<\/string>/);
     assert.match(infoPlist, /<string>openpeek<\/string>/);
     assert.match(infoPlist, /<string>git-leaf<\/string>/);
   } finally {
@@ -556,7 +566,7 @@ test("mac release signing uses Electron hardened runtime entitlements", () => {
     rootDir: "/repo",
     entitlementsPath: "assets/entitlements.mac.plist",
   });
-  const args = codesignArgs("/repo/dist/OpenPeek.app", "Developer ID Application: Example", {
+  const args = codesignArgs("/repo/dist/OpenGlance.app", "Developer ID Application: Example", {
     entitlementsPath,
   });
 
@@ -569,12 +579,12 @@ test("mac release signing uses Electron hardened runtime entitlements", () => {
     "/repo/assets/entitlements.mac.plist",
     "--sign",
     "Developer ID Application: Example",
-    "/repo/dist/OpenPeek.app",
+    "/repo/dist/OpenGlance.app",
   ]);
 });
 
 test("mac release DMG signing does not use app entitlements", () => {
-  const args = codesignArgs("/repo/dist/OpenPeek.dmg", "Developer ID Application: Example", {
+  const args = codesignArgs("/repo/dist/OpenGlance.dmg", "Developer ID Application: Example", {
     hardenedRuntime: false,
     entitlementsPath: "/repo/assets/entitlements.mac.plist",
   });
@@ -584,28 +594,28 @@ test("mac release DMG signing does not use app entitlements", () => {
     "--timestamp",
     "--sign",
     "Developer ID Application: Example",
-    "/repo/dist/OpenPeek.dmg",
+    "/repo/dist/OpenGlance.dmg",
   ]);
 });
 
 test("mac DMG layout stages the app and Finder background", () => {
   const paths = macReleasePaths({
     rootDir: "/repo",
-    appName: "OpenPeek",
+    appName: "OpenGlance",
     version: "1.2.3",
   });
-  const layout = macDmgLayoutPaths(paths, { appName: "OpenPeek" });
+  const layout = macDmgLayoutPaths(paths, { appName: "OpenGlance" });
 
-  assert.equal(slashPath(layout.stageDir), "/repo/dist/OpenPeek-dmg-stage");
-  assert.equal(slashPath(layout.stagedAppPath), "/repo/dist/OpenPeek-dmg-stage/OpenPeek.app");
-  assert.equal(slashPath(layout.backgroundPngPath), "/repo/dist/OpenPeek-dmg-stage/.background/background.png");
-  assert.equal(slashPath(layout.readWriteDmgPath), "/repo/dist/OpenPeek-dmg.rw.dmg");
+  assert.equal(slashPath(layout.stageDir), "/repo/dist/OpenGlance-dmg-stage");
+  assert.equal(slashPath(layout.stagedAppPath), "/repo/dist/OpenGlance-dmg-stage/OpenGlance.app");
+  assert.equal(slashPath(layout.backgroundPngPath), "/repo/dist/OpenGlance-dmg-stage/.background/background.png");
+  assert.equal(slashPath(layout.readWriteDmgPath), "/repo/dist/OpenGlance-dmg.rw.dmg");
 });
 
 test("mac DMG uses a unique staging volume name", () => {
   assert.equal(
-    dmgStagingVolumeName({ appName: "OpenPeek", processId: 4242 }),
-    "OpenPeek Installer 4242",
+    dmgStagingVolumeName({ appName: "OpenGlance", processId: 4242 }),
+    "OpenGlance Installer 4242",
   );
 });
 
@@ -616,39 +626,39 @@ test("mac DMG locale detection maps Chinese and English locale values", () => {
 });
 
 test("mac DMG text is localized for Chinese builds", () => {
-  assert.deepEqual(dmgTextForLocale({ appName: "OpenPeek", locale: "zh-Hans_US" }), {
-    title: "安装 OpenPeek",
-    instruction: "将 OpenPeek.app 拖到“应用程序”",
+  assert.deepEqual(dmgTextForLocale({ appName: "OpenGlance", locale: "zh-Hans_US" }), {
+    title: "安装 OpenGlance",
+    instruction: "将 OpenGlance.app 拖到“应用程序”",
     applicationsLabel: "应用程序",
   });
 });
 
 test("mac DMG background gives users the drag-to-Applications instruction", () => {
-  const svg = dmgBackgroundSvg({ appName: "OpenPeek" });
+  const svg = dmgBackgroundSvg({ appName: "OpenGlance" });
 
-  assert.match(svg, /Install OpenPeek/);
-  assert.match(svg, /Drag OpenPeek\.app to Applications/);
+  assert.match(svg, /Install OpenGlance/);
+  assert.match(svg, /Drag OpenGlance\.app to Applications/);
   assert.match(svg, /<path d="M336 176 L318 164 L318 188 Z"/);
 });
 
 test("mac DMG background uses Chinese copy for Chinese builds", () => {
-  const svg = dmgBackgroundSvg({ appName: "OpenPeek", locale: "zh-Hans_US" });
+  const svg = dmgBackgroundSvg({ appName: "OpenGlance", locale: "zh-Hans_US" });
 
-  assert.match(svg, /安装 OpenPeek/);
-  assert.match(svg, /将 OpenPeek\.app 拖到“应用程序”/);
+  assert.match(svg, /安装 OpenGlance/);
+  assert.match(svg, /将 OpenGlance\.app 拖到“应用程序”/);
 });
 
 test("mac DMG Finder layout positions app and Applications icons", () => {
   const script = dmgFinderLayoutScript({
-    appName: "OpenPeek",
-    mountPoint: "/repo/dist/OpenPeek-dmg-mount",
-    backgroundPngPath: "/Volumes/OpenPeek/.background/background.png",
+    appName: "OpenGlance",
+    mountPoint: "/repo/dist/OpenGlance-dmg-mount",
+    backgroundPngPath: "/Volumes/OpenGlance/.background/background.png",
   }).join("\n");
 
   assert.match(script, /set applicationsFolder to folder "Applications" of startup disk/);
   assert.match(
     script,
-    /set targetFolder to POSIX file "\/repo\/dist\/OpenPeek-dmg-mount" as alias/,
+    /set targetFolder to POSIX file "\/repo\/dist\/OpenGlance-dmg-mount" as alias/,
   );
   assert.match(script, /set targetWindow to container window of targetFolder/);
   assert.doesNotMatch(script, /tell disk/);
@@ -658,24 +668,24 @@ test("mac DMG Finder layout positions app and Applications icons", () => {
   );
   assert.match(
     script,
-    /set background picture of viewOptions to \(POSIX file "\/Volumes\/OpenPeek\/\.background\/background\.png" as alias\)/,
+    /set background picture of viewOptions to \(POSIX file "\/Volumes\/OpenGlance\/\.background\/background\.png" as alias\)/,
   );
   assert.match(script, /repeat with attempt from 1 to 20/);
   assert.match(
     script,
-    /if \(exists item "OpenPeek\.app" of targetFolder\) and \(exists item "Applications" of targetFolder\) then exit repeat/,
+    /if \(exists item "OpenGlance\.app" of targetFolder\) and \(exists item "Applications" of targetFolder\) then exit repeat/,
   );
   assert.match(script, /delay 0\.25/);
-  assert.match(script, /set position of item "OpenPeek\.app" of targetFolder to \{150, 190\}/);
+  assert.match(script, /set position of item "OpenGlance\.app" of targetFolder to \{150, 190\}/);
   assert.match(script, /set position of item "Applications" of targetFolder to \{410, 190\}/);
   assert.match(script, /set icon size of viewOptions to 96/);
 });
 
 test("mac DMG Finder layout uses the localized Applications item name", () => {
   const script = dmgFinderLayoutScript({
-    appName: "OpenPeek",
+    appName: "OpenGlance",
     locale: "zh-Hans_US",
-    mountPoint: "/repo/dist/OpenPeek-dmg-mount",
+    mountPoint: "/repo/dist/OpenGlance-dmg-mount",
   }).join("\n");
 
   assert.match(script, /set position of item "Applications" of targetFolder to \{410, 190\}/);
@@ -770,25 +780,25 @@ test("dev install updates the local Applications app and launches it", () => {
 
   const paths = macDevelopmentInstallPaths({
     rootDir: "/repo",
-    appName: "OpenPeek",
+    appName: "OpenGlance",
     applicationsDir: "/Applications",
     exists: () => false,
   });
 
-  assert.equal(slashPath(paths.appDir), "/repo/dist/OpenPeek-darwin-universal/OpenPeek.app");
-  assert.equal(slashPath(paths.installedAppDir), "/Applications/OpenPeek.app");
+  assert.equal(slashPath(paths.appDir), "/repo/dist/OpenGlance-darwin-universal/OpenGlance.app");
+  assert.equal(slashPath(paths.installedAppDir), "/Applications/OpenGlance.app");
 });
 
 test("human dev launch shares the real profile while Agent smoke is explicitly isolated", () => {
   const paths = macDevelopmentInstallPaths({
     rootDir: "/repo",
-    appName: "OpenPeek",
+    appName: "OpenGlance",
     applicationsDir: "/Applications",
     exists: () => false,
   });
   assert.deepEqual(launchDevelopmentAppCommand(paths), [
     "open",
-    ["-n", "/Applications/OpenPeek.app"],
+    ["-n", "/Applications/OpenGlance.app"],
   ]);
   assert.deepEqual(macDevelopmentUserDataPaths({
     homeDir: "/Users/test",
@@ -802,14 +812,30 @@ test("human dev launch shares the real profile while Agent smoke is explicitly i
 test("development install reuses an existing Git Leaf app path without creating a duplicate", () => {
   const paths = macDevelopmentInstallPaths({
     rootDir: "/repo",
-    appName: "OpenPeek",
+    appName: "OpenGlance",
     applicationsDir: "/Applications",
     exists: (value) => value === "/Applications/Git Leaf.app",
   });
 
-  assert.equal(paths.canonicalInstalledAppDir, "/Applications/OpenPeek.app");
+  assert.equal(paths.canonicalInstalledAppDir, "/Applications/OpenGlance.app");
   assert.equal(paths.legacyInstalledAppDir, "/Applications/Git Leaf.app");
   assert.equal(paths.installedAppDir, "/Applications/Git Leaf.app");
+});
+
+test("development install reuses an existing OpenPeek app path before Git Leaf", () => {
+  const paths = macDevelopmentInstallPaths({
+    rootDir: "/repo",
+    appName: "OpenGlance",
+    applicationsDir: "/Applications",
+    exists: (value) => [
+      "/Applications/OpenPeek.app",
+      "/Applications/Git Leaf.app",
+    ].includes(value),
+  });
+
+  assert.equal(paths.openPeekInstalledAppDir, "/Applications/OpenPeek.app");
+  assert.equal(paths.gitLeafInstalledAppDir, "/Applications/Git Leaf.app");
+  assert.equal(paths.installedAppDir, "/Applications/OpenPeek.app");
 });
 
 test("development profile snapshot copies durable state and detects production mutation", async () => {
@@ -1136,33 +1162,40 @@ test("development smoke preserves its profile when production verification fails
 test("dev install quits stale dist app and launches the installed Applications app", () => {
   const paths = macDevelopmentInstallPaths({
     rootDir: "/repo",
-    appName: "OpenPeek",
+    appName: "OpenGlance",
     applicationsDir: "/Applications",
-    exists: (value) => value === "/Applications/OpenPeek.app",
+    exists: (value) => value === "/Applications/OpenGlance.app",
   });
 
-  assert.deepEqual(developmentAppQuitCommands("OpenPeek", paths), [
+  assert.deepEqual(developmentAppQuitCommands("OpenGlance", paths), [
+    ["osascript", ["-e", "tell application \"OpenGlance\" to quit"]],
     ["osascript", ["-e", "tell application \"OpenPeek\" to quit"]],
     ["osascript", ["-e", "tell application \"Git Leaf\" to quit"]],
+    ["pkill", ["-x", "OpenGlance"]],
     ["pkill", ["-x", "OpenPeek"]],
     ["pkill", ["-x", "Git Leaf"]],
+    ["pkill", ["-f", "/Applications/OpenGlance.app"]],
     ["pkill", ["-f", "/Applications/OpenPeek.app"]],
     ["pkill", ["-f", "/Applications/Git Leaf.app"]],
-    ["pkill", ["-f", "/repo/dist/OpenPeek-darwin-universal/OpenPeek.app"]],
+    ["pkill", ["-f", "/repo/dist/OpenGlance-darwin-universal/OpenGlance.app"]],
   ]);
-  assert.deepEqual(developmentAppForceQuitCommands("OpenPeek", paths), [
+  assert.deepEqual(developmentAppForceQuitCommands("OpenGlance", paths), [
+    ["pkill", ["-9", "-x", "OpenGlance"]],
     ["pkill", ["-9", "-x", "OpenPeek"]],
     ["pkill", ["-9", "-x", "Git Leaf"]],
+    ["pkill", ["-9", "-f", "/Applications/OpenGlance.app"]],
     ["pkill", ["-9", "-f", "/Applications/OpenPeek.app"]],
     ["pkill", ["-9", "-f", "/Applications/Git Leaf.app"]],
-    ["pkill", ["-9", "-f", "/repo/dist/OpenPeek-darwin-universal/OpenPeek.app"]],
+    ["pkill", ["-9", "-f", "/repo/dist/OpenGlance-darwin-universal/OpenGlance.app"]],
   ]);
-  assert.deepEqual(developmentAppProcessQueries("OpenPeek", paths), [
+  assert.deepEqual(developmentAppProcessQueries("OpenGlance", paths), [
+    ["-x", "OpenGlance"],
     ["-x", "OpenPeek"],
     ["-x", "Git Leaf"],
+    ["-f", "/Applications/OpenGlance.app"],
     ["-f", "/Applications/OpenPeek.app"],
     ["-f", "/Applications/Git Leaf.app"],
-    ["-f", "/repo/dist/OpenPeek-darwin-universal/OpenPeek.app"],
+    ["-f", "/repo/dist/OpenGlance-darwin-universal/OpenGlance.app"],
   ]);
   assert.deepEqual(launchDevelopmentAppCommand(paths, {
     userDataDir: "/tmp/git-leaf-dev-smoke",
@@ -1170,9 +1203,9 @@ test("dev install quits stale dist app and launches the installed Applications a
     "open",
     [
       "-n",
-      "/Applications/OpenPeek.app",
+      "/Applications/OpenGlance.app",
       "--args",
-      "--openpeek-dev-user-data-dir=/tmp/git-leaf-dev-smoke",
+      "--openglance-dev-user-data-dir=/tmp/git-leaf-dev-smoke",
     ],
   ]);
   assert.deepEqual(launchDevelopmentAppCommand(paths, {
@@ -1183,9 +1216,9 @@ test("dev install quits stale dist app and launches the installed Applications a
     [
       "-W",
       "-n",
-      "/Applications/OpenPeek.app",
+      "/Applications/OpenGlance.app",
       "--args",
-      "--openpeek-dev-user-data-dir=/tmp/git-leaf-agent-smoke",
+      "--openglance-dev-user-data-dir=/tmp/git-leaf-agent-smoke",
     ],
   ]);
   assert.deepEqual(launchDevelopmentAppCommand(paths, {
@@ -1199,9 +1232,9 @@ test("dev install quits stale dist app and launches the installed Applications a
     [
       "-W",
       "-n",
-      "/Applications/OpenPeek.app",
+      "/Applications/OpenGlance.app",
       "--args",
-      "--openpeek-dev-user-data-dir=/tmp/git-leaf-agent-smoke",
+      "--openglance-dev-user-data-dir=/tmp/git-leaf-agent-smoke",
       "--remote-debugging-address=127.0.0.1",
       "--remote-debugging-port=9333",
       "--repo=/tmp/git-leaf-tree-tooltip-smoke-123",
@@ -1241,7 +1274,7 @@ test("dev install quits stale dist app and launches the installed Applications a
 test("dev install removes the temporary packaged app after copying into Applications", () => {
   const paths = macDevelopmentInstallPaths({
     rootDir: "/repo",
-    appName: "OpenPeek",
+    appName: "OpenGlance",
     applicationsDir: "/Applications",
   });
 
@@ -1253,22 +1286,22 @@ test("dev install removes the temporary packaged app after copying into Applicat
     {
       unregisterCommand: [
         "/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister",
-        ["-u", "/repo/dist/OpenPeek-darwin-universal/OpenPeek.app"],
+        ["-u", "/repo/dist/OpenGlance-darwin-universal/OpenGlance.app"],
       ],
-      removeDir: "/repo/dist/OpenPeek-darwin-universal",
+      removeDir: "/repo/dist/OpenGlance-darwin-universal",
     },
   );
 });
 
 test("dev install marks the same app identity as a development build", () => {
   const options = macDevelopmentInstallOptions({
-    appName: "OpenPeek",
-    bundleId: "org.gitleaf.community",
+    appName: "OpenGlance",
+    bundleId: "org.openglance.community",
   });
 
   assert.deepEqual(options, {
-    appName: "OpenPeek",
-    bundleId: "org.gitleaf.community",
+    appName: "OpenGlance",
+    bundleId: "org.openglance.community",
     dev: true,
   });
   assert.equal(
@@ -1278,7 +1311,7 @@ test("dev install marks the same app identity as a development build", () => {
       exists: () => false,
       ...options,
     }).installedAppDir,
-    "/Applications/OpenPeek.app",
+    "/Applications/OpenGlance.app",
   );
 });
 
@@ -1288,10 +1321,10 @@ test("default release options use the Mango Future Developer ID profile", () => 
     "Developer ID Application: Shenzhen Mango Future Technology Co., Ltd. (HN6X79BUSR)",
   );
   assert.equal(DEFAULT_RELEASE_OPTIONS.notaryProfile, "");
-  assert.equal(DEFAULT_RELEASE_OPTIONS.iconPath, "assets/icons/openpeek");
+  assert.equal(DEFAULT_RELEASE_OPTIONS.iconPath, "assets/icons/openglance");
   assert.equal(DEFAULT_RELEASE_OPTIONS.entitlementsPath, "assets/entitlements.mac.plist");
   assert.equal(DEFAULT_RELEASE_OPTIONS.arch, "universal");
-  assert.equal(DEFAULT_RELEASE_OPTIONS.bundleId, "org.gitleaf.community");
+  assert.equal(DEFAULT_RELEASE_OPTIONS.bundleId, "org.openglance.community");
 });
 
 test("mac release version follows package.json", async () => {
@@ -1326,7 +1359,10 @@ test("Makefile exposes the local dev install app target", async () => {
   assert.match(makefile, /^smoke-tree-tooltip-mac:/m);
   assert.match(makefile, /^\tnode scripts\/smoke-tree-tooltip-mac\.mjs$/m);
   assert.match(makefile, /^publish-updates-mac:/m);
-  assert.match(makefile, /^OPENPEEK_RELEASE_PROFILE \?= \$\(GIT_LEAF_RELEASE_PROFILE\)$/m);
+  assert.match(
+    makefile,
+    /^OPENGLANCE_RELEASE_PROFILE \?= \$\(if \$\(OPENPEEK_RELEASE_PROFILE\),\$\(OPENPEEK_RELEASE_PROFILE\),\$\(GIT_LEAF_RELEASE_PROFILE\)\)$/m,
+  );
   assert.doesNotMatch(makefile, /^(?:UPDATE_REMOTE_HOST|UPDATE_REMOTE_ROOT|NOTARY_PROFILE) \?=/m);
 });
 

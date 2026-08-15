@@ -20,11 +20,19 @@ const DEFAULT_PORT = 4317;
 const HEALTH_CHECK_TIMEOUT_MS = 500;
 const RESTART_WAIT_TIMEOUT_MS = 5_000;
 const RESTART_WAIT_INTERVAL_MS = 150;
+const OPENGLANCE_APP_ID = "openglance";
 const OPENPEEK_APP_ID = "openpeek";
-const LEGACY_APP_ID = "git-leaf";
-const SUPPORTED_APP_IDS = new Set([OPENPEEK_APP_ID, LEGACY_APP_ID]);
-const SERVER_RECORD_DIR = path.join(os.tmpdir(), OPENPEEK_APP_ID);
-const LEGACY_SERVER_RECORD_DIR = path.join(os.tmpdir(), LEGACY_APP_ID);
+const GIT_LEAF_APP_ID = "git-leaf";
+const SUPPORTED_APP_IDS = new Set([
+  OPENGLANCE_APP_ID,
+  OPENPEEK_APP_ID,
+  GIT_LEAF_APP_ID,
+]);
+const SERVER_RECORD_DIR = path.join(os.tmpdir(), OPENGLANCE_APP_ID);
+const LEGACY_SERVER_RECORD_DIRS = [
+  path.join(os.tmpdir(), OPENPEEK_APP_ID),
+  path.join(os.tmpdir(), GIT_LEAF_APP_ID),
+];
 const execFileAsync = promisify(execFile);
 
 export async function runCli(args = process.argv.slice(2)) {
@@ -37,13 +45,13 @@ export async function runCli(args = process.argv.slice(2)) {
     : "";
   const initialFile = inputFile ? await resolveOpenablePath(repoRoot, inputFile) : null;
   const relativePath = initialFile?.relativePath ?? "";
-  const reusableUrl = await findReusableOpenPeekUrl({
+  const reusableUrl = await findReusableOpenGlanceUrl({
     repoRoot,
     port: options.port,
     relativePath,
   });
   if (reusableUrl) {
-    console.log(`OpenPeek already running at ${reusableUrl}`);
+    console.log(`OpenGlance already running at ${reusableUrl}`);
     if (options.open) {
       openBrowser(reusableUrl);
     }
@@ -84,7 +92,7 @@ export async function runCli(args = process.argv.slice(2)) {
     repoId: repository.id,
   });
 
-  console.log(`OpenPeek running at ${url}`);
+  console.log(`OpenGlance running at ${url}`);
   console.log("Press Ctrl+C to stop.");
 
   if (options.open) {
@@ -92,13 +100,13 @@ export async function runCli(args = process.argv.slice(2)) {
   }
 }
 
-export async function findReusableOpenPeekUrl({
+export async function findReusableOpenGlanceUrl({
   repoRoot,
   port,
   relativePath,
   readRecord,
 }) {
-  const primaryUrl = await reusableOpenPeekUrl({
+  const primaryUrl = await reusableOpenGlanceUrl({
     repoRoot,
     port,
     relativePath,
@@ -112,7 +120,7 @@ export async function findReusableOpenPeekUrl({
   for (let offset = 1; offset < 20; offset += 1) {
     const fallbackPort = port + offset;
     const payload = await checkedHealthPayload(fallbackPort);
-    if (!sameRepositoryOpenPeek(payload, repoRoot)) {
+    if (!sameRepositoryOpenGlance(payload, repoRoot)) {
       continue;
     }
 
@@ -132,7 +140,7 @@ export async function findReusableOpenPeekUrl({
         : null;
     }
 
-    const reusableUrl = await reusableOpenPeekUrl({
+    const reusableUrl = await reusableOpenGlanceUrl({
       repoRoot,
       port: fallbackPort,
       relativePath,
@@ -145,7 +153,7 @@ export async function findReusableOpenPeekUrl({
   return null;
 }
 
-export async function reusableOpenPeekUrl({
+export async function reusableOpenGlanceUrl({
   repoRoot,
   port,
   relativePath,
@@ -160,7 +168,7 @@ export async function reusableOpenPeekUrl({
       return null;
     }
     const payload = await response.json();
-    if (!sameRepositoryOpenPeek(payload, repoRoot)) {
+    if (!sameRepositoryOpenGlance(payload, repoRoot)) {
       return null;
     }
     if (!payload.toolFingerprint) {
@@ -201,7 +209,7 @@ async function requestRestartAndWait({ port, repoRoot, expectedPort = port }) {
     await delay(RESTART_WAIT_INTERVAL_MS);
     const payload = await checkedHealthPayload(expectedPort);
     if (
-      sameRepositoryOpenPeek(payload, repoRoot) &&
+      sameRepositoryOpenGlance(payload, repoRoot) &&
       payload.toolFingerprint &&
       !payload.stale
     ) {
@@ -223,17 +231,17 @@ async function checkedHealthPayload(port) {
   }
 }
 
-function sameRepositoryOpenPeek(payload, repoRoot) {
+function sameRepositoryOpenGlance(payload, repoRoot) {
   return Boolean(SUPPORTED_APP_IDS.has(payload?.app) && payload.repoRoot === repoRoot);
 }
 
-export async function registeredOpenPeekProcessOnPort({
+export async function registeredOpenGlanceProcessOnPort({
   repoRoot,
   port,
   readRecord = readServerRecord,
   isProcessAlive = processIsAlive,
   pidOwnsPort = processOwnsTcpPort,
-  isOpenPeekProcess = processCommandLooksLikeOpenPeek,
+  isOpenGlanceProcess = processCommandLooksLikeOpenGlance,
 } = {}) {
   if (!repoRoot || !Number.isInteger(port)) {
     return null;
@@ -254,7 +262,7 @@ export async function registeredOpenPeekProcessOnPort({
   if (
     !(await isProcessAlive(record.pid)) ||
     !(await pidOwnsPort(record.pid, port)) ||
-    !(await isOpenPeekProcess(record.pid))
+    !(await isOpenGlanceProcess(record.pid))
   ) {
     return null;
   }
@@ -262,24 +270,24 @@ export async function registeredOpenPeekProcessOnPort({
   return record;
 }
 
-export async function stopRegisteredOpenPeekProcessOnPort({
+export async function stopRegisteredOpenGlanceProcessOnPort({
   repoRoot,
   port,
   host,
   readRecord = readServerRecord,
   isProcessAlive = processIsAlive,
   pidOwnsPort = processOwnsTcpPort,
-  isOpenPeekProcess = processCommandLooksLikeOpenPeek,
+  isOpenGlanceProcess = processCommandLooksLikeOpenGlance,
   stopProcess = terminateProcess,
   waitForPortAvailable = waitUntilPortAvailable,
 } = {}) {
-  const record = await registeredOpenPeekProcessOnPort({
+  const record = await registeredOpenGlanceProcessOnPort({
     repoRoot,
     port,
     readRecord,
     isProcessAlive,
     pidOwnsPort,
-    isOpenPeekProcess,
+    isOpenGlanceProcess,
   });
   if (!record || record.pid === process.pid) {
     return false;
@@ -299,7 +307,7 @@ async function writeServerRecord({ repoRoot, port, repoId }) {
   await writeFile(
     serverRecordPath(repoRoot),
     `${JSON.stringify({
-      app: OPENPEEK_APP_ID,
+      app: OPENGLANCE_APP_ID,
       repoRoot,
       port,
       repoId,
@@ -312,11 +320,11 @@ async function writeServerRecord({ repoRoot, port, repoId }) {
 }
 
 async function readServerRecord(repoRoot) {
-  for (const recordDir of [SERVER_RECORD_DIR, LEGACY_SERVER_RECORD_DIR]) {
+  for (const recordDir of [SERVER_RECORD_DIR, ...LEGACY_SERVER_RECORD_DIRS]) {
     try {
       return JSON.parse(await readFile(serverRecordPath(repoRoot, { recordDir }), "utf8"));
     } catch {
-      // Continue to the legacy record location during the OpenPeek transition.
+      // Continue to the legacy record location during the OpenGlance transition.
     }
   }
   return null;
@@ -348,11 +356,11 @@ async function processOwnsTcpPort(pid, port) {
   }
 }
 
-async function processCommandLooksLikeOpenPeek(pid) {
+async function processCommandLooksLikeOpenGlance(pid) {
   try {
     const probe = processCommandLineCommand({ pid });
     const { stdout } = await execFileAsync(probe.command, probe.args);
-    return openPeekCommandLineLooksLikeOpenPeek(stdout);
+    return openGlanceCommandLineLooksLikeOpenGlance(stdout);
   } catch {
     return false;
   }
@@ -428,11 +436,13 @@ export function windowsNetstatShowsPidListeningOnPort(output, pid, port) {
     });
 }
 
-export function openPeekCommandLineLooksLikeOpenPeek(commandLine) {
+export function openGlanceCommandLineLooksLikeOpenGlance(commandLine) {
   const command = String(commandLine ?? "").replaceAll("\\", "/").toLowerCase();
   return (
     command.includes("/src/cli.mjs") ||
     command.includes(" src/cli.mjs") ||
+    command.includes("/openglance/src/cli.mjs") ||
+    command.includes(" openglance/src/cli.mjs") ||
     command.includes("/openpeek/src/cli.mjs") ||
     command.includes(" openpeek/src/cli.mjs") ||
     command.includes("/git-leaf/src/cli.mjs") ||
@@ -518,7 +528,7 @@ function createRestartSelf({ args, cwd, getServer }) {
           stdio: "ignore",
           env: {
             ...process.env,
-            OPENPEEK_RESTARTED: "1",
+            OPENGLANCE_RESTARTED: "1",
           },
         });
         child.unref();
@@ -549,7 +559,7 @@ function parseArgs(args) {
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
     if (arg === "--host") {
-      throw new Error("--host is no longer supported; OpenPeek only listens on localhost.");
+      throw new Error("--host is no longer supported; OpenGlance only listens on localhost.");
     }
     if (arg === "--port") {
       options.port = Number(args[++index] ?? DEFAULT_PORT);
@@ -578,7 +588,7 @@ async function listenWithFallback(server, options, { repoRoot } = {}) {
         throw error;
       }
 
-      const stopped = await stopRegisteredOpenPeekProcessOnPort({
+      const stopped = await stopRegisteredOpenGlanceProcessOnPort({
         repoRoot,
         port,
         host: DEFAULT_BIND_HOST,
@@ -634,12 +644,12 @@ function openBrowser(url) {
 }
 
 function printUsage() {
-  console.error(`Usage: openpeek [path-to-doc.md] [--no-open]
+  console.error(`Usage: openglance [path-to-doc.md] [--no-open]
 
 Examples:
-  openpeek
-  openpeek docs/notes/example.md
-  openpeek docs/repo-structure.md --no-open
+  openglance
+  openglance docs/notes/example.md
+  openglance docs/repo-structure.md --no-open
 
 The legacy git-leaf command remains available as a compatibility alias.
 `);

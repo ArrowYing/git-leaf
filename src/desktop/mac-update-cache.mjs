@@ -9,7 +9,19 @@ import {
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-export const OFFICIAL_MAC_SHIPIT_JOB_LABEL = "com.mangofuture.gitleaf.ShipIt";
+export const OFFICIAL_PUBLIC_MAC_SHIPIT_JOB_LABEL = "com.mangofuture.openglance.ShipIt";
+export const OFFICIAL_INTERNAL_MAC_SHIPIT_JOB_LABEL = "com.mangofuture.gitleaf.ShipIt";
+export const COMMUNITY_MAC_SHIPIT_JOB_LABEL = "org.openglance.community.ShipIt";
+export const OFFICIAL_MAC_SHIPIT_JOB_LABEL = OFFICIAL_INTERNAL_MAC_SHIPIT_JOB_LABEL;
+
+export function macShipItJobLabelForBuildInfo(buildInfo = {}) {
+  if (buildInfo.distribution !== "official") {
+    return COMMUNITY_MAC_SHIPIT_JOB_LABEL;
+  }
+  return buildInfo.releaseTrack === "internal"
+    ? OFFICIAL_INTERNAL_MAC_SHIPIT_JOB_LABEL
+    : OFFICIAL_PUBLIC_MAC_SHIPIT_JOB_LABEL;
+}
 
 export function macUpdateCachePaths({
   homeDir,
@@ -74,7 +86,7 @@ export async function preserveMacUpdateAppPath({
   };
   const temporaryStateFile = path.join(
     paths.updateRoot,
-    `.ShipItState.openpeek-${processId}-${now()}.tmp`,
+    `.ShipItState.openglance-${processId}-${now()}.tmp`,
   );
   let temporaryStateCreated = false;
   try {

@@ -1,12 +1,12 @@
 ---
-last_updated: 2026-07-31
+last_updated: 2026-08-15
 ---
 
-# AGENTS.md - OpenPeek
+# AGENTS.md - OpenGlance
 
-This is the standalone OpenPeek repository. It develops a local human interface for Git repositories
-used as shared context by teams and AI agents. OpenPeek can open any local Git repository selected by
-the user, whether it is a company repository or a third-party repository. OpenPeek source code, the
+This is the standalone OpenGlance repository. It develops a local human interface for Git repositories
+used as shared context by teams and AI agents. OpenGlance can open any local Git repository selected by
+the user, whether it is a company repository or a third-party repository. OpenGlance source code, the
 desktop shell, the web workspace, tests, and packaging configuration are all maintained here.
 
 ## Purpose of this file
@@ -28,7 +28,7 @@ desktop shell, the web workspace, tests, and packaging configuration are all mai
 - End-user workflows and the visual product tour: `docs/user-guide.md`, with
   `docs/user-guide.zh-CN.md` as its Simplified Chinese counterpart.
 - The public runnable companion is
-  `MangoFuture1210/openpeek-example-knowledge-base`. When a stable user-visible capability, workflow,
+  `MangoFuture1210/openglance-example-knowledge-base`. When a stable user-visible capability, workflow,
   or screenshot scenario changes, review and update its matching guide or demo page in the same
   maintenance cycle. Product facts and regression contracts remain authoritative in this repository.
 - Architecture, service boundaries, worktrees, local editing, and the desktop wrapper:
@@ -42,7 +42,7 @@ desktop shell, the web workspace, tests, and packaging configuration are all mai
   metric formulas, privacy boundaries, JSONL storage, and prohibited inferences is
   `docs/app-usage-analytics-spec.md`.
 - The release process is in `docs/release.md`. The repository-owned Agent entry point is
-  `.agents/skills/openpeek-release/SKILL.md`; it routes to the document and controller without
+  `.agents/skills/openglance-release/SKILL.md`; it routes to the document and controller without
   duplicating the full release procedure.
 
 ## Repository layout
@@ -57,7 +57,7 @@ desktop shell, the web workspace, tests, and packaging configuration are all mai
 - `src/desktop/`: Electron main-process entry point and desktop-only modules. Desktop configuration,
   environment checks, updates, analytics, home, and navigation live there.
 - `assets/`: packaging assets such as application icons. The macOS icon source is
-  `assets/icons/openpeek.*`.
+  `assets/icons/openglance.*`.
 - `docs/`: architecture, release instructions, platform guides, renderer references, and specifications.
   Maintainer-facing technical documents are English-only. End-user documents may add Simplified Chinese
   with `.zh-CN`.
@@ -88,7 +88,7 @@ make package-mac
 make package-win
 ```
 
-Run `npm test` by default after changing OpenPeek core code. It runs only the cross-platform core suite.
+Run `npm test` by default after changing OpenGlance core code. It runs only the cross-platform core suite.
 Run the complete local regression suite with `npm run test:all` before a release.
 
 After changing `src/client/source-editor.mjs` or `src/client/mermaid-renderer.mjs`, also run
@@ -103,12 +103,16 @@ After changing macOS packaging, signing, notarization, local installation, or ic
 `npm run test:ci:mac`. Run `make install-dev-mac` only when a local application update must be verified.
 
 `make install-dev-mac` installs or replaces the same human-facing app installation and therefore uses
-the same real, persistent configuration as the formal app. A new installation uses `OpenPeek.app`; an
-existing `Git Leaf.app` is reused during the 2.0 transition instead of creating a duplicate. The
-interface identifies the embedded development build as `OpenPeek dev`, and that build does not check
+the same real, persistent configuration as the formal app. A new installation uses `OpenGlance.app`; an
+existing internal `OpenPeek.app` or `Git Leaf.app` is reused instead of creating a duplicate. The
+interface identifies the embedded development build as `OpenGlance dev`, and that build does not check
 for production updates, but build identity must not select a different Profile. Replacing the app must
 preserve the repositories, sessions, appearance, typography, language, favorites, and sidebar state the
 user already uses.
+
+During the 3.0 transition, internal official macOS packages retain the existing Git Leaf Bundle ID and
+hidden executable for upgrade continuity. Public official and Community packages use OpenGlance-native
+identities; `openpeek` and `git-leaf` inputs remain compatibility-only aliases.
 
 Agent-driven automated verification is a different launch intent. It must use the explicit, one-time
 snapshot created by `make smoke-dev-mac`; the snapshot is derived read-only from the real Profile, writes
@@ -197,7 +201,7 @@ test fixture.
 ## Documentation links in responses
 
 - When a response needs to link to a Markdown or MDX document in a Git repository, provide a clickable
-  OpenPeek HTTPS link by default. Do not provide only an absolute local path, a `file://` URL, or a GitHub
+  OpenGlance HTTPS link by default. Do not provide only an absolute local path, a `file://` URL, or a GitHub
   blob link.
 - Always generate the link with `scripts/generate-open-link.mjs`; do not assemble repository, path, or
   worktree parameters manually:
@@ -210,14 +214,14 @@ node <git-leaf-repo>/scripts/generate-open-link.mjs \
 
 - Links generated from the primary worktree can be shared with colleagues. Linked-worktree links are
   local to the machine that created them.
-- Use the response copy `Open in OpenPeek: <document title>`. Use a GitHub source link only when the user
-  explicitly requests one or an OpenPeek link cannot be generated, and explain the fallback.
-- Do not launch OpenPeek or switch the user's current repository merely because a link was generated,
+- Use the response copy `Open in OpenGlance: <document title>`. Use a GitHub source link only when the user
+  explicitly requests one or an OpenGlance link cannot be generated, and explain the fallback.
+- Do not launch OpenGlance or switch the user's current repository merely because a link was generated,
   unless the user explicitly asks.
 
 ## Git workflow
 
-- Routine OpenPeek development does not use feature pull requests. Work directly in the primary checkout
+- Routine OpenGlance development does not use feature pull requests. Work directly in the primary checkout
   or use an additional worktree when isolation, parallelism, or the task calls for it.
 - After changes in a worktree pass their checks, merge them directly into the primary checkout's `main`
   and push `main`; do not make a pull request part of delivery.
@@ -234,7 +238,7 @@ node <git-leaf-repo>/scripts/generate-open-link.mjs \
   editing endpoints, or local paths to the LAN or public internet.
 - File-tree display preferences must not change Git file discovery, status, or sync scope. Ordinary deep
   links and share links must not expand beyond Markdown and MDX.
-- OpenPeek does not rewrite diverged history automatically, bypass conflicts or in-progress Git
+- OpenGlance does not rewrite diverged history automatically, bypass conflicts or in-progress Git
   operations, or permit any write path to bypass protective branch creation for a detached worktree.
 - Sharing, updates, telemetry, and development configuration are security boundaries. Read the
   corresponding architecture or specification before changing them and add contract tests.

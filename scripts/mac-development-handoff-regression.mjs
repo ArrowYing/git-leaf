@@ -21,7 +21,7 @@ import { extractFile, listPackage, uncache } from "@electron/asar";
 
 import {
   BUILD_INFO_FILENAME,
-  LEGACY_BUILD_INFO_FILENAME,
+  LEGACY_BUILD_INFO_FILENAMES,
 } from "../src/build-info.mjs";
 import {
   normalizeDevelopmentHandoffReceipt,
@@ -31,8 +31,8 @@ import { DEVELOPMENT_USER_DATA_ARG } from "../src/desktop/user-data.mjs";
 import { compareAppVersions } from "../src/desktop/app-updates.mjs";
 import { macDevelopmentHandoffCachePaths } from "../src/desktop/mac-development-handoff-update.mjs";
 import {
-  OPENPEEK_PROTOCOL,
-  OPENPEEK_SUPPORTED_PROTOCOLS,
+  OPENGLANCE_PROTOCOL,
+  OPENGLANCE_SUPPORTED_PROTOCOLS,
 } from "../src/product-identity.mjs";
 import {
   applyMacBundleIcon,
@@ -85,6 +85,12 @@ const SEMANTIC_VERSION =
 const STABLE_SEMANTIC_VERSION = /^(\d+)\.(\d+)\.(\d+)$/;
 const SOURCE_SHIPIT_JOB_LABEL =
   `${COMMUNITY_PACKAGE_IDENTITY.macBundleId}.ShipIt`;
+const LEGACY_SOURCE_SHIPIT_JOB_LABEL = "org.gitleaf.community.ShipIt";
+const HANDOFF_SHIPIT_JOB_LABELS = [
+  SHIPIT_JOB_LABEL,
+  SOURCE_SHIPIT_JOB_LABEL,
+  LEGACY_SOURCE_SHIPIT_JOB_LABEL,
+];
 export const OFFICIAL_MAC_TEAM_IDENTIFIER = "HN6X79BUSR";
 
 export function validateDevelopmentHandoffBuildPair({
@@ -157,9 +163,9 @@ export function validateDevelopmentHandoffRegressionEvidence(evidence) {
     || evidence?.sourceBundleId !== COMMUNITY_PACKAGE_IDENTITY.macBundleId
     || evidence?.targetBundleId !== OFFICIAL_PACKAGE_IDENTITY.macBundleId
     || evidence?.targetTeamIdentifier !== OFFICIAL_MAC_TEAM_IDENTIFIER
-    || evidence?.protocolScheme !== OPENPEEK_PROTOCOL
+    || evidence?.protocolScheme !== OPENGLANCE_PROTOCOL
     || !Array.isArray(evidence?.protocolSchemes)
-    || OPENPEEK_SUPPORTED_PROTOCOLS.some(
+    || OPENGLANCE_SUPPORTED_PROTOCOLS.some(
       (scheme) => !evidence.protocolSchemes.includes(scheme),
     )
     || evidence?.targetUsageAnalyticsDefault !== true
@@ -350,15 +356,15 @@ export async function runDevelopmentHandoffRegression({
         `The internal App is signed by unexpected team ${targetTeamIdentifier || "missing"}`,
       );
     }
-    const protocolSchemes = [0, 1].map((index) => readAppPlistValue(
+    const protocolSchemes = OPENGLANCE_SUPPORTED_PROTOCOLS.map((_scheme, index) => readAppPlistValue(
       targetAppPath,
       `CFBundleURLTypes:0:CFBundleURLSchemes:${index}`,
     ));
-    if (OPENPEEK_SUPPORTED_PROTOCOLS.some(
+    if (OPENGLANCE_SUPPORTED_PROTOCOLS.some(
       (scheme) => !protocolSchemes.includes(scheme),
     )) {
       throw new Error(
-        "The internal App does not own the canonical and legacy OpenPeek URL schemes",
+        "The internal App does not own the canonical and legacy OpenGlance URL schemes",
       );
     }
 
@@ -381,15 +387,15 @@ export async function runDevelopmentHandoffRegression({
       HOME: isolatedHome,
       CFFIXED_USER_HOME: isolatedHome,
       TMPDIR: `${isolatedTmp}${path.sep}`,
-      OPENPEEK_UPDATE_BASE_URL:
+      OPENGLANCE_UPDATE_BASE_URL:
         `http://127.0.0.1:${server.port}/git-leaf`,
-      OPENPEEK_TELEMETRY_ENDPOINT:
+      OPENGLANCE_TELEMETRY_ENDPOINT:
         `http://127.0.0.1:${server.port}/telemetry/v1/events`,
-      OPENPEEK_DEV_USER_DATA_DIR: userDataDir,
+      OPENGLANCE_DEV_USER_DATA_DIR: userDataDir,
     };
     const logDescriptor = openSync(logPath, "a");
     appProcess = spawn(
-      path.join(sourceAppPath, "Contents", "MacOS", "OpenPeek"),
+      path.join(sourceAppPath, "Contents", "MacOS", "OpenGlance"),
       [
         `${DEVELOPMENT_USER_DATA_ARG}=${userDataDir}`,
         "--remote-debugging-port=0",
@@ -450,10 +456,9 @@ export async function runDevelopmentHandoffRegression({
       label: "the prepared development handoff install action",
     });
 
-    const isolatedShipItCaches = [
-      path.join(isolatedHome, "Library", "Caches", SHIPIT_JOB_LABEL),
-      path.join(isolatedHome, "Library", "Caches", SOURCE_SHIPIT_JOB_LABEL),
-    ];
+    const isolatedShipItCaches = HANDOFF_SHIPIT_JOB_LABELS.map((label) => (
+      path.join(isolatedHome, "Library", "Caches", label)
+    ));
     if (isolatedShipItCaches.some((cachePath) => (
       existsSync(path.join(cachePath, "ShipItState.plist"))
     ))) {
@@ -464,6 +469,10 @@ export async function runDevelopmentHandoffRegression({
       || launchctlJobExists({
         domain: "system",
         label: SOURCE_SHIPIT_JOB_LABEL,
+      })
+      || launchctlJobExists({
+        domain: "system",
+        label: LEGACY_SOURCE_SHIPIT_JOB_LABEL,
       })
     ) {
       throw new Error("The development handoff attempted to register a privileged ShipIt job");
@@ -532,7 +541,7 @@ export async function runDevelopmentHandoffRegression({
       telemetryInitialized: existsSync(
         path.join(userDataDir, "telemetry-state.json"),
       ),
-      protocolScheme: OPENPEEK_PROTOCOL,
+      protocolScheme: OPENGLANCE_PROTOCOL,
       protocolSchemes,
       nonprivilegedContentsBridge: true,
       squirrelInvoked: false,
@@ -555,8 +564,8 @@ export async function runDevelopmentHandoffRegression({
       if (appParentLocked) {
         const sourceAppPath = path.join(
           packageOutputDir,
-          "OpenPeek-darwin-universal",
-          "OpenPeek.app",
+          "OpenGlance-darwin-universal",
+          "OpenGlance.app",
         );
         chmodSync(path.dirname(sourceAppPath), 0o755);
         appParentLocked = false;
@@ -583,7 +592,7 @@ export async function runDevelopmentHandoffRegression({
     } catch (error) {
       cleanupErrors.push(error);
     }
-    for (const label of [SHIPIT_JOB_LABEL, SOURCE_SHIPIT_JOB_LABEL]) {
+    for (const label of HANDOFF_SHIPIT_JOB_LABELS) {
       try {
         bootoutUserShipItJob(temporaryRoot, { label });
       } catch (error) {
@@ -591,7 +600,7 @@ export async function runDevelopmentHandoffRegression({
       }
     }
     try {
-      for (const label of [SHIPIT_JOB_LABEL, SOURCE_SHIPIT_JOB_LABEL]) {
+      for (const label of HANDOFF_SHIPIT_JOB_LABELS) {
         if (launchctlJobExists({ domain: "user", label })) {
           throw new Error(`The per-user ShipIt job remained: ${label}`);
         }
@@ -606,7 +615,7 @@ export async function runDevelopmentHandoffRegression({
       const realProfileAfter = fingerprintRealProfile();
       const realShipItCacheAfter = realShipItCacheFingerprint();
       if (!sameFingerprint(host.productionFingerprint, realProfileAfter)) {
-        throw new Error("The real OpenPeek Profile changed during handoff regression");
+        throw new Error("The real OpenGlance Profile changed during handoff regression");
       }
       if (!sameFingerprint(realShipItCacheBefore, realShipItCacheAfter)) {
         throw new Error("The real ShipIt caches changed during handoff regression");
@@ -657,9 +666,9 @@ function packageSourceDevelopmentApp({ outputDir, version } = {}) {
       env: {
         ...process.env,
         VERSION: version,
-        OPENPEEK_RELEASE_PROFILE: "",
-        OPENPEEK_DISTRIBUTION: "source",
-        OPENPEEK_USAGE_ANALYTICS_DEFAULT: "false",
+        OPENGLANCE_RELEASE_PROFILE: "",
+        OPENGLANCE_DISTRIBUTION: "source",
+        OPENGLANCE_USAGE_ANALYTICS_DEFAULT: "false",
       },
     }),
     dev: true,
@@ -681,8 +690,8 @@ function packageSourceDevelopmentApp({ outputDir, version } = {}) {
   });
   const appPath = path.join(
     outputDir,
-    "OpenPeek-darwin-universal",
-    "OpenPeek.app",
+    "OpenGlance-darwin-universal",
+    "OpenGlance.app",
   );
   patchSquirrelMacPolicy({ appDir: appPath, rootDir: REPO_ROOT });
   applyMacBundleIcon(options, { appDir: appPath });
@@ -705,6 +714,18 @@ function assertDevelopmentHandoffHostSafe() {
       label: SOURCE_SHIPIT_JOB_LABEL,
     }),
   });
+  assertSafeMacUpdateRegressionHost({
+    platform: process.platform,
+    productionAppRunning: false,
+    userShipItJobExists: launchctlJobExists({
+      domain: "user",
+      label: LEGACY_SOURCE_SHIPIT_JOB_LABEL,
+    }),
+    systemShipItJobExists: launchctlJobExists({
+      domain: "system",
+      label: LEGACY_SOURCE_SHIPIT_JOB_LABEL,
+    }),
+  });
   return host;
 }
 
@@ -717,6 +738,7 @@ function realShipItCacheFingerprint() {
   return developmentFingerprint(cacheRoot, [
     SHIPIT_JOB_LABEL,
     SOURCE_SHIPIT_JOB_LABEL,
+    LEGACY_SOURCE_SHIPIT_JOB_LABEL,
   ]);
 }
 
@@ -739,7 +761,7 @@ export function readPackagedBuildInfo(appPath) {
     listPackage(asarPath, { isPack: false })
       .map((filename) => filename.replace(/^[/\\]+/, "")),
   );
-  const filename = [BUILD_INFO_FILENAME, LEGACY_BUILD_INFO_FILENAME]
+  const filename = [BUILD_INFO_FILENAME, ...LEGACY_BUILD_INFO_FILENAMES]
     .find((candidate) => packagedFiles.has(candidate));
   if (!filename) {
     throw new Error(

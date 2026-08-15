@@ -15,29 +15,33 @@ import {
   withoutWindowsUpdateArguments,
 } from "./windows-app-update.mjs";
 
-const WINDOWS_INSTALL_PARENT = "OpenPeek";
+const WINDOWS_INSTALL_PARENT = "OpenGlance";
 const WINDOWS_INSTALL_DIR = "app";
-const WINDOWS_EXECUTABLE = "OpenPeek.exe";
+const WINDOWS_EXECUTABLE = "OpenGlance.exe";
 const WINDOWS_INSTALL_STATE = "install-state.json";
-const LEGACY_WINDOWS_INSTALL_PARENT = "GitLeaf";
-const LEGACY_WINDOWS_EXECUTABLE = "Git Leaf.exe";
-const WINDOWS_INSTALL_CONFIRM_ARGUMENT = "--openpeek-install-confirm=";
-const LEGACY_WINDOWS_INSTALL_CONFIRM_ARGUMENT = "--git-leaf-install-confirm=";
+const OPENPEEK_WINDOWS_INSTALL_PARENT = "OpenPeek";
+const OPENPEEK_WINDOWS_EXECUTABLE = "OpenPeek.exe";
+const GIT_LEAF_WINDOWS_INSTALL_PARENT = "GitLeaf";
+const GIT_LEAF_WINDOWS_EXECUTABLE = "Git Leaf.exe";
+const WINDOWS_INSTALL_CONFIRM_ARGUMENT = "--openglance-install-confirm=";
+const OPENPEEK_WINDOWS_INSTALL_CONFIRM_ARGUMENT = "--openpeek-install-confirm=";
+const GIT_LEAF_WINDOWS_INSTALL_CONFIRM_ARGUMENT = "--git-leaf-install-confirm=";
 const WINDOWS_INSTALL_CONFIRM_ARGUMENTS = [
   WINDOWS_INSTALL_CONFIRM_ARGUMENT,
-  LEGACY_WINDOWS_INSTALL_CONFIRM_ARGUMENT,
+  OPENPEEK_WINDOWS_INSTALL_CONFIRM_ARGUMENT,
+  GIT_LEAF_WINDOWS_INSTALL_CONFIRM_ARGUMENT,
 ];
 const WINDOWS_INSTALL_MESSAGES = Object.freeze({
   en: Object.freeze({
-    "outdated.title": "This is an older version of OpenPeek{version}",
-    "redirect.title": "OpenPeek{version} is installed",
-    "outdated.message": "A newer OpenPeek{installedVersion} is already installed. The older package will not overwrite it.",
-    "redirect.message": "Starting OpenPeek from its fixed location.",
-    "outdated.detail": "Start OpenPeek from the Start menu. You can delete this older extracted folder.",
-    "redirect.detail": "Continue to start OpenPeek from the Start menu. You can delete this and older extracted folders.",
+    "outdated.title": "This is an older version of OpenGlance{version}",
+    "redirect.title": "OpenGlance{version} is installed",
+    "outdated.message": "A newer OpenGlance{installedVersion} is already installed. The older package will not overwrite it.",
+    "redirect.message": "Starting OpenGlance from its fixed location.",
+    "outdated.detail": "Start OpenGlance from the Start menu. You can delete this older extracted folder.",
+    "redirect.detail": "Continue to start OpenGlance from the Start menu. You can delete this and older extracted folders.",
     "stage.fixedLocation": "Starting from fixed location",
-    "progress.updateTitle": "Updating OpenPeek{version}",
-    "progress.installTitle": "Preparing OpenPeek{version}",
+    "progress.updateTitle": "Updating OpenGlance{version}",
+    "progress.installTitle": "Preparing OpenGlance{version}",
     "waiting.message": "Closing the current version…",
     "stage.waiting": "Waiting for current version to exit",
     "copying.message": "Copying the new version…",
@@ -46,24 +50,24 @@ const WINDOWS_INSTALL_MESSAGES = Object.freeze({
     "stage.switching": "Switching versions",
     "starting.message": "Starting the new version from its fixed location…",
     "stage.starting": "Confirming the new version",
-    "complete.updateTitle": "OpenPeek update complete",
-    "complete.installTitle": "OpenPeek is ready",
-    "complete.updateMessage": "Updated OpenPeek{version} has started.",
-    "complete.installMessage": "OpenPeek{version} has started from its fixed location.",
-    "complete.automaticDetail": "Temporary update files will be cleaned up automatically. Continue to start OpenPeek from the Start menu.",
-    "complete.manualDetail": "Continue to start OpenPeek from the Start menu. You can delete this and older extracted folders.",
+    "complete.updateTitle": "OpenGlance update complete",
+    "complete.installTitle": "OpenGlance is ready",
+    "complete.updateMessage": "Updated OpenGlance{version} has started.",
+    "complete.installMessage": "OpenGlance{version} has started from its fixed location.",
+    "complete.automaticDetail": "Temporary update files will be cleaned up automatically. Continue to start OpenGlance from the Start menu.",
+    "complete.manualDetail": "Continue to start OpenGlance from the Start menu. You can delete this and older extracted folders.",
     "stage.complete": "Complete",
   }),
   "zh-CN": Object.freeze({
-    "outdated.title": "这是旧版本的 OpenPeek{version}",
-    "redirect.title": "OpenPeek{version} 已安装",
-    "outdated.message": "本机已安装更新的 OpenPeek{installedVersion}，不会使用旧版本覆盖。",
+    "outdated.title": "这是旧版本的 OpenGlance{version}",
+    "redirect.title": "OpenGlance{version} 已安装",
+    "outdated.message": "本机已安装更新的 OpenGlance{installedVersion}，不会使用旧版本覆盖。",
     "redirect.message": "正在从固定位置启动。",
-    "outdated.detail": "请从开始菜单启动 OpenPeek。这个旧版解压目录可以删除。",
-    "redirect.detail": "以后请从开始菜单启动 OpenPeek。当前和旧版解压目录均可删除。",
+    "outdated.detail": "请从开始菜单启动 OpenGlance。这个旧版解压目录可以删除。",
+    "redirect.detail": "以后请从开始菜单启动 OpenGlance。当前和旧版解压目录均可删除。",
     "stage.fixedLocation": "从固定位置启动",
-    "progress.updateTitle": "正在更新 OpenPeek{version}",
-    "progress.installTitle": "正在准备 OpenPeek{version}",
+    "progress.updateTitle": "正在更新 OpenGlance{version}",
+    "progress.installTitle": "正在准备 OpenGlance{version}",
     "waiting.message": "正在关闭当前版本…",
     "stage.waiting": "等待当前版本退出",
     "copying.message": "正在复制新版本文件…",
@@ -73,11 +77,11 @@ const WINDOWS_INSTALL_MESSAGES = Object.freeze({
     "starting.message": "正在启动固定目录中的新版本…",
     "stage.starting": "确认新版本",
     "complete.updateTitle": "版本更新已完成",
-    "complete.installTitle": "OpenPeek 已准备完成",
-    "complete.updateMessage": "已启动更新后的 OpenPeek{version}。",
-    "complete.installMessage": "已从固定位置启动 OpenPeek{version}。",
-    "complete.automaticDetail": "更新临时文件会自动清理；以后继续从开始菜单启动 OpenPeek。",
-    "complete.manualDetail": "以后请从开始菜单启动 OpenPeek。当前和旧版解压目录均可删除。",
+    "complete.installTitle": "OpenGlance 已准备完成",
+    "complete.updateMessage": "已启动更新后的 OpenGlance{version}。",
+    "complete.installMessage": "已从固定位置启动 OpenGlance{version}。",
+    "complete.automaticDetail": "更新临时文件会自动清理；以后继续从开始菜单启动 OpenGlance。",
+    "complete.manualDetail": "以后请从开始菜单启动 OpenGlance。当前和旧版解压目录均可删除。",
     "stage.complete": "完成",
   }),
 });
@@ -87,39 +91,55 @@ export function windowsInstalledAppPaths({
   roamingAppData = inferRoamingAppData(localAppData),
 } = {}) {
   const installRoot = path.win32.join(localAppData, WINDOWS_INSTALL_PARENT, WINDOWS_INSTALL_DIR);
-  const legacyInstallRoot = path.win32.join(
-    localAppData,
-    LEGACY_WINDOWS_INSTALL_PARENT,
-    WINDOWS_INSTALL_DIR,
+  const openPeekInstallParent = path.win32.join(localAppData, OPENPEEK_WINDOWS_INSTALL_PARENT);
+  const openPeekInstallRoot = path.win32.join(openPeekInstallParent, WINDOWS_INSTALL_DIR);
+  const gitLeafInstallParent = path.win32.join(localAppData, GIT_LEAF_WINDOWS_INSTALL_PARENT);
+  const gitLeafInstallRoot = path.win32.join(gitLeafInstallParent, WINDOWS_INSTALL_DIR);
+  const shortcutRoot = path.win32.join(
+    roamingAppData,
+    "Microsoft",
+    "Windows",
+    "Start Menu",
+    "Programs",
   );
+  const openPeekInstallation = {
+    name: "OpenPeek",
+    installParent: openPeekInstallParent,
+    installRoot: openPeekInstallRoot,
+    executable: path.win32.join(openPeekInstallRoot, OPENPEEK_WINDOWS_EXECUTABLE),
+    stateFile: path.win32.join(openPeekInstallParent, WINDOWS_INSTALL_STATE),
+    shortcut: path.win32.join(shortcutRoot, "OpenPeek.lnk"),
+  };
+  const gitLeafInstallation = {
+    name: "Git Leaf",
+    installParent: gitLeafInstallParent,
+    installRoot: gitLeafInstallRoot,
+    executable: path.win32.join(gitLeafInstallRoot, GIT_LEAF_WINDOWS_EXECUTABLE),
+    stateFile: path.win32.join(gitLeafInstallParent, WINDOWS_INSTALL_STATE),
+    shortcut: path.win32.join(shortcutRoot, "Git Leaf.lnk"),
+  };
   return {
     installRoot,
     executable: path.win32.join(installRoot, WINDOWS_EXECUTABLE),
     stateFile: path.win32.join(localAppData, WINDOWS_INSTALL_PARENT, WINDOWS_INSTALL_STATE),
-    shortcut: path.win32.join(
-      roamingAppData,
-      "Microsoft",
-      "Windows",
-      "Start Menu",
-      "Programs",
-      "OpenPeek.lnk",
-    ),
-    legacyInstallParent: path.win32.join(localAppData, LEGACY_WINDOWS_INSTALL_PARENT),
-    legacyInstallRoot,
-    legacyExecutable: path.win32.join(legacyInstallRoot, LEGACY_WINDOWS_EXECUTABLE),
-    legacyStateFile: path.win32.join(
-      localAppData,
-      LEGACY_WINDOWS_INSTALL_PARENT,
-      WINDOWS_INSTALL_STATE,
-    ),
-    legacyShortcut: path.win32.join(
-      roamingAppData,
-      "Microsoft",
-      "Windows",
-      "Start Menu",
-      "Programs",
-      "Git Leaf.lnk",
-    ),
+    shortcut: path.win32.join(shortcutRoot, "OpenGlance.lnk"),
+    openPeekInstallParent,
+    openPeekInstallRoot,
+    openPeekExecutable: openPeekInstallation.executable,
+    openPeekStateFile: openPeekInstallation.stateFile,
+    openPeekShortcut: openPeekInstallation.shortcut,
+    gitLeafInstallParent,
+    gitLeafInstallRoot,
+    gitLeafExecutable: gitLeafInstallation.executable,
+    gitLeafStateFile: gitLeafInstallation.stateFile,
+    gitLeafShortcut: gitLeafInstallation.shortcut,
+    legacyInstallations: [openPeekInstallation, gitLeafInstallation],
+    // Source-level aliases retained for integrations that mean the Git Leaf 1.x installation.
+    legacyInstallParent: gitLeafInstallParent,
+    legacyInstallRoot: gitLeafInstallRoot,
+    legacyExecutable: gitLeafInstallation.executable,
+    legacyStateFile: gitLeafInstallation.stateFile,
+    legacyShortcut: gitLeafInstallation.shortcut,
   };
 }
 
@@ -128,7 +148,11 @@ export function shouldBootstrapWindowsApp({
   isPackaged = false,
   execPath = process.execPath,
   localAppData = process.env.LOCALAPPDATA,
-  portable = (process.env.OPENPEEK_PORTABLE ?? process.env.GIT_LEAF_PORTABLE) === "1",
+  portable = (
+    process.env.OPENGLANCE_PORTABLE
+    ?? process.env.OPENPEEK_PORTABLE
+    ?? process.env.GIT_LEAF_PORTABLE
+  ) === "1",
 } = {}) {
   if (platform !== "win32" || !isPackaged || portable || !localAppData) {
     return false;
@@ -144,7 +168,11 @@ export function windowsAppBootstrapPlan({
   execPath = process.execPath,
   args = process.argv.slice(1),
   localAppData = process.env.LOCALAPPDATA,
-  portable = (process.env.OPENPEEK_PORTABLE ?? process.env.GIT_LEAF_PORTABLE) === "1",
+  portable = (
+    process.env.OPENGLANCE_PORTABLE
+    ?? process.env.OPENPEEK_PORTABLE
+    ?? process.env.GIT_LEAF_PORTABLE
+  ) === "1",
   processId = process.pid,
   version = "",
   pathExists = existsSync,
@@ -163,11 +191,14 @@ export function windowsAppBootstrapPlan({
   const paths = windowsInstalledAppPaths({ localAppData });
   const parent = path.win32.dirname(paths.installRoot);
   const hasInstalledApp = pathExists(paths.installRoot);
-  const hasLegacyInstalledApp = !hasInstalledApp && pathExists(paths.legacyInstallRoot);
+  const previousInstallation = !hasInstalledApp
+    ? paths.legacyInstallations.find((candidate) => pathExists(candidate.installRoot))
+    : undefined;
+  const hasLegacyInstalledApp = Boolean(previousInstallation);
   const installedVersion = hasInstalledApp
     ? readInstalledVersion(paths.stateFile)
     : hasLegacyInstalledApp
-      ? readInstalledVersion(paths.legacyStateFile)
+      ? readInstalledVersion(previousInstallation.stateFile)
       : "";
   const versionComparison = version && installedVersion
     ? compareAppVersions(version, installedVersion)
@@ -197,9 +228,10 @@ export function windowsAppBootstrapPlan({
     previousRoot: path.win32.join(parent, `.previous-${processId}`),
     confirmFile: path.win32.join(parent, `.launch-confirm-${processId}.json`),
     ...(hasLegacyInstalledApp ? {
-      legacyInstallParent: paths.legacyInstallParent,
-      legacyInstallRoot: paths.legacyInstallRoot,
-      legacyShortcut: paths.legacyShortcut,
+      previousProductName: previousInstallation.name,
+      legacyInstallParent: previousInstallation.installParent,
+      legacyInstallRoot: previousInstallation.installRoot,
+      legacyShortcut: previousInstallation.shortcut,
     } : {}),
   };
 }
@@ -278,10 +310,15 @@ export async function bootstrapWindowsApp({
   await removePath(plan.stagingRoot, { recursive: true, force: true });
   await removePath(plan.previousRoot, { recursive: true, force: true });
   await copyWindowsAppDirectory(plan.sourceRoot, plan.stagingRoot, copyDirectory);
-  await removePath(path.win32.join(plan.stagingRoot, LEGACY_WINDOWS_EXECUTABLE), {
-    recursive: false,
-    force: true,
-  });
+  for (const executableName of [
+    OPENPEEK_WINDOWS_EXECUTABLE,
+    GIT_LEAF_WINDOWS_EXECUTABLE,
+  ]) {
+    await removePath(path.win32.join(plan.stagingRoot, executableName), {
+      recursive: false,
+      force: true,
+    });
+  }
 
   await onProgress({
     phase: "switching",
@@ -309,7 +346,7 @@ export async function bootstrapWindowsApp({
         } catch (copyError) {
           recoveryError = new AggregateError(
             [renameError, copyError],
-            `OpenPeek could not restore the previous app automatically. Backup: ${plan.previousRoot}`,
+            `OpenGlance could not restore the previous app automatically. Backup: ${plan.previousRoot}`,
           );
           recoveryError.code = "WINDOWS_INSTALL_RECOVERY_REQUIRED";
         }
@@ -399,7 +436,7 @@ async function cleanupLegacyWindowsInstallation(plan, { pathExists, removePath }
     }
     return true;
   } catch {
-    // The confirmed OpenPeek install remains authoritative; stale legacy cleanup can retry later.
+    // The confirmed OpenGlance install remains authoritative; stale legacy cleanup can retry later.
     return false;
   }
 }
@@ -420,18 +457,23 @@ export async function cleanupLegacyWindowsInstallationAfterRename({
   if (
     normalizeWindowsPath(execPath) !== normalizeWindowsPath(paths.executable)
     || !pathExists(paths.executable)
-    || !pathExists(paths.legacyInstallParent)
   ) {
     return false;
   }
-  try {
-    await removePath(paths.legacyShortcut, { recursive: false, force: true });
-    await removePath(paths.legacyInstallParent, { recursive: true, force: true });
-    return true;
-  } catch {
-    // A legacy updater can still be exiting. The canonical App retries on its next launch.
-    return false;
+  let removed = false;
+  for (const previous of paths.legacyInstallations) {
+    if (!pathExists(previous.installParent)) {
+      continue;
+    }
+    try {
+      await removePath(previous.shortcut, { recursive: false, force: true });
+      await removePath(previous.installParent, { recursive: true, force: true });
+      removed = true;
+    } catch {
+      // A previous updater can still be exiting. The canonical App retries on its next launch.
+    }
   }
+  return removed;
 }
 
 function relaunchWindowsApp(plan, spawnProcess, { confirm = false } = {}) {
@@ -485,7 +527,7 @@ async function rollbackWindowsAppSwitch({
 
 function windowsInstallRecoveryRequiredError(plan, cause) {
   const error = new Error(
-    `OpenPeek could not restore the previous app automatically. Backup: ${plan.previousRoot}`,
+    `OpenGlance could not restore the previous app automatically. Backup: ${plan.previousRoot}`,
     { cause },
   );
   error.code = "WINDOWS_INSTALL_RECOVERY_REQUIRED";
@@ -641,12 +683,12 @@ export async function waitForWindowsRelaunchConfirmation(confirmFile, {
         throw launchError;
       }
       if (exitedBeforeConfirmation || child?.exitCode != null) {
-        const error = new Error("The updated OpenPeek exited before startup confirmation.");
+        const error = new Error("The updated OpenGlance exited before startup confirmation.");
         error.code = "WINDOWS_INSTALL_LAUNCH_FAILED";
         throw error;
       }
       if (now() - startedAt >= timeoutMs) {
-        const error = new Error("Timed out waiting for the updated OpenPeek to finish starting.");
+        const error = new Error("Timed out waiting for the updated OpenGlance to finish starting.");
         error.code = "WINDOWS_INSTALL_LAUNCH_TIMEOUT";
         throw error;
       }
@@ -693,7 +735,7 @@ export async function waitForWindowsProcessExit(processId, {
   const startedAt = now();
   while (processExists(processId)) {
     if (now() - startedAt >= timeoutMs) {
-      throw new Error("Timed out waiting for the current OpenPeek process to exit.");
+      throw new Error("Timed out waiting for the current OpenGlance process to exit.");
     }
     await wait(pollMs);
   }

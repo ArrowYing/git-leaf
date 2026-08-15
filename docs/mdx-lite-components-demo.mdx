@@ -4,16 +4,16 @@ domain: tools
 type: demo
 owner: maintainer
 last_updated: 2026-08-01
-source: openpeek
+source: openglance
 canonical: false
-ai_snippet: "[Demo] OpenPeek MDX-lite component preview | inline and external dataset views | sample data is not a source of truth"
+ai_snippet: "[Demo] OpenGlance MDX-lite component preview | inline and external dataset views | sample data is not a source of truth"
 ---
 
 # MDX-lite component demo
 
 [Documentation index](README.md)
 
-This fixture exercises every MDX-lite component currently supported by OpenPeek. Its numbers and flows
+This fixture exercises every MDX-lite component currently supported by OpenGlance. Its numbers and flows
 are sample data for visual validation, not business facts. See the
 [MDX-lite renderer reference](mdx-lite-guide.md) for syntax and boundaries.
 
@@ -28,7 +28,7 @@ are sample data for visual validation, not business facts. See the
 
 ## 1. DataTable
 
-OpenPeek chooses search, frozen columns, sticky headers, and Copy CSV from table complexity.
+OpenGlance chooses search, frozen columns, sticky headers, and Copy CSV from table complexity.
 
 <DataTable
   title="Document governance fields"
@@ -36,7 +36,7 @@ OpenPeek chooses search, frozen columns, sticky headers, and Copy CSV from table
 >
 ```csv
 field,purpose,required,example,note
-title,Document title,yes,OpenPeek system architecture,Used for the page title and search
+title,Document title,yes,OpenGlance system architecture,Used for the page title and search
 domain,Owning domain,yes,ai,Helps agents route facts
 type,Document type,yes,architecture,Determines maintenance expectations
 owner,Maintainer,yes,maintainer,Role or account responsible for the document
@@ -53,14 +53,14 @@ change_log,Change history,conditional,,Required when repository policy says so
 Statuses provide visual cues; prose remains authoritative.
 
 <Timeline
-  title="OpenPeek evolution"
+  title="OpenGlance evolution"
 >
 ```json
 [
   {
     "date": "2026-07-03",
     "title": "Converged on a local knowledge workbench",
-    "body": "The repository remains the source of truth and OpenPeek provides the local interface.",
+    "body": "The repository remains the source of truth and OpenGlance provides the local interface.",
     "status": "done"
   },
   {
@@ -72,7 +72,7 @@ Statuses provide visual cues; prose remains authoritative.
   {
     "date": "2026-07-05",
     "title": "Moved into a standalone desktop app",
-    "body": "Users choose any local Git knowledge repository after launching OpenPeek.",
+    "body": "Users choose any local Git knowledge repository after launching OpenGlance.",
     "status": "active"
   },
   {
@@ -157,7 +157,7 @@ month,volume,completionRate
 ### External daily dataset
 
 The source CSV remains a full daily dataset. For this bounded range, the same component can switch among
-day, week, month, and natural-quarter views without rewriting this MDX file. On longer ranges, OpenPeek
+day, week, month, and natural-quarter views without rewriting this MDX file. On longer ranges, OpenGlance
 automatically omits intervals that would put more than 120 periods into one chart.
 
 <Chart
@@ -221,9 +221,9 @@ rollup directly to the assigned weeks.
 >
 ```csv
 label,value
-Decision,"OpenPeek is the human interface over a shared Git context repository, not a hosted documentation site."
+Decision,"OpenGlance is the human interface over a shared Git context repository, not a hosted documentation site."
 Rationale,"People need a friendly way to read, edit, sync, and review the same files used by agents."
-Tradeoff,"OpenPeek does not provide accounts, remote access, or a public knowledge portal."
+Tradeoff,"OpenGlance does not provide accounts, remote access, or a public knowledge portal."
 Reconsider,"Evaluate a separate hosted surface only if a real use case requires long-lived public access."
 ```
 </DecisionBox>
@@ -231,7 +231,7 @@ Reconsider,"Evaluate a separate hosted surface only if a real use case requires 
 ## 5. MetricGrid
 
 <MetricGrid
-  title="OpenPeek capability summary"
+  title="OpenGlance capability summary"
 >
 ```csv
 label,value,delta,note,status
@@ -253,7 +253,7 @@ Desktop shell,Electron,,Open any local Git repository,good
 ```json
 {
   "nodes": [
-    {"id": "desktop", "label": "Open OpenPeek", "type": "start"},
+    {"id": "desktop", "label": "Open OpenGlance", "type": "start"},
     {"id": "repo", "label": "Choose a local Git repository", "type": "action"},
     {"id": "server", "label": "Start or reuse localhost service", "type": "action"},
     {"id": "worktree", "label": "Choose worktree", "type": "action"},

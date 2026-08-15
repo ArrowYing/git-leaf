@@ -3,23 +3,23 @@ import http from "node:http";
 import test from "node:test";
 
 import {
-  findReusableOpenPeekUrl,
-  openPeekCommandLineLooksLikeOpenPeek,
+  findReusableOpenGlanceUrl,
+  openGlanceCommandLineLooksLikeOpenGlance,
   processCommandLineCommand,
-  registeredOpenPeekProcessOnPort,
-  reusableOpenPeekUrl,
-  stopRegisteredOpenPeekProcessOnPort,
+  registeredOpenGlanceProcessOnPort,
+  reusableOpenGlanceUrl,
+  stopRegisteredOpenGlanceProcessOnPort,
   tcpPortOwnerCommand,
   windowsNetstatShowsPidListeningOnPort,
 } from "../src/cli.mjs";
 
-test("reusableOpenPeekUrl returns the localhost workbench URL for the same repository", async () => {
+test("reusableOpenGlanceUrl returns the localhost workbench URL for the same repository", async () => {
   const server = healthServer({ repoRoot: "/repo/a" });
   const port = await listen(server);
 
   try {
     assert.equal(
-      await reusableOpenPeekUrl({
+      await reusableOpenGlanceUrl({
         repoRoot: "/repo/a",
         port,
         relativePath: "",
@@ -37,13 +37,13 @@ test("reusableOpenPeekUrl returns the localhost workbench URL for the same repos
   }
 });
 
-test("reusableOpenPeekUrl tolerates a loaded runner without delaying ordinary CLI startup", async () => {
+test("reusableOpenGlanceUrl tolerates a loaded runner without delaying ordinary CLI startup", async () => {
   const server = healthServer({ repoRoot: "/repo/a" }, { delayMs: 250 });
   const port = await listen(server);
 
   try {
     assert.equal(
-      await reusableOpenPeekUrl({
+      await reusableOpenGlanceUrl({
         repoRoot: "/repo/a",
         port,
         relativePath: "README.md",
@@ -55,12 +55,12 @@ test("reusableOpenPeekUrl tolerates a loaded runner without delaying ordinary CL
   }
 });
 
-test("reusableOpenPeekUrl accepts a healthy Git Leaf 1.x server for the same repository", async () => {
+test("reusableOpenGlanceUrl accepts a healthy Git Leaf 1.x server for the same repository", async () => {
   const server = healthServer({ app: "git-leaf", repoRoot: "/repo/a" });
   const port = await listen(server);
 
   try {
-    assert.equal(await reusableOpenPeekUrl({
+    assert.equal(await reusableOpenGlanceUrl({
       repoRoot: "/repo/a",
       port,
       relativePath: "README.md",
@@ -71,13 +71,29 @@ test("reusableOpenPeekUrl accepts a healthy Git Leaf 1.x server for the same rep
   }
 });
 
-test("reusableOpenPeekUrl opens a requested document on an existing server", async () => {
+test("reusableOpenGlanceUrl accepts a healthy OpenPeek 2.x server for the same repository", async () => {
+  const server = healthServer({ app: "openpeek", repoRoot: "/repo/a" });
+  const port = await listen(server);
+
+  try {
+    assert.equal(await reusableOpenGlanceUrl({
+      repoRoot: "/repo/a",
+      port,
+      relativePath: "README.md",
+      readRecord: async () => ({ app: "openpeek", repoRoot: "/repo/a", port }),
+    }), `http://127.0.0.1:${port}/?file=README.md`);
+  } finally {
+    await close(server);
+  }
+});
+
+test("reusableOpenGlanceUrl opens a requested document on an existing server", async () => {
   const server = healthServer({ repoRoot: "/repo/a" });
   const port = await listen(server);
 
   try {
     assert.equal(
-      await reusableOpenPeekUrl({
+      await reusableOpenGlanceUrl({
         repoRoot: "/repo/a",
         port,
         relativePath: "docs/repo structure.md",
@@ -89,13 +105,13 @@ test("reusableOpenPeekUrl opens a requested document on an existing server", asy
   }
 });
 
-test("reusableOpenPeekUrl ignores an OpenPeek server for another repository", async () => {
+test("reusableOpenGlanceUrl ignores an OpenGlance server for another repository", async () => {
   const server = healthServer({ repoRoot: "/repo/b" });
   const port = await listen(server);
 
   try {
     assert.equal(
-      await reusableOpenPeekUrl({
+      await reusableOpenGlanceUrl({
         repoRoot: "/repo/a",
         port,
         relativePath: "README.md",
@@ -107,7 +123,7 @@ test("reusableOpenPeekUrl ignores an OpenPeek server for another repository", as
   }
 });
 
-test("reusableOpenPeekUrl requests a soft restart for a stale same-repository server", async () => {
+test("reusableOpenGlanceUrl requests a soft restart for a stale same-repository server", async () => {
   let restartRequested = false;
   let stale = true;
   const server = http.createServer((request, response) => {
@@ -137,7 +153,7 @@ test("reusableOpenPeekUrl requests a soft restart for a stale same-repository se
 
   try {
     assert.equal(
-      await reusableOpenPeekUrl({
+      await reusableOpenGlanceUrl({
         repoRoot: "/repo/a",
         port,
         relativePath: "README.md",
@@ -150,7 +166,7 @@ test("reusableOpenPeekUrl requests a soft restart for a stale same-repository se
   }
 });
 
-test("reusableOpenPeekUrl ignores old OpenPeek servers without tool fingerprints", async () => {
+test("reusableOpenGlanceUrl ignores old OpenGlance servers without tool fingerprints", async () => {
   const server = healthServer({
     repoRoot: "/repo/a",
     toolFingerprint: undefined,
@@ -160,7 +176,7 @@ test("reusableOpenPeekUrl ignores old OpenPeek servers without tool fingerprints
 
   try {
     assert.equal(
-      await reusableOpenPeekUrl({
+      await reusableOpenGlanceUrl({
         repoRoot: "/repo/a",
         port,
         relativePath: "",
@@ -172,7 +188,7 @@ test("reusableOpenPeekUrl ignores old OpenPeek servers without tool fingerprints
   }
 });
 
-test("findReusableOpenPeekUrl moves a fallback server back to the primary port when it is free", async () => {
+test("findReusableOpenGlanceUrl moves a fallback server back to the primary port when it is free", async () => {
   const { primaryPort, fallbackPort } = await freePortPair();
   let restartRequested = false;
   let primaryServer = null;
@@ -211,7 +227,7 @@ test("findReusableOpenPeekUrl moves a fallback server back to the primary port w
 
   try {
     assert.equal(
-      await findReusableOpenPeekUrl({
+      await findReusableOpenGlanceUrl({
         repoRoot: "/repo/a",
         port: primaryPort,
         relativePath: "README.md",
@@ -227,7 +243,7 @@ test("findReusableOpenPeekUrl moves a fallback server back to the primary port w
   }
 });
 
-test("findReusableOpenPeekUrl reuses a fallback port only when the primary port is busy", async () => {
+test("findReusableOpenGlanceUrl reuses a fallback port only when the primary port is busy", async () => {
   const { primaryPort, fallbackPort } = await freePortPair();
   const blocker = http.createServer((_request, response) => {
     response.writeHead(404);
@@ -239,7 +255,7 @@ test("findReusableOpenPeekUrl reuses a fallback port only when the primary port 
 
   try {
     assert.equal(
-      await findReusableOpenPeekUrl({
+      await findReusableOpenGlanceUrl({
         repoRoot: "/repo/a",
         port: primaryPort,
         relativePath: "README.md",
@@ -252,7 +268,7 @@ test("findReusableOpenPeekUrl reuses a fallback port only when the primary port 
   }
 });
 
-test("reusableOpenPeekUrl accepts stale restart when the fingerprint stays current", async () => {
+test("reusableOpenGlanceUrl accepts stale restart when the fingerprint stays current", async () => {
   let restartRequested = false;
   let stale = true;
   const server = http.createServer((request, response) => {
@@ -282,7 +298,7 @@ test("reusableOpenPeekUrl accepts stale restart when the fingerprint stays curre
 
   try {
     assert.equal(
-      await reusableOpenPeekUrl({
+      await reusableOpenGlanceUrl({
         repoRoot: "/repo/a",
         port,
         relativePath: "README.md",
@@ -295,30 +311,30 @@ test("reusableOpenPeekUrl accepts stale restart when the fingerprint stays curre
   }
 });
 
-test("registeredOpenPeekProcessOnPort confirms repo, port, pid, socket, and command", async () => {
-  const record = await registeredOpenPeekProcessOnPort({
+test("registeredOpenGlanceProcessOnPort confirms repo, port, pid, socket, and command", async () => {
+  const record = await registeredOpenGlanceProcessOnPort({
     repoRoot: "/repo/a",
     port: 4317,
     readRecord: async () => ({
-      app: "openpeek",
+      app: "openglance",
       repoRoot: "/repo/a",
       port: 4317,
       pid: 1234,
     }),
     isProcessAlive: async (pid) => pid === 1234,
     pidOwnsPort: async (pid, port) => pid === 1234 && port === 4317,
-    isOpenPeekProcess: async (pid) => pid === 1234,
+    isOpenGlanceProcess: async (pid) => pid === 1234,
   });
 
   assert.deepEqual(record, {
-    app: "openpeek",
+    app: "openglance",
     repoRoot: "/repo/a",
     port: 4317,
     pid: 1234,
   });
 });
 
-test("registeredOpenPeekProcessOnPort rejects stale records and unrelated processes", async () => {
+test("registeredOpenGlanceProcessOnPort rejects stale records and unrelated processes", async () => {
   const base = {
     app: "git-leaf",
     repoRoot: "/repo/a",
@@ -330,37 +346,37 @@ test("registeredOpenPeekProcessOnPort rejects stale records and unrelated proces
     port: 4317,
     isProcessAlive: async () => true,
     pidOwnsPort: async () => true,
-    isOpenPeekProcess: async () => true,
+    isOpenGlanceProcess: async () => true,
   };
 
-  assert.equal(await registeredOpenPeekProcessOnPort({
+  assert.equal(await registeredOpenGlanceProcessOnPort({
     ...defaults,
     readRecord: async () => ({ ...base, repoRoot: "/repo/b" }),
   }), null);
-  assert.equal(await registeredOpenPeekProcessOnPort({
+  assert.equal(await registeredOpenGlanceProcessOnPort({
     ...defaults,
     readRecord: async () => ({ ...base, port: 4318 }),
   }), null);
-  assert.equal(await registeredOpenPeekProcessOnPort({
+  assert.equal(await registeredOpenGlanceProcessOnPort({
     ...defaults,
     readRecord: async () => base,
     isProcessAlive: async () => false,
   }), null);
-  assert.equal(await registeredOpenPeekProcessOnPort({
+  assert.equal(await registeredOpenGlanceProcessOnPort({
     ...defaults,
     readRecord: async () => base,
     pidOwnsPort: async () => false,
   }), null);
-  assert.equal(await registeredOpenPeekProcessOnPort({
+  assert.equal(await registeredOpenGlanceProcessOnPort({
     ...defaults,
     readRecord: async () => base,
-    isOpenPeekProcess: async () => false,
+    isOpenGlanceProcess: async () => false,
   }), null);
 });
 
-test("stopRegisteredOpenPeekProcessOnPort stops only a confirmed registered OpenPeek process", async () => {
+test("stopRegisteredOpenGlanceProcessOnPort stops only a confirmed registered OpenGlance process", async () => {
   const stopped = [];
-  const result = await stopRegisteredOpenPeekProcessOnPort({
+  const result = await stopRegisteredOpenGlanceProcessOnPort({
     repoRoot: "/repo/a",
     port: 4317,
     host: "127.0.0.1",
@@ -372,7 +388,7 @@ test("stopRegisteredOpenPeekProcessOnPort stops only a confirmed registered Open
     }),
     isProcessAlive: async () => true,
     pidOwnsPort: async () => true,
-    isOpenPeekProcess: async () => true,
+    isOpenGlanceProcess: async () => true,
     stopProcess: async (pid, signal) => {
       stopped.push([pid, signal]);
     },
@@ -399,7 +415,7 @@ test("windows CLI process probes avoid Unix-only lsof and ps commands", () => {
   });
 });
 
-test("windows netstat listener output confirms the matching OpenPeek process", () => {
+test("windows netstat listener output confirms the matching OpenGlance process", () => {
   const output = [
     "  Proto  Local Address          Foreign Address        State           PID",
     "  TCP    127.0.0.1:4317         0.0.0.0:0              LISTENING       1234",
@@ -412,15 +428,21 @@ test("windows netstat listener output confirms the matching OpenPeek process", (
   assert.equal(windowsNetstatShowsPidListeningOnPort(output, 1234, 14317), false);
 });
 
-test("OpenPeek command detection accepts Windows paths", () => {
+test("OpenGlance command detection accepts Windows paths", () => {
   assert.equal(
-    openPeekCommandLineLooksLikeOpenPeek(
+    openGlanceCommandLineLooksLikeOpenGlance(
       'C:\\Program Files\\nodejs\\node.exe C:\\Users\\ops\\git-leaf\\src\\cli.mjs --no-open',
     ),
     true,
   );
   assert.equal(
-    openPeekCommandLineLooksLikeOpenPeek("C:\\Program Files\\nodejs\\node.exe C:\\tools\\other.mjs"),
+    openGlanceCommandLineLooksLikeOpenGlance(
+      "C:\\Program Files\\nodejs\\node.exe C:\\Users\\ops\\openpeek\\src\\cli.mjs --no-open",
+    ),
+    true,
+  );
+  assert.equal(
+    openGlanceCommandLineLooksLikeOpenGlance("C:\\Program Files\\nodejs\\node.exe C:\\tools\\other.mjs"),
     false,
   );
 });
@@ -431,7 +453,7 @@ function healthServer(payload, { delayMs = 0 } = {}) {
       setTimeout(() => {
         response.writeHead(200, { "Content-Type": "application/json" });
         response.end(JSON.stringify({
-          app: "openpeek",
+          app: "openglance",
           toolFingerprint: "abc123",
           stale: false,
           ...payload,
@@ -463,7 +485,7 @@ async function freePortPair() {
       return { primaryPort, fallbackPort };
     }
   }
-  throw new Error("Unable to find adjacent free ports for OpenPeek CLI test");
+  throw new Error("Unable to find adjacent free ports for OpenGlance CLI test");
 }
 
 async function randomFreePort() {

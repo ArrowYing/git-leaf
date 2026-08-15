@@ -29,11 +29,11 @@ export function validateMacUpdateRegressionEvidence(evidence, {
     evidence.baselineAppIdentity?.bundleName === "Git Leaf.app"
     && evidence.baselineAppIdentity?.productName === "Git Leaf"
     && evidence.baselineAppIdentity?.executable === "Git Leaf"
-    && evidence.candidateAppIdentity?.bundleName === "OpenPeek.app"
-    && evidence.candidateAppIdentity?.productName === "OpenPeek"
+    && evidence.candidateAppIdentity?.bundleName === "OpenGlance.app"
+    && evidence.candidateAppIdentity?.productName === "OpenGlance"
     && evidence.candidateAppIdentity?.executable === "Git Leaf"
     && evidence.installedAppIdentity?.bundleName === "Git Leaf.app"
-    && evidence.installedAppIdentity?.productName === "OpenPeek"
+    && evidence.installedAppIdentity?.productName === "OpenGlance"
     && evidence.installedAppIdentity?.executable === "Git Leaf"
   );
   const inAppIsolationMatches = evidence.installMode !== "in-app-update" || (
@@ -44,7 +44,7 @@ export function validateMacUpdateRegressionEvidence(evidence, {
   );
   if (
     evidence?.schemaVersion !== 5
-    || evidence.source !== "openpeek-macos-update-regression"
+    || evidence.source !== "openglance-macos-update-regression"
     || evidence.status !== "passed"
     || evidence.track !== track
     || evidence.platform !== "darwin-universal"

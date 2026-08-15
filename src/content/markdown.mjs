@@ -880,8 +880,8 @@ function renderToken(renderer, tokenName) {
 
 function transformDestination(rawDestination, options, kind) {
   const destination = rawDestination.trim();
-  if (kind === "link" && isOpenPeekDocumentDestination(destination)) {
-    return sanitizeOpenPeekDocumentDestination(destination);
+  if (kind === "link" && isOpenGlanceDocumentDestination(destination)) {
+    return sanitizeOpenGlanceDocumentDestination(destination);
   }
   if (!options.currentFile || isExternalDestination(destination) || destination.startsWith("#")) {
     return destination;
@@ -914,7 +914,7 @@ function withRepositoryQuery(pathname, { repo, file, suffix = "" }) {
   return `${pathname}?${query.toString()}${suffix}`;
 }
 
-function isOpenPeekDocumentDestination(destination) {
+function isOpenGlanceDocumentDestination(destination) {
   try {
     if (!destination.startsWith("/") && !destination.startsWith("?")) {
       return false;
@@ -928,7 +928,7 @@ function isOpenPeekDocumentDestination(destination) {
   }
 }
 
-function sanitizeOpenPeekDocumentDestination(destination) {
+function sanitizeOpenGlanceDocumentDestination(destination) {
   const url = new URL(destination, "http://git-leaf.local");
   const query = new URLSearchParams();
   for (const key of ["repo", "file"]) {

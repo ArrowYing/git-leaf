@@ -13,7 +13,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { publishOpenPeekShareLink } from "../src/server/git-share-publish.mjs";
+import { publishOpenGlanceShareLink } from "../src/server/git-share-publish.mjs";
 import { runGitSnapshotCommand } from "../src/server/git-immutable-snapshot.mjs";
 import {
   applyPreparedRemoteChanges,
@@ -471,7 +471,7 @@ test("real share publication commits a new document, verifies remote main, and r
     await git(repoRoot, ["push", "-u", "origin", "main"]);
     await writeFile(path.join(repoRoot, "share-me.md"), "# Ready to share\n");
 
-    const result = await publishOpenPeekShareLink({
+    const result = await publishOpenGlanceShareLink({
       repo: { id: "fixture", root: repoRoot, branch: "main" },
       file: "share-me.md",
       gitRunner: async (cwd, args) => {
@@ -496,7 +496,7 @@ test("real share publication commits a new document, verifies remote main, and r
 });
 
 async function configureIdentity(repoRoot) {
-  await git(repoRoot, ["config", "user.name", "OpenPeek Tests"]);
+  await git(repoRoot, ["config", "user.name", "OpenGlance Tests"]);
   await git(repoRoot, ["config", "user.email", "git-leaf@example.test"]);
 }
 

@@ -2,19 +2,19 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-  openPeekDeepLinkFromArgs,
-  openPeekDeepLinkUrl,
-  openPeekSharedDeepLinkUrl,
-  parseOpenPeekDeepLink,
+  openGlanceDeepLinkFromArgs,
+  openGlanceDeepLinkUrl,
+  openGlanceSharedDeepLinkUrl,
+  parseOpenGlanceDeepLink,
 } from "../src/desktop/deep-link.mjs";
 import {
-  openPeekHttpsOpenUrl,
-  openPeekShareUrl,
+  openGlanceHttpsOpenUrl,
+  openGlanceShareUrl,
 } from "../src/server/hosted-links.mjs";
 
-test("OpenPeek HTTPS links carry a local worktree id without exposing its path", () => {
+test("OpenGlance HTTPS links carry a local worktree id without exposing its path", () => {
   assert.equal(
-    openPeekHttpsOpenUrl({
+    openGlanceHttpsOpenUrl({
       repository: "ExampleOrg/company-docs",
       file: "docs/report.md",
       worktree: "0123456789abcdef",
@@ -23,8 +23,8 @@ test("OpenPeek HTTPS links carry a local worktree id without exposing its path",
   );
 });
 
-test("OpenPeek deep links round-trip a macOS repository and Markdown document", () => {
-  const url = openPeekDeepLinkUrl({
+test("OpenGlance deep links round-trip a macOS repository and Markdown document", () => {
+  const url = openGlanceDeepLinkUrl({
     repoRoot: "/Users/maintainer/Projects/company-docs",
     file: "docs/strategy notes.md",
     platform: "darwin",
@@ -32,29 +32,29 @@ test("OpenPeek deep links round-trip a macOS repository and Markdown document", 
 
   assert.equal(
     url,
-    "openpeek://open?repo=%2FUsers%2Fmaintainer%2FProjects%2Fcompany-docs&path=docs%2Fstrategy+notes.md",
+    "openglance://open?repo=%2FUsers%2Fmaintainer%2FProjects%2Fcompany-docs&path=docs%2Fstrategy+notes.md",
   );
-  assert.deepEqual(parseOpenPeekDeepLink(url, { platform: "darwin" }), {
+  assert.deepEqual(parseOpenGlanceDeepLink(url, { platform: "darwin" }), {
     repoRoot: "/Users/maintainer/Projects/company-docs",
     file: "docs/strategy notes.md",
   });
 });
 
-test("OpenPeek deep links round-trip a Windows repository and normalize document separators", () => {
-  const url = openPeekDeepLinkUrl({
+test("OpenGlance deep links round-trip a Windows repository and normalize document separators", () => {
+  const url = openGlanceDeepLinkUrl({
     repoRoot: "C:\\Users\\mango\\Projects\\company-docs",
     file: "docs\\strategy.md",
     platform: "win32",
   });
 
-  assert.deepEqual(parseOpenPeekDeepLink(url, { platform: "win32" }), {
+  assert.deepEqual(parseOpenGlanceDeepLink(url, { platform: "win32" }), {
     repoRoot: "C:\\Users\\mango\\Projects\\company-docs",
     file: "docs/strategy.md",
   });
 });
 
-test("OpenPeek deep links round-trip a stable GitHub repository identity", () => {
-  const url = openPeekDeepLinkUrl({
+test("OpenGlance deep links round-trip a stable GitHub repository identity", () => {
+  const url = openGlanceDeepLinkUrl({
     repository: "ExampleOrg/company-docs",
     file: "company/strategy.md",
     worktree: "0123456789abcdef",
@@ -63,9 +63,9 @@ test("OpenPeek deep links round-trip a stable GitHub repository identity", () =>
 
   assert.equal(
     url,
-    "openpeek://open-worktree?repo=exampleorg%2Fcompany-docs&path=company%2Fstrategy.md&worktree=0123456789abcdef&handoff=handoff_1234567890abcdef",
+    "openglance://open-worktree?repo=exampleorg%2Fcompany-docs&path=company%2Fstrategy.md&worktree=0123456789abcdef&handoff=handoff_1234567890abcdef",
   );
-  assert.deepEqual(parseOpenPeekDeepLink(url), {
+  assert.deepEqual(parseOpenGlanceDeepLink(url), {
     repository: "exampleorg/company-docs",
     file: "company/strategy.md",
     worktree: "0123456789abcdef",
@@ -73,9 +73,9 @@ test("OpenPeek deep links round-trip a stable GitHub repository identity", () =>
   });
 });
 
-test("OpenPeek share links use an independent versioned protocol", () => {
+test("OpenGlance share links use an independent versioned protocol", () => {
   const rev = "c".repeat(40);
-  const shareUrl = new URL(openPeekShareUrl({
+  const shareUrl = new URL(openGlanceShareUrl({
     repository: "ExampleOrg/company-docs",
     file: "company/strategy.md",
     rev,
@@ -90,13 +90,13 @@ test("OpenPeek share links use an independent versioned protocol", () => {
   assert.equal(shareUrl.searchParams.get("title"), "Company Strategy");
   assert.equal(shareUrl.searchParams.has("snippet"), false);
 
-  const deepLink = openPeekSharedDeepLinkUrl({
+  const deepLink = openGlanceSharedDeepLinkUrl({
     repository: "ExampleOrg/company-docs",
     file: "company/strategy.md",
     rev,
     handoff: "handoff_1234567890abcdef",
   });
-  assert.deepEqual(parseOpenPeekDeepLink(deepLink), {
+  assert.deepEqual(parseOpenGlanceDeepLink(deepLink), {
     repository: "exampleorg/company-docs",
     file: "company/strategy.md",
     rev,
@@ -107,8 +107,8 @@ test("OpenPeek share links use an independent versioned protocol", () => {
   assert.equal(deepLink.includes("snippet="), false);
 });
 
-test("OpenPeek share title is bounded without carrying ai_snippet", () => {
-  const url = new URL(openPeekShareUrl({
+test("OpenGlance share title is bounded without carrying ai_snippet", () => {
+  const url = new URL(openGlanceShareUrl({
     repository: "owner/repo",
     file: "README.md",
     rev: "e".repeat(40),
@@ -122,51 +122,51 @@ test("OpenPeek share title is bounded without carrying ai_snippet", () => {
   assert.ok(url.toString().length < 4096);
 });
 
-test("OpenPeek share links reject invalid versions, revisions, duplicates, and extra fields", () => {
+test("OpenGlance share links reject invalid versions, revisions, duplicates, and extra fields", () => {
   const rev = "d".repeat(40);
   for (const url of [
-    `openpeek://open-shared?v=2&repo=owner%2Frepo&path=README.md&rev=${rev}`,
-    "openpeek://open-shared?v=1&repo=owner%2Frepo&path=README.md&rev=short",
-    `openpeek://open-shared?v=1&repo=owner%2Frepo&repo=other%2Frepo&path=README.md&rev=${rev}`,
-    `openpeek://open-shared?v=1&repo=owner%2Frepo&path=README.md&rev=${rev}&worktree=0123456789abcdef`,
+    `openglance://open-shared?v=2&repo=owner%2Frepo&path=README.md&rev=${rev}`,
+    "openglance://open-shared?v=1&repo=owner%2Frepo&path=README.md&rev=short",
+    `openglance://open-shared?v=1&repo=owner%2Frepo&repo=other%2Frepo&path=README.md&rev=${rev}`,
+    `openglance://open-shared?v=1&repo=owner%2Frepo&path=README.md&rev=${rev}&worktree=0123456789abcdef`,
   ]) {
-    assert.equal(parseOpenPeekDeepLink(url), null, url);
+    assert.equal(parseOpenGlanceDeepLink(url), null, url);
   }
 });
 
-test("OpenPeek accepts a handoff-only deep link for app launch confirmation", () => {
+test("OpenGlance accepts a handoff-only deep link for app launch confirmation", () => {
   assert.deepEqual(
-    parseOpenPeekDeepLink("openpeek://open?handoff=handoff_1234567890abcdef"),
+    parseOpenGlanceDeepLink("openglance://open?handoff=handoff_1234567890abcdef"),
     { repoRoot: "", file: "", handoff: "handoff_1234567890abcdef" },
   );
-  assert.equal(parseOpenPeekDeepLink("openpeek://open?handoff=short"), null);
+  assert.equal(parseOpenGlanceDeepLink("openglance://open?handoff=short"), null);
 });
 
-test("OpenPeek deep links reject unsupported hosts, malformed repositories, and unsafe document paths", () => {
+test("OpenGlance deep links reject unsupported hosts, malformed repositories, and unsafe document paths", () => {
   for (const url of [
     "https://open?repo=%2Frepo&path=README.md",
-    "openpeek://settings?repo=%2Frepo&path=README.md",
-    "openpeek://open?repo=relative&path=README.md",
-    "openpeek://open?repo=owner%2Frepo%2Fextra&path=README.md",
-    "openpeek://open?repo=owner%2Frepo&path=README.txt",
-    "openpeek://open?repo=%2Frepo&path=..%2Fsecret.md",
-    "openpeek://open?repo=%2Frepo&path=%2Fetc%2Fpasswd.md",
-    "openpeek://open?repo=%2Frepo&path=docs%2Fimage.png",
-    "openpeek://open?repo=owner%2Frepo&path=README.md&worktree=main",
-    "openpeek://open?repo=owner%2Frepo&path=README.md&worktree=0123456789abcdef",
-    "openpeek://open-worktree?repo=owner%2Frepo&path=README.md",
-    "openpeek://open?repo=%2Frepo&path=README.md&worktree=0123456789abcdef",
+    "openglance://settings?repo=%2Frepo&path=README.md",
+    "openglance://open?repo=relative&path=README.md",
+    "openglance://open?repo=owner%2Frepo%2Fextra&path=README.md",
+    "openglance://open?repo=owner%2Frepo&path=README.txt",
+    "openglance://open?repo=%2Frepo&path=..%2Fsecret.md",
+    "openglance://open?repo=%2Frepo&path=%2Fetc%2Fpasswd.md",
+    "openglance://open?repo=%2Frepo&path=docs%2Fimage.png",
+    "openglance://open?repo=owner%2Frepo&path=README.md&worktree=main",
+    "openglance://open?repo=owner%2Frepo&path=README.md&worktree=0123456789abcdef",
+    "openglance://open-worktree?repo=owner%2Frepo&path=README.md",
+    "openglance://open?repo=%2Frepo&path=README.md&worktree=0123456789abcdef",
   ]) {
-    assert.equal(parseOpenPeekDeepLink(url, { platform: "darwin" }), null, url);
+    assert.equal(parseOpenGlanceDeepLink(url, { platform: "darwin" }), null, url);
   }
 });
 
-test("OpenPeek finds a deep link anywhere in desktop process arguments", () => {
+test("OpenGlance finds a deep link anywhere in desktop process arguments", () => {
   assert.deepEqual(
-    openPeekDeepLinkFromArgs([
-      "C:\\Program Files\\OpenPeek\\OpenPeek.exe",
+    openGlanceDeepLinkFromArgs([
+      "C:\\Program Files\\OpenGlance\\OpenGlance.exe",
       "--original-process-start-time=123",
-      "openpeek://open?repo=C%3A%5CProjects%5Ccompany-docs&path=README.md",
+      "openglance://open?repo=C%3A%5CProjects%5Ccompany-docs&path=README.md",
     ], { platform: "win32" }),
     {
       repoRoot: "C:\\Projects\\company-docs",
@@ -175,9 +175,19 @@ test("OpenPeek finds a deep link anywhere in desktop process arguments", () => {
   );
 });
 
-test("OpenPeek continues to open Git Leaf 1.x deep links", () => {
+test("OpenGlance continues to open OpenPeek 2.x and Git Leaf 1.x deep links", () => {
   assert.deepEqual(
-    parseOpenPeekDeepLink(
+    parseOpenGlanceDeepLink(
+      "openpeek://open?repo=%2FUsers%2Fmaintainer%2FProjects%2Fcompany-docs&path=README.md",
+      { platform: "darwin" },
+    ),
+    {
+      repoRoot: "/Users/maintainer/Projects/company-docs",
+      file: "README.md",
+    },
+  );
+  assert.deepEqual(
+    parseOpenGlanceDeepLink(
       "git-leaf://open?repo=%2FUsers%2Fmaintainer%2FProjects%2Fcompany-docs&path=README.md",
       { platform: "darwin" },
     ),

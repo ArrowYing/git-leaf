@@ -1,10 +1,10 @@
-# OpenPeek release process
+# OpenGlance release process
 
 This document defines the public release contract. Mango Future's host names, deployment directories, credentials, and private release profiles are maintained outside this repository.
 
 ## Release tracks and build identities
 
-Every newly packaged app contains `openpeek-build-info.json` with three independent fields:
+Every newly packaged app contains `openglance-build-info.json` with three independent fields:
 
 ```json
 {
@@ -24,14 +24,31 @@ Supported identities:
 
 `distribution` identifies the publisher class. `releaseTrack` identifies which official release lane an installed app follows. The two official tracks use separate manifests and artifacts; a packaged app trusts its embedded track and cannot be moved to another track by an environment variable.
 
-The safe default is always `source + source + false`. A Community Build uses
-`org.gitleaf.community` as its macOS bundle identifier and `OpenPeek Community` as its Windows company
-name. Official profiles select `com.mangofuture.gitleaf` and Mango Future's legal publisher identity.
-Build metadata is informational and can be changed by anyone compiling the source. Official identity is
+The safe default is always `source + source + false`. Operating-system identities are track-specific:
+
+| Identity | macOS Bundle ID | macOS executable | Windows compatibility executables |
+| --- | --- | --- | --- |
+| `source + source` | `org.openglance.community` | `OpenGlance` | none |
+| `official + public` | `com.mangofuture.openglance` | `OpenGlance` | none |
+| `official + internal` | `com.mangofuture.gitleaf` | `Git Leaf` | `OpenPeek.exe`, `Git Leaf.exe` |
+
+On Windows, Community package metadata uses `OpenGlance Community`; both official tracks use the
+Mango Future publisher identity.
+
+All newly built Windows packages use `OpenGlance.exe` as the canonical executable. The two extra files
+exist only in internal packages so baked-in 2.x and 1.x updaters can launch the 3.0 migration. Build
+metadata is informational and can be changed by anyone compiling the source. Official identity is
 established by the Mango Future code signature, official download channel, SHA-256, release tag, and
 matching public commit.
 
-Version 2.0 is the product-name transition. Runtime readers continue to accept the 1.x `git-leaf-build-info.json` filename and `GIT_LEAF_*` environment names, but every newly prepared package and release environment must write the canonical OpenPeek filename and `OPENPEEK_*` names. Existing macOS Bundle IDs, the official macOS `CFBundleExecutable=Git Leaf`, the `git-leaf` Profile directory, and update-service coordinates remain stable compatibility identities and are not release-name substitutions. GitHub repository names use the canonical OpenPeek identity; GitHub preserves old repository URLs as redirects.
+Version 3.0 changes the canonical name from the short-lived OpenPeek identity to OpenGlance. Runtime
+readers accept `openpeek-build-info.json` / `OPENPEEK_*` from 2.x and
+`git-leaf-build-info.json` / `GIT_LEAF_*` from 1.x, in that order after the canonical OpenGlance names.
+Every newly prepared package writes only `openglance-build-info.json` and `OPENGLANCE_*`. The internal
+macOS Bundle ID, hidden executable, ShipIt identity, `git-leaf` Profile directory, analytics schema, and
+update-service coordinates remain stable for installed company users. Earlier public packages were not
+promoted, so future public and Community packages use clean OpenGlance-native Bundle IDs. GitHub
+repository names use the canonical OpenGlance identity and preserve earlier URLs as redirects.
 
 The analytics default is normally used only when initializing a new local setting. Once
 `usageAnalyticsEnabled` exists in userData, an ordinary update must preserve it. The bounded
@@ -100,7 +117,12 @@ official profile and track are present.
 
 ## Human and automation Profiles
 
-The installed formal app and a development build installed for human use are the same App installation. A new installation is `OpenPeek.app`; an existing `Git Leaf.app` path is reused during the 2.0 transition. Both use the same real Electron Profile so replacing one build with the other preserves repositories, workbench sessions, favorites, language, and preferences. A packaged `dev=true, source, source` build may perform only the one-way internal handoff defined below; the build marker does not make it official, enable telemetry, or select a `git-leaf-dev` directory.
+The installed formal app and a development build installed for human use are the same App installation.
+A new installation is `OpenGlance.app`; an existing internal `OpenPeek.app` or `Git Leaf.app` path is
+reused during the 3.0 transition. All use the same real Electron Profile so replacing one build with
+another preserves repositories, workbench sessions, favorites, language, and preferences. A packaged
+`dev=true, source, source` build may perform only the one-way internal handoff defined below; the build
+marker does not make it official, enable telemetry, or select a `git-leaf-dev` directory.
 
 Agent-driven automated UI verification, when run as a separate development task, is the only macOS flow
 that selects another Profile. It creates a one-time snapshot of the real Profile, passes its temporary
@@ -149,7 +171,7 @@ not repeat it.
 
 ## Community Builds
 
-The concise contributor entry point is [Build OpenPeek from source](build-from-source.md). The commands
+The concise contributor entry point is [Build OpenGlance from source](build-from-source.md). The commands
 below are the packaging subset of that guide:
 
 ```bash
@@ -157,7 +179,7 @@ npm run package:mac
 npm run package:win
 ```
 
-Verify that packaged `openpeek-build-info.json` contains:
+Verify that packaged `openglance-build-info.json` contains:
 
 ```json
 {
@@ -331,7 +353,7 @@ The frozen `RELEASE_COMMIT` must have a `Windows Release Smoke` workflow run wit
 properties:
 
 - the run has reached `completed` status with a `success` conclusion;
-- the run belongs to the `MangoFuture1210/openpeek` repository;
+- the run belongs to the `MangoFuture1210/openglance` repository;
 - the run uses `.github/workflows/windows-release-smoke.yml`;
 - the run's head SHA exactly equals the frozen `RELEASE_COMMIT`;
 - the run exposes a non-expired, non-empty smoke artifact whose name ends with that exact frozen commit.
@@ -367,7 +389,7 @@ npm run release:verify-update:mac -- \
   --output dist/macos-update-regression/release-gate.json
 ```
 
-The harness refuses to start while an installed OpenPeek or Git Leaf App is running or any ShipIt launchd job
+The harness refuses to start while an installed OpenGlance, OpenPeek, or Git Leaf App is running or any relevant ShipIt launchd job
 already exists. It uses a temporary App location whose parent is deliberately not writable, plus
 isolated HOME and Electron Profile paths when exercising the in-App updater. For a stable version older
 than the first nonprivileged-only package, it uses the one-time `Contents` bridge instead of launching
@@ -421,12 +443,16 @@ and cleanup proof. The former manual
 `mark-update-regression-verified` command does not exist.
 
 Official packaged macOS builds persist Squirrel's direct-`Contents` default and carry a build-verified
-Squirrel policy that never launches a privileged Helper. A user-owned `/Applications/OpenPeek.app`
+Squirrel policy that never launches a privileged Helper. A user-owned `/Applications/OpenGlance.app`
 therefore replaces its signed `Contents` directory without write access to the root-owned
 `/Applications` parent; an App bundle that is itself not writable fails closed as an installation repair
 case. The regression requires the `.app` directory inode to remain unchanged.
 
-During the 1.x-to-2.x migration window, every official macOS package uses the canonical visible `OpenPeek.app` bundle and ZIP root while retaining `Git Leaf` as its hidden `CFBundleExecutable`. Legacy ShipIt decides whether to rename the installed App from executable identity rather than the ZIP root, so that machine-only identity lets an existing `Git Leaf.app` update in place. A new installation is still `OpenPeek.app`; OpenPeek also atomically sets `useUpdateBundleName=false` before later installs to preserve either installed bundle path. Community and source packages use the canonical `OpenPeek` executable name.
+During the 3.0 migration, internal official macOS packages use the canonical visible `OpenGlance.app`
+bundle and ZIP root while retaining `Git Leaf` as the hidden `CFBundleExecutable`. OpenGlance atomically
+sets `useUpdateBundleName=false` before ShipIt installs, preserving an existing `OpenPeek.app` or
+`Git Leaf.app` directory. Public official and Community packages use the canonical executable and their
+OpenGlance-native Bundle IDs; they do not inherit the internal machine identity.
 
 This gate validates installation of the final signed package and its cleanup contract. It is not a
 feature-by-feature UI test, and it is not repeated after releases whose recorded risk assessment does
@@ -506,7 +532,9 @@ After upgrading, the embedded `internal` track reads only `internal-stable`.
 
 - macOS official releases use Mango Future's Developer ID signature and notarization.
 - Windows is currently distributed as an unsigned Preview ZIP. Documentation and download surfaces must state this plainly until Authenticode signing is implemented.
-- Public and internal official builds share the existing application identity and userData location so updates preserve repositories, sessions, and preferences.
+- Public and internal official builds share the stable `git-leaf` userData location but use separate
+  macOS Bundle IDs. Internal builds retain the old identity for upgrades; future public builds start
+  with the clean OpenGlance identity.
 - Human-installed development builds share that userData location too; only explicit Agent smoke uses a temporary Profile.
 - Community Builds never join an official update channel.
 
@@ -518,7 +546,8 @@ Before publication:
 2. Search for private repository names, personal paths, private email addresses, internal IPs, host aliases, server directories, and release credentials.
 3. Build macOS and Windows candidates.
 4. Inspect the DMG, ZIP, and `app.asar` file lists and text content.
-5. Confirm an official macOS DMG and update ZIP use the visible `OpenPeek.app` identity and ZIP root while the signed App retains the migration-compatible hidden `CFBundleExecutable=Git Leaf`.
+5. Confirm an official macOS DMG and update ZIP use the visible `OpenGlance.app` identity and ZIP root;
+   internal signed Apps retain `CFBundleExecutable=Git Leaf`, while public signed Apps use `OpenGlance`.
 6. Confirm packages exclude `.agents/`, `docs/`, `test/`, `dist/`, `.git/`, release profiles, signing material, and internal operations documents.
 7. Verify source, official public, and official internal behavior independently.
 8. Confirm track, channel, manifest, SHA-256, tag, and public commit correspondence.

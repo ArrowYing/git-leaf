@@ -13,17 +13,36 @@ import { pathToFileURL } from "node:url";
 import test from "node:test";
 
 import {
+  COMMUNITY_MAC_SHIPIT_JOB_LABEL,
+  macShipItJobLabelForBuildInfo,
+  OFFICIAL_INTERNAL_MAC_SHIPIT_JOB_LABEL,
+  OFFICIAL_PUBLIC_MAC_SHIPIT_JOB_LABEL,
   macUpdateCachePaths,
   preserveMacUpdateAppPath,
   pruneObsoleteMacUpdatePackages,
 } from "../src/desktop/mac-update-cache.mjs";
 
+test("macOS ShipIt cache identity follows public, internal, and Community Bundle IDs", () => {
+  assert.equal(macShipItJobLabelForBuildInfo({
+    distribution: "official",
+    releaseTrack: "public",
+  }), OFFICIAL_PUBLIC_MAC_SHIPIT_JOB_LABEL);
+  assert.equal(macShipItJobLabelForBuildInfo({
+    distribution: "official",
+    releaseTrack: "internal",
+  }), OFFICIAL_INTERNAL_MAC_SHIPIT_JOB_LABEL);
+  assert.equal(macShipItJobLabelForBuildInfo({
+    distribution: "source",
+    releaseTrack: "source",
+  }), COMMUNITY_MAC_SHIPIT_JOB_LABEL);
+});
+
 test("macOS update installation preserves the existing App directory name", async () => {
-  const homeDir = await mkdtemp(path.join(tmpdir(), "openpeek-mac-update-path-"));
+  const homeDir = await mkdtemp(path.join(tmpdir(), "openglance-mac-update-path-"));
   const paths = macUpdateCachePaths({ homeDir });
   const stagedDirectory = path.join(paths.updateRoot, "update.NEW5678");
   const stagedApp = path.join(stagedDirectory, "Git Leaf.app");
-  const targetApp = path.join(homeDir, "Applications", "OpenPeek.app");
+  const targetApp = path.join(homeDir, "Applications", "OpenGlance.app");
   await Promise.all([
     mkdir(stagedApp, { recursive: true }),
     mkdir(targetApp, { recursive: true }),
@@ -59,7 +78,7 @@ test("macOS update installation preserves the existing App directory name", asyn
 });
 
 test("macOS update installation refuses to rewrite state for another App path", async () => {
-  const homeDir = await mkdtemp(path.join(tmpdir(), "openpeek-mac-update-path-"));
+  const homeDir = await mkdtemp(path.join(tmpdir(), "openglance-mac-update-path-"));
   const paths = macUpdateCachePaths({ homeDir });
   const stagedApp = path.join(paths.updateRoot, "update.NEW5678", "Git Leaf.app");
   const targetApp = path.join(homeDir, "Applications", "Git Leaf.app");
@@ -73,7 +92,7 @@ test("macOS update installation refuses to rewrite state for another App path", 
   await assert.rejects(
     preserveMacUpdateAppPath({
       homeDir,
-      targetAppPath: path.join(homeDir, "Applications", "OpenPeek.app"),
+      targetAppPath: path.join(homeDir, "Applications", "OpenGlance.app"),
     }),
     /targets another App path/,
   );
@@ -84,7 +103,7 @@ test("macOS update installation refuses to rewrite state for another App path", 
 });
 
 test("macOS update installation requires a direct App bundle in the ShipIt package", async () => {
-  const homeDir = await mkdtemp(path.join(tmpdir(), "openpeek-mac-update-path-"));
+  const homeDir = await mkdtemp(path.join(tmpdir(), "openglance-mac-update-path-"));
   const paths = macUpdateCachePaths({ homeDir });
   const stagedBundle = path.join(paths.updateRoot, "update.NEW5678", "payload");
   const targetApp = path.join(homeDir, "Applications", "Git Leaf.app");
@@ -111,12 +130,12 @@ test("macOS update cache keeps only the package staged by ShipIt", async () => {
   const current = path.join(paths.updateRoot, "update.NEW5678");
   const unrelated = path.join(paths.updateRoot, "logs");
   await Promise.all([
-    mkdir(path.join(stale, "OpenPeek.app"), { recursive: true }),
-    mkdir(path.join(current, "OpenPeek.app"), { recursive: true }),
+    mkdir(path.join(stale, "OpenGlance.app"), { recursive: true }),
+    mkdir(path.join(current, "OpenGlance.app"), { recursive: true }),
     mkdir(unrelated, { recursive: true }),
   ]);
   await writeFile(paths.stateFile, JSON.stringify({
-    updateBundleURL: pathToFileURL(path.join(current, "OpenPeek.app")).href,
+    updateBundleURL: pathToFileURL(path.join(current, "OpenGlance.app")).href,
   }));
 
   const result = await pruneObsoleteMacUpdatePackages({ homeDir });
@@ -135,14 +154,14 @@ test("macOS update cache rechecks ShipIt state before removing each package", as
   const oldPackage = path.join(paths.updateRoot, "update.A-OLD");
   const newPackage = path.join(paths.updateRoot, "update.B-NEW");
   await Promise.all([
-    mkdir(path.join(oldPackage, "OpenPeek.app"), { recursive: true }),
-    mkdir(path.join(newPackage, "OpenPeek.app"), { recursive: true }),
+    mkdir(path.join(oldPackage, "OpenGlance.app"), { recursive: true }),
+    mkdir(path.join(newPackage, "OpenGlance.app"), { recursive: true }),
   ]);
   let reads = 0;
   const readFileFn = async () => JSON.stringify({
     updateBundleURL: pathToFileURL(path.join(
       reads++ === 0 ? oldPackage : newPackage,
-      "OpenPeek.app",
+      "OpenGlance.app",
     )).href,
   });
   const readdirFn = async () => [
@@ -170,10 +189,10 @@ test("macOS update cache reports incomplete pruning without removing the staged 
   const current = path.join(paths.updateRoot, "update.NEW5678");
   await Promise.all([
     mkdir(stale, { recursive: true }),
-    mkdir(path.join(current, "OpenPeek.app"), { recursive: true }),
+    mkdir(path.join(current, "OpenGlance.app"), { recursive: true }),
   ]);
   await writeFile(paths.stateFile, JSON.stringify({
-    updateBundleURL: pathToFileURL(path.join(current, "OpenPeek.app")).href,
+    updateBundleURL: pathToFileURL(path.join(current, "OpenGlance.app")).href,
   }));
 
   const result = await pruneObsoleteMacUpdatePackages({
@@ -195,7 +214,7 @@ test("macOS update cache fails closed when ShipIt state points outside its cache
   const staged = path.join(paths.updateRoot, "update.KEEP123");
   await mkdir(staged, { recursive: true });
   await writeFile(paths.stateFile, JSON.stringify({
-    updateBundleURL: pathToFileURL(path.join(homeDir, "elsewhere", "OpenPeek.app")).href,
+    updateBundleURL: pathToFileURL(path.join(homeDir, "elsewhere", "OpenGlance.app")).href,
   }));
 
   assert.deepEqual(await pruneObsoleteMacUpdatePackages({ homeDir }), {

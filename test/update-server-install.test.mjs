@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 test("update service installer requires target-specific paths and keeps safe service permissions", async () => {
-  const script = await readFile("scripts/install-openpeek-update-server.sh", "utf8");
+  const script = await readFile("scripts/install-openglance-update-server.sh", "utf8");
 
   assert.match(script, /UPDATE_REMOTE_HOST:\?Set UPDATE_REMOTE_HOST/);
   assert.match(script, /UPDATE_REMOTE_ROOT:\?Set UPDATE_REMOTE_ROOT/);
@@ -14,7 +14,7 @@ test("update service installer requires target-specific paths and keeps safe ser
   assert.doesNotMatch(script, /UPDATE_REMOTE_(?:HOST|ROOT):-/);
   assert.doesNotMatch(script, /TELEMETRY_REMOTE_ROOT:-/);
   assert.match(script, /SERVICE_NAME="\$\{UPDATE_SERVICE_NAME:-gitleaf-updates\.service\}"/);
-  assert.match(script, /openpeek-update-server\.py/);
+  assert.match(script, /openglance-update-server\.py/);
   assert.match(script, /--telemetry-root \$TELEMETRY_ROOT/);
   assert.match(script, /ReadWritePaths=\$REMOTE_ROOT \$TELEMETRY_ROOT/);
   assert.match(script, /systemctl enable/);

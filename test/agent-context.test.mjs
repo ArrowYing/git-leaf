@@ -24,7 +24,7 @@ function exampleItem(overrides = {}) {
     path: "architecture.md",
     selectedLines: [69, 67, 68],
     sourceLines: [
-      { number: 67, text: "OpenPeek is Git-native." },
+      { number: 67, text: "OpenGlance is Git-native." },
       { number: 68, text: "" },
       { number: 69, text: "Agents receive source context." },
     ],
@@ -89,7 +89,7 @@ Worktree: main checkout
 Branch: main
 Revision: 0123456789abcdef
 
-> 67 | OpenPeek is Git-native.
+> 67 | OpenGlance is Git-native.
 > 68 |
 > 69 | Agents receive source context.
 

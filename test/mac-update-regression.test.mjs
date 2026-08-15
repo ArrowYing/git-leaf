@@ -25,7 +25,7 @@ test("mac update regression rejects a relaunched App that reaches the real Profi
   const temporaryRoot = path.join(
     filesystemRoot,
     "tmp",
-    "openpeek-update-regression.123",
+    "openglance-update-regression.123",
   );
   const protectedProfilePath = path.join(
     filesystemRoot,
@@ -48,7 +48,7 @@ test("mac update regression rejects a relaunched App that reaches the real Profi
     protectedProfilePath,
     commandOutput:
       `${temporaryRoot}/install/Git Leaf.app/Contents/Frameworks/Git Leaf Helper.app/Contents/MacOS/Git Leaf Helper --user-data-dir=${protectedProfilePath}`,
-  }), /attempted to use the real OpenPeek Profile/);
+  }), /attempted to use the real OpenGlance Profile/);
   assert.throws(
     () => assertTemporaryProcessIsolation({
       commandOutput: "",
@@ -59,7 +59,7 @@ test("mac update regression rejects a relaunched App that reaches the real Profi
 });
 
 test("mac update regression accepts only a non-relaunching isolated ShipIt request", async () => {
-  const temporaryRoot = await mkdtemp(path.join(tmpdir(), "openpeek-shipit-state."));
+  const temporaryRoot = await mkdtemp(path.join(tmpdir(), "openglance-shipit-state."));
   const stateFile = path.join(temporaryRoot, "ShipItState.plist");
   const request = {
     launchAfterInstallation: false,
@@ -153,7 +153,7 @@ test("mac update regression refuses conflicting local updater state before launc
       userShipItJobExists: true,
       systemShipItJobExists: false,
     }),
-    /Refusing to start.*conflicting local state[\s\S]*OpenPeek or Git Leaf App is running[\s\S]*ShipIt/,
+    /Refusing to start.*conflicting local state[\s\S]*OpenGlance, OpenPeek, or Git Leaf App is running[\s\S]*ShipIt/,
   );
   assert.doesNotThrow(() => assertSafeMacUpdateRegressionHost({
     platform: "darwin",
@@ -165,7 +165,7 @@ test("mac update regression refuses conflicting local updater state before launc
 
 test("mac product rename migration preserves repositories, workspace state, and preferences", () => {
   const expected = {
-    renameMigrationSentinel: "git-leaf-1.x-to-openpeek-2.x",
+    renameMigrationSentinel: "git-leaf-1.x-openpeek-2.x-to-openglance-3.x",
     repoRoot: "/repo",
     openRepoRoots: ["/repo", "/second"],
     usageAnalyticsEnabled: false,
@@ -180,7 +180,7 @@ test("mac product rename migration preserves repositories, workspace state, and 
       sidebarCollapsed: true,
       sourcePreviewRatio: 61,
       workbenchSessions: {
-        openpeek: { tabs: [{ path: "README.md" }], activeTabPath: "README.md" },
+        openglance: { tabs: [{ path: "README.md" }], activeTabPath: "README.md" },
       },
       updateRequestedVersion: "2.0.0",
     },
@@ -227,7 +227,7 @@ test("mac product rename migration preserves repositories, workspace state, and 
         ...afterUpdate.preferences,
         workbenchSessions: {
           ...afterUpdate.preferences.workbenchSessions,
-          openpeek: { tabs: [], activeTabPath: "" },
+          openglance: { tabs: [], activeTabPath: "" },
         },
       },
     }, expected),
@@ -306,8 +306,8 @@ test("mac update regression validates candidate identity and ZIP contract", () =
     commit: "0123456789ab",
     files: {
       zip: {
-        name: "OpenPeek-1.12.1-internal-darwin-universal.zip",
-        url: "https://updates.example.test/OpenPeek.zip",
+        name: "OpenGlance-1.12.1-internal-darwin-universal.zip",
+        url: "https://updates.example.test/OpenGlance.zip",
         sha256: "a".repeat(64),
         size: 1024,
       },
@@ -340,8 +340,8 @@ test("mac update regression accepts only the exact internal 1.11.3 public stable
     commit: "9a7baa0cb6d3",
     files: {
       zip: {
-        name: "OpenPeek-1.11.3-internal-darwin-universal.zip",
-        url: "https://updates.example.test/OpenPeek-1.11.3.zip",
+        name: "OpenGlance-1.11.3-internal-darwin-universal.zip",
+        url: "https://updates.example.test/OpenGlance-1.11.3.zip",
         sha256: "b".repeat(64),
         size: 2048,
       },
@@ -388,7 +388,7 @@ test("mac update regression evidence binds installation and cleanup to the froze
   const fingerprint = { sha256: "a".repeat(64), fileCount: 3 };
   const evidence = {
     schemaVersion: 5,
-    source: "openpeek-macos-update-regression",
+    source: "openglance-macos-update-regression",
     status: "passed",
     track: "internal",
     platform: "darwin-universal",
@@ -408,13 +408,13 @@ test("mac update regression evidence binds installation and cleanup to the froze
       executable: "Git Leaf",
     },
     candidateAppIdentity: {
-      bundleName: "OpenPeek.app",
-      productName: "OpenPeek",
+      bundleName: "OpenGlance.app",
+      productName: "OpenGlance",
       executable: "Git Leaf",
     },
     installedAppIdentity: {
       bundleName: "Git Leaf.app",
-      productName: "OpenPeek",
+      productName: "OpenGlance",
       executable: "Git Leaf",
     },
     installParentWritable: false,

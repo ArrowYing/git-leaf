@@ -2,12 +2,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-  createOpenPeekOpenLink,
-  createOpenPeekShareLink,
-} from "../src/server/openpeek-open-link.mjs";
+  createOpenGlanceOpenLink,
+  createOpenGlanceShareLink,
+} from "../src/server/openglance-open-link.mjs";
 
-test("createOpenPeekOpenLink includes the exact linked worktree id", async () => {
-  const link = await createOpenPeekOpenLink({
+test("createOpenGlanceOpenLink includes the exact linked worktree id", async () => {
+  const link = await createOpenGlanceOpenLink({
     repoRoot: "/repos/company-docs-task",
     file: "docs/report.md",
     readOrigin: async () => "git@github.com:ExampleOrg/company-docs.git",
@@ -23,8 +23,8 @@ test("createOpenPeekOpenLink includes the exact linked worktree id", async () =>
   );
 });
 
-test("createOpenPeekOpenLink keeps primary-worktree links portable", async () => {
-  const link = await createOpenPeekOpenLink({
+test("createOpenGlanceOpenLink keeps primary-worktree links portable", async () => {
+  const link = await createOpenGlanceOpenLink({
     repoRoot: "/repos/company-docs",
     file: "AGENTS.md",
     readOrigin: async () => "https://github.com/ExampleOrg/company-docs.git",
@@ -39,17 +39,17 @@ test("createOpenPeekOpenLink keeps primary-worktree links portable", async () =>
   );
 });
 
-test("createOpenPeekOpenLink localizes predictable errors and preserves dependency errors", async () => {
+test("createOpenGlanceOpenLink localizes predictable errors and preserves dependency errors", async () => {
   await assert.rejects(
-    createOpenPeekOpenLink(),
+    createOpenGlanceOpenLink(),
     /A Git repository root is required\./,
   );
   await assert.rejects(
-    createOpenPeekOpenLink({ language: "zh-CN" }),
+    createOpenGlanceOpenLink({ language: "zh-CN" }),
     /需要提供 Git 仓库根目录/,
   );
   await assert.rejects(
-    createOpenPeekOpenLink({
+    createOpenGlanceOpenLink({
       repoRoot: "/repos/company-docs",
       locale: "zh-CN",
       readOrigin: async () => "",
@@ -57,7 +57,7 @@ test("createOpenPeekOpenLink localizes predictable errors and preserves dependen
     /仓库必须配置 GitHub origin/,
   );
   await assert.rejects(
-    createOpenPeekOpenLink({
+    createOpenGlanceOpenLink({
       repoRoot: "/repos/company-docs",
       readOrigin: async () => "git@github.com:ExampleOrg/company-docs.git",
       listWorktrees: async () => [],
@@ -67,7 +67,7 @@ test("createOpenPeekOpenLink localizes predictable errors and preserves dependen
 
   const rawError = new Error("fatal: could not read origin");
   await assert.rejects(
-    createOpenPeekOpenLink({
+    createOpenGlanceOpenLink({
       repoRoot: "/repos/company-docs",
       readOrigin: async () => {
         throw rawError;
@@ -77,7 +77,7 @@ test("createOpenPeekOpenLink localizes predictable errors and preserves dependen
   );
 });
 
-test("createOpenPeekShareLink publishes a main-primary document revision", async () => {
+test("createOpenGlanceShareLink publishes a main-primary document revision", async () => {
   const revision = "a".repeat(40);
   const calls = [];
   const publishedSource = [
@@ -87,7 +87,7 @@ test("createOpenPeekShareLink publishes a main-primary document revision", async
     "---",
     "# Old heading",
   ].join("\n");
-  const link = await createOpenPeekShareLink({
+  const link = await createOpenGlanceShareLink({
     repoRoot: "/repos/company-docs",
     file: "docs/report.md",
     readOrigin: async () => "git@github.com:ExampleOrg/company-docs.git",
@@ -115,9 +115,9 @@ test("createOpenPeekShareLink publishes a main-primary document revision", async
   assert.deepEqual(calls.at(-1), ["show", `${revision}:docs/report.md`]);
 });
 
-test("createOpenPeekShareLink falls back to the file name when preview metadata cannot be read", async () => {
+test("createOpenGlanceShareLink falls back to the file name when preview metadata cannot be read", async () => {
   const revision = "f".repeat(40);
-  const link = await createOpenPeekShareLink({
+  const link = await createOpenGlanceShareLink({
     repoRoot: "/repos/company-docs",
     file: "docs/report.md",
     readOrigin: async () => "git@github.com:ExampleOrg/company-docs.git",
@@ -137,9 +137,9 @@ test("createOpenPeekShareLink falls back to the file name when preview metadata 
   assert.equal(shareUrl.searchParams.has("snippet"), false);
 });
 
-test("createOpenPeekShareLink rejects linked worktrees and non-main primary branches", async () => {
+test("createOpenGlanceShareLink rejects linked worktrees and non-main primary branches", async () => {
   await assert.rejects(
-    createOpenPeekShareLink({
+    createOpenGlanceShareLink({
       repoRoot: "/repos/company-docs-task",
       file: "docs/report.md",
       listWorktrees: async () => [
@@ -150,7 +150,7 @@ test("createOpenPeekShareLink rejects linked worktrees and non-main primary bran
       && error.message === "Share links are available only from the primary worktree.",
   );
   await assert.rejects(
-    createOpenPeekShareLink({
+    createOpenGlanceShareLink({
       repoRoot: "/repos/company-docs",
       file: "docs/report.md",
       language: "zh-CN",
@@ -163,10 +163,10 @@ test("createOpenPeekShareLink rejects linked worktrees and non-main primary bran
   );
 });
 
-test("createOpenPeekShareLink rejects unpublished document changes", async () => {
+test("createOpenGlanceShareLink rejects unpublished document changes", async () => {
   const revision = "b".repeat(40);
   await assert.rejects(
-    createOpenPeekShareLink({
+    createOpenGlanceShareLink({
       repoRoot: "/repos/company-docs",
       file: "docs/report.md",
       readOrigin: async () => "https://github.com/ExampleOrg/company-docs.git",
@@ -182,7 +182,7 @@ test("createOpenPeekShareLink rejects unpublished document changes", async () =>
       && error.message === "This document has uncommitted changes. Sync it before sharing.",
   );
   await assert.rejects(
-    createOpenPeekShareLink({
+    createOpenGlanceShareLink({
       repoRoot: "/repos/company-docs",
       file: "docs/report.md",
       locale: "zh-CN",
@@ -203,14 +203,14 @@ test("createOpenPeekShareLink rejects unpublished document changes", async () =>
   );
 });
 
-test("createOpenPeekShareLink localizes repository and first-commit errors", async () => {
+test("createOpenGlanceShareLink localizes repository and first-commit errors", async () => {
   await assert.rejects(
-    createOpenPeekShareLink(),
+    createOpenGlanceShareLink(),
     (error) => error.code === "repository_required"
       && error.message === "Open a Git repository before creating a share link.",
   );
   await assert.rejects(
-    createOpenPeekShareLink({
+    createOpenGlanceShareLink({
       repoRoot: "/repos/company-docs",
       file: "docs/report.md",
       language: "zh-CN",
@@ -223,7 +223,7 @@ test("createOpenPeekShareLink localizes repository and first-commit errors", asy
       && error.message === "当前仓库没有可识别的 GitHub origin。",
   );
   await assert.rejects(
-    createOpenPeekShareLink({
+    createOpenGlanceShareLink({
       repoRoot: "/repos/company-docs",
       file: "docs/report.md",
       readOrigin: async () => "https://github.com/ExampleOrg/company-docs.git",
@@ -241,10 +241,10 @@ test("createOpenPeekShareLink localizes repository and first-commit errors", asy
   );
 });
 
-test("createOpenPeekShareLink preserves dependency failures from the ancestor check", async () => {
+test("createOpenGlanceShareLink preserves dependency failures from the ancestor check", async () => {
   const revision = "c".repeat(40);
   await assert.rejects(
-    createOpenPeekShareLink({
+    createOpenGlanceShareLink({
       repoRoot: "/repos/company-docs",
       file: "docs/report.md",
       readOrigin: async () => "https://github.com/ExampleOrg/company-docs.git",

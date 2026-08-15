@@ -1,15 +1,21 @@
-export const OPENPEEK_PRODUCT_NAME = "OpenPeek";
-export const OPENPEEK_DEVELOPMENT_NAME = "OpenPeek dev";
-export const OPENPEEK_PRODUCT_SLUG = "openpeek";
+export const OPENGLANCE_PRODUCT_NAME = "OpenGlance";
+export const OPENGLANCE_DEVELOPMENT_NAME = "OpenGlance dev";
+export const OPENGLANCE_PRODUCT_SLUG = "openglance";
 
-export const OPENPEEK_PROTOCOL = "openpeek";
-export const OPENPEEK_LEGACY_PROTOCOL = "git-leaf";
-export const OPENPEEK_SUPPORTED_PROTOCOLS = Object.freeze([
-  OPENPEEK_PROTOCOL,
-  OPENPEEK_LEGACY_PROTOCOL,
+export const OPENGLANCE_PROTOCOL = "openglance";
+export const OPENGLANCE_OPENPEEK_PROTOCOL = "openpeek";
+export const OPENGLANCE_GIT_LEAF_PROTOCOL = "git-leaf";
+export const OPENGLANCE_LEGACY_PROTOCOL = OPENGLANCE_GIT_LEAF_PROTOCOL;
+export const OPENGLANCE_LEGACY_PROTOCOLS = Object.freeze([
+  OPENGLANCE_OPENPEEK_PROTOCOL,
+  OPENGLANCE_GIT_LEAF_PROTOCOL,
+]);
+export const OPENGLANCE_SUPPORTED_PROTOCOLS = Object.freeze([
+  OPENGLANCE_PROTOCOL,
+  ...OPENGLANCE_LEGACY_PROTOCOLS,
 ]);
 
-export function isOpenPeekProtocol(protocol) {
+export function isOpenGlanceProtocol(protocol) {
   const normalized = String(protocol || "").replace(/:$/, "").toLowerCase();
-  return OPENPEEK_SUPPORTED_PROTOCOLS.includes(normalized);
+  return OPENGLANCE_SUPPORTED_PROTOCOLS.includes(normalized);
 }

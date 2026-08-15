@@ -1,11 +1,11 @@
 ---
-name: openpeek-release
-description: Executes and diagnoses OpenPeek development installs, source packages, and formal public or internal releases. Use when packaging, publishing, updating, re-releasing, changing the release version, inspecting release status, or verifying a final macOS packaged-App update.
+name: openglance-release
+description: Executes and diagnoses OpenGlance development installs, source packages, and formal public or internal releases. Use when packaging, publishing, updating, re-releasing, changing the release version, inspecting release status, or verifying a final macOS packaged-App update.
 ---
 
-# OpenPeek Release
+# OpenGlance Release
 
-1. Resolve the active OpenPeek repository with `git rev-parse --show-toplevel`.
+1. Resolve the active OpenGlance repository with `git rev-parse --show-toplevel`.
 2. Read the repository `AGENTS.md` and `docs/release.md` completely before changing, packaging, or publishing anything.
 3. Treat `docs/release.md` as the sole release policy and `scripts/release-worktree.mjs` as the formal state machine. Do not duplicate their procedure in this skill.
 

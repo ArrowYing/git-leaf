@@ -7,10 +7,10 @@ import {
 } from "../public/document-search.js";
 
 test("document search finds literal text case-insensitively", () => {
-  assert.deepEqual(findTextMatches("OpenPeek openpeek OPENPEEK", "openpeek"), [
-    { from: 0, to: 8 },
-    { from: 9, to: 17 },
-    { from: 18, to: 26 },
+  assert.deepEqual(findTextMatches("OpenGlance openglance OPENGLANCE", "openglance"), [
+    { from: 0, to: 10 },
+    { from: 11, to: 21 },
+    { from: 22, to: 32 },
   ]);
   assert.deepEqual(findTextMatches("a+b aab a+b", "a+b"), [
     { from: 0, to: 3 },

@@ -120,20 +120,30 @@ test("GitHub repository identities normalize SSH and HTTPS remotes", () => {
   assert.equal(githubRepositoryIdentityFromRemote("https://gitlab.com/acme/docs.git"), "");
 });
 
-test("OpenPeek repository renames preserve legacy local checkout identity", () => {
+test("OpenGlance repository renames preserve legacy local checkout identity", () => {
   assert.equal(
     githubRepositoryIdentityFromRemote("https://github.com/MangoFuture1210/git-leaf.git"),
-    "mangofuture1210/openpeek",
+    "mangofuture1210/openglance",
+  );
+  assert.equal(
+    githubRepositoryIdentityFromRemote("https://github.com/MangoFuture1210/openpeek.git"),
+    "mangofuture1210/openglance",
   );
   assert.equal(
     githubRepositoryIdentityFromRemote(
       "git@github.com:MangoFuture1210/git-leaf-example-knowledge-base.git",
     ),
-    "mangofuture1210/openpeek-example-knowledge-base",
+    "mangofuture1210/openglance-example-knowledge-base",
   );
   assert.equal(
-    canonicalGithubRepositoryIdentity("MangoFuture1210/OpenPeek"),
-    "mangofuture1210/openpeek",
+    githubRepositoryIdentityFromRemote(
+      "git@github.com:MangoFuture1210/openpeek-example-knowledge-base.git",
+    ),
+    "mangofuture1210/openglance-example-knowledge-base",
+  );
+  assert.equal(
+    canonicalGithubRepositoryIdentity("MangoFuture1210/OpenGlance"),
+    "mangofuture1210/openglance",
   );
   assert.equal(
     canonicalGithubRepositoryIdentity("ExampleOrg/company-docs"),
@@ -141,20 +151,27 @@ test("OpenPeek repository renames preserve legacy local checkout identity", () =
   );
 });
 
-test("findGithubRepositoryRoot matches OpenPeek links against legacy local remotes", async () => {
+test("findGithubRepositoryRoot matches OpenGlance links against legacy local remotes", async () => {
   assert.equal(
-    await findGithubRepositoryRoot("MangoFuture1210/openpeek", ["/legacy-openpeek"], {
+    await findGithubRepositoryRoot("MangoFuture1210/openglance", ["/legacy-openglance"], {
       originReader: async () => "https://github.com/MangoFuture1210/git-leaf.git",
       candidateAccess: async () => {},
     }),
-    "/legacy-openpeek",
+    "/legacy-openglance",
   );
   assert.equal(
-    await findGithubRepositoryRoot("MangoFuture1210/git-leaf", ["/renamed-openpeek"], {
+    await findGithubRepositoryRoot("MangoFuture1210/openglance", ["/openpeek-checkout"], {
       originReader: async () => "https://github.com/MangoFuture1210/openpeek.git",
       candidateAccess: async () => {},
     }),
-    "/renamed-openpeek",
+    "/openpeek-checkout",
+  );
+  assert.equal(
+    await findGithubRepositoryRoot("MangoFuture1210/git-leaf", ["/renamed-openglance"], {
+      originReader: async () => "https://github.com/MangoFuture1210/openglance.git",
+      candidateAccess: async () => {},
+    }),
+    "/renamed-openglance",
   );
 });
 
@@ -216,7 +233,7 @@ test("findGithubRepositoryRoot resolves an exact local worktree without falling 
     branch: "main",
     files: { "README.md": "# Main\n" },
   });
-  await execFileAsync("git", ["config", "user.name", "OpenPeek Tests"], { cwd: repoRoot });
+  await execFileAsync("git", ["config", "user.name", "OpenGlance Tests"], { cwd: repoRoot });
   await execFileAsync("git", ["config", "user.email", "git-leaf@example.com"], { cwd: repoRoot });
   await execFileAsync("git", ["add", "."], { cwd: repoRoot });
   await execFileAsync("git", ["commit", "-m", "Initial"], { cwd: repoRoot });

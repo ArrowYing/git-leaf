@@ -34,12 +34,12 @@ test("desktop home page explains repository selection and renders environment ch
     systemLanguages: ["zh-CN"],
   });
 
-  assert.match(html, /OpenPeek/);
+  assert.match(html, /OpenGlance/);
   assert.match(html, /Git 文档工作台/);
-  assert.match(html, /选择一个本地 Git 仓库后，OpenPeek 会在桌面窗口中打开 Markdown \/ MDX 文档工作台。/);
+  assert.match(html, /选择一个本地 Git 仓库后，OpenGlance 会在桌面窗口中打开 Markdown \/ MDX 文档工作台。/);
   assert.doesNotMatch(html, /首次启动不会自动弹出目录选择框/);
   assert.match(html, /选择 Git 仓库/);
-  assert.match(html, /openpeek:\/\/open-repository/);
+  assert.match(html, /openglance:\/\/open-repository/);
   assert.match(html, /Git 命令/);
   assert.match(html, /git version 2\.50\.1/);
   assert.match(html, /class="check-status ok">正常</);
@@ -103,7 +103,7 @@ test("desktop home page marks development builds in the top title", () => {
     },
   });
 
-  assert.match(html, /<h1>OpenPeek dev<\/h1>/);
+  assert.match(html, /<h1>OpenGlance dev<\/h1>/);
 });
 
 test("desktop home page keeps production builds title clean", () => {
@@ -116,8 +116,8 @@ test("desktop home page keeps production builds title clean", () => {
     },
   });
 
-  assert.match(html, /<h1>OpenPeek<\/h1>/);
-  assert.doesNotMatch(html, /OpenPeek dev/);
+  assert.match(html, /<h1>OpenGlance<\/h1>/);
+  assert.doesNotMatch(html, /OpenGlance dev/);
 });
 
 test("desktop home page allows opening repositories when only optional checks warn", () => {
@@ -142,7 +142,7 @@ test("desktop home page allows opening repositories when only optional checks wa
   assert.match(html, /环境已就绪/);
   assert.match(html, /可以打开本地 Git 仓库/);
   assert.match(html, /data-next-action="allowed"/);
-  assert.match(html, /openpeek:\/\/open-repository/);
+  assert.match(html, /openglance:\/\/open-repository/);
   assert.doesNotMatch(html, /aria-disabled="true"/);
 });
 
@@ -169,7 +169,7 @@ test("desktop home page blocks repository opening when Git is missing", () => {
   assert.match(html, /请先处理 Git 命令/);
   assert.match(html, /data-next-action="blocked"/);
   assert.match(html, /aria-disabled="true"/);
-  assert.doesNotMatch(html, /openpeek:\/\/open-repository/);
+  assert.doesNotMatch(html, /openglance:\/\/open-repository/);
 });
 
 test("desktop progress page gives immediate feedback during repository transitions", () => {
@@ -183,7 +183,7 @@ test("desktop progress page gives immediate feedback during repository transitio
   assert.match(html, /正在打开仓库/);
   assert.match(html, /正在启动本地服务 &lt;script&gt;alert\(1\)&lt;\/script&gt;/);
   assert.match(html, /progress-indicator/);
-  assert.doesNotMatch(html, /openpeek:\/\/open-repository/);
+  assert.doesNotMatch(html, /openglance:\/\/open-repository/);
   assert.doesNotMatch(html, /<script>alert\(1\)<\/script>/);
 });
 

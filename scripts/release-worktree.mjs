@@ -25,14 +25,14 @@ import { validateMacUpdateRegressionEvidence } from "./mac-update-regression-evi
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const REPO_ROOT = path.dirname(path.dirname(SCRIPT_PATH));
-const RELEASE_STATE_FILE = "openpeek-release-state.json";
+const RELEASE_STATE_FILE = "openglance-release-state.json";
 const LEGACY_RELEASE_STATE_FILE = "git-leaf-release-state.json";
 const RELEASE_VERSION_BASELINE = "1.11.2";
 const LEGACY_INTERNAL_MIGRATION_VERSION = "1.11.3";
-const GITHUB_RELEASE_REPOSITORY = "MangoFuture1210/openpeek";
+const GITHUB_RELEASE_REPOSITORY = "MangoFuture1210/openglance";
 const WINDOWS_RELEASE_SMOKE_WORKFLOW = "Windows Release Smoke";
 const WINDOWS_RELEASE_SMOKE_WORKFLOW_PATH = ".github/workflows/windows-release-smoke.yml";
-const WINDOWS_RELEASE_SMOKE_ARTIFACT_PREFIX = "openpeek-windows-release-smoke-";
+const WINDOWS_RELEASE_SMOKE_ARTIFACT_PREFIX = "openglance-windows-release-smoke-";
 const LEGACY_WINDOWS_RELEASE_SMOKE_ARTIFACT_PREFIX = "git-leaf-windows-release-smoke-";
 const WINDOWS_RELEASE_SMOKE_ARTIFACT_PREFIXES = [
   WINDOWS_RELEASE_SMOKE_ARTIFACT_PREFIX,
@@ -87,6 +87,19 @@ const DRIFTABLE_RELEASE_ENVIRONMENT_VARIABLES = [
   "OPENPEEK_UPDATE_BASE_URL",
   "OPENPEEK_UPDATE_CHANNEL",
   "OPENPEEK_USAGE_ANALYTICS_DEFAULT",
+  "OPENGLANCE_DEV_USER_DATA_DIR",
+  "OPENGLANCE_DISTRIBUTION",
+  "OPENGLANCE_ENABLE_UPDATES",
+  "OPENGLANCE_FORMAL_RELEASE",
+  "OPENGLANCE_PORTABLE",
+  "OPENGLANCE_RELEASE_PROFILE",
+  "OPENGLANCE_SMOKE_FILE",
+  "OPENGLANCE_SMOKE_REPO_ROOT",
+  "OPENGLANCE_SMOKE_USER_DATA_DIR",
+  "OPENGLANCE_TELEMETRY_ENDPOINT",
+  "OPENGLANCE_UPDATE_BASE_URL",
+  "OPENGLANCE_UPDATE_CHANNEL",
+  "OPENGLANCE_USAGE_ANALYTICS_DEFAULT",
   "ICON_PATH",
   "NOTARY_PROFILE",
   "RELEASE_COMMIT",
@@ -101,8 +114,8 @@ const UPDATE_REGRESSION_RISK_PATHS = new Set([
   "src/desktop/update-check-schedule.mjs",
   "src/desktop/updates.mjs",
   "public/update-ui.js",
-  "scripts/openpeek-update-server.py",
-  "scripts/install-openpeek-update-server.sh",
+  "scripts/openglance-update-server.py",
+  "scripts/install-openglance-update-server.sh",
   "scripts/mac-update-bridge.mjs",
   "scripts/mac-update-regression-evidence.mjs",
   "scripts/mac-update-regression.mjs",
@@ -178,6 +191,8 @@ export function releaseEnvironment(state, { channel } = {}) {
     RELEASE_COMMIT: state.commit,
     BUILT_AT: state.builtAt,
     BUILD_ID: state.buildId,
+    OPENGLANCE_FORMAL_RELEASE: "1",
+    OPENGLANCE_RELEASE_PROFILE: state.releaseProfile.path,
     OPENPEEK_FORMAL_RELEASE: "1",
     OPENPEEK_RELEASE_PROFILE: state.releaseProfile.path,
     GIT_LEAF_FORMAL_RELEASE: "1",
@@ -654,7 +669,7 @@ function activeReleaseStatePath(rootDir) {
 function readReleaseState(rootDir = REPO_ROOT) {
   const statePath = activeReleaseStatePath(rootDir);
   if (!existsSync(statePath)) {
-    throw new Error("No active OpenPeek release. Run release:prepare first.");
+    throw new Error("No active OpenGlance release. Run release:prepare first.");
   }
   return { statePath, state: JSON.parse(readFileSync(statePath, "utf8")) };
 }
@@ -944,7 +959,7 @@ function markCandidateVerified() {
     completedAt: state.candidateArtifactsVerifiedAt,
   });
   writeReleaseState(statePath, state);
-  console.log(`Recorded candidate artifact verification for OpenPeek ${state.version}`);
+  console.log(`Recorded candidate artifact verification for OpenGlance ${state.version}`);
 }
 
 function verifyWindowsReleaseSmoke(runId) {
@@ -1063,7 +1078,7 @@ function markPublicDownloadIsolationVerified() {
   });
   writeReleaseState(statePath, state);
   console.log(
-    `Recorded public download isolation verification for OpenPeek ${state.version} ${state.track}`,
+    `Recorded public download isolation verification for OpenGlance ${state.version} ${state.track}`,
   );
 }
 
@@ -1155,7 +1170,7 @@ function abortRelease() {
     throw new Error(`Remote tag ${tagName} already exists; finish this release instead of aborting it`);
   }
   removeReleaseWorktree(state, { statePath });
-  console.log(`Aborted OpenPeek ${state.version}; release worktree and local lock removed`);
+  console.log(`Aborted OpenGlance ${state.version}; release worktree and local lock removed`);
 }
 
 function removeReleaseWorktree(state, { statePath }) {

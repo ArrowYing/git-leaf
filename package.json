@@ -1,6 +1,6 @@
 {
-  "name": "openpeek",
-  "version": "2.0.0",
+  "name": "openglance",
+  "version": "3.0.0",
   "private": true,
   "type": "module",
   "main": "src/desktop/main.mjs",
@@ -8,11 +8,11 @@
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/MangoFuture1210/openpeek.git"
+    "url": "git+https://github.com/MangoFuture1210/openglance.git"
   },
-  "homepage": "https://github.com/MangoFuture1210/openpeek#readme",
+  "homepage": "https://github.com/MangoFuture1210/openglance#readme",
   "bugs": {
-    "url": "https://github.com/MangoFuture1210/openpeek/issues"
+    "url": "https://github.com/MangoFuture1210/openglance/issues"
   },
   "scripts": {
     "build:client": "node scripts/build-client.mjs",
@@ -43,6 +43,7 @@
     "test:release:win": "node scripts/test-suite.mjs release:win"
   },
   "bin": {
+    "openglance": "src/cli.mjs",
     "openpeek": "src/cli.mjs",
     "git-leaf": "src/cli.mjs"
   },

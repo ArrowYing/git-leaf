@@ -10,7 +10,7 @@ import { promisify } from "node:util";
 import {
   DESKTOP_BIND_HOST,
   desktopPreviewServerUrl,
-  startDesktopOpenPeekServer,
+  startDesktopOpenGlanceServer,
 } from "../src/desktop/server.mjs";
 import { worktreeIdForPath } from "../src/server/git-worktrees.mjs";
 
@@ -28,12 +28,12 @@ test("desktop preview URLs stay on localhost", () => {
   );
 });
 
-test("desktop server starts the existing OpenPeek workbench on localhost", async () => {
+test("desktop server starts the existing OpenGlance workbench on localhost", async () => {
   const repoRoot = await mkdtemp(path.join(tmpdir(), "git-leaf-desktop-"));
   await execFileAsync("git", ["init", "-b", "main"], { cwd: repoRoot });
   await writeFile(path.join(repoRoot, "README.md"), "# Desktop\n");
 
-  const desktopServer = await startDesktopOpenPeekServer({
+  const desktopServer = await startDesktopOpenGlanceServer({
     repoRoot,
     port: 0,
   });
@@ -46,7 +46,7 @@ test("desktop server starts the existing OpenPeek workbench on localhost", async
     const html = await response.text();
 
     assert.equal(response.ok, true);
-    assert.match(html, /window\.OPENPEEK_INITIAL_REPO = "git-leaf-desktop-/);
+    assert.match(html, /window\.OPENGLANCE_INITIAL_REPO = "git-leaf-desktop-/);
     assert.doesNotMatch(html, /192\.168\.31\.42/);
   } finally {
     await desktopServer.close();
@@ -61,7 +61,7 @@ test("desktop server falls back when the preferred port is already serving anoth
   const occupiedServer = http.createServer((_request, response) => response.end("occupied"));
   await listenForTest(occupiedServer);
   const preferredPort = occupiedServer.address().port;
-  const desktopServer = await startDesktopOpenPeekServer({ repoRoot, port: preferredPort });
+  const desktopServer = await startDesktopOpenGlanceServer({ repoRoot, port: preferredPort });
 
   try {
     assert.notEqual(desktopServer.port, preferredPort);
@@ -80,7 +80,7 @@ test("desktop server opens the restored active workbench tab when a session exis
     "docs/repo-structure.md": "# Repo Structure\n",
   });
 
-  const desktopServer = await startDesktopOpenPeekServer({
+  const desktopServer = await startDesktopOpenGlanceServer({
     repoRoot: mangoOsRoot,
     port: 0,
     desktopPreferences: {
@@ -112,7 +112,7 @@ test("desktop server opens a repository workbench with no document when restored
     "AGENTS.md": "# Agents\n",
   });
 
-  const desktopServer = await startDesktopOpenPeekServer({
+  const desktopServer = await startDesktopOpenGlanceServer({
     repoRoot: mangoOsRoot,
     port: 0,
     desktopPreferences: {
@@ -142,7 +142,7 @@ test("desktop server forwards repository-scoped favorite operations", async () =
   });
   let favorites = [{ type: "document", path: "README.md" }];
   let receivedOperation = null;
-  const desktopServer = await startDesktopOpenPeekServer({
+  const desktopServer = await startDesktopOpenGlanceServer({
     repoRoot,
     port: 0,
     getRepositoryFavorites: async (repositoryRoot) => {
@@ -190,7 +190,7 @@ test("desktop server does not switch repositories inside one server instance", a
     "README.md": "# Docs\n",
   });
 
-  const desktopServer = await startDesktopOpenPeekServer({
+  const desktopServer = await startDesktopOpenGlanceServer({
     repoRoot: docsRoot,
     port: 0,
   });

@@ -10,6 +10,7 @@ import {
   runWindowsReleaseCommand,
   stageWindowsUpdateMetadata,
   windowsCommandRequiresNewReleaseVersion,
+  windowsCompatibilityExecutablePaths,
   windowsUpdateMetadataPaths,
   windowsElectronPackagerArgs,
   windowsPortableSteps,
@@ -20,22 +21,24 @@ import {
 
 test("windows release package args include x64 target metadata", () => {
   const args = windowsElectronPackagerArgs({
-    appName: "OpenPeek",
+    appName: "OpenGlance",
     version: "1.9.1",
     companyName: "Mango Future",
-    productName: "OpenPeek",
+    productName: "OpenGlance",
     outDir: "dist",
   });
 
   assert.ok(args.includes("--platform=win32"));
   assert.ok(args.includes("--arch=x64"));
   assert.ok(args.includes("--app-version=1.9.1"));
-  assert.ok(args.includes("--icon=assets/icons/openpeek.ico"));
+  assert.ok(args.includes("--icon=assets/icons/openglance.ico"));
+  assert.ok(args.includes("--protocol=openglance"));
   assert.ok(args.includes("--protocol=openpeek"));
-  assert.ok(args.includes("--protocol-name=OpenPeek Document"));
+  assert.ok(args.includes("--protocol=git-leaf"));
+  assert.ok(args.includes("--protocol-name=OpenGlance Document"));
   assert.ok(args.includes("--win32metadata.CompanyName=Mango Future"));
-  assert.ok(args.includes("--win32metadata.ProductName=OpenPeek"));
-  assert.ok(args.includes("--win32metadata.OriginalFilename=OpenPeek.exe"));
+  assert.ok(args.includes("--win32metadata.ProductName=OpenGlance"));
+  assert.ok(args.includes("--win32metadata.OriginalFilename=OpenGlance.exe"));
   assert.equal(
     args.some((arg) => arg.includes("requested-execution-level")),
     false,
@@ -47,9 +50,9 @@ test("windows release package args include x64 target metadata", () => {
 
 test("windows release package args exclude internal docs, repository tools, and dev-only dependencies", () => {
   const args = windowsElectronPackagerArgs({
-    appName: "OpenPeek",
+    appName: "OpenGlance",
     companyName: "Mango Future",
-    productName: "OpenPeek",
+    productName: "OpenGlance",
     outDir: "dist",
   });
   const ignorePatterns = args
@@ -59,7 +62,7 @@ test("windows release package args exclude internal docs, repository tools, and 
 
   for (const filePath of [
     "/scripts/release-windows.mjs",
-    "/tools/generate-openpeek-open-link.mjs",
+    "/tools/generate-openglance-open-link.mjs",
     "/Makefile",
     "/AGENTS.md",
     "/CLAUDE.md",
@@ -76,8 +79,8 @@ test("windows release package args exclude internal docs, repository tools, and 
     "/.gitignore",
     "/.gitleaks.toml",
     "/.github/workflows/windows-release-smoke.yml",
-    "/.agents/skills/openpeek-release/SKILL.md",
-    "/assets/icons/openpeek.ico",
+    "/.agents/skills/openglance-release/SKILL.md",
+    "/assets/icons/openglance.ico",
     "/node_modules/@electron/get/package.json",
     "/node_modules/@esbuild/win32-x64/esbuild.exe",
     "/node_modules/@types/node/index.d.ts",
@@ -92,23 +95,42 @@ test("windows release package args exclude internal docs, repository tools, and 
 test("windows release paths point to the packaged executable", () => {
   const paths = windowsReleasePaths({
     rootDir: "/repo",
-    appName: "OpenPeek",
+    appName: "OpenGlance",
     version: "0.1.1",
   });
 
-  assert.equal(slashPath(paths.appRoot), "/repo/dist/OpenPeek-win32-x64");
-  assert.equal(slashPath(paths.exePath), "/repo/dist/OpenPeek-win32-x64/OpenPeek.exe");
-  assert.equal(slashPath(paths.legacyExePath), "/repo/dist/OpenPeek-win32-x64/Git Leaf.exe");
+  assert.equal(slashPath(paths.appRoot), "/repo/dist/OpenGlance-win32-x64");
+  assert.equal(slashPath(paths.exePath), "/repo/dist/OpenGlance-win32-x64/OpenGlance.exe");
+  assert.equal(slashPath(paths.legacyExePath), "/repo/dist/OpenGlance-win32-x64/Git Leaf.exe");
+  assert.equal(slashPath(paths.openPeekExePath), "/repo/dist/OpenGlance-win32-x64/OpenPeek.exe");
+  assert.deepEqual(windowsCompatibilityExecutablePaths({
+    rootDir: "/repo",
+    distribution: "official",
+    releaseTrack: "internal",
+  }).map(slashPath), [
+    "/repo/dist/OpenGlance-win32-x64/OpenPeek.exe",
+    "/repo/dist/OpenGlance-win32-x64/Git Leaf.exe",
+  ]);
+  assert.deepEqual(windowsCompatibilityExecutablePaths({
+    rootDir: "/repo",
+    distribution: "official",
+    releaseTrack: "public",
+  }), []);
+  assert.deepEqual(windowsCompatibilityExecutablePaths({
+    rootDir: "/repo",
+    distribution: "source",
+    releaseTrack: "source",
+  }), []);
   assert.equal(
     slashPath(paths.zipPath),
-    "/repo/dist/OpenPeek-0.1.1-source-win32-x64.zip",
+    "/repo/dist/OpenGlance-0.1.1-source-win32-x64.zip",
   );
 });
 
 test("windows internal release filenames cannot collide with the same public semver", () => {
   const paths = windowsReleasePaths({
     rootDir: "/repo",
-    appName: "OpenPeek",
+    appName: "OpenGlance",
     version: "0.1.1",
     releaseTrack: "internal",
     buildId: "93458e1.20260705T114700Z",
@@ -116,7 +138,7 @@ test("windows internal release filenames cannot collide with the same public sem
 
   assert.equal(
     slashPath(paths.zipPath),
-    "/repo/dist/OpenPeek-0.1.1-internal-win32-x64.zip",
+    "/repo/dist/OpenGlance-0.1.1-internal-win32-x64.zip",
   );
 });
 
@@ -148,9 +170,9 @@ test("windows release sequence creates an unsigned portable package", () => {
   ]);
   assert.equal(
     DEFAULT_WINDOWS_RELEASE_OPTIONS.companyName,
-    "OpenPeek Community",
+    "OpenGlance Community",
   );
-  assert.equal(DEFAULT_WINDOWS_RELEASE_OPTIONS.productName, "OpenPeek Community Build");
+  assert.equal(DEFAULT_WINDOWS_RELEASE_OPTIONS.productName, "OpenGlance Community Build");
   assert.equal(DEFAULT_ELECTRON_MIRROR, "https://npmmirror.com/mirrors/electron/");
 });
 
@@ -166,7 +188,7 @@ test("windows internal update manifest keeps the track and track-qualified build
     await writeFile(releasePaths.zipPath, "internal windows zip");
 
     const metadata = stageWindowsUpdateMetadata({
-      appName: "OpenPeek",
+      appName: "OpenGlance",
       updateBaseUrl: "https://updates.mangofuture.com/git-leaf",
       updateChannel: "internal-stable",
       version: "1.11.3",
@@ -182,7 +204,7 @@ test("windows internal update manifest keeps the track and track-qualified build
     assert.equal(manifest.buildId, "abc123.20260723T000000Z.internal");
     assert.match(
       manifest.files.zip.url,
-      /\/internal-stable\/win32-x64\/OpenPeek-1\.11\.3-internal-win32-x64\.zip$/,
+      /\/internal-stable\/win32-x64\/OpenGlance-1\.11\.3-internal-win32-x64\.zip$/,
     );
   } finally {
     await rm(rootDir, { recursive: true, force: true });
@@ -197,7 +219,7 @@ test("formal Windows package fails closed before packaging when its release prof
       releaseTrack: "source",
       usageAnalyticsDefault: false,
     }),
-    /Official release commands require OPENPEEK_RELEASE_PROFILE/,
+    /Official release commands require OPENGLANCE_RELEASE_PROFILE/,
   );
 });
 
@@ -214,34 +236,34 @@ test("windows publish commands require an unpublished version without blocking s
 test("windows zip command uses PowerShell on Windows hosts", () => {
   const command = windowsZipCommand({
     platform: "win32",
-    appRoot: "C:\\repo\\dist\\OpenPeek-win32-x64",
-    zipPath: "C:\\repo\\dist\\OpenPeek-0.1.1-source-win32-x64.zip",
+    appRoot: "C:\\repo\\dist\\OpenGlance-win32-x64",
+    zipPath: "C:\\repo\\dist\\OpenGlance-0.1.1-source-win32-x64.zip",
   });
 
   assert.equal(command.command, "powershell.exe");
   const commandText = command.args.at(-1);
 
   assert.match(commandText, /Compress-Archive/);
-  assert.match(commandText, /-LiteralPath 'C:\\repo\\dist\\OpenPeek-win32-x64'/);
+  assert.match(commandText, /-LiteralPath 'C:\\repo\\dist\\OpenGlance-win32-x64'/);
   assert.match(
     commandText,
-    /-DestinationPath 'C:\\repo\\dist\\OpenPeek-0\.1\.1-source-win32-x64\.zip'/,
+    /-DestinationPath 'C:\\repo\\dist\\OpenGlance-0\.1\.1-source-win32-x64\.zip'/,
   );
-  assert.equal(command.args.includes("C:\\repo\\dist\\OpenPeek-win32-x64"), false);
+  assert.equal(command.args.includes("C:\\repo\\dist\\OpenGlance-win32-x64"), false);
 });
 
 test("windows zip command keeps zip on POSIX hosts", () => {
   const command = windowsZipCommand({
     platform: "darwin",
-    appRoot: "/repo/dist/OpenPeek-win32-x64",
-    zipPath: "/repo/dist/OpenPeek-0.1.1-source-win32-x64.zip",
+    appRoot: "/repo/dist/OpenGlance-win32-x64",
+    zipPath: "/repo/dist/OpenGlance-0.1.1-source-win32-x64.zip",
   });
 
   assert.equal(command.command, "zip");
   assert.deepEqual(command.args, [
     "-qry",
-    "/repo/dist/OpenPeek-0.1.1-source-win32-x64.zip",
-    "OpenPeek-win32-x64",
+    "/repo/dist/OpenGlance-0.1.1-source-win32-x64.zip",
+    "OpenGlance-win32-x64",
   ]);
   assert.equal(command.cwd, "/repo/dist");
 });

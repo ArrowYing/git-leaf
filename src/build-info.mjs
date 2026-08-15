@@ -3,12 +3,18 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
-  OPENPEEK_DEVELOPMENT_NAME,
-  OPENPEEK_PRODUCT_NAME,
+  OPENGLANCE_DEVELOPMENT_NAME,
+  OPENGLANCE_PRODUCT_NAME,
 } from "./product-identity.mjs";
 
-export const BUILD_INFO_FILENAME = "openpeek-build-info.json";
-export const LEGACY_BUILD_INFO_FILENAME = "git-leaf-build-info.json";
+export const BUILD_INFO_FILENAME = "openglance-build-info.json";
+export const OPENPEEK_BUILD_INFO_FILENAME = "openpeek-build-info.json";
+export const GIT_LEAF_BUILD_INFO_FILENAME = "git-leaf-build-info.json";
+export const LEGACY_BUILD_INFO_FILENAME = GIT_LEAF_BUILD_INFO_FILENAME;
+export const LEGACY_BUILD_INFO_FILENAMES = Object.freeze([
+  OPENPEEK_BUILD_INFO_FILENAME,
+  GIT_LEAF_BUILD_INFO_FILENAME,
+]);
 
 const APP_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const DEFAULT_VERSION = "0.0.0";
@@ -24,44 +30,43 @@ export const BUILD_INFO = readBuildInfo();
 
 export function readBuildInfo({ rootDir = APP_ROOT, env = process.env, now = () => new Date() } = {}) {
   const packageJson = readJsonFile(path.join(rootDir, "package.json"));
-  const generatedPath = [BUILD_INFO_FILENAME, LEGACY_BUILD_INFO_FILENAME]
+  const generatedPath = [BUILD_INFO_FILENAME, ...LEGACY_BUILD_INFO_FILENAMES]
     .map((filename) => path.join(rootDir, filename))
     .find((candidate) => existsSync(candidate))
     || path.join(rootDir, BUILD_INFO_FILENAME);
   const generated = readJsonFile(generatedPath);
   const hasGeneratedBuildInfo = existsSync(generatedPath);
   const builtAt = stringValue(generated.builtAt)
-    || stringValue(envValue(env, "OPENPEEK_BUILT_AT", "GIT_LEAF_BUILT_AT"))
+    || stringValue(envValue(env, "BUILT_AT"))
     || now().toISOString();
   const distribution =
     distributionValue(generated.distribution)
     || (!hasGeneratedBuildInfo
-      ? distributionValue(envValue(env, "OPENPEEK_DISTRIBUTION", "GIT_LEAF_DISTRIBUTION"))
+      ? distributionValue(envValue(env, "DISTRIBUTION"))
       : "")
     || DEFAULT_DISTRIBUTION;
 
   const rawBuildInfo = {
     version: stringValue(generated.version)
-      || stringValue(envValue(env, "OPENPEEK_VERSION", "GIT_LEAF_VERSION"))
+      || stringValue(envValue(env, "VERSION"))
       || stringValue(packageJson.version)
       || DEFAULT_VERSION,
     commit: stringValue(generated.commit)
-      || stringValue(envValue(env, "OPENPEEK_COMMIT", "GIT_LEAF_COMMIT"))
+      || stringValue(envValue(env, "COMMIT"))
       || DEFAULT_COMMIT,
     builtAt,
     buildId: stringValue(generated.buildId)
-      || stringValue(envValue(env, "OPENPEEK_BUILD_ID", "GIT_LEAF_BUILD_ID"))
+      || stringValue(envValue(env, "BUILD_ID"))
       || DEFAULT_BUILD_ID,
     dev: booleanValue(generated.dev)
-      ?? booleanValue(envValue(env, "OPENPEEK_DEV", "GIT_LEAF_DEV"))
+      ?? booleanValue(envValue(env, "DEV"))
       ?? false,
     distribution,
     usageAnalyticsDefault: hasGeneratedBuildInfo
       ? booleanValue(generated.usageAnalyticsDefault) ?? DEFAULT_USAGE_ANALYTICS
       : booleanValue(envValue(
         env,
-        "OPENPEEK_USAGE_ANALYTICS_DEFAULT",
-        "GIT_LEAF_USAGE_ANALYTICS_DEFAULT",
+        "USAGE_ANALYTICS_DEFAULT",
       )) ?? DEFAULT_USAGE_ANALYTICS,
   };
   if (hasGeneratedBuildInfo) {
@@ -69,7 +74,7 @@ export function readBuildInfo({ rootDir = APP_ROOT, env = process.env, now = () 
       rawBuildInfo.releaseTrack = generated.releaseTrack;
     }
   } else {
-    const releaseTrack = envValue(env, "OPENPEEK_RELEASE_TRACK", "GIT_LEAF_RELEASE_TRACK");
+    const releaseTrack = envValue(env, "RELEASE_TRACK");
     if (releaseTrack !== undefined) {
       rawBuildInfo.releaseTrack = releaseTrack;
     }
@@ -126,7 +131,7 @@ export function buildDistributionLabel(buildInfo, { language = "en" } = {}) {
 }
 
 export function appDisplayName(buildInfo) {
-  return buildInfo?.dev === true ? OPENPEEK_DEVELOPMENT_NAME : OPENPEEK_PRODUCT_NAME;
+  return buildInfo?.dev === true ? OPENGLANCE_DEVELOPMENT_NAME : OPENGLANCE_PRODUCT_NAME;
 }
 
 export function releaseDateLabel(buildInfo, { language = "en" } = {}) {
@@ -222,6 +227,12 @@ function hasOwn(value, key) {
   return Boolean(value && Object.prototype.hasOwnProperty.call(value, key));
 }
 
-function envValue(env, canonicalName, legacyName) {
-  return env?.[canonicalName] !== undefined ? env[canonicalName] : env?.[legacyName];
+function envValue(env, suffix) {
+  for (const prefix of ["OPENGLANCE", "OPENPEEK", "GIT_LEAF"]) {
+    const name = `${prefix}_${suffix}`;
+    if (env?.[name] !== undefined) {
+      return env[name];
+    }
+  }
+  return undefined;
 }

@@ -1,10 +1,10 @@
-import { openPeekHttpsOpenUrl, openPeekShareUrl } from "./hosted-links.mjs";
+import { openGlanceHttpsOpenUrl, openGlanceShareUrl } from "./hosted-links.mjs";
 import { isExternalCommandExit, runExternalCommand } from "./external-command.mjs";
 import { listGitWorktrees } from "./git-worktrees.mjs";
 import { extractTitle } from "../content/markdown.mjs";
 import { githubRepositoryIdentityFromRemote } from "./repositories.mjs";
 
-const OPENPEEK_OPEN_LINK_MESSAGES = Object.freeze({
+const OPENGLANCE_OPEN_LINK_MESSAGES = Object.freeze({
   en: Object.freeze({
     "open.repositoryRequired": "A Git repository root is required.",
     "open.githubOriginRequired": "The repository must have a GitHub origin before creating a shareable link.",
@@ -31,7 +31,7 @@ const OPENPEEK_OPEN_LINK_MESSAGES = Object.freeze({
   }),
 });
 
-export async function createOpenPeekOpenLink({
+export async function createOpenGlanceOpenLink({
   repoRoot,
   file,
   language = "en",
@@ -55,14 +55,14 @@ export async function createOpenPeekOpenLink({
     throw new Error(translate("open.currentWorktreeRequired"));
   }
 
-  return openPeekHttpsOpenUrl({
+  return openGlanceHttpsOpenUrl({
     repository,
     file,
     ...(currentWorktree.primary ? {} : { worktree: currentWorktree.id }),
   });
 }
 
-export async function createOpenPeekShareLink({
+export async function createOpenGlanceShareLink({
   repoRoot,
   file,
   language = "en",
@@ -127,7 +127,7 @@ export async function createOpenPeekShareLink({
   } catch {
     // Preview metadata is optional and must not block an otherwise valid share link.
   }
-  return openPeekShareUrl({
+  return openGlanceShareUrl({
     repository,
     file,
     rev,
@@ -142,8 +142,8 @@ function shareLinkError(code, message) {
 }
 
 function createOpenLinkTranslator(locale) {
-  const messages = OPENPEEK_OPEN_LINK_MESSAGES[resolveOpenLinkLocale(locale)];
-  return (key) => messages[key] ?? OPENPEEK_OPEN_LINK_MESSAGES.en[key] ?? key;
+  const messages = OPENGLANCE_OPEN_LINK_MESSAGES[resolveOpenLinkLocale(locale)];
+  return (key) => messages[key] ?? OPENGLANCE_OPEN_LINK_MESSAGES.en[key] ?? key;
 }
 
 function resolveOpenLinkLocale(locale) {

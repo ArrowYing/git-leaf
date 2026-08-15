@@ -4,10 +4,10 @@ import { runExternalCommand } from "./external-command.mjs";
 
 const OID_PATTERN = /^[0-9a-f]{40,64}$/i;
 const SNAPSHOT_IDENTITY = Object.freeze({
-  GIT_AUTHOR_NAME: "OpenPeek",
-  GIT_AUTHOR_EMAIL: "snapshot@openpeek.invalid",
-  GIT_COMMITTER_NAME: "OpenPeek",
-  GIT_COMMITTER_EMAIL: "snapshot@openpeek.invalid",
+  GIT_AUTHOR_NAME: "OpenGlance",
+  GIT_AUTHOR_EMAIL: "snapshot@openglance.invalid",
+  GIT_COMMITTER_NAME: "OpenGlance",
+  GIT_COMMITTER_EMAIL: "snapshot@openglance.invalid",
 });
 
 export async function createImmutableGitTree({
@@ -27,7 +27,7 @@ export async function createImmutableGitTree({
 export async function createImmutableGitSnapshot({
   repoRoot,
   indexPath,
-  message = "OpenPeek local workspace snapshot",
+  message = "OpenGlance local workspace snapshot",
   commandRunner = runGitSnapshotCommand,
 }) {
   const tree = await createImmutableGitTree({
@@ -59,7 +59,7 @@ export async function rebaseImmutableGitSnapshot({
   repoRoot,
   snapshotCommit,
   remoteCommit,
-  message = "OpenPeek local workspace snapshot on remote",
+  message = "OpenGlance local workspace snapshot on remote",
   commandRunner = runGitSnapshotCommand,
 }) {
   let mergeResult;

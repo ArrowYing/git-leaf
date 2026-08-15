@@ -21,7 +21,7 @@ export function desktopPreviewServerUrl({
   });
 }
 
-export async function startDesktopOpenPeekServer({
+export async function startDesktopOpenGlanceServer({
   repoRoot,
   initialFilePath = "",
   port = DEFAULT_DESKTOP_PORT,
@@ -32,7 +32,7 @@ export async function startDesktopOpenPeekServer({
   recordTelemetryActions = null,
 } = {}) {
   if (!repoRoot) {
-    throw new Error("repoRoot is required to start OpenPeek desktop.");
+    throw new Error("repoRoot is required to start OpenGlance desktop.");
   }
 
   const initialFile = await resolveDesktopInitialFile({

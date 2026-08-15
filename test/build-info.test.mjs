@@ -9,6 +9,7 @@ import {
   appDisplayName,
   BUILD_INFO_FILENAME,
   LEGACY_BUILD_INFO_FILENAME,
+  OPENPEEK_BUILD_INFO_FILENAME,
   buildDistributionLabel,
   isOfficialDistribution,
   readBuildInfo,
@@ -38,9 +39,9 @@ test("releaseDateLabel omits invalid build timestamps", () => {
 });
 
 test("appDisplayName marks development builds with dev", () => {
-  assert.equal(appDisplayName({ dev: true }), "OpenPeek dev");
-  assert.equal(appDisplayName({ dev: false }), "OpenPeek");
-  assert.equal(appDisplayName({}), "OpenPeek");
+  assert.equal(appDisplayName({ dev: true }), "OpenGlance dev");
+  assert.equal(appDisplayName({ dev: false }), "OpenGlance");
+  assert.equal(appDisplayName({}), "OpenGlance");
 });
 
 test("build identity defaults to a community build with usage analytics disabled", async () => {
@@ -82,8 +83,8 @@ test("official legacy build identity without a release track remains on the publ
   const buildInfo = readBuildInfo({
     rootDir,
     env: {
-      OPENPEEK_DISTRIBUTION: "source",
-      OPENPEEK_RELEASE_TRACK: "internal",
+      OPENGLANCE_DISTRIBUTION: "source",
+      OPENGLANCE_RELEASE_TRACK: "internal",
     },
   });
 
@@ -113,8 +114,8 @@ test("packaged build identity keeps its embedded internal track despite environm
   const buildInfo = readBuildInfo({
     rootDir,
     env: {
-      OPENPEEK_DISTRIBUTION: "source",
-      OPENPEEK_RELEASE_TRACK: "public",
+      OPENGLANCE_DISTRIBUTION: "source",
+      OPENGLANCE_RELEASE_TRACK: "public",
     },
   });
 
@@ -175,7 +176,7 @@ test("generated build analytics defaults cannot be overridden by the environment
 
     const buildInfo = readBuildInfo({
       rootDir,
-      env: { OPENPEEK_USAGE_ANALYTICS_DEFAULT: environmentValue },
+      env: { OPENGLANCE_USAGE_ANALYTICS_DEFAULT: environmentValue },
     });
     assert.equal(buildInfo.usageAnalyticsDefault, expected);
   }
@@ -191,14 +192,14 @@ test("source builds without generated identity may use an analytics environment 
 
   const buildInfo = readBuildInfo({
     rootDir,
-    env: { OPENPEEK_USAGE_ANALYTICS_DEFAULT: "true" },
+    env: { OPENGLANCE_USAGE_ANALYTICS_DEFAULT: "true" },
   });
   assert.equal(buildInfo.distribution, "source");
   assert.equal(buildInfo.usageAnalyticsDefault, true);
 });
 
-test("OpenPeek reads Git Leaf 1.x build identity and environment names as fallbacks", async () => {
-  const rootDir = await mkdtemp(path.join(tmpdir(), "openpeek-legacy-build-info-"));
+test("OpenGlance prioritizes its identity over OpenPeek 2.x and Git Leaf 1.x fallbacks", async () => {
+  const rootDir = await mkdtemp(path.join(tmpdir(), "openglance-legacy-build-info-"));
   await writeFile(path.join(rootDir, "package.json"), JSON.stringify({ version: "2.0.0" }), "utf8");
   await writeFile(path.join(rootDir, LEGACY_BUILD_INFO_FILENAME), JSON.stringify({
     version: "1.21.0",
@@ -207,14 +208,20 @@ test("OpenPeek reads Git Leaf 1.x build identity and environment names as fallba
   }), "utf8");
 
   assert.equal(readBuildInfo({ rootDir }).version, "1.21.0");
-  await writeFile(path.join(rootDir, BUILD_INFO_FILENAME), JSON.stringify({
+  await writeFile(path.join(rootDir, OPENPEEK_BUILD_INFO_FILENAME), JSON.stringify({
     version: "2.0.0",
     distribution: "official",
-    releaseTrack: "public",
+    releaseTrack: "internal",
   }), "utf8");
   assert.equal(readBuildInfo({ rootDir }).version, "2.0.0");
+  await writeFile(path.join(rootDir, BUILD_INFO_FILENAME), JSON.stringify({
+    version: "3.0.0",
+    distribution: "official",
+    releaseTrack: "internal",
+  }), "utf8");
+  assert.equal(readBuildInfo({ rootDir }).version, "3.0.0");
 
-  const envRoot = await mkdtemp(path.join(tmpdir(), "openpeek-legacy-build-env-"));
+  const envRoot = await mkdtemp(path.join(tmpdir(), "openglance-legacy-build-env-"));
   await writeFile(path.join(envRoot, "package.json"), JSON.stringify({ version: "2.0.0" }), "utf8");
   assert.equal(readBuildInfo({
     rootDir: envRoot,
@@ -222,8 +229,12 @@ test("OpenPeek reads Git Leaf 1.x build identity and environment names as fallba
   }).version, "1.20.0");
   assert.equal(readBuildInfo({
     rootDir: envRoot,
-    env: { OPENPEEK_VERSION: "2.0.1", GIT_LEAF_VERSION: "1.20.0" },
-  }).version, "2.0.1");
+    env: { OPENPEEK_VERSION: "2.0.0", GIT_LEAF_VERSION: "1.20.0" },
+  }).version, "2.0.0");
+  assert.equal(readBuildInfo({
+    rootDir: envRoot,
+    env: { OPENGLANCE_VERSION: "3.0.1", GIT_LEAF_VERSION: "1.20.0" },
+  }).version, "3.0.1");
 });
 
 test("aboutPanelCopyright includes the commit for development builds only", () => {

@@ -3,7 +3,7 @@ import {
   publishCurrentBranch,
   syncSelectedFiles,
 } from "./git-sync.mjs";
-import { createOpenPeekShareLink } from "./openpeek-open-link.mjs";
+import { createOpenGlanceShareLink } from "./openglance-open-link.mjs";
 
 const PUBLISHABLE_SHARE_ERRORS = new Set([
   "document_not_committed",
@@ -13,7 +13,7 @@ const GIT_SHARE_PUBLISH_MESSAGES = Object.freeze({
   en: Object.freeze({
     "error.publishFailed": "Could not complete the remote publication.",
     "error.verifyFailed": "A share link still could not be created after the remote publication.",
-    "prompt.title": "Please resolve this OpenPeek share publication failure:",
+    "prompt.title": "Please resolve this OpenGlance share publication failure:",
     "prompt.repository": "Repository: {repository}",
     "prompt.repositoryPath": "Repository path: {path}",
     "prompt.branch": "Current branch: {branch}",
@@ -22,7 +22,7 @@ const GIT_SHARE_PUBLISH_MESSAGES = Object.freeze({
     "prompt.errorOutput": "Error output:",
     "prompt.noErrorOutput": "No error output",
     "prompt.goal": "Goal:",
-    "prompt.goalPreserve": "1. Preserve the OpenPeek user's changes to the files above.",
+    "prompt.goalPreserve": "1. Preserve the OpenGlance user's changes to the files above.",
     "prompt.goalResolve": "2. Resolve the current Git state, failed checks, or conflicts.",
     "prompt.goalPublish": "3. After the necessary checks, commit and push the current branch {branch}.",
     "prompt.goalVerify": "4. Verify that the selected document is available on origin/main and its share link can be generated.",
@@ -30,7 +30,7 @@ const GIT_SHARE_PUBLISH_MESSAGES = Object.freeze({
   "zh-CN": Object.freeze({
     "error.publishFailed": "无法完成远端发布。",
     "error.verifyFailed": "远端发布后仍无法生成分享链接。",
-    "prompt.title": "请处理 OpenPeek 分享链接发布失败：",
+    "prompt.title": "请处理 OpenGlance 分享链接发布失败：",
     "prompt.repository": "仓库：{repository}",
     "prompt.repositoryPath": "仓库路径：{path}",
     "prompt.branch": "当前分支：{branch}",
@@ -39,20 +39,20 @@ const GIT_SHARE_PUBLISH_MESSAGES = Object.freeze({
     "prompt.errorOutput": "错误输出：",
     "prompt.noErrorOutput": "无错误输出",
     "prompt.goal": "目标：",
-    "prompt.goalPreserve": "1. 保留 OpenPeek 用户对上述文件的修改。",
+    "prompt.goalPreserve": "1. 保留 OpenGlance 用户对上述文件的修改。",
     "prompt.goalResolve": "2. 处理当前 Git 状态、检查失败或冲突。",
     "prompt.goalPublish": "3. 完成必要检查后，提交并推送当前分支 {branch}。",
     "prompt.goalVerify": "4. 确认选中文档已经发布到 origin/main，并且可以生成分享链接。",
   }),
 });
 
-export async function publishOpenPeekShareLink({
+export async function publishOpenGlanceShareLink({
   repo,
   file,
   language = "en",
   locale,
   gitRunner,
-  createShareLink = createOpenPeekShareLink,
+  createShareLink = createOpenGlanceShareLink,
   readStatus = gitStatusPayload,
   syncChanges = syncSelectedFiles,
   publishBranch = publishCurrentBranch,

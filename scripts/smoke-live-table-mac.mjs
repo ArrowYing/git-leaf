@@ -28,8 +28,8 @@ try {
       cwd: REPO_ROOT,
       env: {
         ...process.env,
-        OPENPEEK_SMOKE_REPO_ROOT: fixture.repoRoot,
-        OPENPEEK_SMOKE_FILE: fixture.file,
+        OPENGLANCE_SMOKE_REPO_ROOT: fixture.repoRoot,
+        OPENGLANCE_SMOKE_FILE: fixture.file,
       },
       stdio: "inherit",
     },

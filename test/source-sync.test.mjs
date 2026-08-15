@@ -8,7 +8,7 @@ import {
   syncLabelForState,
 } from "../public/source-sync.js";
 
-test("shouldIgnoreWatchedChange ignores writes that match the last OpenPeek write", () => {
+test("shouldIgnoreWatchedChange ignores writes that match the last OpenGlance write", () => {
   assert.equal(
     shouldIgnoreWatchedChange({
       currentMode: "source",
@@ -19,7 +19,7 @@ test("shouldIgnoreWatchedChange ignores writes that match the last OpenPeek writ
   );
 });
 
-test("shouldIgnoreWatchedChange also ignores matching OpenPeek writes in Live mode", () => {
+test("shouldIgnoreWatchedChange also ignores matching OpenGlance writes in Live mode", () => {
   assert.equal(
     shouldIgnoreWatchedChange({
       currentMode: "live",

@@ -98,7 +98,7 @@ export function createDocumentChangesSmokeFixture({
     runGit(["add", DOCUMENT_CHANGES_SMOKE_FILE, DOCUMENT_CHANGES_SMOKE_SIBLING], repoRoot);
     runGit([
       "-c",
-      "user.name=OpenPeek Smoke",
+      "user.name=OpenGlance Smoke",
       "-c",
       "user.email=smoke@gitleaf.local",
       "commit",

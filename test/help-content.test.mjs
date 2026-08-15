@@ -2,15 +2,15 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-  OPENPEEK_HELP_SECTIONS,
+  OPENGLANCE_HELP_SECTIONS,
   FILE_TYPE_HELP_ROWS,
   getFileTypeHelpRows,
-  getOpenPeekHelpSections,
-  openPeekHelpPlainText,
+  getOpenGlanceHelpSections,
+  openGlanceHelpPlainText,
 } from "../public/help-content.js";
 
-test("OpenPeek help explains stable filtering and all repository files", () => {
-  const text = openPeekHelpPlainText();
+test("OpenGlance help explains stable filtering and all repository files", () => {
+  const text = openGlanceHelpPlainText();
 
   assert.match(text, /docs\/frontmatter-rules\.json/);
   assert.match(text, /筛选按钮/);
@@ -44,9 +44,9 @@ test("OpenPeek help explains stable filtering and all repository files", () => {
   assert.match(text, /基础使用统计/);
   assert.match(text, /不会发送仓库名、仓库路径/);
   assert.match(text, /设备名称只出现在低频安装观察日志/);
-  assert.equal(OPENPEEK_HELP_SECTIONS.length, 6);
+  assert.equal(OPENGLANCE_HELP_SECTIONS.length, 6);
   assert.deepEqual(
-    OPENPEEK_HELP_SECTIONS.map((section) => section.id),
+    OPENGLANCE_HELP_SECTIONS.map((section) => section.id),
     ["repository-files", "filters", "worktrees", "sync", "sharing", "telemetry"],
   );
   assert.deepEqual(
@@ -81,14 +81,14 @@ test("OpenPeek help explains stable filtering and all repository files", () => {
   );
 });
 
-test("OpenPeek help is available in English and Simplified Chinese", () => {
-  const english = openPeekHelpPlainText("en");
-  const chinese = openPeekHelpPlainText("zh-CN");
+test("OpenGlance help is available in English and Simplified Chinese", () => {
+  const english = openGlanceHelpPlainText("en");
+  const chinese = openGlanceHelpPlainText("zh-CN");
 
   assert.match(english, /Repository files/);
   assert.match(english, /Share documents/);
   assert.match(english, /Basic usage analytics/);
   assert.match(chinese, /仓库文件/);
-  assert.equal(getOpenPeekHelpSections("en").length, getOpenPeekHelpSections("zh-CN").length);
+  assert.equal(getOpenGlanceHelpSections("en").length, getOpenGlanceHelpSections("zh-CN").length);
   assert.equal(getFileTypeHelpRows("en")[0].visibility, "Shown by default");
 });

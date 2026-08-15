@@ -128,7 +128,7 @@ test("wrapping tables keep proportional columns within their responsive containe
         "阅读或做范围明确修改的团队成员",
         "开发者和仓库维护者",
       ],
-      ["主要界面", "OpenPeek", "IDE、终端和 Git 工具"],
+      ["主要界面", "OpenGlance", "IDE、终端和 Git 工具"],
       [
         "与仓库的关系",
         "通过面向文档的桌面界面阅读、检查并做范围明确的修改，不需要直接操作 Git 或 Markdown。",

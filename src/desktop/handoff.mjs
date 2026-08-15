@@ -1,29 +1,29 @@
 import { appendFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 
-export const OPENPEEK_HANDOFF_CONFIRM_BASE_URL =
+export const OPENGLANCE_HANDOFF_CONFIRM_BASE_URL =
   "https://gitleaf.mangofuture.com/open/confirm";
-export const OPENPEEK_SHARE_STATE_BASE_URL =
+export const OPENGLANCE_SHARE_STATE_BASE_URL =
   "https://gitleaf.mangofuture.com/share/state";
 const SHARE_HANDOFF_STATES = new Set(["received", "cancelled", "failed"]);
 
-export function normalizeOpenPeekHandoffId(value) {
+export function normalizeOpenGlanceHandoffId(value) {
   const cleanValue = typeof value === "string" ? value.trim() : "";
   return /^[A-Za-z0-9_-]{20,64}$/.test(cleanValue) ? cleanValue : "";
 }
 
-export function openPeekHandoffConfirmUrl(handoff) {
-  const normalized = normalizeOpenPeekHandoffId(handoff);
+export function openGlanceHandoffConfirmUrl(handoff) {
+  const normalized = normalizeOpenGlanceHandoffId(handoff);
   if (!normalized) {
     return "";
   }
-  const url = new URL(OPENPEEK_HANDOFF_CONFIRM_BASE_URL);
+  const url = new URL(OPENGLANCE_HANDOFF_CONFIRM_BASE_URL);
   url.searchParams.set("id", normalized);
   return url.toString();
 }
 
-export async function confirmOpenPeekHandoff(handoff, { fetchImpl = fetch } = {}) {
-  const url = openPeekHandoffConfirmUrl(handoff);
+export async function confirmOpenGlanceHandoff(handoff, { fetchImpl = fetch } = {}) {
+  const url = openGlanceHandoffConfirmUrl(handoff);
   if (!url) {
     return false;
   }
@@ -38,16 +38,16 @@ export async function confirmOpenPeekHandoff(handoff, { fetchImpl = fetch } = {}
   }
 }
 
-export async function reportOpenPeekShareHandoffState(
+export async function reportOpenGlanceShareHandoffState(
   handoff,
   state,
   { fetchImpl = fetch } = {},
 ) {
-  const normalized = normalizeOpenPeekHandoffId(handoff);
+  const normalized = normalizeOpenGlanceHandoffId(handoff);
   if (!normalized || !SHARE_HANDOFF_STATES.has(state)) {
     return false;
   }
-  const url = new URL(OPENPEEK_SHARE_STATE_BASE_URL);
+  const url = new URL(OPENGLANCE_SHARE_STATE_BASE_URL);
   url.searchParams.set("id", normalized);
   url.searchParams.set("state", state);
   try {
@@ -67,7 +67,7 @@ export async function writeDesktopDeepLinkLog({
   request = {},
   detail = "",
 } = {}) {
-  if (!userDataDir || !event || !normalizeOpenPeekHandoffId(request.handoff)) {
+  if (!userDataDir || !event || !normalizeOpenGlanceHandoffId(request.handoff)) {
     return false;
   }
   const entry = {

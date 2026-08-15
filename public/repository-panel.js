@@ -1,9 +1,9 @@
-export const REPOSITORY_PANEL_SHOW_URL = "openpeek://show-repositories";
-export const REPOSITORY_PANEL_CLOSE_URL = "openpeek://close-repositories";
-export const REPOSITORY_PANEL_SWITCH_URL = "openpeek://switch-repository";
-export const REPOSITORY_PANEL_REMOVE_URL = "openpeek://remove-repository";
-export const REPOSITORY_PANEL_REORDER_URL = "openpeek://reorder-repositories";
-export const REPOSITORY_PANEL_OPEN_URL = "openpeek://open-repository";
+export const REPOSITORY_PANEL_SHOW_URL = "openglance://show-repositories";
+export const REPOSITORY_PANEL_CLOSE_URL = "openglance://close-repositories";
+export const REPOSITORY_PANEL_SWITCH_URL = "openglance://switch-repository";
+export const REPOSITORY_PANEL_REMOVE_URL = "openglance://remove-repository";
+export const REPOSITORY_PANEL_REORDER_URL = "openglance://reorder-repositories";
+export const REPOSITORY_PANEL_OPEN_URL = "openglance://open-repository";
 
 const REPOSITORY_PANEL_SHORTCUT_LIMIT = 9;
 

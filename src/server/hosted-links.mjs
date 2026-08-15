@@ -1,17 +1,17 @@
 import path from "node:path";
 
-export const OPENPEEK_HTTPS_OPEN_URL = "https://gitleaf.mangofuture.com/open";
-export const OPENPEEK_HTTPS_SHARE_URL = "https://gitleaf.mangofuture.com/share";
-export const OPENPEEK_SHARE_VERSION = "1";
-export const OPENPEEK_SHARE_TITLE_MAX_LENGTH = 100;
+export const OPENGLANCE_HTTPS_OPEN_URL = "https://gitleaf.mangofuture.com/open";
+export const OPENGLANCE_HTTPS_SHARE_URL = "https://gitleaf.mangofuture.com/share";
+export const OPENGLANCE_SHARE_VERSION = "1";
+export const OPENGLANCE_SHARE_TITLE_MAX_LENGTH = 100;
 
-export function openPeekHttpsOpenUrl({ repository, file = "", worktree = "" } = {}) {
-  const normalized = normalizeOpenPeekLinkTarget({ repository, file, worktree });
+export function openGlanceHttpsOpenUrl({ repository, file = "", worktree = "" } = {}) {
+  const normalized = normalizeOpenGlanceLinkTarget({ repository, file, worktree });
   if (!normalized?.repository) {
-    throw new Error("OpenPeek HTTPS links require a GitHub repository identity.");
+    throw new Error("OpenGlance HTTPS links require a GitHub repository identity.");
   }
 
-  const url = new URL(OPENPEEK_HTTPS_OPEN_URL);
+  const url = new URL(OPENGLANCE_HTTPS_OPEN_URL);
   url.searchParams.set("repo", normalized.repository);
   if (normalized.file) {
     url.searchParams.set("path", normalized.file);
@@ -22,26 +22,26 @@ export function openPeekHttpsOpenUrl({ repository, file = "", worktree = "" } = 
   return url.toString();
 }
 
-export function openPeekShareUrl({ repository, file, rev, title = "" } = {}) {
-  const target = normalizeOpenPeekLinkTarget({ repository, file });
+export function openGlanceShareUrl({ repository, file, rev, title = "" } = {}) {
+  const target = normalizeOpenGlanceLinkTarget({ repository, file });
   const revision = normalizeGitRevision(rev);
   if (!target?.repository || !target.file || !revision) {
-    throw new Error("OpenPeek share links require a repository, document, and full revision.");
+    throw new Error("OpenGlance share links require a repository, document, and full revision.");
   }
 
-  const url = new URL(OPENPEEK_HTTPS_SHARE_URL);
-  url.searchParams.set("v", OPENPEEK_SHARE_VERSION);
+  const url = new URL(OPENGLANCE_HTTPS_SHARE_URL);
+  url.searchParams.set("v", OPENGLANCE_SHARE_VERSION);
   url.searchParams.set("repo", target.repository);
   url.searchParams.set("path", target.file);
   url.searchParams.set("rev", revision);
-  const previewTitle = normalizeSharePreviewText(title, OPENPEEK_SHARE_TITLE_MAX_LENGTH);
+  const previewTitle = normalizeSharePreviewText(title, OPENGLANCE_SHARE_TITLE_MAX_LENGTH);
   if (previewTitle) {
     url.searchParams.set("title", previewTitle);
   }
   return url.toString();
 }
 
-export function normalizeOpenPeekLinkTarget({
+export function normalizeOpenGlanceLinkTarget({
   repoRoot,
   repository,
   file,
@@ -52,7 +52,7 @@ export function normalizeOpenPeekLinkTarget({
   const cleanRepository = normalizeRepositoryIdentity(repository);
   const cleanFile = typeof file === "string" ? file.trim().replaceAll("\\", "/") : "";
   const requestedWorktree = typeof worktree === "string" ? worktree.trim() : "";
-  const cleanWorktree = normalizeOpenPeekWorktreeId(requestedWorktree);
+  const cleanWorktree = normalizeOpenGlanceWorktreeId(requestedWorktree);
   const platformPath = platform === "win32" ? path.win32 : path.posix;
 
   const hasLocalRepository = cleanRepoRoot
@@ -99,7 +99,7 @@ export function normalizeOpenPeekLinkTarget({
   };
 }
 
-export function normalizeOpenPeekWorktreeId(value) {
+export function normalizeOpenGlanceWorktreeId(value) {
   const cleanValue = typeof value === "string" ? value.trim().toLowerCase() : "";
   return /^[a-f0-9]{16}$/.test(cleanValue) ? cleanValue : "";
 }

@@ -18,10 +18,10 @@ export function enhanceImageLoadStates(root, { locale = "zh-CN" } = {}) {
 }
 
 export function attachImageLoadState(image, { locale = "zh-CN" } = {}) {
-  if (!image || image.dataset.openPeekLoadStateAttached === "true") {
+  if (!image || image.dataset.openGlanceLoadStateAttached === "true") {
     return;
   }
-  image.dataset.openPeekLoadStateAttached = "true";
+  image.dataset.openGlanceLoadStateAttached = "true";
 
   const clearFailure = () => {
     image.removeAttribute("aria-invalid");
