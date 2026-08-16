@@ -1,5 +1,5 @@
 ---
-last_updated: 2026-08-15
+last_updated: 2026-08-16
 ---
 
 # AGENTS.md - OpenGlance
@@ -110,8 +110,9 @@ for production updates, but build identity must not select a different Profile. 
 preserve the repositories, sessions, appearance, typography, language, favorites, and sidebar state the
 user already uses.
 
-Internal official macOS packages retain the existing Git Leaf Bundle ID, ShipIt identity, Profile, and
-update coordinates for upgrade continuity while using OpenGlance as the visible and executable name.
+Internal official macOS packages retain the existing Git Leaf Bundle ID, ShipIt identity, Profile,
+update coordinates, and hidden `Git Leaf` executable for upgrade continuity while using OpenGlance as
+the visible product and `.app` name.
 Public official and Community packages use OpenGlance-native identities; `git-leaf` inputs remain a
 compatibility-only alias.
 

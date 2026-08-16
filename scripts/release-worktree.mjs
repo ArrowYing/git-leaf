@@ -98,6 +98,9 @@ const DRIFTABLE_RELEASE_ENVIRONMENT_VARIABLES = [
 ];
 const UPDATE_REGRESSION_RISK_PATHS = new Set([
   "assets/entitlements.mac.plist",
+  "src/desktop/development-handoff.mjs",
+  "src/desktop/mac-app-contents.mjs",
+  "src/desktop/mac-development-handoff-update.mjs",
   "src/desktop/update-check-schedule.mjs",
   "src/desktop/updates.mjs",
   "public/update-ui.js",

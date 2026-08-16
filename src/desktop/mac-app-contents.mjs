@@ -18,7 +18,10 @@ export const OFFICIAL_INTERNAL_MAC_BUNDLE_ID = "com.mangofuture.gitleaf";
 export const OFFICIAL_MAC_BUNDLE_ID = OFFICIAL_INTERNAL_MAC_BUNDLE_ID;
 export const OFFICIAL_MAC_TEAM_IDENTIFIER = "HN6X79BUSR";
 export const OFFICIAL_PUBLIC_MAC_EXECUTABLE_NAME = "OpenGlance";
-export const OFFICIAL_INTERNAL_MAC_EXECUTABLE_NAME = "OpenGlance";
+// Shipped internal Git Leaf updaters and source/development handoff clients in
+// OpenPeek 2.0.0 and OpenGlance 3.0.0-3.0.1 accept or relaunch only this hidden
+// executable identity. The visible product and bundle names remain OpenGlance.
+export const OFFICIAL_INTERNAL_MAC_EXECUTABLE_NAME = "Git Leaf";
 export const OFFICIAL_MAC_EXECUTABLE_NAME = OFFICIAL_INTERNAL_MAC_EXECUTABLE_NAME;
 
 function runChecked(command, args) {

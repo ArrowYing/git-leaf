@@ -53,7 +53,7 @@ function manifest() {
 function inspectedTarget(receipt = RECEIPT) {
   return {
     bundleId: "com.mangofuture.gitleaf",
-    executableName: "OpenGlance",
+    executableName: "Git Leaf",
     teamIdentifier: "HN6X79BUSR",
     version: receipt.version,
     buildInfo: {
@@ -124,6 +124,39 @@ test("mac development handoff prepares only the exact signed internal target", {
     assert.equal(ready.sourceAppPath.endsWith("OpenGlance.app"), true);
     assert.equal(ready.targetAppPath, targetAppPath);
     assert.deepEqual(ready.handoff, RECEIPT);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("mac development handoff rejects an internal target that strands shipped clients", {
+  skip: process.platform === "win32" && "preparation uses macOS-native removal",
+}, async () => {
+  const root = mkdtempSync(path.join(tmpdir(), "git-leaf-mac-handoff-test."));
+  try {
+    const targetAppPath = path.join(root, "installed", "OpenGlance.app");
+    mkdirSync(targetAppPath, { recursive: true });
+    await assert.rejects(
+      prepareMacDevelopmentHandoffUpdate({
+        manifest: manifest(),
+        handoff: RECEIPT,
+        userDataDir: path.join(root, "user-data"),
+        targetAppPath,
+        fetchFn: async () => ({
+          ok: true,
+          status: 200,
+          body: Readable.from([ARCHIVE]),
+        }),
+        extractArchive: async (_archivePath, { dir }) => {
+          mkdirSync(path.join(dir, "OpenGlance.app"), { recursive: true });
+        },
+        inspectApp: () => ({
+          ...inspectedTarget(),
+          executableName: "OpenGlance",
+        }),
+      }),
+      /target identity/i,
+    );
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

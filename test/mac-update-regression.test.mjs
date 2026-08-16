@@ -468,12 +468,12 @@ test("mac update regression evidence binds installation and cleanup to the froze
     candidateAppIdentity: {
       bundleName: "OpenGlance.app",
       productName: "OpenGlance",
-      executable: "OpenGlance",
+      executable: "Git Leaf",
     },
     installedAppIdentity: {
       bundleName: "Git Leaf.app",
       productName: "OpenGlance",
-      executable: "OpenGlance",
+      executable: "Git Leaf",
     },
     installParentWritable: false,
     privilegedShipItJobObserved: false,
@@ -514,6 +514,26 @@ test("mac update regression evidence binds installation and cleanup to the froze
     commit: evidence.commit,
     buildId: "0123456789ab.20260726T120000Z",
   }), inAppEvidence);
+  const renamedBaselineEvidence = {
+    ...inAppEvidence,
+    fromVersion: "3.0.4",
+    toVersion: "3.0.5",
+    baselineAppIdentity: {
+      bundleName: "OpenGlance.app",
+      productName: "OpenGlance",
+      executable: "OpenGlance",
+    },
+    installedAppIdentity: {
+      ...inAppEvidence.installedAppIdentity,
+      bundleName: "OpenGlance.app",
+    },
+  };
+  assert.equal(validateMacUpdateRegressionEvidence(renamedBaselineEvidence, {
+    track: "internal",
+    version: "3.0.5",
+    commit: evidence.commit,
+    buildId: "0123456789ab.20260726T120000Z",
+  }), renamedBaselineEvidence);
   assert.throws(
     () => validateMacUpdateRegressionEvidence({
       ...inAppEvidence,
@@ -545,6 +565,14 @@ test("mac update regression evidence binds installation and cleanup to the froze
     fromTrack: "internal",
     fromChannel: "stable",
     buildId: "0123456789ab.20260726T120000Z.public",
+    candidateAppIdentity: {
+      ...evidence.candidateAppIdentity,
+      executable: "OpenGlance",
+    },
+    installedAppIdentity: {
+      ...evidence.installedAppIdentity,
+      executable: "OpenGlance",
+    },
   };
   assert.equal(validateMacUpdateRegressionEvidence(publicBridgeEvidence, {
     track: "public",

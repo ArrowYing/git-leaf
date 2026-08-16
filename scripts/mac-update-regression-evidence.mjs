@@ -1,3 +1,8 @@
+import {
+  OFFICIAL_INTERNAL_MAC_EXECUTABLE_NAME,
+  OFFICIAL_PUBLIC_MAC_EXECUTABLE_NAME,
+} from "../src/desktop/mac-app-contents.mjs";
+
 const LEGACY_INTERNAL_STABLE_BRIDGE_VERSION = "1.11.3";
 
 function hasValidBaselineIdentity(evidence, track) {
@@ -23,14 +28,17 @@ export function validateMacUpdateRegressionEvidence(evidence, {
   commit,
   buildId,
 } = {}) {
+  const expectedExecutable = track === "internal"
+    ? OFFICIAL_INTERNAL_MAC_EXECUTABLE_NAME
+    : OFFICIAL_PUBLIC_MAC_EXECUTABLE_NAME;
   const canonicalIdentityMatches = (
     evidence.candidateAppIdentity?.bundleName === "OpenGlance.app"
     && evidence.candidateAppIdentity?.productName === "OpenGlance"
-    && evidence.candidateAppIdentity?.executable === "OpenGlance"
+    && evidence.candidateAppIdentity?.executable === expectedExecutable
     && evidence.installedAppIdentity?.bundleName
       === evidence.baselineAppIdentity?.bundleName
     && evidence.installedAppIdentity?.productName === "OpenGlance"
-    && evidence.installedAppIdentity?.executable === "OpenGlance"
+    && evidence.installedAppIdentity?.executable === expectedExecutable
   );
   const inAppIsolationMatches = evidence.installMode !== "in-app-update" || (
     evidence.updateActionReady === true

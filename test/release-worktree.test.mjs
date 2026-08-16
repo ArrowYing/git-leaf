@@ -313,6 +313,9 @@ test("logical release phases map to isolated physical update channels", () => {
 });
 
 test("update regression risk is limited to update, install, packaging, and configuration paths", () => {
+  assert.equal(updateRegressionRiskForPath("src/desktop/development-handoff.mjs"), true);
+  assert.equal(updateRegressionRiskForPath("src/desktop/mac-app-contents.mjs"), true);
+  assert.equal(updateRegressionRiskForPath("src/desktop/mac-development-handoff-update.mjs"), true);
   assert.equal(updateRegressionRiskForPath("src/desktop/updates.mjs"), true);
   assert.equal(updateRegressionRiskForPath("src/desktop/config.mjs"), true);
   assert.equal(updateRegressionRiskForPath("src/desktop/main.mjs", {
@@ -801,7 +804,7 @@ test("release controller prepares, validates, exports, and aborts an isolated wo
   }, null, 2)}\n`;
   writeFileSync(profilePath, profileContents);
   mkdirSync(path.join(sourceRoot, "scripts"), { recursive: true });
-  mkdirSync(path.join(sourceRoot, "src"), { recursive: true });
+  mkdirSync(path.join(sourceRoot, "src", "desktop"), { recursive: true });
   cpSync(path.join(REPO_ROOT, "scripts", "release-archive.mjs"), path.join(sourceRoot, "scripts", "release-archive.mjs"));
   cpSync(path.join(REPO_ROOT, "scripts", "mac-update-regression-evidence.mjs"), path.join(sourceRoot, "scripts", "mac-update-regression-evidence.mjs"));
   cpSync(path.join(REPO_ROOT, "scripts", "release-worktree.mjs"), path.join(sourceRoot, "scripts", "release-worktree.mjs"));
@@ -809,6 +812,7 @@ test("release controller prepares, validates, exports, and aborts an isolated wo
   cpSync(path.join(REPO_ROOT, "src", "build-info.mjs"), path.join(sourceRoot, "src", "build-info.mjs"));
   cpSync(path.join(REPO_ROOT, "src", "environment.mjs"), path.join(sourceRoot, "src", "environment.mjs"));
   cpSync(path.join(REPO_ROOT, "src", "product-identity.mjs"), path.join(sourceRoot, "src", "product-identity.mjs"));
+  cpSync(path.join(REPO_ROOT, "src", "desktop", "mac-app-contents.mjs"), path.join(sourceRoot, "src", "desktop", "mac-app-contents.mjs"));
   writeFileSync(
     path.join(sourceRoot, "scripts", "release-mac.mjs"),
     "console.log(JSON.stringify({ formal: process.env.OPENGLANCE_FORMAL_RELEASE, profile: process.env.OPENGLANCE_RELEASE_PROFILE, channel: process.env.UPDATE_CHANNEL }));\n",
@@ -957,7 +961,7 @@ test("release controller finish preserves verified stable artifacts outside the 
   }, null, 2)}\n`;
   writeFileSync(profilePath, profileContents);
   mkdirSync(path.join(sourceRoot, "scripts"), { recursive: true });
-  mkdirSync(path.join(sourceRoot, "src"), { recursive: true });
+  mkdirSync(path.join(sourceRoot, "src", "desktop"), { recursive: true });
   cpSync(path.join(REPO_ROOT, "scripts", "release-archive.mjs"), path.join(sourceRoot, "scripts", "release-archive.mjs"));
   cpSync(path.join(REPO_ROOT, "scripts", "mac-update-regression-evidence.mjs"), path.join(sourceRoot, "scripts", "mac-update-regression-evidence.mjs"));
   cpSync(path.join(REPO_ROOT, "scripts", "release-worktree.mjs"), path.join(sourceRoot, "scripts", "release-worktree.mjs"));
@@ -965,6 +969,7 @@ test("release controller finish preserves verified stable artifacts outside the 
   cpSync(path.join(REPO_ROOT, "src", "build-info.mjs"), path.join(sourceRoot, "src", "build-info.mjs"));
   cpSync(path.join(REPO_ROOT, "src", "environment.mjs"), path.join(sourceRoot, "src", "environment.mjs"));
   cpSync(path.join(REPO_ROOT, "src", "product-identity.mjs"), path.join(sourceRoot, "src", "product-identity.mjs"));
+  cpSync(path.join(REPO_ROOT, "src", "desktop", "mac-app-contents.mjs"), path.join(sourceRoot, "src", "desktop", "mac-app-contents.mjs"));
   writeFileSync(path.join(sourceRoot, "package.json"), `${JSON.stringify({ version: "1.11.3" }, null, 2)}\n`);
   writeFileSync(path.join(sourceRoot, ".gitignore"), "node_modules/\ndist/\n");
 

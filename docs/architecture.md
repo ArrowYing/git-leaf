@@ -61,7 +61,9 @@ identifiers remain compatibility contracts:
 - `GIT_LEAF_*` environment inputs and `git-leaf-build-info.json` remain read-only fallbacks;
 - official internal macOS packages retain `com.mangofuture.gitleaf` and
   `com.mangofuture.gitleaf.ShipIt` because installed internal Apps actively depend on those
-  operating-system identities, while `CFBundleExecutable` is now `OpenGlance`;
+  operating-system identities; they also retain the hidden `CFBundleExecutable=Git Leaf` required by
+  shipped internal Git Leaf updaters and the source/development handoff clients in OpenPeek 2.0.0 and
+  OpenGlance 3.0.0-3.0.1, while the visible product and `.app` names are OpenGlance;
 - future official public macOS packages use `com.mangofuture.openglance`, and Community packages use
   `org.openglance.community`; both use the canonical `OpenGlance` executable and their corresponding
   ShipIt cache identity;
@@ -76,8 +78,8 @@ first and then removes an existing `Git Leaf.app`. For an official internal upda
 OpenGlance atomically enables Squirrel's bundle rename only when the containing directory is writable;
 ShipIt then moves the existing bundle to `OpenGlance.app` before installing the signed candidate. If the
 parent is not writable, OpenGlance sets `useUpdateBundleName=false` so the signed `Contents` update still
-succeeds in place. The visible product name and executable become OpenGlance in either case, no duplicate
-App is created, and a later update may retry the outer-path rename.
+succeeds in place. The visible product becomes OpenGlance in either case; the hidden internal executable
+remains `Git Leaf`, no duplicate App is created, and a later update may retry the outer-path rename.
 
 On Windows, internal packages contain one bounded `Git Leaf.exe` copy so the baked-in 1.x updater can
 launch the new code. The new process migrates the old fixed installation into
@@ -694,7 +696,8 @@ only after its sibling entries are removed, and startup cleanup removes current,
 loose cache entries while preserving at most the newest version that is still newer than the running App.
 
 For a development handoff, the client verifies the extracted App's complete embedded build identity,
-official Bundle ID, and Developer ID team before offering installation. Shutdown starts a detached,
+official Bundle ID, Developer ID team, and legacy-compatible internal executable before offering
+installation. Shutdown starts a detached,
 nonprivileged Node helper from the current App. After the dev process exits, the helper revalidates the
 persisted receipt, waits for the old App's remaining child processes while excluding its own
 Electron-as-Node process, atomically removes the dev-initialized analytics value, transactionally

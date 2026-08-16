@@ -52,12 +52,12 @@ import {
   verifyProductionProfileUnchanged,
 } from "../scripts/release-mac.mjs";
 
-test("all macOS packages use the OpenGlance executable identity", () => {
+test("internal macOS packages preserve the Git Leaf executable accepted by shipped updaters", () => {
   assert.equal(macExecutableName({
     appName: "OpenGlance",
     distribution: "official",
     releaseTrack: "internal",
-  }), "OpenGlance");
+  }), "Git Leaf");
   assert.equal(macExecutableName({
     appName: "OpenGlance",
     distribution: "official",
@@ -70,7 +70,7 @@ test("all macOS packages use the OpenGlance executable identity", () => {
   assert.equal(assertMacUpdateArchiveEntries([
     "OpenGlance.app/",
     "OpenGlance.app/Contents/",
-    "OpenGlance.app/Contents/MacOS/OpenGlance",
+    "OpenGlance.app/Contents/MacOS/Git Leaf",
   ], {
     appName: "OpenGlance",
     distribution: "official",
@@ -218,7 +218,7 @@ test("mac release package args exclude tests and generated outputs", () => {
   assert.ok(ignoreValues.includes("^/\\.git($|/)"));
 });
 
-test("internal mac release package args use the OpenGlance executable identity", () => {
+test("internal mac release package args retain the Git Leaf compatibility executable", () => {
   const args = electronPackagerArgs({
     appName: "OpenGlance",
     distribution: "official",
@@ -227,7 +227,7 @@ test("internal mac release package args use the OpenGlance executable identity",
     outDir: "dist",
   });
 
-  assert.ok(args.includes("--executable-name=OpenGlance"));
+  assert.ok(args.includes("--executable-name=Git Leaf"));
 });
 
 test("mac release package args exclude internal docs, repository tools, and dev-only dependencies", () => {
@@ -499,7 +499,7 @@ test("mac bundle icon application refreshes the app bundle mtime for LaunchServi
   }
 });
 
-test("official mac bundle uses OpenGlance for its visible and executable names", async () => {
+test("official internal mac bundle uses OpenGlance visibly without rewriting its executable", async () => {
   const tempDir = await mkdtempPath("openglance-mac-product-name-");
   try {
     const appDir = path.join(tempDir, "OpenGlance.app");
@@ -512,7 +512,7 @@ test("official mac bundle uses OpenGlance for its visible and executable names",
 <plist version="1.0"><dict>
   <key>CFBundleDisplayName</key><string>Git Leaf</string>
   <key>CFBundleName</key><string>Git Leaf</string>
-  <key>CFBundleExecutable</key><string>OpenGlance</string>
+  <key>CFBundleExecutable</key><string>Git Leaf</string>
 </dict></plist>
 `,
       "utf8",
@@ -527,7 +527,7 @@ test("official mac bundle uses OpenGlance for its visible and executable names",
     ).stdout.trim();
     assert.equal(plistValue("CFBundleDisplayName"), "OpenGlance");
     assert.equal(plistValue("CFBundleName"), "OpenGlance");
-    assert.equal(plistValue("CFBundleExecutable"), "OpenGlance");
+    assert.equal(plistValue("CFBundleExecutable"), "Git Leaf");
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }

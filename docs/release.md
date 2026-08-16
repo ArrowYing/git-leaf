@@ -30,7 +30,7 @@ The safe default is always `source + source + false`. Operating-system identitie
 | --- | --- | --- | --- |
 | `source + source` | `org.openglance.community` | `OpenGlance` | none |
 | `official + public` | `com.mangofuture.openglance` | `OpenGlance` | none |
-| `official + internal` | `com.mangofuture.gitleaf` | `OpenGlance` | `Git Leaf.exe` |
+| `official + internal` | `com.mangofuture.gitleaf` | `Git Leaf` | `Git Leaf.exe` |
 
 On Windows, Community package metadata uses `OpenGlance Community`; both official tracks use the
 Mango Future publisher identity.
@@ -45,7 +45,10 @@ Version 3.0 changes the canonical name from Git Leaf to OpenGlance. Runtime read
 `git-leaf-build-info.json` / `GIT_LEAF_*` from 1.x after the canonical OpenGlance names. Every newly
 prepared package writes only `openglance-build-info.json` and `OPENGLANCE_*`. The internal macOS Bundle
 ID, ShipIt identity, `git-leaf` Profile directory, analytics schema, and update-service coordinates
-remain stable for installed company users. Earlier public packages were not
+remain stable for installed company users. Its hidden macOS executable also remains `Git Leaf`, because
+shipped internal Git Leaf updaters and the source/development handoff clients in OpenPeek 2.0.0 and
+OpenGlance 3.0.0-3.0.1 depend on that identity; the product name, bundle root, installer, and interface
+remain OpenGlance. Earlier public packages were not
 promoted, so future public and Community packages use clean OpenGlance-native Bundle IDs. GitHub
 repository names use the canonical OpenGlance identity and preserve earlier URLs as redirects.
 
@@ -214,6 +217,8 @@ development App persists that complete target identity before automatically down
 exact internal ZIP. It verifies the ZIP's size and SHA-256, extracts it into a private update cache, and
 verifies its official Bundle ID, Developer ID team, version, and embedded build identity. Preparing a
 different target first removes the previous private cache, so only one complete handoff package remains.
+The target must retain `CFBundleExecutable=Git Leaf`; this is an operating-system compatibility identity,
+not a visible legacy product name.
 Ordinary Squirrel feeds remain strictly newer-version-only.
 
 When the package is ready and the user chooses installation, normal shutdown launches a detached
@@ -415,9 +420,10 @@ npm run verify:dev-handoff:mac -- \
 
 It packages a deliberately lower-version source dev App, uses the exact newer signed `internal-stable`
 ZIP, drives the real user-visible update action, and proves the Bundle ID transition, target signature,
-preserved App directory inode, nonprivileged `Contents` bridge, absence of Squirrel/ShipIt use, target analytics
-default, telemetry initialization, receipt consumption, cleanup, and unchanged real Profile/cache
-fingerprints. The intent flag is mandatory to prevent accidental direct invocation because the
+legacy-compatible target executable, preserved App directory inode, nonprivileged `Contents` bridge,
+absence of Squirrel/ShipIt use, target analytics default, telemetry initialization, receipt consumption,
+cleanup, and unchanged real Profile/cache fingerprints. The intent flag is mandatory to prevent
+accidental direct invocation because the
 temporary App opens and restarts on the current desktop, but the Agent supplies it without asking the
 maintainer for another confirmation once the development or release workflow is authorized. Each
 transition action is clicked at most once;
@@ -447,8 +453,8 @@ therefore replaces its signed `Contents` directory without write access to the r
 `/Applications` parent; an App bundle that is itself not writable fails closed as an installation repair
 case. The regression requires the `.app` directory inode to remain unchanged.
 
-Internal official macOS packages use the canonical `OpenGlance.app` bundle and ZIP root with
-`CFBundleExecutable=OpenGlance`. Before ShipIt installs into a legacy `Git Leaf.app`, OpenGlance
+Internal official macOS packages use the canonical `OpenGlance.app` bundle and ZIP root with the hidden
+`CFBundleExecutable=Git Leaf`. Before ShipIt installs into a legacy `Git Leaf.app`, OpenGlance
 atomically sets `useUpdateBundleName=true` only when the parent directory is writable, allowing ShipIt
 to move the existing bundle to `OpenGlance.app`. With a non-writable parent it sets the value to `false`,
 preserving the outer path while updating signed `Contents` in place. Both outcomes preserve one App and
@@ -548,7 +554,8 @@ Before publication:
 3. Build macOS and Windows candidates.
 4. Inspect the DMG, ZIP, and `app.asar` file lists and text content.
 5. Confirm an official macOS DMG and update ZIP use the visible `OpenGlance.app` identity and ZIP root;
-   every newly signed App uses `CFBundleExecutable=OpenGlance`.
+   public and Community Apps use `CFBundleExecutable=OpenGlance`, while internal Apps retain the hidden
+   `CFBundleExecutable=Git Leaf` required by shipped updaters.
 6. Confirm packages exclude `.agents/`, `docs/`, `test/`, `dist/`, `.git/`, release profiles, signing material, and internal operations documents.
 7. Verify source, official public, and official internal behavior independently.
 8. Confirm track, channel, manifest, SHA-256, tag, and public commit correspondence.

@@ -29,6 +29,9 @@ import {
 } from "../src/desktop/development-handoff.mjs";
 import { DEVELOPMENT_USER_DATA_ARG } from "../src/desktop/user-data.mjs";
 import { compareAppVersions } from "../src/desktop/app-updates.mjs";
+import {
+  OFFICIAL_INTERNAL_MAC_EXECUTABLE_NAME,
+} from "../src/desktop/mac-app-contents.mjs";
 import { macDevelopmentHandoffCachePaths } from "../src/desktop/mac-development-handoff-update.mjs";
 import {
   OPENGLANCE_PROTOCOL,
@@ -98,6 +101,7 @@ export function validateDevelopmentHandoffBuildPair({
   sourceBundleId,
   targetBuildInfo,
   targetBundleId,
+  targetExecutable,
   receipt,
 } = {}) {
   const normalizedReceipt = normalizeDevelopmentHandoffReceipt(receipt);
@@ -121,6 +125,7 @@ export function validateDevelopmentHandoffBuildPair({
     || targetBuildInfo?.releaseTrack !== "internal"
     || targetBuildInfo?.usageAnalyticsDefault !== true
     || targetBundleId !== OFFICIAL_PACKAGE_IDENTITY.macBundleId
+    || targetExecutable !== OFFICIAL_INTERNAL_MAC_EXECUTABLE_NAME
     || !SEMANTIC_VERSION.test(String(sourceBuildInfo?.version || ""))
     || !SEMANTIC_VERSION.test(String(targetBuildInfo?.version || ""))
     || compareAppVersions(
@@ -163,6 +168,7 @@ export function validateDevelopmentHandoffRegressionEvidence(evidence) {
     || evidence?.sourceBundleId !== COMMUNITY_PACKAGE_IDENTITY.macBundleId
     || evidence?.targetBundleId !== OFFICIAL_PACKAGE_IDENTITY.macBundleId
     || evidence?.targetTeamIdentifier !== OFFICIAL_MAC_TEAM_IDENTIFIER
+    || evidence?.targetExecutable !== OFFICIAL_INTERNAL_MAC_EXECUTABLE_NAME
     || evidence?.protocolScheme !== OPENGLANCE_PROTOCOL
     || !Array.isArray(evidence?.protocolSchemes)
     || OPENGLANCE_SUPPORTED_PROTOCOLS.some(
@@ -332,6 +338,10 @@ export async function runDevelopmentHandoffRegression({
       targetAppPath,
       "CFBundleIdentifier",
     );
+    const targetExecutable = readAppPlistValue(
+      targetAppPath,
+      "CFBundleExecutable",
+    );
     const targetSquirrelPolicy = verifySquirrelMacPolicy({
       appDir: targetAppPath,
     });
@@ -349,6 +359,7 @@ export async function runDevelopmentHandoffRegression({
       sourceBundleId,
       targetBuildInfo,
       targetBundleId,
+      targetExecutable,
       receipt,
     });
     if (targetTeamIdentifier !== OFFICIAL_MAC_TEAM_IDENTIFIER) {
@@ -513,6 +524,10 @@ export async function runDevelopmentHandoffRegression({
       installedBuildInfo.buildId !== targetBuildInfo.buildId
       || installedBuildInfo.commit !== targetBuildInfo.commit
       || readAppVersion(sourceAppPath) !== targetBuildInfo.version
+      || readAppPlistValue(
+        sourceAppPath,
+        "CFBundleExecutable",
+      ) !== targetExecutable
     ) {
       throw new Error("The installed App does not match the requested internal target");
     }
@@ -534,6 +549,7 @@ export async function runDevelopmentHandoffRegression({
       sourceBundleId,
       targetBundleId,
       targetTeamIdentifier,
+      targetExecutable,
       targetUsageAnalyticsDefault: targetBuildInfo.usageAnalyticsDefault,
       analyticsDefaultAdopted: finalConfig?.usageAnalyticsEnabled === true,
       handoffReceiptConsumed:

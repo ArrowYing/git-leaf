@@ -4,6 +4,18 @@ OpenGlance follows Semantic Versioning for its shared app version. Git tags iden
 official public artifacts, signatures, checksums, and platform availability are authoritative only on
 the [OpenGlance download page](https://gitleaf.mangofuture.com/download).
 
+## Unreleased
+
+### Fixed
+
+- Restored the hidden `Git Leaf` executable identity in internal macOS packages so existing internal
+  Git Leaf 1.x Apps and source/development OpenPeek 2.0.0 and OpenGlance 3.0.0-3.0.1 installations can
+  upgrade to a newer OpenGlance build. The visible product, installer, and `.app` bundle remain
+  OpenGlance.
+- Extended the development-handoff and ordinary macOS update gates to reject an internal artifact that
+  would strand those installed clients, while continuing to require the exact Bundle ID, Developer ID
+  signature, build identity, version, and checksum.
+
 ## 3.0.4 — 2026-08-16 (internal release)
 
 ### Changed

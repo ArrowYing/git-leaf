@@ -107,6 +107,7 @@ test("development handoff regression binds a lower source version to a newer int
     sourceBundleId: "org.openglance.community",
     targetBuildInfo: TARGET_BUILD,
     targetBundleId: "com.mangofuture.gitleaf",
+    targetExecutable: "Git Leaf",
     receipt: RECEIPT,
   }), {
     sourceVersion: "1.15.0",
@@ -123,6 +124,7 @@ test("development handoff regression binds a lower source version to a newer int
     { targetBuildInfo: { ...TARGET_BUILD, version: "1.16.1" } },
     { sourceBundleId: "com.mangofuture.gitleaf" },
     { targetBundleId: "org.openglance.community" },
+    { targetExecutable: "OpenGlance" },
     { receipt: { ...RECEIPT, buildId: "bbbbbbbbbbbb.20260730T010000Z.internal" } },
   ]) {
     assert.throws(
@@ -131,6 +133,7 @@ test("development handoff regression binds a lower source version to a newer int
         sourceBundleId: "org.openglance.community",
         targetBuildInfo: TARGET_BUILD,
         targetBundleId: "com.mangofuture.gitleaf",
+        targetExecutable: "Git Leaf",
         receipt: RECEIPT,
         ...mismatch,
       }),
@@ -162,6 +165,7 @@ test("development handoff evidence requires the real installation and isolation 
     targetBuildId: TARGET_BUILD.buildId,
     sourceBundleId: "org.openglance.community",
     targetBundleId: "com.mangofuture.gitleaf",
+    targetExecutable: "Git Leaf",
     targetTeamIdentifier: "HN6X79BUSR",
     protocolScheme: "openglance",
     protocolSchemes: ["openglance", "git-leaf"],
@@ -201,6 +205,7 @@ test("development handoff evidence requires the real installation and isolation 
     { appDirectoryInodePreserved: false },
     { privilegedShipItJobObserved: true },
     { targetTeamIdentifier: "UNKNOWN" },
+    { targetExecutable: "OpenGlance" },
     { realProfileAfter: { sha256: "b".repeat(64), fileCount: 3 } },
   ]) {
     assert.throws(
