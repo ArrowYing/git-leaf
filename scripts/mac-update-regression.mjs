@@ -34,6 +34,7 @@ import {
   OFFICIAL_PUBLIC_MAC_BUNDLE_ID,
 } from "../src/desktop/mac-app-contents.mjs";
 import {
+  prepareMacUpdateAppPath,
   OFFICIAL_INTERNAL_MAC_SHIPIT_JOB_LABEL,
   OFFICIAL_PUBLIC_MAC_SHIPIT_JOB_LABEL,
 } from "../src/desktop/mac-update-cache.mjs";
@@ -810,6 +811,33 @@ export function assertIsolatedShipItRequest({ stateFile, temporaryRoot } = {}) {
   return request;
 }
 
+export async function prepareIsolatedShipItRequestForInstallation({
+  homeDir,
+  jobLabel,
+  targetAppPath,
+  temporaryRoot,
+  prepareUpdateAppPath = prepareMacUpdateAppPath,
+} = {}) {
+  const prepared = await prepareUpdateAppPath({
+    homeDir,
+    jobLabel,
+    targetAppPath,
+  });
+  const request = assertIsolatedShipItRequest({
+    stateFile: prepared.stateFile,
+    temporaryRoot,
+  });
+  if (
+    prepared.useUpdateBundleName !== false
+    || request.useUpdateBundleName !== false
+  ) {
+    throw new Error(
+      "The non-writable update regression must preserve the installed App directory",
+    );
+  }
+  return request;
+}
+
 function requiredRegressionPath(value, label) {
   const candidate = typeof value === "string" ? value.trim() : "";
   if (!candidate) {
@@ -1099,7 +1127,7 @@ async function runHarness({
       if (launchctlJobExists({ domain: "system", label: shipItJobLabel })) {
         throw new Error("The update attempted to register a privileged ShipIt job");
       }
-      const shipItRequest = assertIsolatedShipItRequest({
+      let shipItRequest = assertIsolatedShipItRequest({
         stateFile: isolatedShipItState,
         temporaryRoot,
       });
@@ -1114,6 +1142,12 @@ async function runHarness({
       if (updateAction?.reason !== "action-ready") {
         throw new Error("The packaged update action was not ready before installation");
       }
+      shipItRequest = await prepareIsolatedShipItRequestForInstallation({
+        homeDir: isolatedHome,
+        jobLabel: shipItJobLabel,
+        targetAppPath: appPath,
+        temporaryRoot,
+      });
       if (!appProcess.kill("SIGTERM")) {
         throw new Error("Could not stop the isolated baseline App for installation");
       }

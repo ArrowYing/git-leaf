@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -14,12 +14,52 @@ import {
   assertSafeMacUpdateRegressionHost,
   assertTemporaryProcessIsolation,
   downloadUpdateRegressionArtifact,
+  prepareIsolatedShipItRequestForInstallation,
   prepareInstalledBaselineAppPath,
   updateRegressionInstallExpression,
   updateRegressionChannels,
   validateMacUpdateRegressionEvidence,
   validateUpdateRegressionManifest,
 } from "../scripts/mac-update-regression.mjs";
+
+test("mac update regression applies the real pre-install path policy before stopping the baseline", async (t) => {
+  const temporaryRoot = await mkdtemp(path.join(tmpdir(), "openglance-shipit-install."));
+  t.after(async () => {
+    await chmod(path.join(temporaryRoot, "install"), 0o755).catch(() => {});
+    await rm(temporaryRoot, { recursive: true, force: true });
+  });
+  const homeDir = path.join(temporaryRoot, "home");
+  const updateRoot = path.join(
+    homeDir,
+    "Library",
+    "Caches",
+    "com.mangofuture.gitleaf.ShipIt",
+  );
+  const stagedApp = path.join(updateRoot, "update.NEW5678", "OpenGlance.app");
+  const targetApp = path.join(temporaryRoot, "install", "Git Leaf.app");
+  const stateFile = path.join(updateRoot, "ShipItState.plist");
+  await Promise.all([
+    mkdir(stagedApp, { recursive: true }),
+    mkdir(targetApp, { recursive: true }),
+  ]);
+  await writeFile(stateFile, JSON.stringify({
+    launchAfterInstallation: false,
+    updateBundleURL: pathToFileURL(stagedApp).href,
+    targetBundleURL: pathToFileURL(targetApp).href,
+    useUpdateBundleName: true,
+  }));
+  await chmod(path.dirname(targetApp), 0o555);
+
+  const request = await prepareIsolatedShipItRequestForInstallation({
+    homeDir,
+    jobLabel: "com.mangofuture.gitleaf.ShipIt",
+    targetAppPath: targetApp,
+    temporaryRoot,
+  });
+
+  assert.equal(request.useUpdateBundleName, false);
+  assert.equal(JSON.parse(await readFile(stateFile, "utf8")).useUpdateBundleName, false);
+});
 
 test("internal mac update regression models the installed Git Leaf outer path", () => {
   const calls = [];
