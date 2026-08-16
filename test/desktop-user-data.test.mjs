@@ -9,8 +9,6 @@ import {
   DEVELOPMENT_USER_DATA_ENV,
   LEGACY_DEVELOPMENT_USER_DATA_ARG,
   LEGACY_DEVELOPMENT_USER_DATA_ENV,
-  OPENPEEK_DEVELOPMENT_USER_DATA_ARG,
-  OPENPEEK_DEVELOPMENT_USER_DATA_ENV,
   applyDevelopmentUserDataOverride,
   applyStableUserDataPath,
   assertDevelopmentUserDataOverride,
@@ -27,15 +25,7 @@ test("development user-data flag takes precedence over the environment", () => {
   );
 });
 
-test("OpenPeek 2.x and Git Leaf 1.x development user-data inputs remain accepted", () => {
-  assert.equal(requestedDevelopmentUserDataDir({
-    argv: ["electron", `${OPENPEEK_DEVELOPMENT_USER_DATA_ARG}=/tmp/openpeek-smoke`],
-    env: {},
-  }), "/tmp/openpeek-smoke");
-  assert.equal(requestedDevelopmentUserDataDir({
-    argv: [],
-    env: { [OPENPEEK_DEVELOPMENT_USER_DATA_ENV]: "/tmp/openpeek-env" },
-  }), "/tmp/openpeek-env");
+test("Git Leaf 1.x development user-data inputs remain accepted", () => {
   assert.equal(requestedDevelopmentUserDataDir({
     argv: ["electron", `${LEGACY_DEVELOPMENT_USER_DATA_ARG}=/tmp/legacy-smoke`],
     env: {},
@@ -48,7 +38,6 @@ test("OpenPeek 2.x and Git Leaf 1.x development user-data inputs remain accepted
     argv: [],
     env: {
       [DEVELOPMENT_USER_DATA_ENV]: "/tmp/openglance-env",
-      [OPENPEEK_DEVELOPMENT_USER_DATA_ENV]: "/tmp/openpeek-env",
       [LEGACY_DEVELOPMENT_USER_DATA_ENV]: "/tmp/legacy-env",
     },
   }), "/tmp/openglance-env");

@@ -8,11 +8,9 @@ import {
 } from "./product-identity.mjs";
 
 export const BUILD_INFO_FILENAME = "openglance-build-info.json";
-export const OPENPEEK_BUILD_INFO_FILENAME = "openpeek-build-info.json";
 export const GIT_LEAF_BUILD_INFO_FILENAME = "git-leaf-build-info.json";
 export const LEGACY_BUILD_INFO_FILENAME = GIT_LEAF_BUILD_INFO_FILENAME;
 export const LEGACY_BUILD_INFO_FILENAMES = Object.freeze([
-  OPENPEEK_BUILD_INFO_FILENAME,
   GIT_LEAF_BUILD_INFO_FILENAME,
 ]);
 
@@ -228,7 +226,7 @@ function hasOwn(value, key) {
 }
 
 function envValue(env, suffix) {
-  for (const prefix of ["OPENGLANCE", "OPENPEEK", "GIT_LEAF"]) {
+  for (const prefix of ["OPENGLANCE", "GIT_LEAF"]) {
     const name = `${prefix}_${suffix}`;
     if (env?.[name] !== undefined) {
       return env[name];

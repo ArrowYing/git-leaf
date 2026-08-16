@@ -53,7 +53,7 @@ function manifest() {
 function inspectedTarget(receipt = RECEIPT) {
   return {
     bundleId: "com.mangofuture.gitleaf",
-    executableName: "Git Leaf",
+    executableName: "OpenGlance",
     teamIdentifier: "HN6X79BUSR",
     version: receipt.version,
     buildInfo: {

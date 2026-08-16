@@ -24,10 +24,8 @@ test("Windows OpenGlance uses a stable per-user executable path", () => {
   assert.equal(paths.stateFile, "C:\\Users\\mango\\AppData\\Local\\OpenGlance\\install-state.json");
   assert.equal(paths.shortcut, "C:\\Users\\mango\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\OpenGlance.lnk");
   assert.deepEqual(paths.legacyInstallations.map((entry) => entry.name), [
-    "OpenPeek",
     "Git Leaf",
   ]);
-  assert.equal(paths.openPeekExecutable, "C:\\Users\\mango\\AppData\\Local\\OpenPeek\\app\\OpenPeek.exe");
   assert.equal(paths.gitLeafExecutable, "C:\\Users\\mango\\AppData\\Local\\GitLeaf\\app\\Git Leaf.exe");
   assert.equal(paths.legacyExecutable, paths.gitLeafExecutable);
 });
@@ -47,10 +45,6 @@ test("packaged Windows apps bootstrap unless already running from the stable pat
     ...options,
     execPath: "C:\\Users\\mango\\AppData\\Local\\OpenGlance\\app\\OpenGlance.exe",
   }), false);
-  assert.equal(shouldBootstrapWindowsApp({
-    ...options,
-    execPath: "C:\\Users\\mango\\AppData\\Local\\OpenPeek\\app\\OpenPeek.exe",
-  }), true);
   assert.equal(shouldBootstrapWindowsApp({
     ...options,
     execPath: "C:\\Users\\mango\\AppData\\Local\\GitLeaf\\app\\Git Leaf.exe",
@@ -129,45 +123,12 @@ test("OpenGlance migrates a Git Leaf 1.x fixed installation into its canonical a
   ]);
 });
 
-test("OpenGlance migrates an OpenPeek 2.x fixed installation into its canonical app path", () => {
-  const localAppData = "C:\\Users\\mango\\AppData\\Local";
-  const previousRoot = `${localAppData}\\OpenPeek\\app`;
-  const plan = windowsAppBootstrapPlan({
-    platform: "win32",
-    isPackaged: true,
-    execPath: `${localAppData}\\OpenPeek\\updates\\3.0.0\\app\\OpenPeek.exe`,
-    args: [
-      "--openpeek-update-wait-pid=4321",
-      "openpeek://open?repo=owner%2Frepo&path=README.md",
-    ],
-    localAppData,
-    processId: 53,
-    version: "3.0.0",
-    pathExists: (value) => value === previousRoot,
-    readInstalledVersion: (value) => (
-      value === `${localAppData}\\OpenPeek\\install-state.json` ? "2.0.0" : ""
-    ),
-  });
-
-  assert.equal(plan.status, "update");
-  assert.equal(plan.previousProductName, "OpenPeek");
-  assert.equal(plan.installedVersion, "2.0.0");
-  assert.equal(plan.waitForPid, 4321);
-  assert.equal(plan.installRoot, `${localAppData}\\OpenGlance\\app`);
-  assert.equal(plan.legacyInstallParent, `${localAppData}\\OpenPeek`);
-  assert.equal(plan.legacyInstallRoot, previousRoot);
-  assert.deepEqual(plan.args, [
-    "openpeek://open?repo=owner%2Frepo&path=README.md",
-  ]);
-});
-
-test("the confirmed canonical Windows app removes superseded OpenPeek and Git Leaf installs", async () => {
+test("the confirmed canonical Windows app removes a superseded Git Leaf install", async () => {
   const localAppData = "C:\\Users\\mango\\AppData\\Local";
   const roamingAppData = "C:\\Users\\mango\\AppData\\Roaming";
   const paths = windowsInstalledAppPaths({ localAppData, roamingAppData });
   const existing = new Set([
     paths.executable,
-    paths.openPeekInstallParent,
     paths.gitLeafInstallParent,
   ]);
   const removals = [];
@@ -185,8 +146,6 @@ test("the confirmed canonical Windows app removes superseded OpenPeek and Git Le
     },
   }), true);
   assert.deepEqual(removals, [
-    [paths.openPeekShortcut, { recursive: false, force: true }],
-    [paths.openPeekInstallParent, { recursive: true, force: true }],
     [paths.gitLeafShortcut, { recursive: false, force: true }],
     [paths.gitLeafInstallParent, { recursive: true, force: true }],
   ]);
@@ -223,9 +182,6 @@ test("Windows launch confirmation accepts only installer-owned LOCALAPPDATA file
   assert.equal(windowsInstallConfirmationPath([
     `--openglance-install-confirm=${valid}`,
   ], { localAppData }), valid);
-  assert.equal(windowsInstallConfirmationPath([
-    `--openpeek-install-confirm=${valid}`,
-  ], { localAppData }), valid, "the OpenPeek 2.x handoff remains compatible");
   assert.equal(windowsInstallConfirmationPath([
     `--git-leaf-install-confirm=${valid}`,
   ], { localAppData }), valid, "the Git Leaf 1.x handoff remains compatible");

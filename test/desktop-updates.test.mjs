@@ -635,7 +635,7 @@ test("desktop updater does not show transient macOS errors before a downloaded u
   assert.equal(await controller.installPendingUpdateOnQuit(), true);
 });
 
-test("desktop updater preserves the current macOS App path before ShipIt restarts", async () => {
+test("desktop updater prepares the current macOS App path before ShipIt restarts", async () => {
   const autoUpdater = fakeAutoUpdater();
   const calls = [];
   autoUpdater.quitAndInstall = () => {
@@ -665,7 +665,7 @@ test("desktop updater preserves the current macOS App path before ShipIt restart
   ]);
 });
 
-test("desktop updater fails closed when the macOS App path cannot be preserved", async () => {
+test("desktop updater fails closed when the macOS App path cannot be prepared", async () => {
   const autoUpdater = fakeAutoUpdater();
   const updates = [];
   const controller = createDesktopUpdateController({

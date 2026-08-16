@@ -164,7 +164,7 @@ test("development handoff evidence requires the real installation and isolation 
     targetBundleId: "com.mangofuture.gitleaf",
     targetTeamIdentifier: "HN6X79BUSR",
     protocolScheme: "openglance",
-    protocolSchemes: ["openglance", "openpeek", "git-leaf"],
+    protocolSchemes: ["openglance", "git-leaf"],
     targetUsageAnalyticsDefault: true,
     analyticsDefaultAdopted: true,
     handoffReceiptConsumed: true,

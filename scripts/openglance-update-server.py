@@ -25,9 +25,9 @@ from urllib.parse import parse_qs, unquote, urlencode, urlparse
 
 HANDOFF_ID_PATTERN = re.compile(r"[A-Za-z0-9_-]{20,64}")
 HANDOFF_TTL_SECONDS = 600
-# The hosted handoff must reach Git Leaf 1.x, OpenPeek 2.x, and OpenGlance 3.x
-# during the installed-client migration. All three generations register this
-# protocol, while only OpenGlance 3.x registers the canonical openglance scheme.
+# The hosted handoff must reach both Git Leaf 1.x and OpenGlance. Both
+# generations register this protocol, while OpenGlance also registers the
+# canonical openglance scheme.
 HOSTED_HANDOFF_PROTOCOL = "git-leaf"
 SHARE_PREVIEW_TITLE_MAX_LENGTH = 100
 SHARE_PREVIEW_SNIPPET_MAX_LENGTH = 200

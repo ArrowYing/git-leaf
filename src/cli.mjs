@@ -21,16 +21,13 @@ const HEALTH_CHECK_TIMEOUT_MS = 500;
 const RESTART_WAIT_TIMEOUT_MS = 5_000;
 const RESTART_WAIT_INTERVAL_MS = 150;
 const OPENGLANCE_APP_ID = "openglance";
-const OPENPEEK_APP_ID = "openpeek";
 const GIT_LEAF_APP_ID = "git-leaf";
 const SUPPORTED_APP_IDS = new Set([
   OPENGLANCE_APP_ID,
-  OPENPEEK_APP_ID,
   GIT_LEAF_APP_ID,
 ]);
 const SERVER_RECORD_DIR = path.join(os.tmpdir(), OPENGLANCE_APP_ID);
 const LEGACY_SERVER_RECORD_DIRS = [
-  path.join(os.tmpdir(), OPENPEEK_APP_ID),
   path.join(os.tmpdir(), GIT_LEAF_APP_ID),
 ];
 const execFileAsync = promisify(execFile);
@@ -443,8 +440,6 @@ export function openGlanceCommandLineLooksLikeOpenGlance(commandLine) {
     command.includes(" src/cli.mjs") ||
     command.includes("/openglance/src/cli.mjs") ||
     command.includes(" openglance/src/cli.mjs") ||
-    command.includes("/openpeek/src/cli.mjs") ||
-    command.includes(" openpeek/src/cli.mjs") ||
     command.includes("/git-leaf/src/cli.mjs") ||
     command.includes(" git-leaf/src/cli.mjs")
   );

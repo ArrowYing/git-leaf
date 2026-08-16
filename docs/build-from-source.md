@@ -98,9 +98,9 @@ make install-dev-mac
 
 This is intentionally different from a distributable Community package. It installs `OpenGlance dev`
 with `dev=true` and the Community Bundle ID, replacing the current App and using the same real Profile.
-A new installation uses `/Applications/OpenGlance.app`; if `/Applications/OpenPeek.app` or
-`/Applications/Git Leaf.app` already exists, the transition reuses that path instead of creating a
-duplicate. Repositories, workbench sessions,
+A new installation uses `/Applications/OpenGlance.app`; after that canonical copy succeeds, the
+transition removes an existing `/Applications/Git Leaf.app` instead of leaving a duplicate.
+Repositories, workbench sessions,
 appearance, language, favorites, and sidebar state therefore survive replacement. The development build
 remains telemetry-ineligible.
 

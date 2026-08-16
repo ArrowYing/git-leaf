@@ -12,9 +12,9 @@ Markdown 知识库。
 如果团队把 Markdown 知识库保存在 Git 中，让团队成员与 Agent 围绕同一份上下文共同维护内容，OpenGlance
 会是一个以阅读和检查为先、比 Obsidian 更简单实用的选择。
 
-> **名称迁移：** 从 3.0 开始，OpenGlance 替代短期使用的 OpenPeek；Git Leaf 是最初的 1.x 名称。已有仓库、
-> 会话和个人设置继续使用同一个本机 Profile；`openpeek`、`git-leaf` CLI 命令及其 URL scheme 继续作为兼容入口，
-> 新生成的命令和链接统一使用 `openglance` 与 `openglance://`。GitHub 会把之前的仓库地址重定向到
+> **名称迁移：** OpenGlance 替代最初的 Git Leaf 1.x 名称。已有仓库、会话和个人设置继续使用同一个本机
+> Profile；`git-leaf` CLI 命令及其 URL scheme 继续作为兼容入口，新生成的命令和链接统一使用 `openglance`
+> 与 `openglance://`。GitHub 会把之前的仓库地址重定向到
 > `openglance/openglance`；下载域名和更新服务根路径暂时保持原地址，等待后续独立完成域名迁移。
 
 ## 为什么需要 OpenGlance？
@@ -186,8 +186,8 @@ npm start -- /path/to/docs-repo/README.md --no-open
 ```
 
 桌面版和 CLI／Web 服务都只监听 localhost。人工安装的 `OpenGlance dev` 会替换同一个已安装 App，并与
-正式版共用真实 Profile，因此正常工作的仓库和界面状态会保留。全新安装使用 `OpenGlance.app`；如果内部用户
-已经有 `OpenPeek.app` 或 `Git Leaf.app`，会复用原路径，避免 macOS 同时保留重复的 App。只有 Agent 自动化 smoke
+正式版共用真实 Profile，因此正常工作的仓库和界面状态会保留。全新安装使用 `OpenGlance.app`；维护者安装
+开发构建时，会在规范副本成功写入后迁移已有的 `Git Leaf.app`，避免 macOS 同时保留重复的 App。只有 Agent 自动化 smoke
 使用隔离的一次性副本，不能写入真实 Profile。具体命令和安全边界见 [AGENTS.md](AGENTS.md)。
 
 ## 构建身份与隐私

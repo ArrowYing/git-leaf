@@ -126,22 +126,12 @@ test("OpenGlance repository renames preserve legacy local checkout identity", ()
     "openglance/openglance",
   );
   assert.equal(
-    githubRepositoryIdentityFromRemote("https://github.com/MangoFuture1210/openpeek.git"),
-    "openglance/openglance",
-  );
-  assert.equal(
     githubRepositoryIdentityFromRemote("https://github.com/MangoFuture1210/openglance.git"),
     "openglance/openglance",
   );
   assert.equal(
     githubRepositoryIdentityFromRemote(
       "git@github.com:MangoFuture1210/git-leaf-example-knowledge-base.git",
-    ),
-    "openglance/openglance-example-knowledge-base",
-  );
-  assert.equal(
-    githubRepositoryIdentityFromRemote(
-      "git@github.com:MangoFuture1210/openpeek-example-knowledge-base.git",
     ),
     "openglance/openglance-example-knowledge-base",
   );
@@ -172,13 +162,6 @@ test("findGithubRepositoryRoot matches OpenGlance links against legacy local rem
       candidateAccess: async () => {},
     }),
     "/legacy-openglance",
-  );
-  assert.equal(
-    await findGithubRepositoryRoot("openglance/openglance", ["/openpeek-checkout"], {
-      originReader: async () => "https://github.com/MangoFuture1210/openpeek.git",
-      candidateAccess: async () => {},
-    }),
-    "/openpeek-checkout",
   );
   assert.equal(
     await findGithubRepositoryRoot("MangoFuture1210/git-leaf", ["/renamed-openglance"], {

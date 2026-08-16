@@ -18,6 +18,7 @@ import {
   openSync,
   readFileSync,
   readdirSync,
+  renameSync,
   rmSync,
   statSync,
   writeFileSync,
@@ -83,7 +84,7 @@ export function assertSafeMacUpdateRegressionHost({
     throw new Error("The macOS update regression harness requires macOS");
   }
   const conflicts = [
-    [productionAppRunning, "an installed OpenGlance, OpenPeek, or Git Leaf App is running"],
+    [productionAppRunning, "an installed OpenGlance or Git Leaf App is running"],
     [userShipItJobExists, "the per-user ShipIt launchd job exists"],
     [systemShipItJobExists, "the system ShipIt launchd job exists"],
   ].filter(([present]) => present).map(([, message]) => message);
@@ -184,7 +185,6 @@ function hostPaths({ homeDir = homedir() } = {}) {
   return {
     productionAppPaths: [
       "/Applications/OpenGlance.app",
-      "/Applications/OpenPeek.app",
       "/Applications/Git Leaf.app",
     ],
     productionProfilePath: path.join(
@@ -204,7 +204,6 @@ export function assertCurrentHostSafe() {
   });
   const productionExecutables = paths.productionAppPaths.flatMap((appPath) => [
     path.join(appPath, "Contents", "MacOS", "OpenGlance"),
-    path.join(appPath, "Contents", "MacOS", "OpenPeek"),
     path.join(appPath, "Contents", "MacOS", "Git Leaf"),
   ]);
   assertSafeMacUpdateRegressionHost({
@@ -451,13 +450,26 @@ export function extractSingleApp(zipPath, destinationDir) {
   return apps[0];
 }
 
+export function prepareInstalledBaselineAppPath(appPath, {
+  track,
+  renamePath = renameSync,
+} = {}) {
+  const source = path.resolve(appPath);
+  if (track !== "internal" || path.basename(source) === "Git Leaf.app") {
+    return source;
+  }
+  const target = path.join(path.dirname(source), "Git Leaf.app");
+  renamePath(source, target);
+  return target;
+}
+
 export function verifyAppSignature(appPath) {
   runChecked("codesign", ["--verify", "--deep", "--strict", "--verbose=2", appPath]);
 }
 
 function renameMigrationDesktopConfig({ repoRoot, targetVersion }) {
   return {
-    renameMigrationSentinel: "git-leaf-1.x-openpeek-2.x-to-openglance-3.x",
+    renameMigrationSentinel: "git-leaf-1.x-to-openglance-3.x",
     repoRoot,
     openRepoRoots: [repoRoot],
     usageAnalyticsEnabled: false,
@@ -968,7 +980,10 @@ async function runHarness({
       candidateManifest.files.zip,
       candidateZipPath,
     );
-    const appPath = extractSingleApp(baselineZipPath, installDir);
+    const appPath = prepareInstalledBaselineAppPath(
+      extractSingleApp(baselineZipPath, installDir),
+      { track },
+    );
     const candidateAppPath = extractSingleApp(
       candidateZipPath,
       candidateExtractDir,
@@ -1326,7 +1341,7 @@ function printHelp() {
     [--base-url URL]
 
 This harness runs on the release Mac with an isolated HOME and Electron Profile.
-It refuses to start while an installed OpenGlance, OpenPeek, or Git Leaf App is running or a ShipIt
+It refuses to start while an installed OpenGlance or Git Leaf App is running or a ShipIt
 launchd job already exists.`);
 }
 

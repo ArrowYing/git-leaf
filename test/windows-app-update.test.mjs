@@ -292,7 +292,6 @@ test("Windows prepared update launches outside the fixed directory and waits for
     },
     currentProcessId: 4321,
     args: [
-      "--openpeek-update-wait-pid=5678",
       "--git-leaf-update-wait-pid=1234",
       "openglance://open?repo=owner%2Frepo&path=README.md",
     ],

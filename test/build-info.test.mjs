@@ -9,7 +9,6 @@ import {
   appDisplayName,
   BUILD_INFO_FILENAME,
   LEGACY_BUILD_INFO_FILENAME,
-  OPENPEEK_BUILD_INFO_FILENAME,
   buildDistributionLabel,
   isOfficialDistribution,
   readBuildInfo,
@@ -198,7 +197,7 @@ test("source builds without generated identity may use an analytics environment 
   assert.equal(buildInfo.usageAnalyticsDefault, true);
 });
 
-test("OpenGlance prioritizes its identity over OpenPeek 2.x and Git Leaf 1.x fallbacks", async () => {
+test("OpenGlance prioritizes its identity over the Git Leaf 1.x fallback", async () => {
   const rootDir = await mkdtemp(path.join(tmpdir(), "openglance-legacy-build-info-"));
   await writeFile(path.join(rootDir, "package.json"), JSON.stringify({ version: "2.0.0" }), "utf8");
   await writeFile(path.join(rootDir, LEGACY_BUILD_INFO_FILENAME), JSON.stringify({
@@ -208,12 +207,6 @@ test("OpenGlance prioritizes its identity over OpenPeek 2.x and Git Leaf 1.x fal
   }), "utf8");
 
   assert.equal(readBuildInfo({ rootDir }).version, "1.21.0");
-  await writeFile(path.join(rootDir, OPENPEEK_BUILD_INFO_FILENAME), JSON.stringify({
-    version: "2.0.0",
-    distribution: "official",
-    releaseTrack: "internal",
-  }), "utf8");
-  assert.equal(readBuildInfo({ rootDir }).version, "2.0.0");
   await writeFile(path.join(rootDir, BUILD_INFO_FILENAME), JSON.stringify({
     version: "3.0.0",
     distribution: "official",
@@ -227,10 +220,6 @@ test("OpenGlance prioritizes its identity over OpenPeek 2.x and Git Leaf 1.x fal
     rootDir: envRoot,
     env: { GIT_LEAF_VERSION: "1.20.0", GIT_LEAF_DEV: "true" },
   }).version, "1.20.0");
-  assert.equal(readBuildInfo({
-    rootDir: envRoot,
-    env: { OPENPEEK_VERSION: "2.0.0", GIT_LEAF_VERSION: "1.20.0" },
-  }).version, "2.0.0");
   assert.equal(readBuildInfo({
     rootDir: envRoot,
     env: { OPENGLANCE_VERSION: "3.0.1", GIT_LEAF_VERSION: "1.20.0" },

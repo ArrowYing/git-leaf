@@ -103,16 +103,17 @@ After changing macOS packaging, signing, notarization, local installation, or ic
 `npm run test:ci:mac`. Run `make install-dev-mac` only when a local application update must be verified.
 
 `make install-dev-mac` installs or replaces the same human-facing app installation and therefore uses
-the same real, persistent configuration as the formal app. A new installation uses `OpenGlance.app`; an
-existing internal `OpenPeek.app` or `Git Leaf.app` is reused instead of creating a duplicate. The
+the same real, persistent configuration as the formal app. It installs `OpenGlance.app` and removes an
+existing `Git Leaf.app` only after the canonical copy succeeds. The
 interface identifies the embedded development build as `OpenGlance dev`, and that build does not check
 for production updates, but build identity must not select a different Profile. Replacing the app must
 preserve the repositories, sessions, appearance, typography, language, favorites, and sidebar state the
 user already uses.
 
-During the 3.0 transition, internal official macOS packages retain the existing Git Leaf Bundle ID and
-hidden executable for upgrade continuity. Public official and Community packages use OpenGlance-native
-identities; `openpeek` and `git-leaf` inputs remain compatibility-only aliases.
+Internal official macOS packages retain the existing Git Leaf Bundle ID, ShipIt identity, Profile, and
+update coordinates for upgrade continuity while using OpenGlance as the visible and executable name.
+Public official and Community packages use OpenGlance-native identities; `git-leaf` inputs remain a
+compatibility-only alias.
 
 Agent-driven automated verification is a different launch intent. It must use the explicit, one-time
 snapshot created by `make smoke-dev-mac`; the snapshot is derived read-only from the real Profile, writes

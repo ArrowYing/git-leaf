@@ -30,23 +30,22 @@ The safe default is always `source + source + false`. Operating-system identitie
 | --- | --- | --- | --- |
 | `source + source` | `org.openglance.community` | `OpenGlance` | none |
 | `official + public` | `com.mangofuture.openglance` | `OpenGlance` | none |
-| `official + internal` | `com.mangofuture.gitleaf` | `Git Leaf` | `OpenPeek.exe`, `Git Leaf.exe` |
+| `official + internal` | `com.mangofuture.gitleaf` | `OpenGlance` | `Git Leaf.exe` |
 
 On Windows, Community package metadata uses `OpenGlance Community`; both official tracks use the
 Mango Future publisher identity.
 
-All newly built Windows packages use `OpenGlance.exe` as the canonical executable. The two extra files
-exist only in internal packages so baked-in 2.x and 1.x updaters can launch the 3.0 migration. Build
+All newly built Windows packages use `OpenGlance.exe` as the canonical executable. The extra file
+exists only in internal packages so the baked-in 1.x updater can launch the migration. Build
 metadata is informational and can be changed by anyone compiling the source. Official identity is
 established by the Mango Future code signature, official download channel, SHA-256, release tag, and
 matching public commit.
 
-Version 3.0 changes the canonical name from the short-lived OpenPeek identity to OpenGlance. Runtime
-readers accept `openpeek-build-info.json` / `OPENPEEK_*` from 2.x and
-`git-leaf-build-info.json` / `GIT_LEAF_*` from 1.x, in that order after the canonical OpenGlance names.
-Every newly prepared package writes only `openglance-build-info.json` and `OPENGLANCE_*`. The internal
-macOS Bundle ID, hidden executable, ShipIt identity, `git-leaf` Profile directory, analytics schema, and
-update-service coordinates remain stable for installed company users. Earlier public packages were not
+Version 3.0 changes the canonical name from Git Leaf to OpenGlance. Runtime readers accept
+`git-leaf-build-info.json` / `GIT_LEAF_*` from 1.x after the canonical OpenGlance names. Every newly
+prepared package writes only `openglance-build-info.json` and `OPENGLANCE_*`. The internal macOS Bundle
+ID, ShipIt identity, `git-leaf` Profile directory, analytics schema, and update-service coordinates
+remain stable for installed company users. Earlier public packages were not
 promoted, so future public and Community packages use clean OpenGlance-native Bundle IDs. GitHub
 repository names use the canonical OpenGlance identity and preserve earlier URLs as redirects.
 
@@ -118,8 +117,8 @@ official profile and track are present.
 ## Human and automation Profiles
 
 The installed formal app and a development build installed for human use are the same App installation.
-A new installation is `OpenGlance.app`; an existing internal `OpenPeek.app` or `Git Leaf.app` path is
-reused during the 3.0 transition. All use the same real Electron Profile so replacing one build with
+A new installation is `OpenGlance.app`; a development install copies the canonical App successfully
+before removing an existing `Git Leaf.app`. All use the same real Electron Profile so replacing one build with
 another preserves repositories, workbench sessions, favorites, language, and preferences. A packaged
 `dev=true, source, source` build may perform only the one-way internal handoff defined below; the build
 marker does not make it official, enable telemetry, or select a `git-leaf-dev` directory.
@@ -389,7 +388,7 @@ npm run release:verify-update:mac -- \
   --output dist/macos-update-regression/release-gate.json
 ```
 
-The harness refuses to start while an installed OpenGlance, OpenPeek, or Git Leaf App is running or any relevant ShipIt launchd job
+The harness refuses to start while an installed OpenGlance or Git Leaf App is running or any relevant ShipIt launchd job
 already exists. It uses a temporary App location whose parent is deliberately not writable, plus
 isolated HOME and Electron Profile paths when exercising the in-App updater. For a stable version older
 than the first nonprivileged-only package, it uses the one-time `Contents` bridge instead of launching
@@ -448,10 +447,12 @@ therefore replaces its signed `Contents` directory without write access to the r
 `/Applications` parent; an App bundle that is itself not writable fails closed as an installation repair
 case. The regression requires the `.app` directory inode to remain unchanged.
 
-During the 3.0 migration, internal official macOS packages use the canonical visible `OpenGlance.app`
-bundle and ZIP root while retaining `Git Leaf` as the hidden `CFBundleExecutable`. OpenGlance atomically
-sets `useUpdateBundleName=false` before ShipIt installs, preserving an existing `OpenPeek.app` or
-`Git Leaf.app` directory. Public official and Community packages use the canonical executable and their
+Internal official macOS packages use the canonical `OpenGlance.app` bundle and ZIP root with
+`CFBundleExecutable=OpenGlance`. Before ShipIt installs into a legacy `Git Leaf.app`, OpenGlance
+atomically sets `useUpdateBundleName=true` only when the parent directory is writable, allowing ShipIt
+to move the existing bundle to `OpenGlance.app`. With a non-writable parent it sets the value to `false`,
+preserving the outer path while updating signed `Contents` in place. Both outcomes preserve one App and
+the same Profile. Public official and Community packages use the canonical executable and their
 OpenGlance-native Bundle IDs; they do not inherit the internal machine identity.
 
 This gate validates installation of the final signed package and its cleanup contract. It is not a
@@ -547,7 +548,7 @@ Before publication:
 3. Build macOS and Windows candidates.
 4. Inspect the DMG, ZIP, and `app.asar` file lists and text content.
 5. Confirm an official macOS DMG and update ZIP use the visible `OpenGlance.app` identity and ZIP root;
-   internal signed Apps retain `CFBundleExecutable=Git Leaf`, while public signed Apps use `OpenGlance`.
+   every newly signed App uses `CFBundleExecutable=OpenGlance`.
 6. Confirm packages exclude `.agents/`, `docs/`, `test/`, `dist/`, `.git/`, release profiles, signing material, and internal operations documents.
 7. Verify source, official public, and official internal behavior independently.
 8. Confirm track, channel, manifest, SHA-256, tag, and public commit correspondence.

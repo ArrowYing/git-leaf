@@ -22,7 +22,7 @@ import { createDesktopUpdateController } from "./updates.mjs";
 import { configureMacUpdateInstallation } from "./mac-update-installation.mjs";
 import {
   macShipItJobLabelForBuildInfo,
-  preserveMacUpdateAppPath,
+  prepareMacUpdateAppPath,
 } from "./mac-update-cache.mjs";
 import {
   launchMacDevelopmentHandoffUpdate,
@@ -484,7 +484,6 @@ async function initializeDesktopTelemetry() {
 function initialTelemetryEntryKind() {
   if (process.argv.some((argument) => [
     "--openglance-install-confirm=",
-    "--openpeek-install-confirm=",
     "--git-leaf-install-confirm=",
   ].some((prefix) => String(argument).startsWith(prefix)))) {
     return "windows_bootstrap";
@@ -850,7 +849,7 @@ function installUpdateController() {
         currentProcessId: process.pid,
       })
     ),
-    prepareMacUpdateInstallation: () => preserveMacUpdateAppPath({
+    prepareMacUpdateInstallation: () => prepareMacUpdateAppPath({
       homeDir: app.getPath("home"),
       jobLabel: macShipItJobLabelForBuildInfo(BUILD_INFO),
       targetAppPath: macAppBundlePathFromExecutable(),

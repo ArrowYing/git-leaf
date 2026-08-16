@@ -1,6 +1,6 @@
 {
   "name": "openglance",
-  "version": "3.0.1",
+  "version": "3.0.2",
   "private": true,
   "type": "module",
   "main": "src/desktop/main.mjs",
@@ -44,7 +44,6 @@
   },
   "bin": {
     "openglance": "src/cli.mjs",
-    "openpeek": "src/cli.mjs",
     "git-leaf": "src/cli.mjs"
   },
   "engines": {

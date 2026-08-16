@@ -175,17 +175,7 @@ test("OpenGlance finds a deep link anywhere in desktop process arguments", () =>
   );
 });
 
-test("OpenGlance continues to open OpenPeek 2.x and Git Leaf 1.x deep links", () => {
-  assert.deepEqual(
-    parseOpenGlanceDeepLink(
-      "openpeek://open?repo=%2FUsers%2Fmaintainer%2FProjects%2Fcompany-docs&path=README.md",
-      { platform: "darwin" },
-    ),
-    {
-      repoRoot: "/Users/maintainer/Projects/company-docs",
-      file: "README.md",
-    },
-  );
+test("OpenGlance continues to open Git Leaf 1.x deep links", () => {
   assert.deepEqual(
     parseOpenGlanceDeepLink(
       "git-leaf://open?repo=%2FUsers%2Fmaintainer%2FProjects%2Fcompany-docs&path=README.md",

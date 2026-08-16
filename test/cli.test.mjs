@@ -71,22 +71,6 @@ test("reusableOpenGlanceUrl accepts a healthy Git Leaf 1.x server for the same r
   }
 });
 
-test("reusableOpenGlanceUrl accepts a healthy OpenPeek 2.x server for the same repository", async () => {
-  const server = healthServer({ app: "openpeek", repoRoot: "/repo/a" });
-  const port = await listen(server);
-
-  try {
-    assert.equal(await reusableOpenGlanceUrl({
-      repoRoot: "/repo/a",
-      port,
-      relativePath: "README.md",
-      readRecord: async () => ({ app: "openpeek", repoRoot: "/repo/a", port }),
-    }), `http://127.0.0.1:${port}/?file=README.md`);
-  } finally {
-    await close(server);
-  }
-});
-
 test("reusableOpenGlanceUrl opens a requested document on an existing server", async () => {
   const server = healthServer({ repoRoot: "/repo/a" });
   const port = await listen(server);
@@ -432,12 +416,6 @@ test("OpenGlance command detection accepts Windows paths", () => {
   assert.equal(
     openGlanceCommandLineLooksLikeOpenGlance(
       'C:\\Program Files\\nodejs\\node.exe C:\\Users\\ops\\git-leaf\\src\\cli.mjs --no-open',
-    ),
-    true,
-  );
-  assert.equal(
-    openGlanceCommandLineLooksLikeOpenGlance(
-      "C:\\Program Files\\nodejs\\node.exe C:\\Users\\ops\\openpeek\\src\\cli.mjs --no-open",
     ),
     true,
   );

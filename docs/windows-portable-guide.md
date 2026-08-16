@@ -17,7 +17,7 @@ Because the executable is not Authenticode-signed, Windows can show an unknown p
 1. Open `https://gitleaf.mangofuture.com/download#windows`.
 2. Download `OpenGlance-<version>-public-win32-x64.zip`.
 3. Compare the ZIP's SHA-256 with the checksum published for that release.
-4. Fully exit an older OpenGlance, OpenPeek, or Git Leaf process.
+4. Fully exit an older OpenGlance or Git Leaf process.
 5. Extract the whole ZIP. Do not run the executable from the archive preview.
 6. Open `OpenGlance-win32-x64` and run `OpenGlance.exe`.
 7. OpenGlance copies the complete app into `%LOCALAPPDATA%\OpenGlance\app`, creates the Start Menu shortcut, and relaunches from the fixed location.
@@ -33,8 +33,8 @@ An official Windows build checks for metadata but does not download an update un
 
 Updates do not change an existing local `usageAnalyticsEnabled` setting.
 
-When an OpenPeek 2.x or Git Leaf 1.x fixed installation updates to OpenGlance 3.0, the matching
-compatibility executable and old updater arguments are accepted once, the app is copied to
+When a Git Leaf 1.x fixed installation updates to OpenGlance, the compatibility executable and old
+updater arguments are accepted once, the app is copied to
 `%LOCALAPPDATA%\OpenGlance\app`, and the new executable must confirm startup before the old installation
 is retired. If Windows still has the old updater open, cleanup is retried on the next OpenGlance launch.
 
@@ -61,7 +61,7 @@ Start-Process 'openglance://open'
 Start-Process 'openglance://open?repo=C%3A%5CUsers%5Cexample%5CProjects%5Copenglance-guide-demo&path=README.md'
 ```
 
-Existing `openpeek://` and `git-leaf://` links remain accepted for 2.x and 1.x compatibility.
+Existing `git-leaf://` links remain accepted for 1.x compatibility.
 OpenGlance generates only `openglance://` links.
 
 `repo` is a URL-encoded local repository path. `path` is a repository-relative Markdown or MDX path. HTTPS share links use a GitHub `owner/repo` identity and do not transmit a recipient's local path or document content. The public HTTPS handoff is hosted by Mango Future; see [Hosted `/open` and `/share` links](hosted-links.md) for the exact metadata.

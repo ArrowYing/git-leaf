@@ -1,6 +1,5 @@
 import { normalizeOpenGlanceHandoffId } from "./handoff.mjs";
 import {
-  OPENGLANCE_OPENPEEK_PROTOCOL,
   OPENGLANCE_GIT_LEAF_PROTOCOL,
   OPENGLANCE_LEGACY_PROTOCOL,
   OPENGLANCE_PROTOCOL,
@@ -26,7 +25,6 @@ export {
 } from "../server/hosted-links.mjs";
 
 export {
-  OPENGLANCE_OPENPEEK_PROTOCOL,
   OPENGLANCE_GIT_LEAF_PROTOCOL,
   OPENGLANCE_LEGACY_PROTOCOL,
   OPENGLANCE_PROTOCOL,

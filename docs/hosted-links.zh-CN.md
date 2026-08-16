@@ -9,7 +9,7 @@ OpenGlance 文档始终保存在本机 Git 仓库中。OpenGlance 生成的公�
 权限，也不会把私有仓库变成公开仓库。
 
 OpenGlance 自己复制的新链接统一使用规范的 `openglance://`。在已安装客户端迁移期间，托管页面会启动等价的
-`git-leaf://` 兼容链接，因为 Git Leaf 1.x、OpenPeek 2.x 和 OpenGlance 3.x 都注册了这个协议。这不会改变
+`git-leaf://` 兼容链接，因为 Git Leaf 1.x 与 OpenGlance 都注册了这个协议。这不会改变
 用户看到的产品名称，也不会改变 OpenGlance 复制的新链接格式。
 
 ## `/open`

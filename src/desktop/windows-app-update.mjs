@@ -17,11 +17,9 @@ import extractZip from "extract-zip";
 import { compareAppVersions } from "./app-updates.mjs";
 
 const WINDOWS_UPDATE_WAIT_ARGUMENT = "--openglance-update-wait-pid=";
-const OPENPEEK_WINDOWS_UPDATE_WAIT_ARGUMENT = "--openpeek-update-wait-pid=";
 const GIT_LEAF_WINDOWS_UPDATE_WAIT_ARGUMENT = "--git-leaf-update-wait-pid=";
 const WINDOWS_UPDATE_WAIT_ARGUMENTS = [
   WINDOWS_UPDATE_WAIT_ARGUMENT,
-  OPENPEEK_WINDOWS_UPDATE_WAIT_ARGUMENT,
   GIT_LEAF_WINDOWS_UPDATE_WAIT_ARGUMENT,
 ];
 const WINDOWS_EXECUTABLE = "OpenGlance.exe";

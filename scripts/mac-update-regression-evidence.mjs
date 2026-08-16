@@ -23,18 +23,14 @@ export function validateMacUpdateRegressionEvidence(evidence, {
   commit,
   buildId,
 } = {}) {
-  const productRenameRelease = String(evidence?.fromVersion || "").startsWith("1.")
-    && String(version || "").startsWith("2.0.");
-  const productRenameIdentityMatches = !productRenameRelease || (
-    evidence.baselineAppIdentity?.bundleName === "Git Leaf.app"
-    && evidence.baselineAppIdentity?.productName === "Git Leaf"
-    && evidence.baselineAppIdentity?.executable === "Git Leaf"
-    && evidence.candidateAppIdentity?.bundleName === "OpenGlance.app"
+  const canonicalIdentityMatches = (
+    evidence.candidateAppIdentity?.bundleName === "OpenGlance.app"
     && evidence.candidateAppIdentity?.productName === "OpenGlance"
-    && evidence.candidateAppIdentity?.executable === "Git Leaf"
-    && evidence.installedAppIdentity?.bundleName === "Git Leaf.app"
+    && evidence.candidateAppIdentity?.executable === "OpenGlance"
+    && evidence.installedAppIdentity?.bundleName
+      === evidence.baselineAppIdentity?.bundleName
     && evidence.installedAppIdentity?.productName === "OpenGlance"
-    && evidence.installedAppIdentity?.executable === "Git Leaf"
+    && evidence.installedAppIdentity?.executable === "OpenGlance"
   );
   const inAppIsolationMatches = evidence.installMode !== "in-app-update" || (
     evidence.updateActionReady === true
@@ -57,7 +53,7 @@ export function validateMacUpdateRegressionEvidence(evidence, {
     || evidence.directContentsWrite !== true
     || evidence.appDirectoryInodePreserved !== true
     || evidence.profileStatePreserved !== true
-    || !productRenameIdentityMatches
+    || !canonicalIdentityMatches
     || evidence.installParentWritable !== false
     || evidence.privilegedShipItJobObserved !== false
     || evidence.squirrelPolicy?.policy !== "nonprivileged-only"

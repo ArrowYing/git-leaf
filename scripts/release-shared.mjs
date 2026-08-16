@@ -66,7 +66,7 @@ export const OFFICIAL_PUBLIC_PACKAGE_IDENTITY = Object.freeze({
 
 export const OFFICIAL_INTERNAL_PACKAGE_IDENTITY = Object.freeze({
   macBundleId: "com.mangofuture.gitleaf",
-  macExecutableName: "Git Leaf",
+  macExecutableName: "OpenGlance",
   windowsCompanyName: "Shenzhen Mango Future Technology Co., Ltd.",
   windowsProductName: "OpenGlance",
 });

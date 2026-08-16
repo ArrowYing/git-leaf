@@ -45,24 +45,23 @@ OpenGlance is optimized for three jobs:
 OpenGlance is not an agent runtime, model host, account service, public documentation site, or general
 code editor.
 
-## Product identity and 3.0 compatibility
+## Product identity and compatibility
 
-OpenGlance is the canonical product identity beginning with version 3.0. OpenPeek was the short-lived
-2.0 source identity, and Git Leaf was the 1.x identity. New visible desktop bundle names, package
+OpenGlance is the canonical product identity beginning with version 3.0; Git Leaf was the 1.x identity.
+New visible desktop bundle names, package
 artifacts, CLI output, generated deep links, environment variables, and embedded build metadata use
 `OpenGlance`, `openglance`, `openglance://`, `OPENGLANCE_*`, and `openglance-build-info.json`.
 
-The rename must not create another application state or strand either earlier generation. These
+The rename must not create another application state or strand existing Git Leaf users. These
 identifiers remain compatibility contracts:
 
 - Electron `userData` and `sessionData` stay under the `git-leaf` Profile directory on every platform;
-- `openpeek` and `git-leaf` remain CLI aliases, and the app parses and registers `openpeek://` and
-  `git-leaf://` alongside the canonical protocol while generating only `openglance://` links;
-- `OPENPEEK_*` and `GIT_LEAF_*` environment inputs plus `openpeek-build-info.json` and
-  `git-leaf-build-info.json` remain read-only fallbacks in newest-to-oldest order;
-- official internal macOS packages retain `com.mangofuture.gitleaf`, hidden
-  `CFBundleExecutable=Git Leaf`, and `com.mangofuture.gitleaf.ShipIt` because installed internal Apps
-  actively depend on those operating-system identities;
+- `git-leaf` remains a CLI alias, and the app parses and registers `git-leaf://` alongside the canonical
+  protocol while generating only `openglance://` links;
+- `GIT_LEAF_*` environment inputs and `git-leaf-build-info.json` remain read-only fallbacks;
+- official internal macOS packages retain `com.mangofuture.gitleaf` and
+  `com.mangofuture.gitleaf.ShipIt` because installed internal Apps actively depend on those
+  operating-system identities, while `CFBundleExecutable` is now `OpenGlance`;
 - future official public macOS packages use `com.mangofuture.openglance`, and Community packages use
   `org.openglance.community`; both use the canonical `OpenGlance` executable and their corresponding
   ShipIt cache identity;
@@ -72,17 +71,18 @@ identifiers remain compatibility contracts:
 - `gitleaf.mangofuture.com` and update-service `/git-leaf` roots remain unchanged until their separately
   coordinated domain migration.
 
-On macOS, a new installation uses `OpenGlance.app`. A human development install reuses an existing
-`OpenPeek.app` or `Git Leaf.app` path, and an internal official update keeps the current App directory.
-Before ShipIt restarts an internal App, OpenGlance atomically sets `useUpdateBundleName=false` in the
-identity-bound request; therefore the canonical update ZIP and DMG can contain `OpenGlance.app` without
-creating a second installed App. Public packages have a clean OpenGlance Bundle ID and do not inherit
-the unpublished earlier public identity.
+On macOS, a new installation uses `OpenGlance.app`. A human development install writes the canonical App
+first and then removes an existing `Git Leaf.app`. For an official internal update from `Git Leaf.app`,
+OpenGlance atomically enables Squirrel's bundle rename only when the containing directory is writable;
+ShipIt then moves the existing bundle to `OpenGlance.app` before installing the signed candidate. If the
+parent is not writable, OpenGlance sets `useUpdateBundleName=false` so the signed `Contents` update still
+succeeds in place. The visible product name and executable become OpenGlance in either case, no duplicate
+App is created, and a later update may retry the outer-path rename.
 
-On Windows, internal 3.0 packages contain bounded `OpenPeek.exe` and `Git Leaf.exe` copies so the baked-in
-2.x and 1.x updaters can launch the new code. The new process migrates either fixed installation into
-`%LOCALAPPDATA%\OpenGlance\app`, removes both compatibility executables from the canonical installation,
-and deletes an old install tree and shortcut only after `OpenGlance.exe` confirms startup. Public and
+On Windows, internal packages contain one bounded `Git Leaf.exe` copy so the baked-in 1.x updater can
+launch the new code. The new process migrates the old fixed installation into
+`%LOCALAPPDATA%\OpenGlance\app`, removes the compatibility executable from the canonical installation,
+and deletes the old install tree and shortcut only after `OpenGlance.exe` confirms startup. Public and
 Community packages contain only the canonical executable.
 
 ## Runtime model
@@ -584,7 +584,7 @@ minutes. They do not fetch a Git repository or document body. The exact transmit
 HTTP exposure are documented in [Hosted link handoff](hosted-links.md).
 
 During the installed-client migration, the hosted service emits the equivalent `git-leaf://` handoff
-because that compatibility scheme is registered by Git Leaf 1.x, OpenPeek 2.x, and OpenGlance 3.x.
+because that compatibility scheme is registered by both Git Leaf 1.x and OpenGlance.
 OpenGlance-generated links remain canonical `openglance://` links.
 
 The separate `/download` page never launches a desktop protocol. It shows only manifests explicitly marked
@@ -655,8 +655,8 @@ No path may form a render → save session → save preference → broadcast →
 
 ## Build identity and updates
 
-Every packaged app embeds build metadata in `openglance-build-info.json`; readers also accept the 2.x
-`openpeek-build-info.json` and 1.x `git-leaf-build-info.json` filenames. Community builds use the technical
+Every packaged app embeds build metadata in `openglance-build-info.json`; readers also accept the 1.x
+`git-leaf-build-info.json` filename. Community builds use the technical
 `distribution=source, releaseTrack=source` identity, display `Community build`, use the macOS bundle ID
 `org.openglance.community`, and use `OpenGlance Community` publisher metadata on Windows. They do not check
 Mango Future update feeds or send usage analytics.
@@ -687,7 +687,7 @@ preserving the one referenced by `ShipItState.plist`. The steady state therefore
 complete downloaded-but-uninstalled package. Failed preparation remains retryable and must not
 masquerade as an active download.
 
-Immediately before a normal macOS installation, OpenGlance revalidates that `ShipItState.plist` is a regular file under the official per-user ShipIt cache, that its update bundle remains inside the staged `update.*` directory, and that its target is the currently running App. It then atomically disables ShipIt's bundle-name migration. A mismatch fails closed before `quitAndInstall`, preserving both the current `OpenGlance.app` path used by new installations and the legacy `Git Leaf.app` path reused by 1.x upgrades.
+Immediately before a normal macOS installation, OpenGlance revalidates that `ShipItState.plist` is a regular file under the official per-user ShipIt cache, that its update bundle remains inside the staged `update.*` directory, and that its target is the currently running App. It atomically enables ShipIt's bundle-name migration only for a `Git Leaf.app` target whose parent is writable; every other update disables the rename and replaces signed `Contents` in place. A mismatch fails closed before `quitAndInstall`.
 
 Windows coordinates preparation and cleanup per update-cache root. A valid cached package is reusable
 only after its sibling entries are removed, and startup cleanup removes current, older, invalid, and

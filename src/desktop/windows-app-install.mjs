@@ -19,16 +19,12 @@ const WINDOWS_INSTALL_PARENT = "OpenGlance";
 const WINDOWS_INSTALL_DIR = "app";
 const WINDOWS_EXECUTABLE = "OpenGlance.exe";
 const WINDOWS_INSTALL_STATE = "install-state.json";
-const OPENPEEK_WINDOWS_INSTALL_PARENT = "OpenPeek";
-const OPENPEEK_WINDOWS_EXECUTABLE = "OpenPeek.exe";
 const GIT_LEAF_WINDOWS_INSTALL_PARENT = "GitLeaf";
 const GIT_LEAF_WINDOWS_EXECUTABLE = "Git Leaf.exe";
 const WINDOWS_INSTALL_CONFIRM_ARGUMENT = "--openglance-install-confirm=";
-const OPENPEEK_WINDOWS_INSTALL_CONFIRM_ARGUMENT = "--openpeek-install-confirm=";
 const GIT_LEAF_WINDOWS_INSTALL_CONFIRM_ARGUMENT = "--git-leaf-install-confirm=";
 const WINDOWS_INSTALL_CONFIRM_ARGUMENTS = [
   WINDOWS_INSTALL_CONFIRM_ARGUMENT,
-  OPENPEEK_WINDOWS_INSTALL_CONFIRM_ARGUMENT,
   GIT_LEAF_WINDOWS_INSTALL_CONFIRM_ARGUMENT,
 ];
 const WINDOWS_INSTALL_MESSAGES = Object.freeze({
@@ -91,8 +87,6 @@ export function windowsInstalledAppPaths({
   roamingAppData = inferRoamingAppData(localAppData),
 } = {}) {
   const installRoot = path.win32.join(localAppData, WINDOWS_INSTALL_PARENT, WINDOWS_INSTALL_DIR);
-  const openPeekInstallParent = path.win32.join(localAppData, OPENPEEK_WINDOWS_INSTALL_PARENT);
-  const openPeekInstallRoot = path.win32.join(openPeekInstallParent, WINDOWS_INSTALL_DIR);
   const gitLeafInstallParent = path.win32.join(localAppData, GIT_LEAF_WINDOWS_INSTALL_PARENT);
   const gitLeafInstallRoot = path.win32.join(gitLeafInstallParent, WINDOWS_INSTALL_DIR);
   const shortcutRoot = path.win32.join(
@@ -102,14 +96,6 @@ export function windowsInstalledAppPaths({
     "Start Menu",
     "Programs",
   );
-  const openPeekInstallation = {
-    name: "OpenPeek",
-    installParent: openPeekInstallParent,
-    installRoot: openPeekInstallRoot,
-    executable: path.win32.join(openPeekInstallRoot, OPENPEEK_WINDOWS_EXECUTABLE),
-    stateFile: path.win32.join(openPeekInstallParent, WINDOWS_INSTALL_STATE),
-    shortcut: path.win32.join(shortcutRoot, "OpenPeek.lnk"),
-  };
   const gitLeafInstallation = {
     name: "Git Leaf",
     installParent: gitLeafInstallParent,
@@ -123,17 +109,12 @@ export function windowsInstalledAppPaths({
     executable: path.win32.join(installRoot, WINDOWS_EXECUTABLE),
     stateFile: path.win32.join(localAppData, WINDOWS_INSTALL_PARENT, WINDOWS_INSTALL_STATE),
     shortcut: path.win32.join(shortcutRoot, "OpenGlance.lnk"),
-    openPeekInstallParent,
-    openPeekInstallRoot,
-    openPeekExecutable: openPeekInstallation.executable,
-    openPeekStateFile: openPeekInstallation.stateFile,
-    openPeekShortcut: openPeekInstallation.shortcut,
     gitLeafInstallParent,
     gitLeafInstallRoot,
     gitLeafExecutable: gitLeafInstallation.executable,
     gitLeafStateFile: gitLeafInstallation.stateFile,
     gitLeafShortcut: gitLeafInstallation.shortcut,
-    legacyInstallations: [openPeekInstallation, gitLeafInstallation],
+    legacyInstallations: [gitLeafInstallation],
     // Source-level aliases retained for integrations that mean the Git Leaf 1.x installation.
     legacyInstallParent: gitLeafInstallParent,
     legacyInstallRoot: gitLeafInstallRoot,
@@ -150,7 +131,6 @@ export function shouldBootstrapWindowsApp({
   localAppData = process.env.LOCALAPPDATA,
   portable = (
     process.env.OPENGLANCE_PORTABLE
-    ?? process.env.OPENPEEK_PORTABLE
     ?? process.env.GIT_LEAF_PORTABLE
   ) === "1",
 } = {}) {
@@ -170,7 +150,6 @@ export function windowsAppBootstrapPlan({
   localAppData = process.env.LOCALAPPDATA,
   portable = (
     process.env.OPENGLANCE_PORTABLE
-    ?? process.env.OPENPEEK_PORTABLE
     ?? process.env.GIT_LEAF_PORTABLE
   ) === "1",
   processId = process.pid,
@@ -310,10 +289,7 @@ export async function bootstrapWindowsApp({
   await removePath(plan.stagingRoot, { recursive: true, force: true });
   await removePath(plan.previousRoot, { recursive: true, force: true });
   await copyWindowsAppDirectory(plan.sourceRoot, plan.stagingRoot, copyDirectory);
-  for (const executableName of [
-    OPENPEEK_WINDOWS_EXECUTABLE,
-    GIT_LEAF_WINDOWS_EXECUTABLE,
-  ]) {
+  for (const executableName of [GIT_LEAF_WINDOWS_EXECUTABLE]) {
     await removePath(path.win32.join(plan.stagingRoot, executableName), {
       recursive: false,
       force: true,

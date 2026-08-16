@@ -25,8 +25,8 @@ validation, aggregation, and tests. If the source data cannot answer a question,
 The priority is verifiable and repeatable semantics after a capability boundary, not maximum reuse of
 historical records. Preserve old absolute facts without pretending they satisfy a newer contract.
 
-OpenGlance was named OpenPeek in 2.x and Git Leaf in 1.x. The `git_leaf.*` event namespace is deliberately stable
-across the rename because event names are persisted schema keys, not display copy. Clients must not emit
+OpenGlance was named Git Leaf in 1.x. The `git_leaf.*` event namespace is deliberately stable across the
+rename because event names are persisted schema keys, not display copy. Clients must not emit
 a parallel `openglance.*` namespace or rewrite historical events; any future namespace migration requires
 an explicit specification version, receiver transition, aggregation update, and compatibility window.
 The receiver storage root `/var/lib/git-leaf/telemetry` is likewise an external operations path and is

@@ -11,7 +11,7 @@ not clone a repository, read a document body, grant GitHub access, or make a pri
 
 OpenGlance itself generates canonical `openglance://` links. During the installed-client migration, the
 hosted page launches the equivalent `git-leaf://` compatibility link because it is the one protocol
-registered by Git Leaf 1.x, OpenPeek 2.x, and OpenGlance 3.x. This does not change the visible product
+registered by both Git Leaf 1.x and OpenGlance. This does not change the visible product
 name or the canonical link format copied by OpenGlance.
 
 ## `/open`

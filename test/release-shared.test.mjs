@@ -133,7 +133,7 @@ test("package metadata separates community builds from Mango Future official bui
   assert.equal(OFFICIAL_PACKAGE_IDENTITY, OFFICIAL_INTERNAL_PACKAGE_IDENTITY);
   assert.deepEqual(OFFICIAL_INTERNAL_PACKAGE_IDENTITY, {
     macBundleId: "com.mangofuture.gitleaf",
-    macExecutableName: "Git Leaf",
+    macExecutableName: "OpenGlance",
     windowsCompanyName: "Shenzhen Mango Future Technology Co., Ltd.",
     windowsProductName: "OpenGlance",
   });

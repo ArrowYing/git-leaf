@@ -33,7 +33,6 @@ test("windows release package args include x64 target metadata", () => {
   assert.ok(args.includes("--app-version=1.9.1"));
   assert.ok(args.includes("--icon=assets/icons/openglance.ico"));
   assert.ok(args.includes("--protocol=openglance"));
-  assert.ok(args.includes("--protocol=openpeek"));
   assert.ok(args.includes("--protocol=git-leaf"));
   assert.ok(args.includes("--protocol-name=OpenGlance Document"));
   assert.ok(args.includes("--win32metadata.CompanyName=Mango Future"));
@@ -102,13 +101,11 @@ test("windows release paths point to the packaged executable", () => {
   assert.equal(slashPath(paths.appRoot), "/repo/dist/OpenGlance-win32-x64");
   assert.equal(slashPath(paths.exePath), "/repo/dist/OpenGlance-win32-x64/OpenGlance.exe");
   assert.equal(slashPath(paths.legacyExePath), "/repo/dist/OpenGlance-win32-x64/Git Leaf.exe");
-  assert.equal(slashPath(paths.openPeekExePath), "/repo/dist/OpenGlance-win32-x64/OpenPeek.exe");
   assert.deepEqual(windowsCompatibilityExecutablePaths({
     rootDir: "/repo",
     distribution: "official",
     releaseTrack: "internal",
   }).map(slashPath), [
-    "/repo/dist/OpenGlance-win32-x64/OpenPeek.exe",
     "/repo/dist/OpenGlance-win32-x64/Git Leaf.exe",
   ]);
   assert.deepEqual(windowsCompatibilityExecutablePaths({

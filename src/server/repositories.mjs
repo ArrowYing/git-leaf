@@ -234,14 +234,9 @@ function normalizeGithubRepositoryMatch({ owner, name }) {
 
 const GITHUB_REPOSITORY_RENAME_ALIASES = new Map([
   ["mangofuture1210/git-leaf", "openglance/openglance"],
-  ["mangofuture1210/openpeek", "openglance/openglance"],
   ["mangofuture1210/openglance", "openglance/openglance"],
   [
     "mangofuture1210/git-leaf-example-knowledge-base",
-    "openglance/openglance-example-knowledge-base",
-  ],
-  [
-    "mangofuture1210/openpeek-example-knowledge-base",
     "openglance/openglance-example-knowledge-base",
   ],
   [

@@ -80,7 +80,6 @@ export const DEFAULT_RELEASE_OPTIONS = {
 };
 
 const APPLICATIONS_SHORTCUT_NAME = "Applications";
-const OPENPEEK_MAC_APP_NAME = "OpenPeek";
 const GIT_LEAF_MAC_APP_NAME = "Git Leaf";
 
 export function macExecutableName({
@@ -279,20 +278,14 @@ export function macDevelopmentInstallPaths({
   exists = existsSync,
 } = {}) {
   const canonicalInstalledAppDir = path.join(applicationsDir, `${appName}.app`);
-  const openPeekInstalledAppDir = path.join(applicationsDir, `${OPENPEEK_MAC_APP_NAME}.app`);
   const gitLeafInstalledAppDir = path.join(applicationsDir, `${GIT_LEAF_MAC_APP_NAME}.app`);
-  const installedAppDir = [
-    canonicalInstalledAppDir,
-    openPeekInstalledAppDir,
-    gitLeafInstalledAppDir,
-  ].find((candidate) => exists(candidate)) || canonicalInstalledAppDir;
+  const installedAppDir = canonicalInstalledAppDir;
   return {
     ...macReleasePaths({ rootDir, appName, arch, version, releaseTrack, buildId }),
     applicationsDir,
     canonicalInstalledAppDir,
-    openPeekInstalledAppDir,
     gitLeafInstalledAppDir,
-    legacyInstalledAppDirs: [openPeekInstalledAppDir, gitLeafInstalledAppDir],
+    legacyInstalledAppDirs: [gitLeafInstalledAppDir],
     // Compatibility alias for integrations that still mean the Git Leaf 1.x path.
     legacyInstalledAppDir: gitLeafInstalledAppDir,
     installedAppDir,
@@ -1225,10 +1218,8 @@ export function touchMacAppBundle(appDir, { now = new Date() } = {}) {
 export function developmentAppQuitCommands(appName, paths) {
   return uniqueCommands([
     ["osascript", ["-e", `tell application "${appName}" to quit`]],
-    ["osascript", ["-e", `tell application "${OPENPEEK_MAC_APP_NAME}" to quit`]],
     ["osascript", ["-e", `tell application "${GIT_LEAF_MAC_APP_NAME}" to quit`]],
     ["pkill", ["-x", appName]],
-    ["pkill", ["-x", OPENPEEK_MAC_APP_NAME]],
     ["pkill", ["-x", GIT_LEAF_MAC_APP_NAME]],
     ["pkill", ["-f", paths.installedAppDir]],
     ...legacyMacInstalledAppDirs(paths).map((appDir) => ["pkill", ["-f", appDir]]),
@@ -1239,7 +1230,6 @@ export function developmentAppQuitCommands(appName, paths) {
 export function developmentAppForceQuitCommands(appName, paths) {
   return uniqueCommands([
     ["pkill", ["-9", "-x", appName]],
-    ["pkill", ["-9", "-x", OPENPEEK_MAC_APP_NAME]],
     ["pkill", ["-9", "-x", GIT_LEAF_MAC_APP_NAME]],
     ["pkill", ["-9", "-f", paths.installedAppDir]],
     ...legacyMacInstalledAppDirs(paths).map((appDir) => ["pkill", ["-9", "-f", appDir]]),
@@ -1268,6 +1258,9 @@ function installDevelopmentApp(paths) {
   mkdirSync(path.dirname(paths.installedAppDir), { recursive: true });
   rmSync(paths.installedAppDir, { recursive: true, force: true });
   run("ditto", [paths.appDir, paths.installedAppDir]);
+  for (const legacyAppDir of legacyMacInstalledAppDirs(paths)) {
+    rmSync(legacyAppDir, { recursive: true, force: true });
+  }
 }
 
 function waitForDevelopmentAppExit(appName, paths, {
@@ -1293,7 +1286,6 @@ function waitForDevelopmentAppExit(appName, paths, {
 export function developmentAppProcessQueries(appName, paths) {
   return uniqueValues([
     ["-x", appName],
-    ["-x", OPENPEEK_MAC_APP_NAME],
     ["-x", GIT_LEAF_MAC_APP_NAME],
     ["-f", paths.installedAppDir],
     ...legacyMacInstalledAppDirs(paths).map((appDir) => ["-f", appDir]),
@@ -1303,7 +1295,7 @@ export function developmentAppProcessQueries(appName, paths) {
 
 function legacyMacInstalledAppDirs(paths) {
   return paths.legacyInstalledAppDirs
-    || [paths.openPeekInstalledAppDir, paths.gitLeafInstalledAppDir, paths.legacyInstalledAppDir]
+    || [paths.gitLeafInstalledAppDir, paths.legacyInstalledAppDir]
       .filter(Boolean);
 }
 

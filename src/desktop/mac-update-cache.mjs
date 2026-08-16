@@ -1,4 +1,5 @@
 import {
+  access,
   lstat,
   readFile,
   readdir,
@@ -6,6 +7,7 @@ import {
   rm,
   writeFile,
 } from "node:fs/promises";
+import { constants } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -41,7 +43,7 @@ export function macUpdateCachePaths({
   };
 }
 
-export async function preserveMacUpdateAppPath({
+export async function prepareMacUpdateAppPath({
   homeDir,
   targetAppPath,
   jobLabel = OFFICIAL_MAC_SHIPIT_JOB_LABEL,
@@ -52,6 +54,7 @@ export async function preserveMacUpdateAppPath({
   removeFn = rm,
   now = Date.now,
   processId = process.pid,
+  accessFn = access,
 } = {}) {
   const paths = macUpdateCachePaths({ homeDir, jobLabel });
   const expectedTarget = requiredDirectory(targetAppPath, "targetAppPath");
@@ -80,9 +83,16 @@ export async function preserveMacUpdateAppPath({
     throw new Error("The staged macOS update targets another App path.");
   }
 
+  const stagedAppPath = filePathFromUrl(request?.updateBundleURL);
+  const useUpdateBundleName = await shouldRenameLegacyMacApp({
+    stagedAppPath,
+    targetAppPath: expectedTarget,
+    accessFn,
+  });
+
   const nextRequest = {
     ...request,
-    useUpdateBundleName: false,
+    useUpdateBundleName,
   };
   const temporaryStateFile = path.join(
     paths.updateRoot,
@@ -107,8 +117,23 @@ export async function preserveMacUpdateAppPath({
     stateFile: paths.stateFile,
     targetAppPath: expectedTarget,
     stagedDirectory,
-    useUpdateBundleName: false,
+    useUpdateBundleName,
   };
+}
+
+async function shouldRenameLegacyMacApp({ stagedAppPath, targetAppPath, accessFn }) {
+  if (
+    path.basename(targetAppPath) !== "Git Leaf.app"
+    || path.basename(stagedAppPath) !== "OpenGlance.app"
+  ) {
+    return false;
+  }
+  try {
+    await accessFn(path.dirname(targetAppPath), constants.W_OK);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export async function pruneObsoleteMacUpdatePackages({

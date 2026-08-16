@@ -111,7 +111,7 @@ test("release documentation delegates UI acceptance and keeps update regression 
   assert.match(releaseDoc, /Update-sensitive changes can make a real packaged-App update regression mandatory/);
   assert.match(releaseDoc, /must run on the release Mac/);
   assert.match(releaseDoc, /npm run release:verify-update:mac/);
-  assert.match(releaseDoc, /refuses to start while an installed OpenGlance, OpenPeek, or Git Leaf App is running/);
+  assert.match(releaseDoc, /refuses to start while an installed OpenGlance or Git Leaf App is running/);
   assert.match(releaseDoc, /real Profile and real ShipIt cache fingerprints did not change/);
   assert.match(releaseDoc, /verify-macos-update-regression[\s\S]*--evidence/);
   assert.doesNotMatch(releaseDoc, /mark-update-regression-verified\s*$/m);

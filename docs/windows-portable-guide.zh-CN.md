@@ -43,7 +43,7 @@ Electron App 必须保留完整目录，不要只复制 `OpenGlance.exe`。
 
 如果使用 Community Build，它不会连接 Mango Future 的更新服务；请自行拉取新源码并重新构建。
 
-OpenPeek 2.x 或 Git Leaf 1.x 的固定安装升级到 OpenGlance 3.0 时，对应的兼容可执行文件会接收一次旧更新器
+Git Leaf 1.x 的固定安装升级到 OpenGlance 时，兼容可执行文件会接收一次旧更新器
 参数，把完整 App 迁移到 `%LOCALAPPDATA%\OpenGlance\app`。只有新可执行文件确认启动后，旧安装才会退出；
 如果旧更新器仍占用文件，OpenGlance 会在下次启动时重试清理。
 

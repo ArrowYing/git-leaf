@@ -121,7 +121,6 @@ export function windowsReleasePaths({
     distDir,
     appRoot,
     exePath: path.join(appRoot, `${appName}.exe`),
-    openPeekExePath: path.join(appRoot, "OpenPeek.exe"),
     gitLeafExePath: path.join(appRoot, "Git Leaf.exe"),
     // Compatibility alias for integrations that mean the Git Leaf 1.x bridge.
     legacyExePath: path.join(appRoot, "Git Leaf.exe"),
@@ -139,7 +138,7 @@ export function windowsReleasePaths({
 
 export function windowsCompatibilityExecutablePaths(options = {}, paths = windowsReleasePaths(options)) {
   return options.distribution === "official" && options.releaseTrack === "internal"
-    ? [paths.openPeekExePath, paths.gitLeafExePath]
+    ? [paths.gitLeafExePath]
     : [];
 }
 

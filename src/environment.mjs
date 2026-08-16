@@ -1,6 +1,5 @@
 export const OPENGLANCE_ENVIRONMENT_PREFIXES = Object.freeze([
   "OPENGLANCE",
-  "OPENPEEK",
   "GIT_LEAF",
 ]);
 

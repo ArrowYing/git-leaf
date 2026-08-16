@@ -14,11 +14,27 @@ import {
   assertSafeMacUpdateRegressionHost,
   assertTemporaryProcessIsolation,
   downloadUpdateRegressionArtifact,
+  prepareInstalledBaselineAppPath,
   updateRegressionInstallExpression,
   updateRegressionChannels,
   validateMacUpdateRegressionEvidence,
   validateUpdateRegressionManifest,
 } from "../scripts/mac-update-regression.mjs";
+
+test("internal mac update regression models the installed Git Leaf outer path", () => {
+  const calls = [];
+  const source = path.resolve("/tmp/openglance-regression/install/OpenGlance.app");
+  const target = path.resolve("/tmp/openglance-regression/install/Git Leaf.app");
+  assert.equal(prepareInstalledBaselineAppPath(source, {
+    track: "internal",
+    renamePath: (...args) => calls.push(args),
+  }), target);
+  assert.deepEqual(calls, [[source, target]]);
+  assert.equal(prepareInstalledBaselineAppPath(source, {
+    track: "public",
+    renamePath: () => assert.fail("public baselines keep the canonical outer path"),
+  }), source);
+});
 
 test("mac update regression rejects a relaunched App that reaches the real Profile", () => {
   const filesystemRoot = path.parse(process.cwd()).root;
@@ -153,7 +169,7 @@ test("mac update regression refuses conflicting local updater state before launc
       userShipItJobExists: true,
       systemShipItJobExists: false,
     }),
-    /Refusing to start.*conflicting local state[\s\S]*OpenGlance, OpenPeek, or Git Leaf App is running[\s\S]*ShipIt/,
+    /Refusing to start.*conflicting local state[\s\S]*OpenGlance or Git Leaf App is running[\s\S]*ShipIt/,
   );
   assert.doesNotThrow(() => assertSafeMacUpdateRegressionHost({
     platform: "darwin",
@@ -165,7 +181,7 @@ test("mac update regression refuses conflicting local updater state before launc
 
 test("mac product rename migration preserves repositories, workspace state, and preferences", () => {
   const expected = {
-    renameMigrationSentinel: "git-leaf-1.x-openpeek-2.x-to-openglance-3.x",
+    renameMigrationSentinel: "git-leaf-1.x-to-openglance-3.x",
     repoRoot: "/repo",
     openRepoRoots: ["/repo", "/second"],
     usageAnalyticsEnabled: false,
@@ -410,12 +426,12 @@ test("mac update regression evidence binds installation and cleanup to the froze
     candidateAppIdentity: {
       bundleName: "OpenGlance.app",
       productName: "OpenGlance",
-      executable: "Git Leaf",
+      executable: "OpenGlance",
     },
     installedAppIdentity: {
       bundleName: "Git Leaf.app",
       productName: "OpenGlance",
-      executable: "Git Leaf",
+      executable: "OpenGlance",
     },
     installParentWritable: false,
     privilegedShipItJobObserved: false,

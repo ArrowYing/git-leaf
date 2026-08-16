@@ -47,10 +47,10 @@ import {
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const READY_SCHEMA_VERSION = 1;
 const READY_FILENAME = "ready.json";
-const MAC_APP_NAMES = new Set(["OpenGlance.app", "OpenPeek.app", "Git Leaf.app"]);
+const MAC_APP_NAMES = new Set(["OpenGlance.app", "Git Leaf.app"]);
 const MAC_EXECUTABLE_NAMES = new Set([
   "OpenGlance",
-  "OpenPeek",
+  "Git Leaf",
   OFFICIAL_MAC_EXECUTABLE_NAME,
 ]);
 const HELPER_READY_ARGUMENT = "--install-ready";

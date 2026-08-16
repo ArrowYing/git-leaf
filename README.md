@@ -13,10 +13,10 @@ If your team keeps a Markdown knowledge base in Git so people and agents can wor
 and maintain it together, OpenGlance is a preview-first alternative that is simpler and more practical
 than Obsidian.
 
-> **Name transition:** OpenGlance replaces the short-lived OpenPeek name beginning with version 3.0;
-> Git Leaf was the original 1.x name. Existing repositories, sessions, and preferences keep using the
-> same local Profile. The `openpeek` and `git-leaf` CLI commands and their URL schemes remain accepted as
-> compatibility aliases, while newly generated commands and links use `openglance` and `openglance://`.
+> **Name transition:** OpenGlance replaces the original Git Leaf 1.x name. Existing repositories,
+> sessions, and preferences keep using the same local Profile. The `git-leaf` CLI command and URL scheme
+> remain accepted as compatibility aliases, while newly generated commands and links use `openglance`
+> and `openglance://`.
 > GitHub redirects the earlier repository addresses to `openglance/openglance`; the download host
 > and update roots keep their existing addresses until a separate domain migration.
 
@@ -227,8 +227,8 @@ npm start -- /path/to/docs-repo/README.md --no-open
 
 The desktop app and CLI/browser service listen on localhost only. A human-installed `OpenGlance dev`
 replaces the same installed app bundle and shares the real Profile so normal work survives replacement.
-New installations use `OpenGlance.app`; an existing internal `OpenPeek.app` or `Git Leaf.app` is reused
-so macOS does not keep duplicate Apps.
+New installations use `OpenGlance.app`; a maintainer development install migrates an existing
+`Git Leaf.app` to the canonical path so macOS does not keep duplicate Apps.
 Automated smoke tests alone use isolated application data; see [AGENTS.md](AGENTS.md) for the
 repository's development and safety requirements.
 

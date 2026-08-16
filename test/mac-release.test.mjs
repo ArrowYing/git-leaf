@@ -52,12 +52,12 @@ import {
   verifyProductionProfileUnchanged,
 } from "../scripts/release-mac.mjs";
 
-test("internal macOS packages preserve the hidden Git Leaf executable identity", () => {
+test("all macOS packages use the OpenGlance executable identity", () => {
   assert.equal(macExecutableName({
     appName: "OpenGlance",
     distribution: "official",
     releaseTrack: "internal",
-  }), "Git Leaf");
+  }), "OpenGlance");
   assert.equal(macExecutableName({
     appName: "OpenGlance",
     distribution: "official",
@@ -70,14 +70,14 @@ test("internal macOS packages preserve the hidden Git Leaf executable identity",
   assert.equal(assertMacUpdateArchiveEntries([
     "OpenGlance.app/",
     "OpenGlance.app/Contents/",
-    "OpenGlance.app/Contents/MacOS/Git Leaf",
+    "OpenGlance.app/Contents/MacOS/OpenGlance",
   ], {
     appName: "OpenGlance",
     distribution: "official",
     releaseTrack: "internal",
   }), "OpenGlance.app/");
   assert.throws(() => assertMacUpdateArchiveEntries([
-    "Git Leaf.app/Contents/MacOS/Git Leaf",
+    "Git Leaf.app/Contents/MacOS/OpenGlance",
   ], {
     appName: "OpenGlance",
     distribution: "official",
@@ -218,7 +218,7 @@ test("mac release package args exclude tests and generated outputs", () => {
   assert.ok(ignoreValues.includes("^/\\.git($|/)"));
 });
 
-test("internal mac release package args retain the legacy executable identity", () => {
+test("internal mac release package args use the OpenGlance executable identity", () => {
   const args = electronPackagerArgs({
     appName: "OpenGlance",
     distribution: "official",
@@ -227,7 +227,7 @@ test("internal mac release package args retain the legacy executable identity", 
     outDir: "dist",
   });
 
-  assert.ok(args.includes("--executable-name=Git Leaf"));
+  assert.ok(args.includes("--executable-name=OpenGlance"));
 });
 
 test("mac release package args exclude internal docs, repository tools, and dev-only dependencies", () => {
@@ -499,7 +499,7 @@ test("mac bundle icon application refreshes the app bundle mtime for LaunchServi
   }
 });
 
-test("official mac bundle keeps OpenGlance visible while retaining its compatibility executable", async () => {
+test("official mac bundle uses OpenGlance for its visible and executable names", async () => {
   const tempDir = await mkdtempPath("openglance-mac-product-name-");
   try {
     const appDir = path.join(tempDir, "OpenGlance.app");
@@ -512,7 +512,7 @@ test("official mac bundle keeps OpenGlance visible while retaining its compatibi
 <plist version="1.0"><dict>
   <key>CFBundleDisplayName</key><string>Git Leaf</string>
   <key>CFBundleName</key><string>Git Leaf</string>
-  <key>CFBundleExecutable</key><string>Git Leaf</string>
+  <key>CFBundleExecutable</key><string>OpenGlance</string>
 </dict></plist>
 `,
       "utf8",
@@ -527,13 +527,13 @@ test("official mac bundle keeps OpenGlance visible while retaining its compatibi
     ).stdout.trim();
     assert.equal(plistValue("CFBundleDisplayName"), "OpenGlance");
     assert.equal(plistValue("CFBundleName"), "OpenGlance");
-    assert.equal(plistValue("CFBundleExecutable"), "Git Leaf");
+    assert.equal(plistValue("CFBundleExecutable"), "OpenGlance");
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
 });
 
-test("mac bundle registers OpenGlance plus OpenPeek 2.x and Git Leaf 1.x URL schemes", async () => {
+test("mac bundle registers OpenGlance plus the Git Leaf 1.x URL scheme", async () => {
   const tempDir = await mkdtempPath("openglance-mac-protocols-");
   try {
     const appDir = path.join(tempDir, "OpenGlance.app");
@@ -550,11 +550,10 @@ test("mac bundle registers OpenGlance plus OpenPeek 2.x and Git Leaf 1.x URL sch
 
     assert.deepEqual(applyMacBundleProtocols({ appDir }), [{
       CFBundleURLName: "OpenGlance Document",
-      CFBundleURLSchemes: ["openglance", "openpeek", "git-leaf"],
+      CFBundleURLSchemes: ["openglance", "git-leaf"],
     }]);
     const infoPlist = await readFile(path.join(contentsDir, "Info.plist"), "utf8");
     assert.match(infoPlist, /<string>openglance<\/string>/);
-    assert.match(infoPlist, /<string>openpeek<\/string>/);
     assert.match(infoPlist, /<string>git-leaf<\/string>/);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
@@ -809,7 +808,7 @@ test("human dev launch shares the real profile while Agent smoke is explicitly i
   });
 });
 
-test("development install reuses an existing Git Leaf app path without creating a duplicate", () => {
+test("development install migrates an existing Git Leaf app to the canonical path", () => {
   const paths = macDevelopmentInstallPaths({
     rootDir: "/repo",
     appName: "OpenGlance",
@@ -819,23 +818,7 @@ test("development install reuses an existing Git Leaf app path without creating 
 
   assert.equal(paths.canonicalInstalledAppDir, "/Applications/OpenGlance.app");
   assert.equal(paths.legacyInstalledAppDir, "/Applications/Git Leaf.app");
-  assert.equal(paths.installedAppDir, "/Applications/Git Leaf.app");
-});
-
-test("development install reuses an existing OpenPeek app path before Git Leaf", () => {
-  const paths = macDevelopmentInstallPaths({
-    rootDir: "/repo",
-    appName: "OpenGlance",
-    applicationsDir: "/Applications",
-    exists: (value) => [
-      "/Applications/OpenPeek.app",
-      "/Applications/Git Leaf.app",
-    ].includes(value),
-  });
-
-  assert.equal(paths.openPeekInstalledAppDir, "/Applications/OpenPeek.app");
-  assert.equal(paths.gitLeafInstalledAppDir, "/Applications/Git Leaf.app");
-  assert.equal(paths.installedAppDir, "/Applications/OpenPeek.app");
+  assert.equal(paths.installedAppDir, "/Applications/OpenGlance.app");
 });
 
 test("development profile snapshot copies durable state and detects production mutation", async () => {
@@ -1169,31 +1152,24 @@ test("dev install quits stale dist app and launches the installed Applications a
 
   assert.deepEqual(developmentAppQuitCommands("OpenGlance", paths), [
     ["osascript", ["-e", "tell application \"OpenGlance\" to quit"]],
-    ["osascript", ["-e", "tell application \"OpenPeek\" to quit"]],
     ["osascript", ["-e", "tell application \"Git Leaf\" to quit"]],
     ["pkill", ["-x", "OpenGlance"]],
-    ["pkill", ["-x", "OpenPeek"]],
     ["pkill", ["-x", "Git Leaf"]],
     ["pkill", ["-f", "/Applications/OpenGlance.app"]],
-    ["pkill", ["-f", "/Applications/OpenPeek.app"]],
     ["pkill", ["-f", "/Applications/Git Leaf.app"]],
     ["pkill", ["-f", "/repo/dist/OpenGlance-darwin-universal/OpenGlance.app"]],
   ]);
   assert.deepEqual(developmentAppForceQuitCommands("OpenGlance", paths), [
     ["pkill", ["-9", "-x", "OpenGlance"]],
-    ["pkill", ["-9", "-x", "OpenPeek"]],
     ["pkill", ["-9", "-x", "Git Leaf"]],
     ["pkill", ["-9", "-f", "/Applications/OpenGlance.app"]],
-    ["pkill", ["-9", "-f", "/Applications/OpenPeek.app"]],
     ["pkill", ["-9", "-f", "/Applications/Git Leaf.app"]],
     ["pkill", ["-9", "-f", "/repo/dist/OpenGlance-darwin-universal/OpenGlance.app"]],
   ]);
   assert.deepEqual(developmentAppProcessQueries("OpenGlance", paths), [
     ["-x", "OpenGlance"],
-    ["-x", "OpenPeek"],
     ["-x", "Git Leaf"],
     ["-f", "/Applications/OpenGlance.app"],
-    ["-f", "/Applications/OpenPeek.app"],
     ["-f", "/Applications/Git Leaf.app"],
     ["-f", "/repo/dist/OpenGlance-darwin-universal/OpenGlance.app"],
   ]);
@@ -1361,7 +1337,7 @@ test("Makefile exposes the local dev install app target", async () => {
   assert.match(makefile, /^publish-updates-mac:/m);
   assert.match(
     makefile,
-    /^OPENGLANCE_RELEASE_PROFILE \?= \$\(if \$\(OPENPEEK_RELEASE_PROFILE\),\$\(OPENPEEK_RELEASE_PROFILE\),\$\(GIT_LEAF_RELEASE_PROFILE\)\)$/m,
+    /^OPENGLANCE_RELEASE_PROFILE \?= \$\(GIT_LEAF_RELEASE_PROFILE\)$/m,
   );
   assert.doesNotMatch(makefile, /^(?:UPDATE_REMOTE_HOST|UPDATE_REMOTE_ROOT|NOTARY_PROFILE) \?=/m);
 });
