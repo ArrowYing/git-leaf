@@ -56,8 +56,8 @@ desktop shell, the web workspace, tests, and packaging configuration are all mai
   `src/client/source-editor.mjs`.
 - `src/desktop/`: Electron main-process entry point and desktop-only modules. Desktop configuration,
   environment checks, updates, analytics, home, and navigation live there.
-- `assets/`: packaging assets such as application icons. The macOS icon source is
-  `assets/icons/openglance.*`.
+- `assets/`: packaging assets such as application icons. The vector master is
+  `assets/icons/openglance.svg`; the committed PNG, ICNS, and ICO files are generated packaging assets.
 - `docs/`: architecture, release instructions, platform guides, renderer references, and specifications.
   Maintainer-facing technical documents are English-only. End-user documents may add Simplified Chinese
   with `.zh-CN`.
