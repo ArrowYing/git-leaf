@@ -4,7 +4,7 @@ OpenGlance follows Semantic Versioning for its shared app version. Git tags iden
 official public artifacts, signatures, checksums, and platform availability are authoritative only on
 the [OpenGlance download page](https://gitleaf.mangofuture.com/download).
 
-## Unreleased
+## 3.0.5 — 2026-08-16 (internal release)
 
 ### Fixed
 
