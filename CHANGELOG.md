@@ -4,7 +4,7 @@ OpenGlance follows Semantic Versioning for its shared app version. Git tags iden
 official public artifacts, signatures, checksums, and platform availability are authoritative only on
 the [OpenGlance download page](https://gitleaf.mangofuture.com/download).
 
-## 3.0.3 — 2026-08-16 (internal release)
+## 3.0.4 — 2026-08-16 (internal release)
 
 ### Changed
 
@@ -22,6 +22,8 @@ the [OpenGlance download page](https://gitleaf.mangofuture.com/download).
 - The packaged macOS update regression now applies the same pre-install App-path policy as a normal
   shutdown before stopping its isolated baseline, so the non-writable legacy-path fallback is exercised
   instead of bypassed.
+- The real filesystem-permission assertion in that regression now runs only on macOS, where POSIX
+  directory write permissions model the production updater behavior accurately.
 
 ## 3.0.1 — 2026-08-15 (public release)
 

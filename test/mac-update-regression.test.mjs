@@ -22,7 +22,9 @@ import {
   validateUpdateRegressionManifest,
 } from "../scripts/mac-update-regression.mjs";
 
-test("mac update regression applies the real pre-install path policy before stopping the baseline", async (t) => {
+test("mac update regression applies the real pre-install path policy before stopping the baseline", {
+  skip: process.platform !== "darwin",
+}, async (t) => {
   const temporaryRoot = await mkdtemp(path.join(tmpdir(), "openglance-shipit-install."));
   t.after(async () => {
     await chmod(path.join(temporaryRoot, "install"), 0o755).catch(() => {});
