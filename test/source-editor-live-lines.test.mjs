@@ -715,7 +715,7 @@ test("Live tables absorb persisted column metadata and restore exact widths", ()
   const source = [
     "# Report",
     "",
-    '[git-leaf-table-widths]: # "120,260,96"',
+    '[openglance-table-widths]: # "151,295,294"',
     "| Month | Revenue | Cost |",
     "| --- | ---: | ---: |",
     "| 2026-05 | 100 | 70 |",
@@ -724,16 +724,17 @@ test("Live tables absorb persisted column metadata and restore exact widths", ()
   const [block] = livePreviewBlocksForSource(source);
   assert.equal(block.startLine, 3);
   assert.equal(block.tableStartLine, 4);
-  assert.deepEqual(block.columnWidths, [120, 260, 96]);
+  assert.deepEqual(block.columnWidths, [151, 295, 294]);
 
   const html = livePreviewHtmlForBlock(block.source, {
     tableColumnWidths: block.columnWidths,
   });
   assert.match(html, /data-table-layout="manual"/);
-  assert.match(html, /--table-preferred-width: 476px/);
-  assert.match(html, /<col style="width: 120px">/);
-  assert.match(html, /<col style="width: 260px">/);
-  assert.doesNotMatch(html, /git-leaf-table-widths/);
+  assert.match(html, /--table-preferred-width: 740px/);
+  assert.match(html, /<col style="width: 151px">/);
+  assert.match(html, /<col style="width: 295px">/);
+  assert.match(html, /<col style="width: 294px">/);
+  assert.doesNotMatch(html, /(?:git-leaf|openglance)-table-widths/);
 });
 
 test("livePreviewBlocksForSource treats HTML image lines as Live preview blocks", () => {

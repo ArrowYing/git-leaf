@@ -33618,7 +33618,7 @@ var MARKDOWN_TABLE_HIGHLIGHT_COLOR_VALUES = new Set(
   MARKDOWN_TABLE_HIGHLIGHT_COLORS.map(({ value }) => value)
 );
 var TABLE_SEPARATOR_CELL = /^:?-{3,}:?$/;
-var TABLE_COLUMN_WIDTHS_LINE = /^\s*\[git-leaf-table-widths\]:\s*#\s*(?:"([^"]+)"|'([^']+)'|\(([^)]+)\))\s*$/i;
+var TABLE_COLUMN_WIDTHS_LINE = /^\s*\[(?:openglance|git-leaf)-table-widths\]:\s*#\s*(?:"([^"]+)"|'([^']+)'|\(([^)]+)\))\s*$/i;
 var MARKDOWN_TABLE_MIN_COLUMN_WIDTH = 64;
 var MARKDOWN_TABLE_MAX_COLUMN_WIDTH = 1600;
 var CONTROLLED_TABLE_STYLE_SPAN = /^<span\s+style=(["'])([^"'\n]*)\1\s*>([^\n]*?)<\/span>/i;
@@ -33662,7 +33662,7 @@ function parseMarkdownTableColumnWidthsLine(line, columnCount = null) {
 }
 function serializeMarkdownTableColumnWidths(widths) {
   const normalized = normalizeMarkdownTableColumnWidths(widths);
-  return normalized ? `[git-leaf-table-widths]: # "${normalized.join(",")}"` : null;
+  return normalized ? `[openglance-table-widths]: # "${normalized.join(",")}"` : null;
 }
 function reorderMarkdownTableColumnWidths(widths, fromColumn, toColumn) {
   const normalized = normalizeMarkdownTableColumnWidths(widths);

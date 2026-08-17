@@ -231,7 +231,7 @@ test("dragging a column divider persists only that column width", async () => {
   await nextTask();
 
   const lines = fixture.view.state.doc.toString().split("\n");
-  assert.equal(lines[0], '[git-leaf-table-widths]: # "120,180,120"');
+  assert.equal(lines[0], '[openglance-table-widths]: # "120,180,120"');
   assert.deepEqual(
     markdownTableBlockAtLines(lines, 1)?.columnWidths,
     [120, 180, 120],

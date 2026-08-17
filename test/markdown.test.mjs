@@ -102,6 +102,22 @@ test("renderMarkdown renders small markdown tables without table tools", () => {
   assert.match(html, /<td>Ready<\/td>/);
 });
 
+test("renderMarkdown restores OpenGlance table widths without exposing metadata", () => {
+  const html = renderMarkdown(`[openglance-table-widths]: # "151,295,294"
+| Month | Domestic | Parents |
+| --- | --- | --- |
+| M0 | 2026-02—2026-07 | 2026-02—2026-07 |
+`);
+
+  assert.doesNotMatch(html, /openglance-table-widths/);
+  assert.match(html, /data-table-layout="manual"/);
+  assert.match(html, /--table-preferred-width: 740px/);
+  assert.match(
+    html,
+    /<colgroup><col style="width: 151px"><col style="width: 295px"><col style="width: 294px"><\/colgroup>/,
+  );
+});
+
 test("renderMarkdown represents a visually merged paragraph as one selectable source range", () => {
   const html = renderMarkdown(`First source line
 second source line

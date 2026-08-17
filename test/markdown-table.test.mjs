@@ -71,11 +71,16 @@ test("markdownTableBlockAtLines stops before a non-table line", () => {
 
 test("Markdown table column widths round-trip through adjacent hidden metadata", () => {
   const metadata = serializeMarkdownTableColumnWidths([128, 244, 96]);
+  const legacyMetadata = '[git-leaf-table-widths]: # "128,244,96"';
   const lines = [metadata, ...tableSource.split("\n")];
   const block = markdownTableBlockAtLines(lines, 1);
 
-  assert.equal(metadata, '[git-leaf-table-widths]: # "128,244,96"');
+  assert.equal(metadata, '[openglance-table-widths]: # "128,244,96"');
   assert.deepEqual(parseMarkdownTableColumnWidthsLine(metadata, 3), [128, 244, 96]);
+  assert.deepEqual(
+    parseMarkdownTableColumnWidthsLine(legacyMetadata, 3),
+    [128, 244, 96],
+  );
   assert.equal(block?.metadataIndex, 0);
   assert.deepEqual(block?.columnWidths, [128, 244, 96]);
   assert.equal(parseMarkdownTableColumnWidthsLine(metadata, 2), null);

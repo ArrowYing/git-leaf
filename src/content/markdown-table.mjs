@@ -22,7 +22,7 @@ const MARKDOWN_TABLE_HIGHLIGHT_COLOR_VALUES = new Set(
 );
 const TABLE_SEPARATOR_CELL = /^:?-{3,}:?$/;
 const TABLE_COLUMN_WIDTHS_LINE =
-  /^\s*\[git-leaf-table-widths\]:\s*#\s*(?:"([^"]+)"|'([^']+)'|\(([^)]+)\))\s*$/i;
+  /^\s*\[(?:openglance|git-leaf)-table-widths\]:\s*#\s*(?:"([^"]+)"|'([^']+)'|\(([^)]+)\))\s*$/i;
 export const MARKDOWN_TABLE_MIN_COLUMN_WIDTH = 64;
 export const MARKDOWN_TABLE_MAX_COLUMN_WIDTH = 1600;
 const CONTROLLED_TABLE_STYLE_SPAN =
@@ -87,7 +87,7 @@ export function parseMarkdownTableColumnWidthsLine(line, columnCount = null) {
 export function serializeMarkdownTableColumnWidths(widths) {
   const normalized = normalizeMarkdownTableColumnWidths(widths);
   return normalized
-    ? `[git-leaf-table-widths]: # "${normalized.join(",")}"`
+    ? `[openglance-table-widths]: # "${normalized.join(",")}"`
     : null;
 }
 
