@@ -2,12 +2,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-  createGitLeafOpenLink,
-  createGitLeafShareLink,
-} from "../src/server/git-leaf-open-link.mjs";
+  createOpenGlanceOpenLink,
+  createOpenGlanceShareLink,
+} from "../src/server/openglance-open-link.mjs";
 
-test("createGitLeafOpenLink includes the exact linked worktree id", async () => {
-  const link = await createGitLeafOpenLink({
+test("createOpenGlanceOpenLink includes the exact linked worktree id", async () => {
+  const link = await createOpenGlanceOpenLink({
     repoRoot: "/repos/company-docs-task",
     file: "docs/report.md",
     readOrigin: async () => "git@github.com:ExampleOrg/company-docs.git",
@@ -23,8 +23,8 @@ test("createGitLeafOpenLink includes the exact linked worktree id", async () => 
   );
 });
 
-test("createGitLeafOpenLink keeps primary-worktree links portable", async () => {
-  const link = await createGitLeafOpenLink({
+test("createOpenGlanceOpenLink keeps primary-worktree links portable", async () => {
+  const link = await createOpenGlanceOpenLink({
     repoRoot: "/repos/company-docs",
     file: "AGENTS.md",
     readOrigin: async () => "https://github.com/ExampleOrg/company-docs.git",
@@ -39,17 +39,17 @@ test("createGitLeafOpenLink keeps primary-worktree links portable", async () => 
   );
 });
 
-test("createGitLeafOpenLink localizes predictable errors and preserves dependency errors", async () => {
+test("createOpenGlanceOpenLink localizes predictable errors and preserves dependency errors", async () => {
   await assert.rejects(
-    createGitLeafOpenLink(),
+    createOpenGlanceOpenLink(),
     /A Git repository root is required\./,
   );
   await assert.rejects(
-    createGitLeafOpenLink({ language: "zh-CN" }),
+    createOpenGlanceOpenLink({ language: "zh-CN" }),
     /需要提供 Git 仓库根目录/,
   );
   await assert.rejects(
-    createGitLeafOpenLink({
+    createOpenGlanceOpenLink({
       repoRoot: "/repos/company-docs",
       locale: "zh-CN",
       readOrigin: async () => "",
@@ -57,7 +57,7 @@ test("createGitLeafOpenLink localizes predictable errors and preserves dependenc
     /仓库必须配置 GitHub origin/,
   );
   await assert.rejects(
-    createGitLeafOpenLink({
+    createOpenGlanceOpenLink({
       repoRoot: "/repos/company-docs",
       readOrigin: async () => "git@github.com:ExampleOrg/company-docs.git",
       listWorktrees: async () => [],
@@ -67,7 +67,7 @@ test("createGitLeafOpenLink localizes predictable errors and preserves dependenc
 
   const rawError = new Error("fatal: could not read origin");
   await assert.rejects(
-    createGitLeafOpenLink({
+    createOpenGlanceOpenLink({
       repoRoot: "/repos/company-docs",
       readOrigin: async () => {
         throw rawError;
@@ -77,7 +77,7 @@ test("createGitLeafOpenLink localizes predictable errors and preserves dependenc
   );
 });
 
-test("createGitLeafShareLink publishes a main-primary document revision", async () => {
+test("createOpenGlanceShareLink publishes a main-primary document revision", async () => {
   const revision = "a".repeat(40);
   const calls = [];
   const publishedSource = [
@@ -87,7 +87,7 @@ test("createGitLeafShareLink publishes a main-primary document revision", async 
     "---",
     "# Old heading",
   ].join("\n");
-  const link = await createGitLeafShareLink({
+  const link = await createOpenGlanceShareLink({
     repoRoot: "/repos/company-docs",
     file: "docs/report.md",
     readOrigin: async () => "git@github.com:ExampleOrg/company-docs.git",
@@ -115,9 +115,9 @@ test("createGitLeafShareLink publishes a main-primary document revision", async 
   assert.deepEqual(calls.at(-1), ["show", `${revision}:docs/report.md`]);
 });
 
-test("createGitLeafShareLink falls back to the file name when preview metadata cannot be read", async () => {
+test("createOpenGlanceShareLink falls back to the file name when preview metadata cannot be read", async () => {
   const revision = "f".repeat(40);
-  const link = await createGitLeafShareLink({
+  const link = await createOpenGlanceShareLink({
     repoRoot: "/repos/company-docs",
     file: "docs/report.md",
     readOrigin: async () => "git@github.com:ExampleOrg/company-docs.git",
@@ -137,9 +137,9 @@ test("createGitLeafShareLink falls back to the file name when preview metadata c
   assert.equal(shareUrl.searchParams.has("snippet"), false);
 });
 
-test("createGitLeafShareLink rejects linked worktrees and non-main primary branches", async () => {
+test("createOpenGlanceShareLink rejects linked worktrees and non-main primary branches", async () => {
   await assert.rejects(
-    createGitLeafShareLink({
+    createOpenGlanceShareLink({
       repoRoot: "/repos/company-docs-task",
       file: "docs/report.md",
       listWorktrees: async () => [
@@ -150,7 +150,7 @@ test("createGitLeafShareLink rejects linked worktrees and non-main primary branc
       && error.message === "Share links are available only from the primary worktree.",
   );
   await assert.rejects(
-    createGitLeafShareLink({
+    createOpenGlanceShareLink({
       repoRoot: "/repos/company-docs",
       file: "docs/report.md",
       language: "zh-CN",
@@ -163,10 +163,10 @@ test("createGitLeafShareLink rejects linked worktrees and non-main primary branc
   );
 });
 
-test("createGitLeafShareLink rejects unpublished document changes", async () => {
+test("createOpenGlanceShareLink rejects unpublished document changes", async () => {
   const revision = "b".repeat(40);
   await assert.rejects(
-    createGitLeafShareLink({
+    createOpenGlanceShareLink({
       repoRoot: "/repos/company-docs",
       file: "docs/report.md",
       readOrigin: async () => "https://github.com/ExampleOrg/company-docs.git",
@@ -182,7 +182,7 @@ test("createGitLeafShareLink rejects unpublished document changes", async () => 
       && error.message === "This document has uncommitted changes. Sync it before sharing.",
   );
   await assert.rejects(
-    createGitLeafShareLink({
+    createOpenGlanceShareLink({
       repoRoot: "/repos/company-docs",
       file: "docs/report.md",
       locale: "zh-CN",
@@ -203,14 +203,14 @@ test("createGitLeafShareLink rejects unpublished document changes", async () => 
   );
 });
 
-test("createGitLeafShareLink localizes repository and first-commit errors", async () => {
+test("createOpenGlanceShareLink localizes repository and first-commit errors", async () => {
   await assert.rejects(
-    createGitLeafShareLink(),
+    createOpenGlanceShareLink(),
     (error) => error.code === "repository_required"
       && error.message === "Open a Git repository before creating a share link.",
   );
   await assert.rejects(
-    createGitLeafShareLink({
+    createOpenGlanceShareLink({
       repoRoot: "/repos/company-docs",
       file: "docs/report.md",
       language: "zh-CN",
@@ -223,7 +223,7 @@ test("createGitLeafShareLink localizes repository and first-commit errors", asyn
       && error.message === "当前仓库没有可识别的 GitHub origin。",
   );
   await assert.rejects(
-    createGitLeafShareLink({
+    createOpenGlanceShareLink({
       repoRoot: "/repos/company-docs",
       file: "docs/report.md",
       readOrigin: async () => "https://github.com/ExampleOrg/company-docs.git",
@@ -241,10 +241,10 @@ test("createGitLeafShareLink localizes repository and first-commit errors", asyn
   );
 });
 
-test("createGitLeafShareLink preserves dependency failures from the ancestor check", async () => {
+test("createOpenGlanceShareLink preserves dependency failures from the ancestor check", async () => {
   const revision = "c".repeat(40);
   await assert.rejects(
-    createGitLeafShareLink({
+    createOpenGlanceShareLink({
       repoRoot: "/repos/company-docs",
       file: "docs/report.md",
       readOrigin: async () => "https://github.com/ExampleOrg/company-docs.git",

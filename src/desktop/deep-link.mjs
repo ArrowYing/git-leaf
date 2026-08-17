@@ -1,28 +1,40 @@
-import { normalizeGitLeafHandoffId } from "./handoff.mjs";
+import { normalizeOpenGlanceHandoffId } from "./handoff.mjs";
 import {
-  GIT_LEAF_SHARE_VERSION,
-  gitLeafShareUrl,
-  normalizeGitLeafLinkTarget as normalizeDeepLinkTarget,
+  OPENGLANCE_GIT_LEAF_PROTOCOL,
+  OPENGLANCE_LEGACY_PROTOCOL,
+  OPENGLANCE_PROTOCOL,
+  OPENGLANCE_SUPPORTED_PROTOCOLS,
+  isOpenGlanceProtocol,
+} from "../product-identity.mjs";
+import {
+  OPENGLANCE_SHARE_VERSION,
+  openGlanceShareUrl,
+  normalizeOpenGlanceLinkTarget as normalizeDeepLinkTarget,
   normalizeGitRevision,
 } from "../server/hosted-links.mjs";
 
 export {
-  GIT_LEAF_HTTPS_OPEN_URL,
-  GIT_LEAF_HTTPS_SHARE_URL,
-  GIT_LEAF_SHARE_TITLE_MAX_LENGTH,
-  GIT_LEAF_SHARE_VERSION,
-  gitLeafHttpsOpenUrl,
-  gitLeafShareUrl,
-  normalizeGitLeafWorktreeId,
+  OPENGLANCE_HTTPS_OPEN_URL,
+  OPENGLANCE_HTTPS_SHARE_URL,
+  OPENGLANCE_SHARE_TITLE_MAX_LENGTH,
+  OPENGLANCE_SHARE_VERSION,
+  openGlanceHttpsOpenUrl,
+  openGlanceShareUrl,
+  normalizeOpenGlanceWorktreeId,
   normalizeGitRevision,
 } from "../server/hosted-links.mjs";
 
-export const GIT_LEAF_PROTOCOL = "git-leaf";
-export const GIT_LEAF_OPEN_HOST = "open";
-export const GIT_LEAF_OPEN_WORKTREE_HOST = "open-worktree";
-export const GIT_LEAF_OPEN_SHARED_HOST = "open-shared";
+export {
+  OPENGLANCE_GIT_LEAF_PROTOCOL,
+  OPENGLANCE_LEGACY_PROTOCOL,
+  OPENGLANCE_PROTOCOL,
+  OPENGLANCE_SUPPORTED_PROTOCOLS,
+};
+export const OPENGLANCE_OPEN_HOST = "open";
+export const OPENGLANCE_OPEN_WORKTREE_HOST = "open-worktree";
+export const OPENGLANCE_OPEN_SHARED_HOST = "open-shared";
 
-export function gitLeafDeepLinkUrl({
+export function openGlanceDeepLinkUrl({
   repoRoot,
   repository,
   file = "",
@@ -32,11 +44,11 @@ export function gitLeafDeepLinkUrl({
 } = {}) {
   const normalized = normalizeDeepLinkTarget({ repoRoot, repository, file, worktree, platform });
   if (!normalized) {
-    throw new Error("Git Leaf deep links require a repository and a safe Markdown document path.");
+    throw new Error("OpenGlance deep links require a repository and a safe Markdown document path.");
   }
 
-  const host = normalized.worktree ? GIT_LEAF_OPEN_WORKTREE_HOST : GIT_LEAF_OPEN_HOST;
-  const url = new URL(`${GIT_LEAF_PROTOCOL}://${host}`);
+  const host = normalized.worktree ? OPENGLANCE_OPEN_WORKTREE_HOST : OPENGLANCE_OPEN_HOST;
+  const url = new URL(`${OPENGLANCE_PROTOCOL}://${host}`);
   url.searchParams.set("repo", normalized.repoRoot || normalized.repository);
   if (normalized.file) {
     url.searchParams.set("path", normalized.file);
@@ -45,43 +57,43 @@ export function gitLeafDeepLinkUrl({
     url.searchParams.set("worktree", normalized.worktree);
   }
   if (handoff) {
-    const normalizedHandoff = normalizeGitLeafHandoffId(handoff);
+    const normalizedHandoff = normalizeOpenGlanceHandoffId(handoff);
     if (!normalizedHandoff) {
-      throw new Error("Git Leaf handoff ids must be safe one-time identifiers.");
+      throw new Error("OpenGlance handoff ids must be safe one-time identifiers.");
     }
     url.searchParams.set("handoff", normalizedHandoff);
   }
   return url.toString();
 }
 
-export function gitLeafSharedDeepLinkUrl({ repository, file, rev, handoff = "" } = {}) {
-  const shareUrl = new URL(gitLeafShareUrl({ repository, file, rev }));
-  const url = new URL(`${GIT_LEAF_PROTOCOL}://${GIT_LEAF_OPEN_SHARED_HOST}`);
+export function openGlanceSharedDeepLinkUrl({ repository, file, rev, handoff = "" } = {}) {
+  const shareUrl = new URL(openGlanceShareUrl({ repository, file, rev }));
+  const url = new URL(`${OPENGLANCE_PROTOCOL}://${OPENGLANCE_OPEN_SHARED_HOST}`);
   for (const key of ["v", "repo", "path", "rev"]) {
     url.searchParams.set(key, shareUrl.searchParams.get(key));
   }
   if (handoff) {
-    const normalizedHandoff = normalizeGitLeafHandoffId(handoff);
+    const normalizedHandoff = normalizeOpenGlanceHandoffId(handoff);
     if (!normalizedHandoff) {
-      throw new Error("Git Leaf handoff ids must be safe one-time identifiers.");
+      throw new Error("OpenGlance handoff ids must be safe one-time identifiers.");
     }
     url.searchParams.set("handoff", normalizedHandoff);
   }
   return url.toString();
 }
 
-export function parseGitLeafDeepLink(value, { platform = process.platform } = {}) {
-  if (typeof value !== "string" || !value.startsWith(`${GIT_LEAF_PROTOCOL}:`)) {
+export function parseOpenGlanceDeepLink(value, { platform = process.platform } = {}) {
+  if (typeof value !== "string") {
     return null;
   }
 
   try {
     const url = new URL(value);
-    const isRepositoryOpen = url.hostname === GIT_LEAF_OPEN_HOST;
-    const isWorktreeOpen = url.hostname === GIT_LEAF_OPEN_WORKTREE_HOST;
-    const isSharedOpen = url.hostname === GIT_LEAF_OPEN_SHARED_HOST;
+    const isRepositoryOpen = url.hostname === OPENGLANCE_OPEN_HOST;
+    const isWorktreeOpen = url.hostname === OPENGLANCE_OPEN_WORKTREE_HOST;
+    const isSharedOpen = url.hostname === OPENGLANCE_OPEN_SHARED_HOST;
     if (
-      url.protocol !== `${GIT_LEAF_PROTOCOL}:`
+      !isOpenGlanceProtocol(url.protocol)
       || (!isRepositoryOpen && !isWorktreeOpen && !isSharedOpen)
     ) {
       return null;
@@ -90,7 +102,7 @@ export function parseGitLeafDeepLink(value, { platform = process.platform } = {}
       return parseSharedDeepLink(url);
     }
     const handoffValue = url.searchParams.get("handoff") ?? "";
-    const handoff = normalizeGitLeafHandoffId(handoffValue);
+    const handoff = normalizeOpenGlanceHandoffId(handoffValue);
     if (handoffValue && !handoff) {
       return null;
     }
@@ -131,12 +143,12 @@ function parseSharedDeepLink(url) {
   if ([version, repository, file, revisionValue, handoffValue].includes(null)) {
     return null;
   }
-  if (version !== GIT_LEAF_SHARE_VERSION) {
+  if (version !== OPENGLANCE_SHARE_VERSION) {
     return null;
   }
   const target = normalizeDeepLinkTarget({ repository, file });
   const rev = normalizeGitRevision(revisionValue);
-  const handoff = handoffValue ? normalizeGitLeafHandoffId(handoffValue) : "";
+  const handoff = handoffValue ? normalizeOpenGlanceHandoffId(handoffValue) : "";
   if (!target?.repository || !target.file || !rev || (handoffValue && !handoff)) {
     return null;
   }
@@ -158,9 +170,9 @@ function singleSearchParam(url, key) {
   return values.length <= 1 ? values[0] ?? "" : null;
 }
 
-export function gitLeafDeepLinkFromArgs(args = [], options = {}) {
+export function openGlanceDeepLinkFromArgs(args = [], options = {}) {
   for (const arg of args) {
-    const parsed = parseGitLeafDeepLink(arg, options);
+    const parsed = parseOpenGlanceDeepLink(arg, options);
     if (parsed) {
       return parsed;
     }

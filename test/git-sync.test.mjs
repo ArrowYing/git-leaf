@@ -93,14 +93,14 @@ test("buildGitSyncAgentPrompt localizes instructions without rewriting repositor
     language: "zh-Hans",
   });
 
-  assert.match(english, /^Please resolve this Git Leaf sync failure:/);
+  assert.match(english, /^Please resolve this OpenGlance sync failure:/);
   assert.match(english, /Repository path: \/repo\/公司资料/);
   assert.match(english, /Current branch: feature\/同步/);
   assert.match(english, /Selected files:\n- docs\/说明\.md\n- assets\/example\.png/);
   assert.match(english, /fatal: Updates were rejected for refs\/heads\/feature\/同步/);
   assert.match(english, /commit and push the current branch feature\/同步/);
 
-  assert.match(chinese, /^请处理 Git Leaf 同步失败：/);
+  assert.match(chinese, /^请处理 OpenGlance 同步失败：/);
   assert.match(chinese, /仓库路径：\/repo\/公司资料/);
   assert.match(chinese, /当前分支：feature\/同步/);
   assert.match(chinese, /选中文件：\n- docs\/说明\.md\n- assets\/example\.png/);
@@ -365,7 +365,7 @@ test("syncSelectedFiles returns an all-file Agent prompt when rebase fails", asy
   assert.match(result.error, /CONFLICT/);
   assert.match(result.error, /exited the failed rebase automatically/);
   assert.match(result.agentPrompt, /Selected files:\n- docs\/changed\.md/);
-  assert.match(result.agentPrompt, /Preserve the Git Leaf user's changes/);
+  assert.match(result.agentPrompt, /Preserve the OpenGlance user's changes/);
 });
 
 test("syncSelectedFiles refuses unresolved conflicts and in-progress Git operations", async () => {
@@ -402,7 +402,7 @@ test("syncSelectedFiles refuses unresolved conflicts and in-progress Git operati
 test("syncSelectedFiles publishes a branch without an upstream", async () => {
   const calls = [];
   const result = await syncSelectedFiles({
-    repo: { ...REPO, branch: "git-leaf/detached-1234567" },
+    repo: { ...REPO, branch: "openglance/detached-1234567" },
     files: ["docs/changed.md"],
     gitRunner: async (_cwd, args) => {
       calls.push(args);
@@ -419,21 +419,21 @@ test("syncSelectedFiles publishes a branch without an upstream", async () => {
   assert.deepEqual(calls.slice(-4), [[
     "push",
     "origin",
-    `${TEST_HEAD}:refs/heads/git-leaf/detached-1234567`,
+    `${TEST_HEAD}:refs/heads/openglance/detached-1234567`,
   ], [
     "fetch",
     "origin",
-    "git-leaf/detached-1234567",
+    "openglance/detached-1234567",
   ], [
     "merge-base",
     "--is-ancestor",
     TEST_HEAD,
-    "refs/remotes/origin/git-leaf/detached-1234567",
+    "refs/remotes/origin/openglance/detached-1234567",
   ], [
     "branch",
-    "--set-upstream-to=origin/git-leaf/detached-1234567",
+    "--set-upstream-to=origin/openglance/detached-1234567",
     "--",
-    "git-leaf/detached-1234567",
+    "openglance/detached-1234567",
   ]]);
 });
 
@@ -486,7 +486,7 @@ test("publishCurrentBranch accepts the language alias for localized failure copy
   assert.equal(result.ok, false);
   assert.equal(result.error, "当前仍有未提交的本地改动，请先完成同步后再发布。");
   assert.equal(result.resultTitle, "同步遇到异常");
-  assert.match(result.agentPrompt, /^请处理 Git Leaf 同步失败：/);
+  assert.match(result.agentPrompt, /^请处理 OpenGlance 同步失败：/);
   assert.match(result.agentPrompt, /当前分支：main/);
 });
 

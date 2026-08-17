@@ -75,7 +75,7 @@ export function createLiveTableSmokeFixture({
     runGit(["add", LIVE_TABLE_SMOKE_FILE], repoRoot);
     runGit([
       "-c",
-      "user.name=Git Leaf Smoke",
+      "user.name=OpenGlance Smoke",
       "-c",
       "user.email=smoke@gitleaf.local",
       "commit",

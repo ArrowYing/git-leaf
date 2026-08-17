@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { classifyDesktopNavigation } from "../src/desktop/navigation.mjs";
 
-test("desktop navigation keeps only same-origin Git Leaf URLs inside the app", () => {
+test("desktop navigation keeps only same-origin OpenGlance URLs inside the app", () => {
   const currentUrl = "http://127.0.0.1:4317/?repo=docs-repo&file=README.md";
 
   assert.equal(

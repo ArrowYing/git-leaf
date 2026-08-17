@@ -407,33 +407,33 @@ test("saveDesktopRepository keeps first-opened repository order stable", async (
 test("reorderDesktopRepositories persists only an exact permutation of open repositories", async () => {
   const userDataDir = await mkdtemp(path.join(tmpdir(), "git-leaf-user-data-"));
   const mangoOs = path.join(tmpdir(), "mango-os");
-  const gitLeaf = path.join(tmpdir(), "git-leaf");
+  const openGlance = path.join(tmpdir(), "git-leaf");
   const mangoContent = path.join(tmpdir(), "mango-content");
 
   await saveDesktopRepository({ userDataDir, repoRoot: mangoOs });
-  await saveDesktopRepository({ userDataDir, repoRoot: gitLeaf });
+  await saveDesktopRepository({ userDataDir, repoRoot: openGlance });
   await saveDesktopRepository({ userDataDir, repoRoot: mangoContent });
   await reorderDesktopRepositories({
     userDataDir,
-    openRepoRoots: [gitLeaf, mangoContent, mangoOs],
+    openRepoRoots: [openGlance, mangoContent, mangoOs],
   });
 
   assert.deepEqual(await readDesktopConfig({ userDataDir }), {
     repoRoot: mangoContent,
-    openRepoRoots: [gitLeaf, mangoContent, mangoOs],
+    openRepoRoots: [openGlance, mangoContent, mangoOs],
     preferences: NEW_INSTALL_PREFERENCES,
   });
 
   await reorderDesktopRepositories({
     userDataDir,
-    openRepoRoots: [mangoOs, gitLeaf],
+    openRepoRoots: [mangoOs, openGlance],
   });
   await reorderDesktopRepositories({
     userDataDir,
-    openRepoRoots: [mangoOs, gitLeaf, mangoContent, mangoOs],
+    openRepoRoots: [mangoOs, openGlance, mangoContent, mangoOs],
   });
   assert.deepEqual((await readDesktopConfig({ userDataDir })).openRepoRoots, [
-    gitLeaf,
+    openGlance,
     mangoContent,
     mangoOs,
   ]);

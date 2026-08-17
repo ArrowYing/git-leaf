@@ -11,7 +11,9 @@ import {
   electronPackagerCommand,
   assertReleaseVersionIsNew,
   ensureReleaseGitTag,
+  OFFICIAL_INTERNAL_PACKAGE_IDENTITY,
   OFFICIAL_PACKAGE_IDENTITY,
+  OFFICIAL_PUBLIC_PACKAGE_IDENTITY,
   RELEASE_PACKAGE_IGNORE_PATTERNS,
   releaseArtifactFileName,
   releaseBuildId,
@@ -46,7 +48,7 @@ test("releaseArtifactFileName keeps downloadable artifact names short and shell 
       platformKey: "darwin-arm64",
       extension: ".dmg",
     }),
-    "GitLeaf-0.1.4-internal-darwin-arm64.dmg",
+    "OpenGlance-0.1.4-internal-darwin-arm64.dmg",
   );
   assert.doesNotMatch(
     releaseArtifactFileName({
@@ -68,7 +70,7 @@ test("release package excludes repository tooling and third-party tests from app
     "/CHANGELOG.md",
     "/README.zh-CN.md",
     "/docs/assets/user-guide/workspace-overview.png",
-    "/tools/generate-git-leaf-open-link.mjs",
+    "/tools/generate-openglance-open-link.mjs",
     "/node_modules/mermaid/package.json",
     "/node_modules/@lezer/css/test/test-css.js",
     "/node_modules/@lezer/html/tests/fixture.txt",
@@ -97,7 +99,7 @@ test("release build identity defaults to source with analytics disabled", () => 
   assert.equal(buildInfo.usageAnalyticsDefault, false);
   assert.throws(
     () => assertOfficialReleaseProfile(buildInfo),
-    /GIT_LEAF_RELEASE_PROFILE/,
+    /OPENGLANCE_RELEASE_PROFILE/,
   );
 });
 
@@ -107,24 +109,38 @@ test("package metadata separates community builds from Mango Future official bui
     COMMUNITY_PACKAGE_IDENTITY,
   );
   assert.deepEqual(COMMUNITY_PACKAGE_IDENTITY, {
-    macBundleId: "org.gitleaf.community",
-    windowsCompanyName: "Git Leaf Community",
-    windowsProductName: "Git Leaf Community Build",
+    macBundleId: "org.openglance.community",
+    macExecutableName: "OpenGlance",
+    windowsCompanyName: "OpenGlance Community",
+    windowsProductName: "OpenGlance Community Build",
   });
 
   assert.deepEqual(
     releasePackageIdentity({ distribution: "official" }),
-    OFFICIAL_PACKAGE_IDENTITY,
+    OFFICIAL_PUBLIC_PACKAGE_IDENTITY,
   );
-  assert.deepEqual(OFFICIAL_PACKAGE_IDENTITY, {
-    macBundleId: "com.mangofuture.gitleaf",
+  assert.deepEqual(OFFICIAL_PUBLIC_PACKAGE_IDENTITY, {
+    macBundleId: "com.mangofuture.openglance",
+    macExecutableName: "OpenGlance",
     windowsCompanyName: "Shenzhen Mango Future Technology Co., Ltd.",
-    windowsProductName: "Git Leaf",
+    windowsProductName: "OpenGlance",
+  });
+
+  assert.deepEqual(
+    releasePackageIdentity({ distribution: "official", releaseTrack: "internal" }),
+    OFFICIAL_INTERNAL_PACKAGE_IDENTITY,
+  );
+  assert.equal(OFFICIAL_PACKAGE_IDENTITY, OFFICIAL_INTERNAL_PACKAGE_IDENTITY);
+  assert.deepEqual(OFFICIAL_INTERNAL_PACKAGE_IDENTITY, {
+    macBundleId: "com.mangofuture.gitleaf",
+    macExecutableName: "OpenGlance",
+    windowsCompanyName: "Shenzhen Mango Future Technology Co., Ltd.",
+    windowsProductName: "OpenGlance",
   });
 });
 
 test("release profile selects official public or internal track defaults", async () => {
-  const rootDir = await mkdtemp(path.join(tmpdir(), "git-leaf-release-profile-"));
+  const rootDir = await mkdtemp(path.join(tmpdir(), "openglance-release-profile-"));
   const publicProfile = path.join(rootDir, "official-public.json");
   await writeFile(publicProfile, JSON.stringify({
     distribution: "official",
@@ -136,7 +152,7 @@ test("release profile selects official public or internal track defaults", async
   const buildInfo = releaseBuildInfoFromEnv({
     rootDir,
     env: {
-      GIT_LEAF_RELEASE_PROFILE: publicProfile,
+      OPENGLANCE_RELEASE_PROFILE: publicProfile,
       VERSION: "1.12.0",
       GIT_COMMIT: "abc123",
       BUILT_AT: "2026-07-23T00:00:00.000Z",
@@ -163,7 +179,7 @@ test("release profile selects official public or internal track defaults", async
   const internalBuildInfo = releaseBuildInfoFromEnv({
     rootDir,
     env: {
-      GIT_LEAF_RELEASE_PROFILE: internalProfile,
+      OPENGLANCE_RELEASE_PROFILE: internalProfile,
       VERSION: "1.12.0",
       GIT_COMMIT: "abc123",
       BUILT_AT: "2026-07-23T00:00:00.000Z",
@@ -178,8 +194,47 @@ test("release profile selects official public or internal track defaults", async
   assert.equal(assertOfficialReleaseProfile(internalBuildInfo), undefined);
 });
 
+test("release configuration accepts Git Leaf 1.x environment names as fallbacks", async () => {
+  const rootDir = await mkdtemp(path.join(tmpdir(), "openglance-legacy-release-profile-"));
+  const profilePath = path.join(rootDir, "official-public.json");
+  await writeFile(profilePath, JSON.stringify({
+    distribution: "official",
+    releaseTrack: "public",
+    legacyInternalMigrationConfirmed: true,
+    usageAnalyticsDefault: false,
+  }), "utf8");
+
+  const legacy = releaseBuildInfoFromEnv({
+    rootDir,
+    env: {
+      GIT_LEAF_RELEASE_PROFILE: profilePath,
+      VERSION: "2.0.0",
+      GIT_COMMIT: "abc123",
+      BUILT_AT: "2026-08-12T00:00:00.000Z",
+      BUILD_ID: "abc123.20260812T000000Z",
+    },
+  });
+  assert.equal(legacy.releaseProfileConfigured, true);
+  assert.equal(legacy.distribution, "official");
+  assert.equal(legacy.releaseTrack, "public");
+
+  const canonical = releaseBuildInfoFromEnv({
+    rootDir,
+    env: {
+      OPENGLANCE_RELEASE_PROFILE: profilePath,
+      GIT_LEAF_RELEASE_PROFILE: "/missing/legacy-profile.json",
+      VERSION: "2.0.0",
+      GIT_COMMIT: "abc123",
+      BUILT_AT: "2026-08-12T00:00:00.000Z",
+      BUILD_ID: "abc123.20260812T000000Z",
+    },
+  });
+  assert.equal(canonical.releaseProfileConfigured, true);
+  assert.equal(canonical.distribution, "official");
+});
+
 test("official release profiles fail closed on missing track or conflicting analytics", async () => {
-  const rootDir = await mkdtemp(path.join(tmpdir(), "git-leaf-release-profile-invalid-"));
+  const rootDir = await mkdtemp(path.join(tmpdir(), "openglance-release-profile-invalid-"));
   const missingTrackProfile = path.join(rootDir, "missing-track.json");
   const conflictingInternalProfile = path.join(rootDir, "conflicting-internal.json");
   await writeFile(missingTrackProfile, JSON.stringify({
@@ -195,14 +250,14 @@ test("official release profiles fail closed on missing track or conflicting anal
   assert.throws(
     () => releaseBuildInfoFromEnv({
       rootDir,
-      env: { GIT_LEAF_RELEASE_PROFILE: missingTrackProfile },
+      env: { OPENGLANCE_RELEASE_PROFILE: missingTrackProfile },
     }),
     /explicit releaseTrack of public or internal/,
   );
   assert.throws(
     () => releaseBuildInfoFromEnv({
       rootDir,
-      env: { GIT_LEAF_RELEASE_PROFILE: conflictingInternalProfile },
+      env: { OPENGLANCE_RELEASE_PROFILE: conflictingInternalProfile },
     }),
     /requires usageAnalyticsDefault=true/,
   );
@@ -220,7 +275,7 @@ test("official public release commands require the reviewed legacy migration con
 
   const buildInfo = releaseBuildInfoFromEnv({
     rootDir,
-    env: { GIT_LEAF_RELEASE_PROFILE: profilePath },
+    env: { OPENGLANCE_RELEASE_PROFILE: profilePath },
   });
   assert.equal(buildInfo.legacyInternalMigrationConfirmed, false);
   assert.throws(
@@ -258,7 +313,7 @@ test("environment overrides cannot impersonate a configured official release pro
   const buildInfo = releaseBuildInfoFromEnv({
     rootDir: "/repo",
     env: {
-      GIT_LEAF_DISTRIBUTION: "official",
+      OPENGLANCE_DISTRIBUTION: "official",
       VERSION: "1.12.0",
       GIT_COMMIT: "abc123",
       BUILT_AT: "2026-07-23T00:00:00.000Z",
@@ -270,7 +325,7 @@ test("environment overrides cannot impersonate a configured official release pro
   assert.equal(buildInfo.releaseProfileConfigured, false);
   assert.throws(
     () => assertOfficialReleaseProfile(buildInfo),
-    /GIT_LEAF_RELEASE_PROFILE/,
+    /OPENGLANCE_RELEASE_PROFILE/,
   );
 });
 
@@ -311,7 +366,7 @@ test("assertReleaseVersionIsNew accepts a version without an existing release ta
 });
 
 test("withReleaseBuildInfoFile writes development build marker", async () => {
-  const rootDir = await mkdtemp(path.join(tmpdir(), "git-leaf-release-shared-"));
+  const rootDir = await mkdtemp(path.join(tmpdir(), "openglance-release-shared-"));
   let payload;
 
   withReleaseBuildInfoFile({
@@ -344,7 +399,7 @@ test("ensureReleaseGitTag creates an annotated version tag when it is missing", 
     if (args.join(" ") === "rev-parse --verify refs/tags/v0.1.1^{}") {
       return { status: 1, stdout: "", stderr: "not found" };
     }
-    if (args.join(" ") === "tag -a v0.1.1 -m Git Leaf 0.1.1") {
+    if (args.join(" ") === "tag -a v0.1.1 -m OpenGlance 0.1.1") {
       return { status: 0, stdout: "", stderr: "" };
     }
     throw new Error(`Unexpected git command: ${args.join(" ")}`);
@@ -364,7 +419,7 @@ test("ensureReleaseGitTag creates an annotated version tag when it is missing", 
   );
   assert.deepEqual(calls.at(-1), [
     "git",
-    ["tag", "-a", "v0.1.1", "-m", "Git Leaf 0.1.1"],
+    ["tag", "-a", "v0.1.1", "-m", "OpenGlance 0.1.1"],
   ]);
 });
 

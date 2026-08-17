@@ -5,8 +5,8 @@ import {
   resolveDesktopLanguage,
 } from "./localization.mjs";
 
-export const DESKTOP_OPEN_REPOSITORY_URL = "git-leaf://open-repository";
-export const DESKTOP_OPEN_WORKTREE_URL = "git-leaf://open-worktree";
+export const DESKTOP_OPEN_REPOSITORY_URL = "openglance://open-repository";
+export const DESKTOP_OPEN_WORKTREE_URL = "openglance://open-worktree";
 
 export function desktopPageBackgroundColor(
   preferences = {},
@@ -358,7 +358,7 @@ export function desktopProgressHtml({
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>${escapeHtml(renderedTitle)} - Git Leaf</title>
+  <title>${escapeHtml(renderedTitle)} - OpenGlance</title>
   <style>
     :root {
       color-scheme: light dark;

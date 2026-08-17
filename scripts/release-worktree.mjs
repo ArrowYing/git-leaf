@@ -25,13 +25,19 @@ import { validateMacUpdateRegressionEvidence } from "./mac-update-regression-evi
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const REPO_ROOT = path.dirname(path.dirname(SCRIPT_PATH));
-const RELEASE_STATE_FILE = "git-leaf-release-state.json";
+const RELEASE_STATE_FILE = "openglance-release-state.json";
+const LEGACY_RELEASE_STATE_FILE = "git-leaf-release-state.json";
 const RELEASE_VERSION_BASELINE = "1.11.2";
 const LEGACY_INTERNAL_MIGRATION_VERSION = "1.11.3";
-const GITHUB_RELEASE_REPOSITORY = "MangoFuture1210/git-leaf";
+const GITHUB_RELEASE_REPOSITORY = "openglance/openglance";
 const WINDOWS_RELEASE_SMOKE_WORKFLOW = "Windows Release Smoke";
 const WINDOWS_RELEASE_SMOKE_WORKFLOW_PATH = ".github/workflows/windows-release-smoke.yml";
-const WINDOWS_RELEASE_SMOKE_ARTIFACT_PREFIX = "git-leaf-windows-release-smoke-";
+const WINDOWS_RELEASE_SMOKE_ARTIFACT_PREFIX = "openglance-windows-release-smoke-";
+const LEGACY_WINDOWS_RELEASE_SMOKE_ARTIFACT_PREFIX = "git-leaf-windows-release-smoke-";
+const WINDOWS_RELEASE_SMOKE_ARTIFACT_PREFIXES = [
+  WINDOWS_RELEASE_SMOKE_ARTIFACT_PREFIX,
+  LEGACY_WINDOWS_RELEASE_SMOKE_ARTIFACT_PREFIX,
+];
 const WINDOWS_RELEASE_SMOKE_EVENTS = new Set(["push", "workflow_dispatch"]);
 const RELEASE_TRACKS = new Set(["public", "internal"]);
 const RELEASE_CHANNELS = {
@@ -68,6 +74,19 @@ const DRIFTABLE_RELEASE_ENVIRONMENT_VARIABLES = [
   "GIT_LEAF_UPDATE_BASE_URL",
   "GIT_LEAF_UPDATE_CHANNEL",
   "GIT_LEAF_USAGE_ANALYTICS_DEFAULT",
+  "OPENGLANCE_DEV_USER_DATA_DIR",
+  "OPENGLANCE_DISTRIBUTION",
+  "OPENGLANCE_ENABLE_UPDATES",
+  "OPENGLANCE_FORMAL_RELEASE",
+  "OPENGLANCE_PORTABLE",
+  "OPENGLANCE_RELEASE_PROFILE",
+  "OPENGLANCE_SMOKE_FILE",
+  "OPENGLANCE_SMOKE_REPO_ROOT",
+  "OPENGLANCE_SMOKE_USER_DATA_DIR",
+  "OPENGLANCE_TELEMETRY_ENDPOINT",
+  "OPENGLANCE_UPDATE_BASE_URL",
+  "OPENGLANCE_UPDATE_CHANNEL",
+  "OPENGLANCE_USAGE_ANALYTICS_DEFAULT",
   "ICON_PATH",
   "NOTARY_PROFILE",
   "RELEASE_COMMIT",
@@ -79,11 +98,14 @@ const DRIFTABLE_RELEASE_ENVIRONMENT_VARIABLES = [
 ];
 const UPDATE_REGRESSION_RISK_PATHS = new Set([
   "assets/entitlements.mac.plist",
+  "src/desktop/development-handoff.mjs",
+  "src/desktop/mac-app-contents.mjs",
+  "src/desktop/mac-development-handoff-update.mjs",
   "src/desktop/update-check-schedule.mjs",
   "src/desktop/updates.mjs",
   "public/update-ui.js",
-  "scripts/gitleaf-update-server.py",
-  "scripts/install-gitleaf-update-server.sh",
+  "scripts/openglance-update-server.py",
+  "scripts/install-openglance-update-server.sh",
   "scripts/mac-update-bridge.mjs",
   "scripts/mac-update-regression-evidence.mjs",
   "scripts/mac-update-regression.mjs",
@@ -159,6 +181,8 @@ export function releaseEnvironment(state, { channel } = {}) {
     RELEASE_COMMIT: state.commit,
     BUILT_AT: state.builtAt,
     BUILD_ID: state.buildId,
+    OPENGLANCE_FORMAL_RELEASE: "1",
+    OPENGLANCE_RELEASE_PROFILE: state.releaseProfile.path,
     GIT_LEAF_FORMAL_RELEASE: "1",
     GIT_LEAF_RELEASE_PROFILE: state.releaseProfile.path,
     ...(channel ? { UPDATE_CHANNEL: channel } : {}),
@@ -416,7 +440,9 @@ export function windowsReleaseSmokeEvidence({
   }
   const artifactList = Array.isArray(artifacts?.artifacts) ? artifacts.artifacts : [];
   const artifact = artifactList.find((candidate) => (
-    String(candidate.name || "").startsWith(WINDOWS_RELEASE_SMOKE_ARTIFACT_PREFIX)
+    WINDOWS_RELEASE_SMOKE_ARTIFACT_PREFIXES.some((prefix) => (
+      String(candidate.name || "").startsWith(prefix)
+    ))
     && String(candidate.name || "").endsWith(`-${state.commit}`)
     && candidate.expired === false
     && Number(candidate.size_in_bytes) > 0
@@ -465,7 +491,9 @@ export function assertWindowsReleaseSmokeVerified(state) {
     || !/^\d+$/.test(String(evidence.runId || ""))
     || evidence.url !== `https://github.com/${GITHUB_RELEASE_REPOSITORY}/actions/runs/${evidence.runId}`
     || !/^\d+$/.test(String(evidence.artifactId || ""))
-    || !String(evidence.artifactName || "").startsWith(WINDOWS_RELEASE_SMOKE_ARTIFACT_PREFIX)
+    || !WINDOWS_RELEASE_SMOKE_ARTIFACT_PREFIXES.some((prefix) => (
+      String(evidence.artifactName || "").startsWith(prefix)
+    ))
     || !String(evidence.artifactName || "").endsWith(`-${state.commit}`)
     || Number(evidence.artifactSize) <= 0
   ) {
@@ -617,10 +645,19 @@ function releaseStatePath(rootDir) {
   return path.join(gitCommonDir(rootDir), RELEASE_STATE_FILE);
 }
 
+function legacyReleaseStatePath(rootDir) {
+  return path.join(gitCommonDir(rootDir), LEGACY_RELEASE_STATE_FILE);
+}
+
+function activeReleaseStatePath(rootDir) {
+  const canonicalPath = releaseStatePath(rootDir);
+  return existsSync(canonicalPath) ? canonicalPath : legacyReleaseStatePath(rootDir);
+}
+
 function readReleaseState(rootDir = REPO_ROOT) {
-  const statePath = releaseStatePath(rootDir);
+  const statePath = activeReleaseStatePath(rootDir);
   if (!existsSync(statePath)) {
-    throw new Error("No active Git Leaf release. Run release:prepare first.");
+    throw new Error("No active OpenGlance release. Run release:prepare first.");
   }
   return { statePath, state: JSON.parse(readFileSync(statePath, "utf8")) };
 }
@@ -760,8 +797,9 @@ function prepareRelease({
 } = {}) {
   const releaseProfile = freezeReleaseProfile({ profilePath, track });
   const statePath = releaseStatePath(REPO_ROOT);
-  if (existsSync(statePath)) {
-    const active = JSON.parse(readFileSync(statePath, "utf8"));
+  const existingStatePath = activeReleaseStatePath(REPO_ROOT);
+  if (existsSync(existingStatePath)) {
+    const active = JSON.parse(readFileSync(existingStatePath, "utf8"));
     throw new Error(
       `Release ${active.version} is already active at ${active.worktreePath}. Finish or abort it first.`,
     );
@@ -909,7 +947,7 @@ function markCandidateVerified() {
     completedAt: state.candidateArtifactsVerifiedAt,
   });
   writeReleaseState(statePath, state);
-  console.log(`Recorded candidate artifact verification for Git Leaf ${state.version}`);
+  console.log(`Recorded candidate artifact verification for OpenGlance ${state.version}`);
 }
 
 function verifyWindowsReleaseSmoke(runId) {
@@ -1028,7 +1066,7 @@ function markPublicDownloadIsolationVerified() {
   });
   writeReleaseState(statePath, state);
   console.log(
-    `Recorded public download isolation verification for Git Leaf ${state.version} ${state.track}`,
+    `Recorded public download isolation verification for OpenGlance ${state.version} ${state.track}`,
   );
 }
 
@@ -1120,7 +1158,7 @@ function abortRelease() {
     throw new Error(`Remote tag ${tagName} already exists; finish this release instead of aborting it`);
   }
   removeReleaseWorktree(state, { statePath });
-  console.log(`Aborted Git Leaf ${state.version}; release worktree and local lock removed`);
+  console.log(`Aborted OpenGlance ${state.version}; release worktree and local lock removed`);
 }
 
 function removeReleaseWorktree(state, { statePath }) {

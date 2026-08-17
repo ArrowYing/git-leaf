@@ -10,7 +10,7 @@ const CHANNELS = Object.freeze({
   shortcutInput: "git-leaf-settings:shortcut-input",
 });
 
-contextBridge.exposeInMainWorld("gitLeafSettings", Object.freeze({
+contextBridge.exposeInMainWorld("openGlanceSettings", Object.freeze({
   getModel() {
     return ipcRenderer.invoke(CHANNELS.getModel);
   },

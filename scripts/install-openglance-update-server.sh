@@ -24,12 +24,12 @@ ssh "$REMOTE_HOST" "install -d -m 0755 '$REMOTE_ROOT' '$REMOTE_BIN_DIR' && \
   install -d -m 0750 '$TELEMETRY_ROOT' '$TELEMETRY_ROOT/events' '$TELEMETRY_ROOT/downloads' '$TELEMETRY_ROOT/reports' && \
   find '$TELEMETRY_ROOT' -type d -exec chmod 0750 {} + && \
   find '$TELEMETRY_ROOT/events' '$TELEMETRY_ROOT/downloads' '$TELEMETRY_ROOT/reports' -type f -exec chmod 0640 {} +"
-scp "$SCRIPT_DIR/gitleaf-update-server.py" "$REMOTE_HOST:/tmp/gitleaf-update-server.py"
-ssh "$REMOTE_HOST" "install -m 0750 /tmp/gitleaf-update-server.py '$REMOTE_BIN_DIR/gitleaf-update-server.py' && rm -f /tmp/gitleaf-update-server.py"
+scp "$SCRIPT_DIR/openglance-update-server.py" "$REMOTE_HOST:/tmp/openglance-update-server.py"
+ssh "$REMOTE_HOST" "install -m 0750 /tmp/openglance-update-server.py '$REMOTE_BIN_DIR/openglance-update-server.py' && rm -f /tmp/openglance-update-server.py"
 
 ssh "$REMOTE_HOST" "cat > /tmp/$SERVICE_NAME" <<UNIT
 [Unit]
-Description=Git Leaf update, Deep Link, and telemetry server
+Description=OpenGlance update, Deep Link, and telemetry server
 After=network-online.target
 Wants=network-online.target
 
@@ -37,7 +37,7 @@ Wants=network-online.target
 Type=simple
 User=$REMOTE_USER
 WorkingDirectory=$REMOTE_WORK_DIR
-ExecStart=/usr/bin/python3 $REMOTE_BIN_DIR/gitleaf-update-server.py --root $REMOTE_ROOT --telemetry-root $TELEMETRY_ROOT --bind $REMOTE_BIND --port $REMOTE_PORT
+ExecStart=/usr/bin/python3 $REMOTE_BIN_DIR/openglance-update-server.py --root $REMOTE_ROOT --telemetry-root $TELEMETRY_ROOT --bind $REMOTE_BIND --port $REMOTE_PORT
 Restart=on-failure
 RestartSec=3
 UMask=0027

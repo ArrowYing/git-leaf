@@ -26,19 +26,19 @@ import {
 const REMOTE_SYNC_MESSAGES = {
   en: {
     "result.title": "Remote merge needs attention",
-    "result.help": "Git Leaf left your local files uncommitted. Copy the prompt only if you want an AI Agent to continue.",
-    "error.noBranch": "The current worktree is not on a branch, so Git Leaf cannot check its remote branch.",
+    "result.help": "OpenGlance left your local files uncommitted. Copy the prompt only if you want an AI Agent to continue.",
+    "error.noBranch": "The current worktree is not on a branch, so OpenGlance cannot check its remote branch.",
     "error.noOrigin": "Git remote `origin` is not configured.",
     "error.remoteBranchMissing": "Remote branch origin/{branch} does not exist yet.",
-    "error.diverged": "The current branch and origin/{branch} have diverged. Git Leaf did not rewrite either history.",
-    "error.remoteChanged": "The fetched remote version changed before Git Leaf could apply it. Nothing was changed; Git Leaf will check the newer version.",
-    "error.preparationExpired": "The prepared remote update expired before it could be applied. Nothing was changed; Git Leaf will prepare it again.",
-    "error.confirmLocalChanges": "Local files have unpublished changes. Git Leaf paused before applying the remote update. Review the changes and choose “Merge remote changes” if you want to continue.",
-    "error.workspaceChanged": "The workspace changed while Git Leaf prepared the remote merge. Nothing was applied. Try again after the current edit is saved.",
-    "error.conflict": "The remote update conflicts with local edits. Git Leaf did not apply the merge to the real workspace.",
-    "error.sparseCheckoutLocalChanges": "This sparse-checkout worktree has local changes. Git Leaf stopped before changing HEAD, the index, or any files. Finish the merge manually after preserving those edits.",
-    "error.rollback": "Git Leaf could not fully roll back an interrupted remote merge. Preserve the recovery ref and hand the repository to an AI Agent.",
-    "prompt.title": "Please finish this Git Leaf remote merge:",
+    "error.diverged": "The current branch and origin/{branch} have diverged. OpenGlance did not rewrite either history.",
+    "error.remoteChanged": "The fetched remote version changed before OpenGlance could apply it. Nothing was changed; OpenGlance will check the newer version.",
+    "error.preparationExpired": "The prepared remote update expired before it could be applied. Nothing was changed; OpenGlance will prepare it again.",
+    "error.confirmLocalChanges": "Local files have unpublished changes. OpenGlance paused before applying the remote update. Review the changes and choose “Merge remote changes” if you want to continue.",
+    "error.workspaceChanged": "The workspace changed while OpenGlance prepared the remote merge. Nothing was applied. Try again after the current edit is saved.",
+    "error.conflict": "The remote update conflicts with local edits. OpenGlance did not apply the merge to the real workspace.",
+    "error.sparseCheckoutLocalChanges": "This sparse-checkout worktree has local changes. OpenGlance stopped before changing HEAD, the index, or any files. Finish the merge manually after preserving those edits.",
+    "error.rollback": "OpenGlance could not fully roll back an interrupted remote merge. Preserve the recovery ref and hand the repository to an AI Agent.",
+    "prompt.title": "Please finish this OpenGlance remote merge:",
     "prompt.repository": "Repository: {repo}",
     "prompt.repositoryPath": "Repository path: {path}",
     "prompt.branch": "Current branch: {branch}",
@@ -53,19 +53,19 @@ const REMOTE_SYNC_MESSAGES = {
   },
   "zh-CN": {
     "result.title": "合并远端修改需要处理",
-    "result.help": "Git Leaf 会保留本地文件为未提交状态。只有需要 AI Agent 继续处理时，才复制下面的提示词。",
-    "error.noBranch": "当前工作树不在分支上，Git Leaf 无法检查对应的远端分支。",
+    "result.help": "OpenGlance 会保留本地文件为未提交状态。只有需要 AI Agent 继续处理时，才复制下面的提示词。",
+    "error.noBranch": "当前工作树不在分支上，OpenGlance 无法检查对应的远端分支。",
     "error.noOrigin": "尚未配置 Git 远端 `origin`。",
     "error.remoteBranchMissing": "远端分支 origin/{branch} 尚不存在。",
-    "error.diverged": "当前分支与 origin/{branch} 已经分叉。Git Leaf 没有改写任何一侧的历史。",
-    "error.remoteChanged": "准备应用期间，已获取的远端版本发生了变化。Git Leaf 没有修改工作区，并会按较新的版本重新检查。",
-    "error.preparationExpired": "远端更新的准备结果在应用前已经失效。Git Leaf 没有修改工作区，并会重新准备。",
-    "error.confirmLocalChanges": "本地文件存在未发布修改，Git Leaf 已在应用远端更新前暂停。请查看改动，并在愿意继续时点击“合并远端修改”。",
-    "error.workspaceChanged": "准备合并期间工作区仍在变化。Git Leaf 没有应用任何修改；请等待当前编辑保存后重试。",
-    "error.conflict": "远端更新与本地编辑发生冲突。Git Leaf 没有把冲突应用到真实工作区。",
-    "error.sparseCheckoutLocalChanges": "当前 sparse-checkout 工作树存在本地修改。Git Leaf 已在改动 HEAD、索引或文件前停止；请先保留这些修改，再手动完成合并。",
-    "error.rollback": "Git Leaf 未能完整回退一次中断的远端合并。请保留恢复引用，并交给 AI Agent 处理。",
-    "prompt.title": "请继续处理 Git Leaf 的远端合并：",
+    "error.diverged": "当前分支与 origin/{branch} 已经分叉。OpenGlance 没有改写任何一侧的历史。",
+    "error.remoteChanged": "准备应用期间，已获取的远端版本发生了变化。OpenGlance 没有修改工作区，并会按较新的版本重新检查。",
+    "error.preparationExpired": "远端更新的准备结果在应用前已经失效。OpenGlance 没有修改工作区，并会重新准备。",
+    "error.confirmLocalChanges": "本地文件存在未发布修改，OpenGlance 已在应用远端更新前暂停。请查看改动，并在愿意继续时点击“合并远端修改”。",
+    "error.workspaceChanged": "准备合并期间工作区仍在变化。OpenGlance 没有应用任何修改；请等待当前编辑保存后重试。",
+    "error.conflict": "远端更新与本地编辑发生冲突。OpenGlance 没有把冲突应用到真实工作区。",
+    "error.sparseCheckoutLocalChanges": "当前 sparse-checkout 工作树存在本地修改。OpenGlance 已在改动 HEAD、索引或文件前停止；请先保留这些修改，再手动完成合并。",
+    "error.rollback": "OpenGlance 未能完整回退一次中断的远端合并。请保留恢复引用，并交给 AI Agent 处理。",
+    "prompt.title": "请继续处理 OpenGlance 的远端合并：",
     "prompt.repository": "仓库：{repo}",
     "prompt.repositoryPath": "仓库路径：{path}",
     "prompt.branch": "当前分支：{branch}",
@@ -785,7 +785,7 @@ async function applyPreparedDirtyRemoteMerge({
     await runRemoteStep(repo, "create recovery ref", gitRunner, [
       "update-ref",
       "-m",
-      "Git Leaf remote merge recovery",
+      "OpenGlance remote merge recovery",
       recoveryRef,
       snapshot.snapshotCommit,
     ]);
@@ -801,7 +801,7 @@ async function applyPreparedDirtyRemoteMerge({
     await runRemoteStep(repo, "advance branch", gitRunner, [
       "update-ref",
       "-m",
-      "Git Leaf merged remote changes",
+      "OpenGlance merged remote changes",
       `refs/heads/${repo.branch}`,
       remote.remoteCommit,
       snapshot.baseCommit,
@@ -1108,7 +1108,7 @@ async function rollbackInterruptedMerge({
       await gitRunner(repo.root, [
         "update-ref",
         "-m",
-        "Git Leaf rolled back remote merge",
+        "OpenGlance rolled back remote merge",
         `refs/heads/${repo.branch}`,
         baseline.head,
         remote.remoteCommit,
@@ -1259,7 +1259,7 @@ async function deleteRecoveryReference(repo, recoveryRef, oldValue, gitRunner) {
 }
 
 function recoveryReference() {
-  return `refs/git-leaf/recovery/remote-merge-${Date.now()}-${randomBytes(4).toString("hex")}`;
+  return `refs/openglance/recovery/remote-merge-${Date.now()}-${randomBytes(4).toString("hex")}`;
 }
 
 function remoteTrackingRef(branch) {

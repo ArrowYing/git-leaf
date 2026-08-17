@@ -33,7 +33,7 @@ export const REMOTE_SYNC_SMOKE_FINAL_REPORT_CONTENT = [
   "",
 ].join("\n");
 export const REMOTE_SYNC_SMOKE_ACCEPTANCE = [
-  "Git Leaf automatically fast-forwards consecutive remote directory moves without a click.",
+  "OpenGlance automatically fast-forwards consecutive remote directory moves without a click.",
   "A byte-identical untracked final image is adopted safely; HEAD, index, and working tree",
   "end at the final remote tree with no intermediate files or local changes.",
 ].join(" ");
@@ -173,7 +173,7 @@ export function cleanupRemoteSyncSmokeFixture(fixture) {
 }
 
 function configureIdentity(repoRoot, runGit) {
-  runGit(["config", "user.name", "Git Leaf Smoke"], repoRoot);
+  runGit(["config", "user.name", "OpenGlance Smoke"], repoRoot);
   runGit(["config", "user.email", "smoke@git-leaf.invalid"], repoRoot);
 }
 

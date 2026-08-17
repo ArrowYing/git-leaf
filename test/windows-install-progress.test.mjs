@@ -10,13 +10,13 @@ test("Windows update progress window defaults to English", () => {
   });
 
   assert.match(html, /<html lang="en">/);
-  assert.match(html, /<title>Git Leaf Update<\/title>/);
-  assert.match(html, /Updating Git Leaf 1\.4\.0/);
+  assert.match(html, /<title>OpenGlance Update<\/title>/);
+  assert.match(html, /Updating OpenGlance 1\.4\.0/);
   assert.match(html, /role="progressbar"/);
   assert.match(html, /aria-valuenow/);
   assert.match(html, /updateInstallProgress/);
   assert.match(html, /transition: width 320ms ease/);
-  assert.match(html, /Please wait\. Git Leaf will finish automatically and reopen/);
+  assert.match(html, /Please wait\. OpenGlance will finish automatically and reopen/);
   assert.match(html, /class="detail" id="detail" hidden/);
   assert.match(html, /detail\.hidden = !state\.detail/);
 });
@@ -29,8 +29,8 @@ test("same-version redirect window accepts a Chinese locale alias", () => {
   });
 
   assert.match(html, /<html lang="zh-CN">/);
-  assert.match(html, /正在启动 Git Leaf 1\.4\.0/);
-  assert.match(html, /Git Leaf 会自动完成并重新打开/);
+  assert.match(html, /正在启动 OpenGlance 1\.4\.0/);
+  assert.match(html, /OpenGlance 会自动完成并重新打开/);
 });
 
 test("outdated package window starts in a visible handoff state", () => {
@@ -39,7 +39,7 @@ test("outdated package window starts in a visible handoff state", () => {
     mode: "outdated",
   });
 
-  assert.match(html, /Starting Git Leaf 1\.3\.0/);
+  assert.match(html, /Starting OpenGlance 1\.3\.0/);
   assert.match(html, /data-phase="starting"/);
   assert.match(html, /data-phase="outdated"/);
 });
@@ -51,8 +51,8 @@ test("Windows update progress window accepts the Chinese language option", () =>
     language: "zh-CN",
   });
 
-  assert.match(html, /<title>Git Leaf 更新<\/title>/);
-  assert.match(html, /正在更新 Git Leaf 1\.4\.0/);
-  assert.match(html, /请稍候，Git Leaf 会自动完成并重新打开/);
+  assert.match(html, /<title>OpenGlance 更新<\/title>/);
+  assert.match(html, /正在更新 OpenGlance 1\.4\.0/);
+  assert.match(html, /请稍候，OpenGlance 会自动完成并重新打开/);
   assert.match(html, /正在开始…/);
 });

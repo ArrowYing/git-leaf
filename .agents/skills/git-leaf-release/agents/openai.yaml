@@ -1,4 +1,0 @@
-interface:
-  display_name: "Git Leaf Release"
-  short_description: "Run repository-governed Git Leaf releases and update gates"
-  default_prompt: "Use $git-leaf-release to execute or diagnose the documented Git Leaf release workflow."

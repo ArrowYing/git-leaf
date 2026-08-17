@@ -19,6 +19,10 @@ import { pipeline } from "node:stream/promises";
 import { fileURLToPath } from "node:url";
 
 import {
+  BUILD_INFO_FILENAME,
+  LEGACY_BUILD_INFO_FILENAMES,
+} from "../build-info.mjs";
+import {
   developmentHandoffReceiptForManifest,
   developmentHandoffReceiptMatchesBuild,
   normalizeDevelopmentHandoffReceipt,
@@ -30,9 +34,11 @@ import {
 } from "./config.mjs";
 import {
   OFFICIAL_MAC_BUNDLE_ID,
+  OFFICIAL_MAC_EXECUTABLE_NAME,
   OFFICIAL_MAC_TEAM_IDENTIFIER,
   beginMacAppContentsReplacement,
   readMacAppBundleId,
+  readMacAppExecutableName,
   readMacAppVersion,
   verifySignedMacApp,
   waitForMacAppProcessesExit,
@@ -41,8 +47,12 @@ import {
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const READY_SCHEMA_VERSION = 1;
 const READY_FILENAME = "ready.json";
-const MAC_APP_NAME = "Git Leaf.app";
-const MAC_EXECUTABLE_NAME = "Git Leaf";
+const MAC_APP_NAMES = new Set(["OpenGlance.app", "Git Leaf.app"]);
+const MAC_EXECUTABLE_NAMES = new Set([
+  "OpenGlance",
+  "Git Leaf",
+  OFFICIAL_MAC_EXECUTABLE_NAME,
+]);
 const HELPER_READY_ARGUMENT = "--install-ready";
 const HELPER_PID_ARGUMENT = "--wait-pid";
 const activePreparations = new Map();
@@ -71,11 +81,11 @@ export function macDevelopmentHandoffCachePaths({
 export function macAppBundlePathFromExecutable(execPath = process.execPath) {
   const executable = path.resolve(requiredPath(execPath, "execPath"));
   if (
-    path.basename(executable) !== MAC_EXECUTABLE_NAME
+    !MAC_EXECUTABLE_NAMES.has(path.basename(executable))
     || path.basename(path.dirname(executable)) !== "MacOS"
     || path.basename(path.dirname(path.dirname(executable))) !== "Contents"
   ) {
-    throw new Error(`Git Leaf is not running from a macOS App bundle: ${executable}`);
+    throw new Error(`OpenGlance is not running from a macOS App bundle: ${executable}`);
   }
   return path.dirname(path.dirname(path.dirname(executable)));
 }
@@ -375,7 +385,7 @@ export async function waitForMacProcessExit(processId, {
   const startedAt = now();
   while (processExists(processId)) {
     if (now() - startedAt >= timeoutMs) {
-      throw new Error("Timed out waiting for the current Git Leaf process to exit.");
+      throw new Error("Timed out waiting for the current OpenGlance process to exit.");
     }
     await wait(pollMs);
   }
@@ -383,15 +393,16 @@ export async function waitForMacProcessExit(processId, {
 
 export function inspectOfficialMacApp(appPath) {
   verifySignedMacApp(appPath);
-  const buildInfoPath = path.join(
-    appPath,
-    "Contents",
-    "Resources",
-    "app.asar",
-    "git-leaf-build-info.json",
-  );
+  const appResourcesPath = path.join(appPath, "Contents", "Resources", "app.asar");
+  const buildInfoPath = [BUILD_INFO_FILENAME, ...LEGACY_BUILD_INFO_FILENAMES]
+    .map((filename) => path.join(appResourcesPath, filename))
+    .find((candidate) => existsSync(candidate));
+  if (!buildInfoPath) {
+    throw new Error("The official OpenGlance App does not contain build identity metadata.");
+  }
   return {
     bundleId: readMacAppBundleId(appPath),
+    executableName: readMacAppExecutableName(appPath),
     teamIdentifier: OFFICIAL_MAC_TEAM_IDENTIFIER,
     version: readMacAppVersion(appPath),
     buildInfo: JSON.parse(readFileSync(buildInfoPath, "utf8")),
@@ -446,7 +457,8 @@ function normalizedReadyPayload(value, { readyFile = "" } = {}) {
   const sourceAppPath = validatedExistingAppPath(value.sourceAppPath, "source");
   const targetAppPath = validatedExistingAppPath(value.targetAppPath, "target");
   if (
-    sourceAppPath !== path.join(paths.extractRoot, MAC_APP_NAME)
+    !MAC_APP_NAMES.has(path.basename(sourceAppPath))
+    || path.dirname(sourceAppPath) !== paths.extractRoot
     || targetAppPath.startsWith(`${paths.updateRoot}${path.sep}`)
   ) {
     throw new Error("Invalid macOS development handoff App path.");
@@ -473,6 +485,7 @@ function normalizedReadyPayload(value, { readyFile = "" } = {}) {
 function assertOfficialTargetIdentity({ inspected, receipt }) {
   if (
     inspected?.bundleId !== OFFICIAL_MAC_BUNDLE_ID
+    || inspected?.executableName !== OFFICIAL_MAC_EXECUTABLE_NAME
     || inspected?.teamIdentifier !== OFFICIAL_MAC_TEAM_IDENTIFIER
     || inspected?.version !== receipt.version
     || inspected?.buildInfo?.dev === true
@@ -540,19 +553,15 @@ async function downloadArchive({ url, destination, fetchFn }) {
 }
 
 async function findExtractedMacApp(extractRoot) {
-  const expected = path.join(extractRoot, MAC_APP_NAME);
-  if (existsSync(expected)) {
-    return validatedExistingAppPath(expected, "extracted");
-  }
   const entries = await readdir(extractRoot, { withFileTypes: true });
   const candidates = entries
     .filter((entry) => entry.isDirectory() && entry.name.endsWith(".app"))
     .map((entry) => path.join(extractRoot, entry.name));
-  if (candidates.length !== 1) {
+  if (
+    candidates.length !== 1
+    || !MAC_APP_NAMES.has(path.basename(candidates[0]))
+  ) {
     throw new Error("The internal archive does not contain one complete macOS App.");
-  }
-  if (path.basename(candidates[0]) !== MAC_APP_NAME) {
-    throw new Error(`The internal archive App must be named ${MAC_APP_NAME}.`);
   }
   return validatedExistingAppPath(candidates[0], "extracted");
 }
@@ -631,11 +640,15 @@ async function launchAndConfirmMacApp({
   confirmationDelayMs = 2_000,
   wait = delay,
 } = {}) {
+  const executableName = readMacAppExecutableName(appPath);
+  if (!MAC_EXECUTABLE_NAMES.has(executableName)) {
+    throw new Error("The macOS App has an unsupported executable identity.");
+  }
   const executable = path.join(
     appPath,
     "Contents",
     "MacOS",
-    MAC_EXECUTABLE_NAME,
+    executableName,
   );
   const childEnvironment = { ...environment };
   delete childEnvironment.ELECTRON_RUN_AS_NODE;
@@ -650,7 +663,7 @@ async function launchAndConfirmMacApp({
   });
   await wait(confirmationDelayMs);
   if (child.exitCode != null || child.signalCode != null) {
-    throw new Error("The internal Git Leaf App exited before startup confirmation.");
+    throw new Error("The internal OpenGlance App exited before startup confirmation.");
   }
   child.unref?.();
   return true;

@@ -17,9 +17,19 @@ import { createPreviewServer } from "./server/index.mjs";
 import { createToolVersionMonitor } from "./tool-version.mjs";
 
 const DEFAULT_PORT = 4317;
+const HEALTH_CHECK_TIMEOUT_MS = 500;
 const RESTART_WAIT_TIMEOUT_MS = 5_000;
 const RESTART_WAIT_INTERVAL_MS = 150;
-const SERVER_RECORD_DIR = path.join(os.tmpdir(), "git-leaf");
+const OPENGLANCE_APP_ID = "openglance";
+const GIT_LEAF_APP_ID = "git-leaf";
+const SUPPORTED_APP_IDS = new Set([
+  OPENGLANCE_APP_ID,
+  GIT_LEAF_APP_ID,
+]);
+const SERVER_RECORD_DIR = path.join(os.tmpdir(), OPENGLANCE_APP_ID);
+const LEGACY_SERVER_RECORD_DIRS = [
+  path.join(os.tmpdir(), GIT_LEAF_APP_ID),
+];
 const execFileAsync = promisify(execFile);
 
 export async function runCli(args = process.argv.slice(2)) {
@@ -32,13 +42,13 @@ export async function runCli(args = process.argv.slice(2)) {
     : "";
   const initialFile = inputFile ? await resolveOpenablePath(repoRoot, inputFile) : null;
   const relativePath = initialFile?.relativePath ?? "";
-  const reusableUrl = await findReusableGitLeafUrl({
+  const reusableUrl = await findReusableOpenGlanceUrl({
     repoRoot,
     port: options.port,
     relativePath,
   });
   if (reusableUrl) {
-    console.log(`Git Leaf already running at ${reusableUrl}`);
+    console.log(`OpenGlance already running at ${reusableUrl}`);
     if (options.open) {
       openBrowser(reusableUrl);
     }
@@ -79,7 +89,7 @@ export async function runCli(args = process.argv.slice(2)) {
     repoId: repository.id,
   });
 
-  console.log(`Git Leaf running at ${url}`);
+  console.log(`OpenGlance running at ${url}`);
   console.log("Press Ctrl+C to stop.");
 
   if (options.open) {
@@ -87,13 +97,13 @@ export async function runCli(args = process.argv.slice(2)) {
   }
 }
 
-export async function findReusableGitLeafUrl({
+export async function findReusableOpenGlanceUrl({
   repoRoot,
   port,
   relativePath,
   readRecord,
 }) {
-  const primaryUrl = await reusableGitLeafUrl({
+  const primaryUrl = await reusableOpenGlanceUrl({
     repoRoot,
     port,
     relativePath,
@@ -107,7 +117,7 @@ export async function findReusableGitLeafUrl({
   for (let offset = 1; offset < 20; offset += 1) {
     const fallbackPort = port + offset;
     const payload = await checkedHealthPayload(fallbackPort);
-    if (!sameRepositoryGitLeaf(payload, repoRoot)) {
+    if (!sameRepositoryOpenGlance(payload, repoRoot)) {
       continue;
     }
 
@@ -127,7 +137,7 @@ export async function findReusableGitLeafUrl({
         : null;
     }
 
-    const reusableUrl = await reusableGitLeafUrl({
+    const reusableUrl = await reusableOpenGlanceUrl({
       repoRoot,
       port: fallbackPort,
       relativePath,
@@ -140,7 +150,7 @@ export async function findReusableGitLeafUrl({
   return null;
 }
 
-export async function reusableGitLeafUrl({
+export async function reusableOpenGlanceUrl({
   repoRoot,
   port,
   relativePath,
@@ -148,12 +158,14 @@ export async function reusableGitLeafUrl({
 }) {
   const healthUrl = `http://127.0.0.1:${port}/api/health?check=1`;
   try {
-    const response = await fetch(healthUrl, { signal: AbortSignal.timeout(200) });
+    const response = await fetch(healthUrl, {
+      signal: AbortSignal.timeout(HEALTH_CHECK_TIMEOUT_MS),
+    });
     if (!response.ok) {
       return null;
     }
     const payload = await response.json();
-    if (!sameRepositoryGitLeaf(payload, repoRoot)) {
+    if (!sameRepositoryOpenGlance(payload, repoRoot)) {
       return null;
     }
     if (!payload.toolFingerprint) {
@@ -194,7 +206,7 @@ async function requestRestartAndWait({ port, repoRoot, expectedPort = port }) {
     await delay(RESTART_WAIT_INTERVAL_MS);
     const payload = await checkedHealthPayload(expectedPort);
     if (
-      sameRepositoryGitLeaf(payload, repoRoot) &&
+      sameRepositoryOpenGlance(payload, repoRoot) &&
       payload.toolFingerprint &&
       !payload.stale
     ) {
@@ -208,7 +220,7 @@ async function requestRestartAndWait({ port, repoRoot, expectedPort = port }) {
 async function checkedHealthPayload(port) {
   try {
     const response = await fetch(`http://127.0.0.1:${port}/api/health?check=1`, {
-      signal: AbortSignal.timeout(500),
+      signal: AbortSignal.timeout(HEALTH_CHECK_TIMEOUT_MS),
     });
     return response.ok ? response.json() : null;
   } catch {
@@ -216,17 +228,17 @@ async function checkedHealthPayload(port) {
   }
 }
 
-function sameRepositoryGitLeaf(payload, repoRoot) {
-  return Boolean(payload?.app === "git-leaf" && payload.repoRoot === repoRoot);
+function sameRepositoryOpenGlance(payload, repoRoot) {
+  return Boolean(SUPPORTED_APP_IDS.has(payload?.app) && payload.repoRoot === repoRoot);
 }
 
-export async function registeredGitLeafProcessOnPort({
+export async function registeredOpenGlanceProcessOnPort({
   repoRoot,
   port,
   readRecord = readServerRecord,
   isProcessAlive = processIsAlive,
   pidOwnsPort = processOwnsTcpPort,
-  isGitLeafProcess = processCommandLooksLikeGitLeaf,
+  isOpenGlanceProcess = processCommandLooksLikeOpenGlance,
 } = {}) {
   if (!repoRoot || !Number.isInteger(port)) {
     return null;
@@ -235,7 +247,7 @@ export async function registeredGitLeafProcessOnPort({
   const record = await readRecord(repoRoot);
   if (
     !record ||
-    record.app !== "git-leaf" ||
+    !SUPPORTED_APP_IDS.has(record.app) ||
     record.repoRoot !== repoRoot ||
     record.port !== port ||
     !Number.isInteger(record.pid) ||
@@ -247,7 +259,7 @@ export async function registeredGitLeafProcessOnPort({
   if (
     !(await isProcessAlive(record.pid)) ||
     !(await pidOwnsPort(record.pid, port)) ||
-    !(await isGitLeafProcess(record.pid))
+    !(await isOpenGlanceProcess(record.pid))
   ) {
     return null;
   }
@@ -255,24 +267,24 @@ export async function registeredGitLeafProcessOnPort({
   return record;
 }
 
-export async function stopRegisteredGitLeafProcessOnPort({
+export async function stopRegisteredOpenGlanceProcessOnPort({
   repoRoot,
   port,
   host,
   readRecord = readServerRecord,
   isProcessAlive = processIsAlive,
   pidOwnsPort = processOwnsTcpPort,
-  isGitLeafProcess = processCommandLooksLikeGitLeaf,
+  isOpenGlanceProcess = processCommandLooksLikeOpenGlance,
   stopProcess = terminateProcess,
   waitForPortAvailable = waitUntilPortAvailable,
 } = {}) {
-  const record = await registeredGitLeafProcessOnPort({
+  const record = await registeredOpenGlanceProcessOnPort({
     repoRoot,
     port,
     readRecord,
     isProcessAlive,
     pidOwnsPort,
-    isGitLeafProcess,
+    isOpenGlanceProcess,
   });
   if (!record || record.pid === process.pid) {
     return false;
@@ -292,7 +304,7 @@ async function writeServerRecord({ repoRoot, port, repoId }) {
   await writeFile(
     serverRecordPath(repoRoot),
     `${JSON.stringify({
-      app: "git-leaf",
+      app: OPENGLANCE_APP_ID,
       repoRoot,
       port,
       repoId,
@@ -305,16 +317,19 @@ async function writeServerRecord({ repoRoot, port, repoId }) {
 }
 
 async function readServerRecord(repoRoot) {
-  try {
-    return JSON.parse(await readFile(serverRecordPath(repoRoot), "utf8"));
-  } catch {
-    return null;
+  for (const recordDir of [SERVER_RECORD_DIR, ...LEGACY_SERVER_RECORD_DIRS]) {
+    try {
+      return JSON.parse(await readFile(serverRecordPath(repoRoot, { recordDir }), "utf8"));
+    } catch {
+      // Continue to the legacy record location during the OpenGlance transition.
+    }
   }
+  return null;
 }
 
-function serverRecordPath(repoRoot) {
+function serverRecordPath(repoRoot, { recordDir = SERVER_RECORD_DIR } = {}) {
   const id = createHash("sha256").update(repoRoot).digest("hex");
-  return path.join(SERVER_RECORD_DIR, `${id}.json`);
+  return path.join(recordDir, `${id}.json`);
 }
 
 async function processIsAlive(pid) {
@@ -338,11 +353,11 @@ async function processOwnsTcpPort(pid, port) {
   }
 }
 
-async function processCommandLooksLikeGitLeaf(pid) {
+async function processCommandLooksLikeOpenGlance(pid) {
   try {
     const probe = processCommandLineCommand({ pid });
     const { stdout } = await execFileAsync(probe.command, probe.args);
-    return gitLeafCommandLineLooksLikeGitLeaf(stdout);
+    return openGlanceCommandLineLooksLikeOpenGlance(stdout);
   } catch {
     return false;
   }
@@ -418,11 +433,13 @@ export function windowsNetstatShowsPidListeningOnPort(output, pid, port) {
     });
 }
 
-export function gitLeafCommandLineLooksLikeGitLeaf(commandLine) {
+export function openGlanceCommandLineLooksLikeOpenGlance(commandLine) {
   const command = String(commandLine ?? "").replaceAll("\\", "/").toLowerCase();
   return (
     command.includes("/src/cli.mjs") ||
     command.includes(" src/cli.mjs") ||
+    command.includes("/openglance/src/cli.mjs") ||
+    command.includes(" openglance/src/cli.mjs") ||
     command.includes("/git-leaf/src/cli.mjs") ||
     command.includes(" git-leaf/src/cli.mjs")
   );
@@ -459,7 +476,7 @@ async function reusableUrlForPort({
 }) {
   const record = await readRecord(repoRoot);
   const reusableRecord =
-    record?.app === "git-leaf" &&
+    SUPPORTED_APP_IDS.has(record?.app) &&
     record.repoRoot === repoRoot &&
     record.port === port
       ? record
@@ -506,7 +523,7 @@ function createRestartSelf({ args, cwd, getServer }) {
           stdio: "ignore",
           env: {
             ...process.env,
-            GIT_LEAF_RESTARTED: "1",
+            OPENGLANCE_RESTARTED: "1",
           },
         });
         child.unref();
@@ -537,7 +554,7 @@ function parseArgs(args) {
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
     if (arg === "--host") {
-      throw new Error("--host is no longer supported; Git Leaf only listens on localhost.");
+      throw new Error("--host is no longer supported; OpenGlance only listens on localhost.");
     }
     if (arg === "--port") {
       options.port = Number(args[++index] ?? DEFAULT_PORT);
@@ -566,7 +583,7 @@ async function listenWithFallback(server, options, { repoRoot } = {}) {
         throw error;
       }
 
-      const stopped = await stopRegisteredGitLeafProcessOnPort({
+      const stopped = await stopRegisteredOpenGlanceProcessOnPort({
         repoRoot,
         port,
         host: DEFAULT_BIND_HOST,
@@ -622,12 +639,14 @@ function openBrowser(url) {
 }
 
 function printUsage() {
-  console.error(`Usage: git-leaf [path-to-doc.md] [--no-open]
+  console.error(`Usage: openglance [path-to-doc.md] [--no-open]
 
 Examples:
-  git-leaf
-  git-leaf docs/notes/example.md
-  git-leaf docs/repo-structure.md --no-open
+  openglance
+  openglance docs/notes/example.md
+  openglance docs/repo-structure.md --no-open
+
+The legacy git-leaf command remains available as a compatibility alias.
 `);
 }
 

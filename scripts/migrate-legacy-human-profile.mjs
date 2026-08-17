@@ -19,16 +19,20 @@ function valueAfter(argv, name) {
   return index >= 0 ? argv[index + 1] : "";
 }
 
-function assertGitLeafStopped() {
+function assertOpenGlanceStopped() {
   for (const [command, args] of [
+    ["pgrep", ["-x", "OpenGlance"]],
     ["pgrep", ["-x", "Git Leaf"]],
+    ["pgrep", ["-f", "/OpenGlance.app/Contents/MacOS/OpenGlance"]],
+    ["pgrep", ["-f", "/OpenGlance.app/Contents/MacOS/Git Leaf"]],
+    ["pgrep", ["-f", "/Git Leaf.app/Contents/MacOS/OpenGlance"]],
     ["pgrep", ["-f", "/Git Leaf.app/Contents/MacOS/Git Leaf"]],
     ["pgrep", ["-f", "electron src/desktop/main.mjs"]],
   ]) {
     const result = spawnSync(command, args, { encoding: "utf8" });
     if (result.status === 0) {
       throw new Error(
-        `Close Git Leaf before migrating its profile. Running process: ${result.stdout.trim()}`,
+        `Close OpenGlance before migrating its profile. Running process: ${result.stdout.trim()}`,
       );
     }
   }
@@ -37,7 +41,7 @@ function assertGitLeafStopped() {
 export async function runLegacyHumanProfileMigration(argv = process.argv.slice(2)) {
   if (!argv.includes("--apply")) {
     throw new Error(
-      "Profile migration changes real user data. Re-run with --apply after closing Git Leaf.",
+      "Profile migration changes real user data. Re-run with --apply after closing OpenGlance.",
     );
   }
   if (process.platform !== "darwin") {
@@ -56,7 +60,7 @@ export async function runLegacyHumanProfileMigration(argv = process.argv.slice(2
       || path.join(applicationSupportDir, "git-leaf-profile-backups"),
   );
 
-  assertGitLeafStopped();
+  assertOpenGlanceStopped();
   const result = await migrateLegacyHumanProfile({
     productionUserDataDir,
     legacyDevelopmentUserDataDir,

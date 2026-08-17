@@ -1,3 +1,8 @@
+import {
+  OFFICIAL_INTERNAL_MAC_EXECUTABLE_NAME,
+  OFFICIAL_PUBLIC_MAC_EXECUTABLE_NAME,
+} from "../src/desktop/mac-app-contents.mjs";
+
 const LEGACY_INTERNAL_STABLE_BRIDGE_VERSION = "1.11.3";
 
 function hasValidBaselineIdentity(evidence, track) {
@@ -23,9 +28,27 @@ export function validateMacUpdateRegressionEvidence(evidence, {
   commit,
   buildId,
 } = {}) {
+  const expectedExecutable = track === "internal"
+    ? OFFICIAL_INTERNAL_MAC_EXECUTABLE_NAME
+    : OFFICIAL_PUBLIC_MAC_EXECUTABLE_NAME;
+  const canonicalIdentityMatches = (
+    evidence.candidateAppIdentity?.bundleName === "OpenGlance.app"
+    && evidence.candidateAppIdentity?.productName === "OpenGlance"
+    && evidence.candidateAppIdentity?.executable === expectedExecutable
+    && evidence.installedAppIdentity?.bundleName
+      === evidence.baselineAppIdentity?.bundleName
+    && evidence.installedAppIdentity?.productName === "OpenGlance"
+    && evidence.installedAppIdentity?.executable === expectedExecutable
+  );
+  const inAppIsolationMatches = evidence.installMode !== "in-app-update" || (
+    evidence.updateActionReady === true
+    && evidence.shipItLaunchAfterInstallation === false
+    && evidence.installTrigger === "isolated-process-termination"
+    && evidence.candidateRelaunchedWithIsolatedProfile === true
+  );
   if (
-    evidence?.schemaVersion !== 3
-    || evidence.source !== "git-leaf-macos-update-regression"
+    evidence?.schemaVersion !== 5
+    || evidence.source !== "openglance-macos-update-regression"
     || evidence.status !== "passed"
     || evidence.track !== track
     || evidence.platform !== "darwin-universal"
@@ -34,8 +57,11 @@ export function validateMacUpdateRegressionEvidence(evidence, {
     || evidence.commit !== commit
     || !String(evidence.buildId || "").startsWith(String(buildId || "missing"))
     || !["contents-bridge", "in-app-update"].includes(evidence.installMode)
+    || !inAppIsolationMatches
     || evidence.directContentsWrite !== true
     || evidence.appDirectoryInodePreserved !== true
+    || evidence.profileStatePreserved !== true
+    || !canonicalIdentityMatches
     || evidence.installParentWritable !== false
     || evidence.privilegedShipItJobObserved !== false
     || evidence.squirrelPolicy?.policy !== "nonprivileged-only"

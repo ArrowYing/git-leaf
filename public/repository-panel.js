@@ -1,9 +1,9 @@
-export const REPOSITORY_PANEL_SHOW_URL = "git-leaf://show-repositories";
-export const REPOSITORY_PANEL_CLOSE_URL = "git-leaf://close-repositories";
-export const REPOSITORY_PANEL_SWITCH_URL = "git-leaf://switch-repository";
-export const REPOSITORY_PANEL_REMOVE_URL = "git-leaf://remove-repository";
-export const REPOSITORY_PANEL_REORDER_URL = "git-leaf://reorder-repositories";
-export const REPOSITORY_PANEL_OPEN_URL = "git-leaf://open-repository";
+export const REPOSITORY_PANEL_SHOW_URL = "openglance://show-repositories";
+export const REPOSITORY_PANEL_CLOSE_URL = "openglance://close-repositories";
+export const REPOSITORY_PANEL_SWITCH_URL = "openglance://switch-repository";
+export const REPOSITORY_PANEL_REMOVE_URL = "openglance://remove-repository";
+export const REPOSITORY_PANEL_REORDER_URL = "openglance://reorder-repositories";
+export const REPOSITORY_PANEL_OPEN_URL = "openglance://open-repository";
 
 const REPOSITORY_PANEL_SHORTCUT_LIMIT = 9;
 

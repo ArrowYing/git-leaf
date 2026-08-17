@@ -18,6 +18,7 @@ import {
   openSync,
   readFileSync,
   readdirSync,
+  renameSync,
   rmSync,
   statSync,
   writeFileSync,
@@ -28,6 +29,19 @@ import { pipeline } from "node:stream/promises";
 import { fileURLToPath } from "node:url";
 
 import { compareAppVersions } from "../src/desktop/app-updates.mjs";
+import {
+  OFFICIAL_INTERNAL_MAC_BUNDLE_ID,
+  OFFICIAL_PUBLIC_MAC_BUNDLE_ID,
+} from "../src/desktop/mac-app-contents.mjs";
+import {
+  prepareMacUpdateAppPath,
+  OFFICIAL_INTERNAL_MAC_SHIPIT_JOB_LABEL,
+  OFFICIAL_PUBLIC_MAC_SHIPIT_JOB_LABEL,
+} from "../src/desktop/mac-update-cache.mjs";
+import {
+  DEVELOPMENT_USER_DATA_ARG,
+  LEGACY_DEVELOPMENT_USER_DATA_ARG,
+} from "../src/desktop/user-data.mjs";
 import { replaceMacAppContents } from "./mac-update-bridge.mjs";
 import { developmentProfileFingerprint } from "./release-mac.mjs";
 import { verifySquirrelMacPolicy } from "./squirrel-mac-policy.mjs";
@@ -38,8 +52,10 @@ export {
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const REPO_ROOT = path.dirname(path.dirname(SCRIPT_PATH));
 export const MAC_UPDATE_REGRESSION_ARTIFACT_PREFIX =
-  "git-leaf-macos-update-regression-";
-export const SHIPIT_JOB_LABEL = "com.mangofuture.gitleaf.ShipIt";
+  "openglance-macos-update-regression-";
+export const SHIPIT_JOB_LABEL = OFFICIAL_INTERNAL_MAC_SHIPIT_JOB_LABEL;
+export const PUBLIC_SHIPIT_JOB_LABEL = OFFICIAL_PUBLIC_MAC_SHIPIT_JOB_LABEL;
+const OFFICIAL_SHIPIT_JOB_LABELS = [SHIPIT_JOB_LABEL, PUBLIC_SHIPIT_JOB_LABEL];
 export const SQUIRREL_DIRECT_CONTENTS_WRITE_KEY =
   "SquirrelMacEnableDirectContentsWrite";
 const PLATFORM_KEY = "darwin-universal";
@@ -69,7 +85,7 @@ export function assertSafeMacUpdateRegressionHost({
     throw new Error("The macOS update regression harness requires macOS");
   }
   const conflicts = [
-    [productionAppRunning, "the installed Git Leaf App is running"],
+    [productionAppRunning, "an installed OpenGlance or Git Leaf App is running"],
     [userShipItJobExists, "the per-user ShipIt launchd job exists"],
     [systemShipItJobExists, "the system ShipIt launchd job exists"],
   ].filter(([present]) => present).map(([, message]) => message);
@@ -168,19 +184,17 @@ export function launchctlJobDetails({
 
 function hostPaths({ homeDir = homedir() } = {}) {
   return {
-    productionAppPath: "/Applications/Git Leaf.app",
+    productionAppPaths: [
+      "/Applications/OpenGlance.app",
+      "/Applications/Git Leaf.app",
+    ],
     productionProfilePath: path.join(
       homeDir,
       "Library",
       "Application Support",
       "git-leaf",
     ),
-    realShipItCachePath: path.join(
-      homeDir,
-      "Library",
-      "Caches",
-      SHIPIT_JOB_LABEL,
-    ),
+    realShipItCacheRoot: path.join(homeDir, "Library", "Caches"),
   };
 }
 
@@ -189,18 +203,22 @@ export function assertCurrentHostSafe() {
   const processes = spawnSync("ps", ["-axo", "command="], {
     encoding: "utf8",
   });
-  const productionExecutable = path.join(
-    paths.productionAppPath,
-    "Contents",
-    "MacOS",
-    "Git Leaf",
-  );
+  const productionExecutables = paths.productionAppPaths.flatMap((appPath) => [
+    path.join(appPath, "Contents", "MacOS", "OpenGlance"),
+    path.join(appPath, "Contents", "MacOS", "Git Leaf"),
+  ]);
   assertSafeMacUpdateRegressionHost({
     productionAppRunning: String(processes.stdout || "")
       .split("\n")
-      .some((command) => command.trim().startsWith(productionExecutable)),
-    userShipItJobExists: launchctlJobExists({ domain: "user" }),
-    systemShipItJobExists: launchctlJobExists({ domain: "system" }),
+      .some((command) => productionExecutables.some(
+        (executable) => command.trim().startsWith(executable),
+      )),
+    userShipItJobExists: OFFICIAL_SHIPIT_JOB_LABELS.some((label) => (
+      launchctlJobExists({ domain: "user", label })
+    )),
+    systemShipItJobExists: OFFICIAL_SHIPIT_JOB_LABELS.some((label) => (
+      launchctlJobExists({ domain: "system", label })
+    )),
   });
   return {
     ...paths,
@@ -208,8 +226,8 @@ export function assertCurrentHostSafe() {
       productionUserDataDir: paths.productionProfilePath,
     }),
     realShipItFingerprint: developmentProfileFingerprint({
-      productionUserDataDir: paths.realShipItCachePath,
-      entries: ["."],
+      productionUserDataDir: paths.realShipItCacheRoot,
+      entries: OFFICIAL_SHIPIT_JOB_LABELS,
     }),
   };
 }
@@ -390,6 +408,34 @@ export function readAppVersion(appPath) {
   );
 }
 
+export function readMacAppIdentity(appPath) {
+  const plistPath = path.join(appPath, "Contents", "Info.plist");
+  return {
+    bundleName: path.basename(appPath),
+    bundleIdentifier: runChecked(
+      "/usr/libexec/PlistBuddy",
+      ["-c", "Print:CFBundleIdentifier", plistPath],
+    ),
+    productName: runChecked(
+      "/usr/libexec/PlistBuddy",
+      ["-c", "Print:CFBundleDisplayName", plistPath],
+    ),
+    executable: runChecked(
+      "/usr/libexec/PlistBuddy",
+      ["-c", "Print:CFBundleExecutable", plistPath],
+    ),
+  };
+}
+
+export function macAppExecutablePath(appPath) {
+  return path.join(
+    appPath,
+    "Contents",
+    "MacOS",
+    readMacAppIdentity(appPath).executable,
+  );
+}
+
 export function extractSingleApp(zipPath, destinationDir) {
   mkdirSync(destinationDir, { recursive: true });
   runChecked("ditto", ["-x", "-k", zipPath, destinationDir]);
@@ -405,24 +451,122 @@ export function extractSingleApp(zipPath, destinationDir) {
   return apps[0];
 }
 
+export function prepareInstalledBaselineAppPath(appPath, {
+  track,
+  renamePath = renameSync,
+} = {}) {
+  const source = path.resolve(appPath);
+  if (track !== "internal" || path.basename(source) === "Git Leaf.app") {
+    return source;
+  }
+  const target = path.join(path.dirname(source), "Git Leaf.app");
+  renamePath(source, target);
+  return target;
+}
+
 export function verifyAppSignature(appPath) {
   runChecked("codesign", ["--verify", "--deep", "--strict", "--verbose=2", appPath]);
 }
 
+function renameMigrationDesktopConfig({ repoRoot, targetVersion }) {
+  return {
+    renameMigrationSentinel: "git-leaf-1.x-to-openglance-3.x",
+    repoRoot,
+    openRepoRoots: [repoRoot],
+    usageAnalyticsEnabled: false,
+    preferences: {
+      language: "zh-CN",
+      colorMode: "dark",
+      documentFont: "reading-serif",
+      documentFontSize: 18,
+      fileTreeMode: "all",
+      showDocumentTitles: false,
+      mode: "live",
+      sidebarCollapsed: true,
+      sourcePreviewRatio: 61,
+      workbenchSessions: {
+        openglance: {
+          tabs: [{ path: "README.md" }],
+          activeTabPath: "README.md",
+        },
+      },
+      updateRequestedVersion: targetVersion,
+    },
+  };
+}
+
 function writeDesktopConfig(userDataDir, { repoRoot, targetVersion }) {
   mkdirSync(userDataDir, { recursive: true });
+  const config = renameMigrationDesktopConfig({ repoRoot, targetVersion });
   writeFileSync(
     path.join(userDataDir, "desktop-config.json"),
-    `${JSON.stringify({
-      repoRoot,
-      openRepoRoots: [repoRoot],
-      usageAnalyticsEnabled: false,
-      preferences: {
-        updateRequestedVersion: targetVersion,
-      },
-    }, null, 2)}\n`,
+    `${JSON.stringify(config, null, 2)}\n`,
     { flag: "wx" },
   );
+  return config;
+}
+
+export function assertRenameMigrationUserState(actual, expected) {
+  const stablePreferenceKeys = [
+    "language",
+    "colorMode",
+    "documentFont",
+    "documentFontSize",
+    "fileTreeMode",
+    "showDocumentTitles",
+    "mode",
+    "sidebarCollapsed",
+    "sourcePreviewRatio",
+  ];
+  const expectedWorkbenchSessions = expected?.preferences?.workbenchSessions ?? {};
+  const actualWorkbenchSessions = actual?.preferences?.workbenchSessions ?? {};
+  const mismatches = [];
+  for (const key of [
+    "renameMigrationSentinel",
+    "repoRoot",
+    "usageAnalyticsEnabled",
+  ]) {
+    if (JSON.stringify(actual?.[key]) !== JSON.stringify(expected[key])) {
+      mismatches.push(key);
+    }
+  }
+  const expectedOpenRepoRoots = expected?.openRepoRoots ?? [];
+  const actualOpenRepoRoots = actual?.openRepoRoots;
+  let expectedOpenRepoRootIndex = 0;
+  if (Array.isArray(actualOpenRepoRoots)) {
+    for (const repoRoot of actualOpenRepoRoots) {
+      if (repoRoot === expectedOpenRepoRoots[expectedOpenRepoRootIndex]) {
+        expectedOpenRepoRootIndex += 1;
+      }
+    }
+  }
+  if (
+    !Array.isArray(expectedOpenRepoRoots)
+    || !Array.isArray(actualOpenRepoRoots)
+    || expectedOpenRepoRootIndex !== expectedOpenRepoRoots.length
+  ) {
+    mismatches.push("openRepoRoots");
+  }
+  for (const key of stablePreferenceKeys) {
+    if (
+      JSON.stringify(actual?.preferences?.[key])
+      !== JSON.stringify(expected.preferences[key])
+    ) {
+      mismatches.push(`preferences.${key}`);
+    }
+  }
+  for (const [worktreeId, session] of Object.entries(expectedWorkbenchSessions)) {
+    if (JSON.stringify(actualWorkbenchSessions[worktreeId]) !== JSON.stringify(session)) {
+      mismatches.push(`preferences.workbenchSessions.${worktreeId}`);
+    }
+  }
+  if (mismatches.length > 0) {
+    throw new Error(
+      "OpenGlance did not preserve the Git Leaf repository list, workspace session, and preferences"
+      + `: ${mismatches.join(", ")}`,
+    );
+  }
+  return true;
 }
 
 export function startUpdateServer({ serverRoot, telemetryRoot, logPath }) {
@@ -430,7 +574,7 @@ export function startUpdateServer({ serverRoot, telemetryRoot, logPath }) {
     "python3",
     [
       "-u",
-      path.join(REPO_ROOT, "scripts", "gitleaf-update-server.py"),
+      path.join(REPO_ROOT, "scripts", "openglance-update-server.py"),
       "--root",
       serverRoot,
       "--telemetry-root",
@@ -507,15 +651,15 @@ export function rewriteCandidateForLocalStable({
   );
 }
 
-function writeIsolatedSquirrelDefault(env) {
+function writeIsolatedSquirrelDefault(env, bundleIdentifier) {
   runChecked(
     "defaults",
-    ["write", "com.mangofuture.gitleaf", SQUIRREL_DIRECT_CONTENTS_WRITE_KEY, "-bool", "true"],
+    ["write", bundleIdentifier, SQUIRREL_DIRECT_CONTENTS_WRITE_KEY, "-bool", "true"],
     { env },
   );
   const stored = runChecked(
     "defaults",
-    ["read", "com.mangofuture.gitleaf", SQUIRREL_DIRECT_CONTENTS_WRITE_KEY],
+    ["read", bundleIdentifier, SQUIRREL_DIRECT_CONTENTS_WRITE_KEY],
     { env },
   );
   if (stored !== "1") {
@@ -548,7 +692,7 @@ export async function waitFor(check, {
   );
 }
 
-export function updateRegressionInstallExpression() {
+export function updateRegressionInstallExpression({ activate = true } = {}) {
   return `(() => {
     const action = document.querySelector("#desktop-update-action");
     if (!action) {
@@ -561,10 +705,12 @@ export function updateRegressionInstallExpression() {
         label: action.textContent || "",
       };
     }
-    action.click();
+    if (${activate ? "true" : "false"}) {
+      action.click();
+    }
     return {
-      clicked: true,
-      reason: "action-clicked",
+      clicked: ${activate ? "true" : "false"},
+      reason: ${activate ? '"action-clicked"' : '"action-ready"'},
       label: action.textContent || "",
     };
   })()`;
@@ -613,6 +759,127 @@ export async function evaluateInRenderer({ userDataDir, expression }) {
       reject(new Error("Could not connect to the isolated renderer"));
     });
   });
+}
+
+export function assertTemporaryProcessIsolation({
+  commandOutput,
+  temporaryRoot,
+  protectedProfilePath,
+} = {}) {
+  const temporary = requiredRegressionPath(temporaryRoot, "temporaryRoot");
+  const protectedProfile = requiredRegressionPath(
+    protectedProfilePath,
+    "protectedProfilePath",
+  );
+  const relevant = String(commandOutput || "")
+    .split("\n")
+    .map((command) => command.trim())
+    .filter((command) => command.includes(temporary));
+  if (relevant.some((command) => command.includes(protectedProfile))) {
+    throw new Error(
+      "An isolated macOS update process attempted to use the real OpenGlance Profile",
+    );
+  }
+  return relevant;
+}
+
+export function assertIsolatedShipItRequest({ stateFile, temporaryRoot } = {}) {
+  const statePath = requiredRegressionPath(stateFile, "stateFile");
+  const temporary = requiredRegressionPath(temporaryRoot, "temporaryRoot");
+  const stateStat = lstatSync(statePath);
+  if (!stateStat.isFile() || stateStat.isSymbolicLink()) {
+    throw new Error("The isolated ShipIt state must be a regular file");
+  }
+  const request = JSON.parse(readFileSync(statePath, "utf8"));
+  const requestPaths = [request.updateBundleURL, request.targetBundleURL]
+    .map((value) => {
+      const url = new URL(String(value || ""));
+      if (url.protocol !== "file:") {
+        throw new Error("The isolated ShipIt request must use local App paths");
+      }
+      return path.resolve(fileURLToPath(url));
+    });
+  if (
+    request.launchAfterInstallation !== false
+    || requestPaths.some((requestPath) => {
+      const relative = path.relative(temporary, requestPath);
+      return relative.startsWith("..") || path.isAbsolute(relative);
+    })
+  ) {
+    throw new Error("The ShipIt request is not isolated to the update regression root");
+  }
+  return request;
+}
+
+export async function prepareIsolatedShipItRequestForInstallation({
+  homeDir,
+  jobLabel,
+  targetAppPath,
+  temporaryRoot,
+  prepareUpdateAppPath = prepareMacUpdateAppPath,
+} = {}) {
+  const prepared = await prepareUpdateAppPath({
+    homeDir,
+    jobLabel,
+    targetAppPath,
+  });
+  const request = assertIsolatedShipItRequest({
+    stateFile: prepared.stateFile,
+    temporaryRoot,
+  });
+  if (
+    prepared.useUpdateBundleName !== false
+    || request.useUpdateBundleName !== false
+  ) {
+    throw new Error(
+      "The non-writable update regression must preserve the installed App directory",
+    );
+  }
+  return request;
+}
+
+function requiredRegressionPath(value, label) {
+  const candidate = typeof value === "string" ? value.trim() : "";
+  if (!candidate) {
+    throw new Error(`${label} is required for the macOS update regression`);
+  }
+  return path.resolve(candidate);
+}
+
+function assertRunningTemporaryProcessesIsolated({
+  temporaryRoot,
+  protectedProfilePath,
+} = {}) {
+  const processes = spawnSync("ps", ["-axo", "command="], { encoding: "utf8" });
+  if (processes.status !== 0) {
+    throw new Error("Could not inspect isolated macOS update processes");
+  }
+  return assertTemporaryProcessIsolation({
+    commandOutput: processes.stdout,
+    temporaryRoot,
+    protectedProfilePath,
+  });
+}
+
+function runningExecutableProcessIds(executablePath) {
+  const executable = path.resolve(executablePath);
+  const processes = spawnSync("ps", ["-axo", "pid=,command="], {
+    encoding: "utf8",
+  });
+  if (processes.status !== 0) {
+    throw new Error("Could not inspect the installed candidate process");
+  }
+  return String(processes.stdout || "")
+    .split("\n")
+    .map((line) => line.trim().match(/^(\d+)\s+(.+)$/))
+    .filter((match) => (
+      match
+      && (
+        match[2] === executable
+        || match[2].startsWith(`${executable} `)
+      )
+    ))
+    .map((match) => Number(match[1]));
 }
 
 export function terminateProcessesInside(temporaryRoot, signal = "SIGTERM") {
@@ -741,11 +1008,33 @@ async function runHarness({
       candidateManifest.files.zip,
       candidateZipPath,
     );
-    const appPath = extractSingleApp(baselineZipPath, installDir);
+    const appPath = prepareInstalledBaselineAppPath(
+      extractSingleApp(baselineZipPath, installDir),
+      { track },
+    );
     const candidateAppPath = extractSingleApp(
       candidateZipPath,
       candidateExtractDir,
     );
+    const baselineAppIdentity = readMacAppIdentity(appPath);
+    const candidateAppIdentity = readMacAppIdentity(candidateAppPath);
+    const expectedCandidateBundleId = track === "internal"
+      ? OFFICIAL_INTERNAL_MAC_BUNDLE_ID
+      : OFFICIAL_PUBLIC_MAC_BUNDLE_ID;
+    if (candidateAppIdentity.bundleIdentifier !== expectedCandidateBundleId) {
+      throw new Error(
+        `Candidate Bundle ID ${candidateAppIdentity.bundleIdentifier || "missing"} does not match ${track}`,
+      );
+    }
+    if (
+      stableManifest.releaseTrack === track
+      && baselineAppIdentity.bundleIdentifier !== expectedCandidateBundleId
+    ) {
+      throw new Error(
+        `Baseline Bundle ID ${baselineAppIdentity.bundleIdentifier || "missing"} does not match ${track}`,
+      );
+    }
+    const shipItJobLabel = `${baselineAppIdentity.bundleIdentifier}.ShipIt`;
     verifyAppSignature(appPath);
     verifyAppSignature(candidateAppPath);
     const squirrelPolicy = verifySquirrelMacPolicy({
@@ -762,6 +1051,7 @@ async function runHarness({
     installDirectoryLocked = true;
 
     let installMode;
+    let inAppUpdateIsolation = null;
     if (
       compareAppVersions(
         stableManifest.version,
@@ -784,7 +1074,7 @@ async function runHarness({
         candidateZipPath,
       });
 
-      writeDesktopConfig(userDataDir, {
+      const expectedUserState = writeDesktopConfig(userDataDir, {
         repoRoot: REPO_ROOT,
         targetVersion: candidateManifest.version,
       });
@@ -793,15 +1083,18 @@ async function runHarness({
         HOME: isolatedHome,
         CFFIXED_USER_HOME: isolatedHome,
         TMPDIR: `${isolatedTmp}${path.sep}`,
+        OPENGLANCE_UPDATE_BASE_URL: `http://127.0.0.1:${server.port}/git-leaf`,
         GIT_LEAF_UPDATE_BASE_URL: `http://127.0.0.1:${server.port}/git-leaf`,
+        OPENGLANCE_DEV_USER_DATA_DIR: userDataDir,
         GIT_LEAF_DEV_USER_DATA_DIR: userDataDir,
       };
-      writeIsolatedSquirrelDefault(appEnv);
+      writeIsolatedSquirrelDefault(appEnv, baselineAppIdentity.bundleIdentifier);
       const logDescriptor = openSync(logPath, "a");
       appProcess = spawn(
-        path.join(appPath, "Contents", "MacOS", "Git Leaf"),
+        macAppExecutablePath(appPath),
         [
-          `--git-leaf-dev-user-data-dir=${userDataDir}`,
+          `${DEVELOPMENT_USER_DATA_ARG}=${userDataDir}`,
+          `${LEGACY_DEVELOPMENT_USER_DATA_ARG}=${userDataDir}`,
           "--remote-debugging-port=0",
           "--repo",
           REPO_ROOT,
@@ -818,33 +1111,109 @@ async function runHarness({
         isolatedHome,
         "Library",
         "Caches",
-        SHIPIT_JOB_LABEL,
+        shipItJobLabel,
+      );
+      const isolatedShipItState = path.join(
+        isolatedShipItCache,
+        "ShipItState.plist",
       );
       await waitFor(() => (
         existsSync(path.join(userDataDir, "DevToolsActivePort"))
-        && existsSync(path.join(isolatedShipItCache, "ShipItState.plist"))
+        && existsSync(isolatedShipItState)
       ), {
         timeoutMs: 240_000,
         label: "the signed candidate to download and prepare",
       });
-      if (launchctlJobExists({ domain: "system" })) {
+      if (launchctlJobExists({ domain: "system", label: shipItJobLabel })) {
         throw new Error("The update attempted to register a privileged ShipIt job");
       }
+      let shipItRequest = assertIsolatedShipItRequest({
+        stateFile: isolatedShipItState,
+        temporaryRoot,
+      });
+      assertRunningTemporaryProcessesIsolated({
+        temporaryRoot,
+        protectedProfilePath: host.productionProfilePath,
+      });
+      const updateAction = await evaluateInRenderer({
+        userDataDir,
+        expression: updateRegressionInstallExpression({ activate: false }),
+      });
+      if (updateAction?.reason !== "action-ready") {
+        throw new Error("The packaged update action was not ready before installation");
+      }
+      shipItRequest = await prepareIsolatedShipItRequestForInstallation({
+        homeDir: isolatedHome,
+        jobLabel: shipItJobLabel,
+        targetAppPath: appPath,
+        temporaryRoot,
+      });
+      if (!appProcess.kill("SIGTERM")) {
+        throw new Error("Could not stop the isolated baseline App for installation");
+      }
+      await waitFor(() => (
+        appProcess.exitCode !== null || appProcess.signalCode !== null
+      ), {
+        timeoutMs: 30_000,
+        intervalMs: 100,
+        label: "the isolated baseline App to exit",
+      });
 
-      await waitFor(async () => {
-        if (readAppVersion(appPath) === candidateManifest.version) {
-          return true;
-        }
-        await evaluateInRenderer({
-          userDataDir,
-          expression: updateRegressionInstallExpression(),
+      await waitFor(() => {
+        assertRunningTemporaryProcessesIsolated({
+          temporaryRoot,
+          protectedProfilePath: host.productionProfilePath,
         });
-        return false;
+        return readAppVersion(appPath) === candidateManifest.version;
       }, {
         timeoutMs: 180_000,
-        intervalMs: 2_000,
-        label: `Git Leaf ${candidateManifest.version} to replace the baseline`,
+        intervalMs: 500,
+        label: `OpenGlance ${candidateManifest.version} to replace the baseline`,
       });
+      const candidateExecutable = macAppExecutablePath(appPath);
+      if (runningExecutableProcessIds(candidateExecutable).length > 0) {
+        throw new Error("ShipIt relaunched the candidate outside the isolated harness");
+      }
+      rmSync(path.join(userDataDir, "DevToolsActivePort"), { force: true });
+      const candidateLogDescriptor = openSync(logPath, "a");
+      appProcess = spawn(
+        candidateExecutable,
+        [
+          `${DEVELOPMENT_USER_DATA_ARG}=${userDataDir}`,
+          `${LEGACY_DEVELOPMENT_USER_DATA_ARG}=${userDataDir}`,
+          "--remote-debugging-port=0",
+          "--repo",
+          REPO_ROOT,
+        ],
+        {
+          env: appEnv,
+          detached: false,
+          stdio: ["ignore", candidateLogDescriptor, candidateLogDescriptor],
+        },
+      );
+      closeSync(candidateLogDescriptor);
+      await waitFor(() => {
+        assertRunningTemporaryProcessesIsolated({
+          temporaryRoot,
+          protectedProfilePath: host.productionProfilePath,
+        });
+        return existsSync(path.join(userDataDir, "DevToolsActivePort"));
+      }, {
+        timeoutMs: 60_000,
+        intervalMs: 250,
+        label: "the installed candidate to relaunch with its isolated Profile",
+      });
+      const preservedConfig = JSON.parse(readFileSync(
+        path.join(userDataDir, "desktop-config.json"),
+        "utf8",
+      ));
+      assertRenameMigrationUserState(preservedConfig, expectedUserState);
+      inAppUpdateIsolation = {
+        updateActionReady: true,
+        shipItLaunchAfterInstallation: shipItRequest.launchAfterInstallation,
+        installTrigger: "isolated-process-termination",
+        candidateRelaunchedWithIsolatedProfile: true,
+      };
     }
 
     if (statSync(appPath).ino !== appDirectoryInode) {
@@ -857,13 +1226,14 @@ async function runHarness({
       throw new Error("The installed App version does not match the candidate");
     }
     verifySquirrelMacPolicy({ appDir: appPath });
-    if (launchctlJobExists({ domain: "system" })) {
+    const installedAppIdentity = readMacAppIdentity(appPath);
+    if (launchctlJobExists({ domain: "system", label: shipItJobLabel })) {
       throw new Error("The update registered a privileged ShipIt job");
     }
 
     passedEvidence = {
-      schemaVersion: 3,
-      source: "git-leaf-macos-update-regression",
+      schemaVersion: 5,
+      source: "openglance-macos-update-regression",
       status: "passed",
       track,
       platform: PLATFORM_KEY,
@@ -876,8 +1246,13 @@ async function runHarness({
       baseline: baselineContract,
       candidate: candidateContract,
       installMode,
+      ...(inAppUpdateIsolation || {}),
       directContentsWrite: true,
       appDirectoryInodePreserved: true,
+      baselineAppIdentity,
+      candidateAppIdentity,
+      installedAppIdentity,
+      profileStatePreserved: true,
       installParentWritable: false,
       privilegedShipItJobObserved: false,
       squirrelPolicy,
@@ -916,15 +1291,21 @@ async function runHarness({
       cleanupErrors.push(error);
     }
     try {
-      bootoutUserShipItJob(temporaryRoot);
+      for (const label of OFFICIAL_SHIPIT_JOB_LABELS) {
+        bootoutUserShipItJob(temporaryRoot, { label });
+      }
     } catch (error) {
       cleanupErrors.push(error);
     }
     try {
-      if (launchctlJobExists({ domain: "user" })) {
+      if (OFFICIAL_SHIPIT_JOB_LABELS.some((label) => (
+        launchctlJobExists({ domain: "user", label })
+      ))) {
         throw new Error("The per-user ShipIt launchd job remained after cleanup");
       }
-      if (launchctlJobExists({ domain: "system" })) {
+      if (OFFICIAL_SHIPIT_JOB_LABELS.some((label) => (
+        launchctlJobExists({ domain: "system", label })
+      ))) {
         throw new Error("A system ShipIt launchd job remained after cleanup");
       }
     } catch (error) {
@@ -935,11 +1316,11 @@ async function runHarness({
         productionUserDataDir: host.productionProfilePath,
       });
       if (after.sha256 !== host.productionFingerprint.sha256) {
-        throw new Error("The real Git Leaf Profile changed during update regression");
+        throw new Error("The real OpenGlance Profile changed during update regression");
       }
       const realShipItCacheAfter = developmentProfileFingerprint({
-        productionUserDataDir: host.realShipItCachePath,
-        entries: ["."],
+        productionUserDataDir: host.realShipItCacheRoot,
+        entries: OFFICIAL_SHIPIT_JOB_LABELS,
       });
       if (
         realShipItCacheAfter.sha256 !== host.realShipItFingerprint.sha256
@@ -994,7 +1375,7 @@ function printHelp() {
     [--base-url URL]
 
 This harness runs on the release Mac with an isolated HOME and Electron Profile.
-It refuses to start while the installed Git Leaf App is running or a ShipIt
+It refuses to start while an installed OpenGlance or Git Leaf App is running or a ShipIt
 launchd job already exists.`);
 }
 

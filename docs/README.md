@@ -1,4 +1,4 @@
-# Git Leaf documentation
+# OpenGlance documentation
 
 The repository root contains the standard open-source entry points: `README.md`, `LICENSE`,
 `CONTRIBUTING.md`, `SECURITY.md`, and `CHANGELOG.md`. Maintainer-facing technical documents use English
@@ -16,7 +16,7 @@ materially improves installation, privacy, or product use.
 | System architecture | [Architecture](architecture.md) | Cross-module behavior and invariants |
 | MDX-lite reference | [Reference](mdx-lite-guide.md) | Syntax, allowlist, and renderer contract |
 | MDX-lite demo | [Demo](mdx-lite-components-demo.mdx) | Development and visual regression fixture |
-| Public User Guide Demo | [Runnable companion repository](https://github.com/MangoFuture1210/git-leaf-example-knowledge-base) | User-facing first-run and main-feature demos |
+| Public User Guide Demo | [Runnable companion repository](https://github.com/openglance/openglance-example-knowledge-base) | User-facing first-run and main-feature demos |
 | Hosted link privacy | [Hosted links](hosted-links.md) · [简体中文](hosted-links.zh-CN.md) | End-user metadata disclosure |
 | Windows Preview | [English](windows-portable-guide.md) · [简体中文](windows-portable-guide.zh-CN.md) | Installation and security guidance |
 | Usage analytics | [Specification](app-usage-analytics-spec.md) | Normative event, privacy, and metric contract |

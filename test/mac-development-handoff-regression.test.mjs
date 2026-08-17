@@ -22,7 +22,7 @@ import {
 
 test("packaged build identity refreshes after in-place App Contents replacement", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "git-leaf-handoff-asar-cache-"));
-  const resources = path.join(root, "Git Leaf.app", "Contents", "Resources");
+  const resources = path.join(root, "OpenGlance.app", "Contents", "Resources");
   const sourceFiles = path.join(root, "source-files");
   const targetFiles = path.join(root, "target-files");
   const asarPath = path.join(resources, "app.asar");
@@ -42,20 +42,21 @@ test("packaged build identity refreshes after in-place App Contents replacement"
     await mkdir(sourceFiles, { recursive: true });
     await mkdir(targetFiles, { recursive: true });
     await writeFile(
-      path.join(sourceFiles, "git-leaf-build-info.json"),
+      path.join(sourceFiles, "openglance-build-info.json"),
       `${JSON.stringify(sourceBuild, null, 2)}\n`,
     );
+    // A 1.x package remains a valid handoff source during the 3.0 transition.
     await writeFile(
       path.join(targetFiles, "git-leaf-build-info.json"),
       `${JSON.stringify(targetBuild, null, 2)}\n`,
     );
     await createPackage(sourceFiles, asarPath);
-    assert.deepEqual(readPackagedBuildInfo(path.join(root, "Git Leaf.app")), sourceBuild);
+    assert.deepEqual(readPackagedBuildInfo(path.join(root, "OpenGlance.app")), sourceBuild);
 
     await createPackage(targetFiles, replacementAsar);
     await rename(replacementAsar, asarPath);
 
-    assert.deepEqual(readPackagedBuildInfo(path.join(root, "Git Leaf.app")), targetBuild);
+    assert.deepEqual(readPackagedBuildInfo(path.join(root, "OpenGlance.app")), targetBuild);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -103,9 +104,10 @@ test("development handoff regression requires an explicit visible-App acknowledg
 test("development handoff regression binds a lower source version to a newer internal target", () => {
   assert.deepEqual(validateDevelopmentHandoffBuildPair({
     sourceBuildInfo: SOURCE_BUILD,
-    sourceBundleId: "org.gitleaf.community",
+    sourceBundleId: "org.openglance.community",
     targetBuildInfo: TARGET_BUILD,
     targetBundleId: "com.mangofuture.gitleaf",
+    targetExecutable: "Git Leaf",
     receipt: RECEIPT,
   }), {
     sourceVersion: "1.15.0",
@@ -121,15 +123,17 @@ test("development handoff regression binds a lower source version to a newer int
     { targetBuildInfo: { ...TARGET_BUILD, usageAnalyticsDefault: false } },
     { targetBuildInfo: { ...TARGET_BUILD, version: "1.16.1" } },
     { sourceBundleId: "com.mangofuture.gitleaf" },
-    { targetBundleId: "org.gitleaf.community" },
+    { targetBundleId: "org.openglance.community" },
+    { targetExecutable: "OpenGlance" },
     { receipt: { ...RECEIPT, buildId: "bbbbbbbbbbbb.20260730T010000Z.internal" } },
   ]) {
     assert.throws(
       () => validateDevelopmentHandoffBuildPair({
         sourceBuildInfo: SOURCE_BUILD,
-        sourceBundleId: "org.gitleaf.community",
+        sourceBundleId: "org.openglance.community",
         targetBuildInfo: TARGET_BUILD,
         targetBundleId: "com.mangofuture.gitleaf",
+        targetExecutable: "Git Leaf",
         receipt: RECEIPT,
         ...mismatch,
       }),
@@ -159,10 +163,12 @@ test("development handoff evidence requires the real installation and isolation 
     sourceVersion: "1.15.0",
     sourceBuildId: SOURCE_BUILD.buildId,
     targetBuildId: TARGET_BUILD.buildId,
-    sourceBundleId: "org.gitleaf.community",
+    sourceBundleId: "org.openglance.community",
     targetBundleId: "com.mangofuture.gitleaf",
+    targetExecutable: "Git Leaf",
     targetTeamIdentifier: "HN6X79BUSR",
-    protocolScheme: "git-leaf",
+    protocolScheme: "openglance",
+    protocolSchemes: ["openglance", "git-leaf"],
     targetUsageAnalyticsDefault: true,
     analyticsDefaultAdopted: true,
     handoffReceiptConsumed: true,
@@ -199,6 +205,7 @@ test("development handoff evidence requires the real installation and isolation 
     { appDirectoryInodePreserved: false },
     { privilegedShipItJobObserved: true },
     { targetTeamIdentifier: "UNKNOWN" },
+    { targetExecutable: "OpenGlance" },
     { realProfileAfter: { sha256: "b".repeat(64), fileCount: 3 } },
   ]) {
     assert.throws(

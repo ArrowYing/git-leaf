@@ -23,7 +23,7 @@ const FILE_TYPE_ROWS = Object.freeze([
   { filesKey: "help.files.other", visibility: "onDemand", behavior: "other" },
 ]);
 
-export function getGitLeafHelpSections(locale = "en") {
+export function getOpenGlanceHelpSections(locale = "en") {
   const t = createTranslator(WORKBENCH_MESSAGES, locale);
   return HELP_SECTION_KEYS.map(({ id, key, paragraphCount }) => ({
     id,
@@ -45,12 +45,12 @@ export function getFileTypeHelpRows(locale = "en") {
 }
 
 // Keep the original exports for callers that have not selected a locale yet.
-export const GIT_LEAF_HELP_SECTIONS = getGitLeafHelpSections("zh-CN");
+export const OPENGLANCE_HELP_SECTIONS = getOpenGlanceHelpSections("zh-CN");
 export const FILE_TYPE_HELP_ROWS = getFileTypeHelpRows("zh-CN");
 
-export function gitLeafHelpPlainText(locale = "zh-CN") {
+export function openGlanceHelpPlainText(locale = "zh-CN") {
   const t = createTranslator(WORKBENCH_MESSAGES, locale);
-  const sections = getGitLeafHelpSections(locale);
+  const sections = getOpenGlanceHelpSections(locale);
   const rows = getFileTypeHelpRows(locale);
   return [
     t("help.title"),

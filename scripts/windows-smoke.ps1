@@ -1,5 +1,5 @@
 param(
-  [string]$AppRoot = "dist/Git Leaf-win32-x64",
+  [string]$AppRoot = "dist/OpenGlance-win32-x64",
   [string]$RepoRoot = (Get-Location).Path,
   [string]$ScreenshotPath = "dist/windows-smoke/home.png",
   [string]$LogPath = "dist/windows-smoke/windows-smoke.log",
@@ -53,7 +53,7 @@ function Save-DesktopScreenshot {
   }
 }
 
-function Wait-GitLeafHealth {
+function Wait-OpenGlanceHealth {
   param(
     [int]$TimeoutSecondsValue,
     [string]$ExpectedInitialFile = "",
@@ -90,10 +90,10 @@ function Wait-GitLeafHealth {
     Start-Sleep -Seconds 1
   }
 
-  throw "Timed out waiting for Git Leaf health check. ExpectedRepoRoot=$ExpectedRepoRoot ExpectedInitialFile=$ExpectedInitialFile LastError=$lastError"
+  throw "Timed out waiting for OpenGlance health check. ExpectedRepoRoot=$ExpectedRepoRoot ExpectedInitialFile=$ExpectedInitialFile LastError=$lastError"
 }
 
-function Invoke-GitLeafSyncSmoke {
+function Invoke-OpenGlanceSyncSmoke {
   param(
     [string]$HealthUrl,
     [string]$RepoRoot
@@ -153,7 +153,7 @@ function Invoke-GitLeafSyncSmoke {
   Write-SmokeLog "Sync and publish completed with Node hook: $localHead"
 }
 
-function Wait-GitLeafActiveDocument {
+function Wait-OpenGlanceActiveDocument {
   param(
     [string]$ConfigPath,
     [string]$ExpectedPath,
@@ -181,12 +181,20 @@ function Wait-GitLeafActiveDocument {
   throw "Timed out waiting for workbench activeTabPath=$ExpectedPath"
 }
 
-$exePath = Join-Path $appRootPath "Git Leaf.exe"
-$installedRoot = Join-Path $env:LOCALAPPDATA "GitLeaf\app"
-$installedExe = Join-Path $installedRoot "Git Leaf.exe"
-$installedState = Join-Path $env:LOCALAPPDATA "GitLeaf\install-state.json"
+$exePath = Join-Path $appRootPath "OpenGlance.exe"
+$installedRoot = Join-Path $env:LOCALAPPDATA "OpenGlance\app"
+$installedExe = Join-Path $installedRoot "OpenGlance.exe"
+$installedState = Join-Path $env:LOCALAPPDATA "OpenGlance\install-state.json"
+$legacyInstallParent = Join-Path $env:LOCALAPPDATA "GitLeaf"
+$legacyInstallRoot = Join-Path $legacyInstallParent "app"
+$legacyExe = Join-Path $legacyInstallRoot "Git Leaf.exe"
+$legacyState = Join-Path $legacyInstallParent "install-state.json"
+$legacyShortcut = Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs\Git Leaf.lnk"
 $desktopConfig = Join-Path $env:APPDATA "git-leaf\desktop-config.json"
-$protocolCommandKey = "Registry::HKEY_CURRENT_USER\Software\Classes\git-leaf\shell\open\command"
+$protocolCommandKeys = @(
+  "Registry::HKEY_CURRENT_USER\Software\Classes\openglance\shell\open\command",
+  "Registry::HKEY_CURRENT_USER\Software\Classes\git-leaf\shell\open\command"
+)
 if (!(Test-Path -LiteralPath $exePath)) {
   throw "Missing packaged executable: $exePath"
 }
@@ -202,35 +210,77 @@ try {
   if (Test-Path -LiteralPath $installParent) {
     Remove-Item -LiteralPath $installParent -Recurse -Force
   }
-  Write-SmokeLog "Starting Git Leaf from $exePath"
+  if (Test-Path -LiteralPath $legacyInstallParent) {
+    Remove-Item -LiteralPath $legacyInstallParent -Recurse -Force
+  }
+  if (Test-Path -LiteralPath $desktopConfig) {
+    Remove-Item -LiteralPath $desktopConfig -Force
+  }
+  New-Item -ItemType Directory -Force -Path $legacyInstallRoot | Out-Null
+  Set-Content -LiteralPath $legacyExe -Encoding utf8 -Value "legacy Git Leaf executable"
+  @{ version = "1.21.0"; installedAt = (Get-Date -Format "o") } |
+    ConvertTo-Json |
+    Set-Content -LiteralPath $legacyState -Encoding utf8
+  New-Item -ItemType Directory -Force -Path (Split-Path -Parent $legacyShortcut) | Out-Null
+  Set-Content -LiteralPath $legacyShortcut -Encoding utf8 -Value "legacy Git Leaf shortcut"
+  New-Item -ItemType Directory -Force -Path (Split-Path -Parent $desktopConfig) | Out-Null
+  [ordered]@{
+    repoRoot = $repoRootPath
+    openRepoRoots = @($repoRootPath)
+    preferences = [ordered]@{
+      colorMode = "dark"
+      language = "zh-CN"
+    }
+  } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $desktopConfig -Encoding utf8
+
+  Write-SmokeLog "Starting OpenGlance 3.0 over a Git Leaf 1.21.0 fixed installation"
   Write-SmokeLog "Smoke repository root: $repoRootPath"
   $process = Start-Process -FilePath $exePath -ArgumentList @("--repo", "`"$repoRootPath`"") -PassThru
-  Write-SmokeLog "Started Git Leaf process: $($process.Id)"
+  Write-SmokeLog "Started OpenGlance process: $($process.Id)"
 
-  $healthUrl = Wait-GitLeafHealth `
+  $healthUrl = Wait-OpenGlanceHealth `
     -TimeoutSecondsValue $TimeoutSeconds `
     -ExpectedRepoRoot $repoRootPath
   if (!(Test-Path -LiteralPath $installedExe)) {
-    throw "Git Leaf did not bootstrap to the stable per-user path: $installedExe"
+    throw "OpenGlance did not bootstrap to the stable per-user path: $installedExe"
   }
   if (!(Test-Path -LiteralPath $installedState)) {
-    throw "Git Leaf did not write the installed version state: $installedState"
+    throw "OpenGlance did not write the installed version state: $installedState"
   }
   $installedVersion = (Get-Content -LiteralPath $installedState -Raw | ConvertFrom-Json).version
   if ($installedVersion -ne $expectedVersion) {
     throw "Installed version state mismatch: expected=$expectedVersion actual=$installedVersion"
   }
-  if (!(Test-Path -LiteralPath $protocolCommandKey)) {
-    throw "Git Leaf did not register the git-leaf protocol"
+  if (Test-Path -LiteralPath $legacyInstallParent) {
+    throw "OpenGlance did not remove the superseded Git Leaf installation: $legacyInstallParent"
   }
-  $protocolCommand = (Get-Item -LiteralPath $protocolCommandKey).GetValue("")
-  if (!$protocolCommand.Contains($installedExe)) {
-    throw "git-leaf protocol does not point to the stable executable: $protocolCommand"
+  if (Test-Path -LiteralPath $legacyShortcut) {
+    throw "OpenGlance did not remove the superseded Git Leaf shortcut: $legacyShortcut"
+  }
+  $preservedConfig = Get-Content -LiteralPath $desktopConfig -Raw | ConvertFrom-Json
+  if ($preservedConfig.openRepoRoots -notcontains $repoRootPath) {
+    throw "OpenGlance did not preserve the Git Leaf repository list"
+  }
+  if (
+    $preservedConfig.preferences.colorMode -ne "dark" -or
+    $preservedConfig.preferences.language -ne "zh-CN"
+  ) {
+    throw "OpenGlance did not preserve Git Leaf appearance or language preferences"
+  }
+  Write-SmokeLog "Git Leaf 1.21.0 installation and Profile migrated with user state preserved"
+  foreach ($protocolCommandKey in $protocolCommandKeys) {
+    if (!(Test-Path -LiteralPath $protocolCommandKey)) {
+      throw "OpenGlance did not register protocol key: $protocolCommandKey"
+    }
+    $protocolCommand = (Get-Item -LiteralPath $protocolCommandKey).GetValue("")
+    if (!$protocolCommand.Contains($installedExe)) {
+      throw "Protocol does not point to the stable executable: $protocolCommand"
+    }
+    Write-SmokeLog "Protocol command: $protocolCommand"
   }
   Write-SmokeLog "Stable executable: $installedExe"
   Write-SmokeLog "Installed version: $installedVersion"
-  Write-SmokeLog "Protocol command: $protocolCommand"
-  Invoke-GitLeafSyncSmoke -HealthUrl $healthUrl -RepoRoot $repoRootPath
+  Invoke-OpenGlanceSyncSmoke -HealthUrl $healthUrl -RepoRoot $repoRootPath
 
   $stableHashBefore = (Get-FileHash -LiteralPath $installedExe -Algorithm SHA256).Hash
   @{ version = "0.0.0"; installedAt = (Get-Date -Format "o") } |
@@ -261,18 +311,32 @@ try {
 
   $deepLinkPath = "docs/notes.md"
   $encodedRepoRoot = [Uri]::EscapeDataString($repoRootPath)
-  $deepLink = "git-leaf://open?repo=$encodedRepoRoot&path=docs%2Fnotes.md"
+  $deepLink = "openglance://open?repo=$encodedRepoRoot&path=docs%2Fnotes.md"
   Write-SmokeLog "Opening registered protocol deep link: $deepLinkPath"
   Start-Process -FilePath $deepLink
-  $healthUrl = Wait-GitLeafHealth `
+  $healthUrl = Wait-OpenGlanceHealth `
     -TimeoutSecondsValue $TimeoutSeconds `
     -ExpectedInitialFile $deepLinkPath `
     -ExpectedRepoRoot $repoRootPath
-  Wait-GitLeafActiveDocument `
+  Wait-OpenGlanceActiveDocument `
     -ConfigPath $desktopConfig `
     -ExpectedPath $deepLinkPath `
     -TimeoutSecondsValue $TimeoutSeconds
   Write-SmokeLog "Deep link opened requested document: $deepLinkPath"
+
+  $legacyDeepLinkPath = "README.md"
+  $legacyDeepLink = "git-leaf://open?repo=$encodedRepoRoot&path=README.md"
+  Write-SmokeLog "Opening Git Leaf 1.x compatibility deep link: $legacyDeepLinkPath"
+  Start-Process -FilePath $legacyDeepLink
+  $healthUrl = Wait-OpenGlanceHealth `
+    -TimeoutSecondsValue $TimeoutSeconds `
+    -ExpectedInitialFile $legacyDeepLinkPath `
+    -ExpectedRepoRoot $repoRootPath
+  Wait-OpenGlanceActiveDocument `
+    -ConfigPath $desktopConfig `
+    -ExpectedPath $legacyDeepLinkPath `
+    -TimeoutSecondsValue $TimeoutSeconds
+  Write-SmokeLog "Git Leaf 1.x deep link opened requested document: $legacyDeepLinkPath"
 
   Write-SmokeLog "Starting the same package again to verify stable-app redirect"
   $redirectProcess = Start-Process -FilePath $exePath -ArgumentList @("--repo", "`"$repoRootPath`"") -PassThru
@@ -323,14 +387,14 @@ try {
       Set-Content -LiteralPath $installedState -Encoding utf8
   }
   if ($process -and !$process.HasExited) {
-    Write-SmokeLog "Stopping Git Leaf process: $($process.Id)"
+    Write-SmokeLog "Stopping OpenGlance process: $($process.Id)"
     Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
     $process.WaitForExit(5000) | Out-Null
   }
   Get-CimInstance Win32_Process |
     Where-Object { $_.ExecutablePath -eq $installedExe } |
     ForEach-Object {
-      Write-SmokeLog "Stopping installed Git Leaf process: $($_.ProcessId)"
+      Write-SmokeLog "Stopping installed OpenGlance process: $($_.ProcessId)"
       Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue
     }
 }

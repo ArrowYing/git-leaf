@@ -5,7 +5,7 @@ Status: Approved for implementation planning
 
 ## Problem
 
-`make install-dev-mac` replaces `/Applications/Git Leaf.app` with a human-facing development build. The
+`make install-dev-mac` replaces `/Applications/OpenGlance.app` with a human-facing development build. The
 development and official Apps intentionally share the real Electron Profile so repositories, workbench
 sessions, favorites, language, appearance, and other preferences survive replacement.
 
@@ -13,7 +13,7 @@ The installed development build currently cannot return to an official release t
 
 - it is packaged as `dev=true, distribution=source, releaseTrack=source`;
 - update checks are disabled for every development build;
-- it uses the Community macOS Bundle ID, `org.gitleaf.community`;
+- it uses the Community macOS Bundle ID, `org.openglance.community`;
 - the internal release uses `distribution=official, releaseTrack=internal`, the
   `internal-stable` channel, and the official Bundle ID, `com.mangofuture.gitleaf`;
 - update discovery requires the manifest version to be newer, so a `1.16.0` development build treats the
@@ -30,9 +30,10 @@ enable usage analytics after the official internal build starts.
 ## Goals
 
 - Keep exactly two official release tracks: public and internal.
-- Keep exactly two macOS Bundle IDs:
-  - `org.gitleaf.community` for Community and source builds;
-  - `com.mangofuture.gitleaf` for both public and internal official builds.
+- Keep exactly three macOS Bundle IDs across the publisher classes and official tracks:
+  - `org.openglance.community` for Community and source builds;
+  - `com.mangofuture.openglance` for public official builds;
+  - `com.mangofuture.gitleaf` for internal official builds.
 - Allow only a packaged human development build (`dev=true`) to hand off to `official + internal`.
 - Allow the handoff only when the target internal version is strictly newer than the development version.
 - Never allow a downgrade.
@@ -58,11 +59,13 @@ enable usage analytics after the official internal build starts.
 
 ## Identity model
 
-Public and internal official packages continue to share `com.mangofuture.gitleaf`, Mango Future's
-publisher identity, and the official signing contract. Their differences remain embedded release track,
-update channel, public visibility, and analytics default.
+Internal official packages continue to use `com.mangofuture.gitleaf`, Mango Future's publisher
+identity, and the official signing contract. Public official packages use
+`com.mangofuture.openglance`; the development handoff never targets that identity. The two official
+tracks also remain separated by embedded release track, update channel, visibility, and analytics
+default.
 
-Community packages continue to use `org.gitleaf.community`, `distribution=source`,
+Community packages use `org.openglance.community`, `distribution=source`,
 `releaseTrack=source`, and `dev=false`. They must not query or download from Mango Future's update
 service.
 
@@ -156,7 +159,7 @@ The eligible development build participates in the normal metadata-check schedul
 same Check for Updates entry as an official build when a newer internal version exists, for example:
 
 ```text
-Switch to the internal Git Leaf 1.16.1 release
+Switch to the internal OpenGlance 1.16.1 release
 ```
 
 Metadata discovery never starts a package download. The user must choose the update action, matching the
@@ -183,7 +186,7 @@ policy and icon are finalized so macOS code-integrity checks remain valid, but t
 not accepted as official target identity. The updater must never request administrator credentials or
 start a privileged Helper.
 
-The starting App has `org.gitleaf.community`. The installed signed package has
+The starting App has `org.openglance.community`. The installed signed package has
 `com.mangofuture.gitleaf`. The handoff is successful only when the relaunched App proves:
 
 - the App directory inode is unchanged;
@@ -193,7 +196,7 @@ The starting App has `org.gitleaf.community`. The installed signed package has
 - the target's packaged nonprivileged Squirrel policy is intact for its later official updates;
 - Squirrel and ShipIt were not invoked for the identity handoff;
 - no privileged ShipIt job was created;
-- LaunchServices and `git-leaf://` resolve the resulting official App correctly.
+- LaunchServices and `openglance://` resolve the resulting official App correctly.
 
 Failure to replace or relaunch the target leaves the development installation retryable. Cleanup removes
 only state owned by the attempted handoff.
@@ -302,7 +305,7 @@ channel override, and it must not add candidate-channel eligibility to the devel
 
 The regression must prove:
 
-- starting identity: `dev=true, source, source`, `org.gitleaf.community`, telemetry off;
+- starting identity: `dev=true, source, source`, `org.openglance.community`, telemetry off;
 - target identity: `dev=false, official, internal`, `com.mangofuture.gitleaf`;
 - the target version is strictly newer than the source development version;
 - the exact published internal candidate artifact is used;
@@ -314,7 +317,7 @@ The regression must prove:
 - the internal package persists `usageAnalyticsEnabled=true` and initializes telemetry;
 - repositories, workbench sessions, favorites, appearance, typography, language, and sidebar state are
   unchanged;
-- LaunchServices, the App display identity, and `git-leaf://` resolve the official App;
+- LaunchServices, the App display identity, and `openglance://` resolve the official App;
 - all temporary state is removed without touching the real Profile or real ShipIt cache.
 
 Because this feature changes update, installation, package identity, and configuration behavior, the

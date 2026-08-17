@@ -93,7 +93,7 @@ export function normalizeFileTreeVisibilityMode(value) {
 }
 
 /**
- * Return a filtered copy of a Git Leaf file tree without changing discovery or
+ * Return a filtered copy of an OpenGlance file tree without changing discovery or
  * file capabilities. Search matches, the current file, and Git changes override
  * content-mode hiding for the current view.
  */

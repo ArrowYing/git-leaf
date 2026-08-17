@@ -2,7 +2,17 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-export const BUILD_INFO_FILENAME = "git-leaf-build-info.json";
+import {
+  OPENGLANCE_DEVELOPMENT_NAME,
+  OPENGLANCE_PRODUCT_NAME,
+} from "./product-identity.mjs";
+
+export const BUILD_INFO_FILENAME = "openglance-build-info.json";
+export const GIT_LEAF_BUILD_INFO_FILENAME = "git-leaf-build-info.json";
+export const LEGACY_BUILD_INFO_FILENAME = GIT_LEAF_BUILD_INFO_FILENAME;
+export const LEGACY_BUILD_INFO_FILENAMES = Object.freeze([
+  GIT_LEAF_BUILD_INFO_FILENAME,
+]);
 
 const APP_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const DEFAULT_VERSION = "0.0.0";
@@ -18,32 +28,54 @@ export const BUILD_INFO = readBuildInfo();
 
 export function readBuildInfo({ rootDir = APP_ROOT, env = process.env, now = () => new Date() } = {}) {
   const packageJson = readJsonFile(path.join(rootDir, "package.json"));
-  const generatedPath = path.join(rootDir, BUILD_INFO_FILENAME);
+  const generatedPath = [BUILD_INFO_FILENAME, ...LEGACY_BUILD_INFO_FILENAMES]
+    .map((filename) => path.join(rootDir, filename))
+    .find((candidate) => existsSync(candidate))
+    || path.join(rootDir, BUILD_INFO_FILENAME);
   const generated = readJsonFile(generatedPath);
   const hasGeneratedBuildInfo = existsSync(generatedPath);
-  const builtAt = stringValue(generated.builtAt) || stringValue(env.GIT_LEAF_BUILT_AT) || now().toISOString();
+  const builtAt = stringValue(generated.builtAt)
+    || stringValue(envValue(env, "BUILT_AT"))
+    || now().toISOString();
   const distribution =
     distributionValue(generated.distribution)
-    || (!hasGeneratedBuildInfo ? distributionValue(env.GIT_LEAF_DISTRIBUTION) : "")
+    || (!hasGeneratedBuildInfo
+      ? distributionValue(envValue(env, "DISTRIBUTION"))
+      : "")
     || DEFAULT_DISTRIBUTION;
 
   const rawBuildInfo = {
-    version: stringValue(generated.version) || stringValue(env.GIT_LEAF_VERSION) || stringValue(packageJson.version) || DEFAULT_VERSION,
-    commit: stringValue(generated.commit) || stringValue(env.GIT_LEAF_COMMIT) || DEFAULT_COMMIT,
+    version: stringValue(generated.version)
+      || stringValue(envValue(env, "VERSION"))
+      || stringValue(packageJson.version)
+      || DEFAULT_VERSION,
+    commit: stringValue(generated.commit)
+      || stringValue(envValue(env, "COMMIT"))
+      || DEFAULT_COMMIT,
     builtAt,
-    buildId: stringValue(generated.buildId) || stringValue(env.GIT_LEAF_BUILD_ID) || DEFAULT_BUILD_ID,
-    dev: booleanValue(generated.dev) ?? booleanValue(env.GIT_LEAF_DEV) ?? false,
+    buildId: stringValue(generated.buildId)
+      || stringValue(envValue(env, "BUILD_ID"))
+      || DEFAULT_BUILD_ID,
+    dev: booleanValue(generated.dev)
+      ?? booleanValue(envValue(env, "DEV"))
+      ?? false,
     distribution,
     usageAnalyticsDefault: hasGeneratedBuildInfo
       ? booleanValue(generated.usageAnalyticsDefault) ?? DEFAULT_USAGE_ANALYTICS
-      : booleanValue(env.GIT_LEAF_USAGE_ANALYTICS_DEFAULT) ?? DEFAULT_USAGE_ANALYTICS,
+      : booleanValue(envValue(
+        env,
+        "USAGE_ANALYTICS_DEFAULT",
+      )) ?? DEFAULT_USAGE_ANALYTICS,
   };
   if (hasGeneratedBuildInfo) {
     if (hasOwn(generated, "releaseTrack")) {
       rawBuildInfo.releaseTrack = generated.releaseTrack;
     }
-  } else if (env.GIT_LEAF_RELEASE_TRACK !== undefined) {
-    rawBuildInfo.releaseTrack = env.GIT_LEAF_RELEASE_TRACK;
+  } else {
+    const releaseTrack = envValue(env, "RELEASE_TRACK");
+    if (releaseTrack !== undefined) {
+      rawBuildInfo.releaseTrack = releaseTrack;
+    }
   }
   return normalizeBuildInfo(rawBuildInfo);
 }
@@ -97,7 +129,7 @@ export function buildDistributionLabel(buildInfo, { language = "en" } = {}) {
 }
 
 export function appDisplayName(buildInfo) {
-  return buildInfo?.dev === true ? "Git Leaf dev" : "Git Leaf";
+  return buildInfo?.dev === true ? OPENGLANCE_DEVELOPMENT_NAME : OPENGLANCE_PRODUCT_NAME;
 }
 
 export function releaseDateLabel(buildInfo, { language = "en" } = {}) {
@@ -191,4 +223,14 @@ function releaseTrackForDistribution({ distribution, releaseTrack, hasReleaseTra
 
 function hasOwn(value, key) {
   return Boolean(value && Object.prototype.hasOwnProperty.call(value, key));
+}
+
+function envValue(env, suffix) {
+  for (const prefix of ["OPENGLANCE", "GIT_LEAF"]) {
+    const name = `${prefix}_${suffix}`;
+    if (env?.[name] !== undefined) {
+      return env[name];
+    }
+  }
+  return undefined;
 }

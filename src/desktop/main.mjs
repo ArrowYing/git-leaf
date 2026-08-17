@@ -17,8 +17,13 @@ import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 
+import { openGlanceEnvironmentValue } from "../environment.mjs";
 import { createDesktopUpdateController } from "./updates.mjs";
 import { configureMacUpdateInstallation } from "./mac-update-installation.mjs";
+import {
+  macShipItJobLabelForBuildInfo,
+  prepareMacUpdateAppPath,
+} from "./mac-update-cache.mjs";
 import {
   launchMacDevelopmentHandoffUpdate,
   macAppBundlePathFromExecutable,
@@ -83,16 +88,21 @@ import {
 import {
   repositorySelectionErrorMessage,
 } from "./repository-errors.mjs";
-import { startDesktopGitLeafServer } from "./server.mjs";
-import { GIT_LEAF_PROTOCOL } from "./deep-link.mjs";
+import { startDesktopOpenGlanceServer } from "./server.mjs";
 import {
-  confirmGitLeafHandoff,
-  reportGitLeafShareHandoffState,
+  OPENGLANCE_SUPPORTED_PROTOCOLS,
+} from "./deep-link.mjs";
+import {
+  confirmOpenGlanceHandoff,
+  reportOpenGlanceShareHandoffState,
   writeDesktopDeepLinkLog,
 } from "./handoff.mjs";
 import { initializeDesktopCommandEnvironment } from "./command-environment.mjs";
 import { desktopEnvironmentChecks } from "./git-environment.mjs";
-import { applyDevelopmentUserDataOverride } from "./user-data.mjs";
+import {
+  applyDevelopmentUserDataOverride,
+  applyStableUserDataPath,
+} from "./user-data.mjs";
 import {
   fastForwardSharedMain,
   inspectSharedMain,
@@ -117,6 +127,7 @@ import {
 } from "./repository-panel.mjs";
 import {
   bootstrapWindowsApp,
+  cleanupLegacyWindowsInstallationAfterRename,
   confirmWindowsAppLaunch,
   windowsAppBootstrapPlan,
   windowsBootstrapNeedsExclusiveLock,
@@ -141,7 +152,7 @@ import {
 import { initializeUsageAnalyticsSetting } from "./usage-analytics-setting.mjs";
 import {
   getFileTypeHelpRows,
-  getGitLeafHelpSections,
+  getOpenGlanceHelpSections,
 } from "../../public/help-content.js";
 import {
   documentTabShortcutFromEvent,
@@ -154,6 +165,7 @@ import {
 import { normalizeDocumentMargins } from "../../public/settings-preferences.js";
 import { sidebarTabFromShortcut } from "../../public/sidebar-navigation.js";
 
+applyStableUserDataPath({ app });
 applyDevelopmentUserDataOverride({ app });
 configureMacUpdateInstallation({
   platform: process.platform,
@@ -186,7 +198,7 @@ let desktopRepositoryState = {
 };
 const DESKTOP_OPEN_REPOSITORY_ACTION = new URL(DESKTOP_OPEN_REPOSITORY_URL);
 const DESKTOP_OPEN_WORKTREE_ACTION = new URL(DESKTOP_OPEN_WORKTREE_URL);
-const DESKTOP_INSTALL_UPDATE_ACTION = new URL("git-leaf://install-update");
+const DESKTOP_INSTALL_UPDATE_ACTION = new URL("openglance://install-update");
 const DESKTOP_SHOW_REPOSITORIES_ACTION = new URL(REPOSITORY_PANEL_SHOW_URL);
 const DESKTOP_CLOSE_REPOSITORIES_ACTION = new URL(REPOSITORY_PANEL_CLOSE_URL);
 const DESKTOP_SWITCH_REPOSITORY_ACTION = new URL(REPOSITORY_PANEL_SWITCH_URL);
@@ -362,14 +374,17 @@ async function releaseManualWindowsBootstrapLock() {
 }
 
 function registerDesktopProtocol() {
-  if (process.defaultApp && process.argv[1]) {
-    return app.setAsDefaultProtocolClient(
-      GIT_LEAF_PROTOCOL,
-      process.execPath,
-      [path.resolve(process.argv[1])],
-    );
-  }
-  return app.setAsDefaultProtocolClient(GIT_LEAF_PROTOCOL);
+  const results = OPENGLANCE_SUPPORTED_PROTOCOLS.map((protocol) => {
+    if (process.defaultApp && process.argv[1]) {
+      return app.setAsDefaultProtocolClient(
+        protocol,
+        process.execPath,
+        [path.resolve(process.argv[1])],
+      );
+    }
+    return app.setAsDefaultProtocolClient(protocol);
+  });
+  return results.every(Boolean);
 }
 
 function installWindowsStartMenuShortcut() {
@@ -390,7 +405,7 @@ function installWindowsStartMenuShortcut() {
       ),
     );
   } catch {
-    // A missing Start Menu shortcut must not prevent Git Leaf from opening.
+    // A missing Start Menu shortcut must not prevent OpenGlance from opening.
   }
 }
 
@@ -402,6 +417,9 @@ function scheduleWindowsUpdateCacheCleanup() {
     void cleanupWindowsUpdateCache({
       localAppData: process.env.LOCALAPPDATA,
       currentVersion: app.getVersion(),
+    });
+    void cleanupLegacyWindowsInstallationAfterRename({
+      isPackaged: app.isPackaged,
     });
   }, 10_000).unref?.();
 }
@@ -437,8 +455,8 @@ async function initializeDesktopTelemetry() {
       userDataDir: userDataDir(),
       buildInfo: BUILD_INFO,
       channel: TELEMETRY_CHANNEL,
-      ...(process.env.GIT_LEAF_TELEMETRY_ENDPOINT
-        ? { endpoint: process.env.GIT_LEAF_TELEMETRY_ENDPOINT }
+      ...(openGlanceEnvironmentValue(process.env, "TELEMETRY_ENDPOINT")
+        ? { endpoint: openGlanceEnvironmentValue(process.env, "TELEMETRY_ENDPOINT") }
         : {}),
       platform: process.platform,
       arch: process.arch,
@@ -468,10 +486,15 @@ async function initializeDesktopTelemetry() {
 }
 
 function initialTelemetryEntryKind() {
-  if (process.argv.some((argument) => String(argument).startsWith("--git-leaf-install-confirm="))) {
+  if (process.argv.some((argument) => [
+    "--openglance-install-confirm=",
+    "--git-leaf-install-confirm=",
+  ].some((prefix) => String(argument).startsWith(prefix)))) {
     return "windows_bootstrap";
   }
-  return process.argv.some((argument) => String(argument).startsWith(`${GIT_LEAF_PROTOCOL}://`))
+  return process.argv.some((argument) => OPENGLANCE_SUPPORTED_PROTOCOLS.some(
+    (protocol) => String(argument).startsWith(`${protocol}://`),
+  ))
     ? "deep_link"
     : "manual";
 }
@@ -849,6 +872,11 @@ function installUpdateController() {
         currentProcessId: process.pid,
       })
     ),
+    prepareMacUpdateInstallation: () => prepareMacUpdateAppPath({
+      homeDir: app.getPath("home"),
+      jobLabel: macShipItJobLabelForBuildInfo(BUILD_INFO),
+      targetAppPath: macAppBundlePathFromExecutable(),
+    }),
     recordUpdateState: recordTelemetryUpdateState,
     translate: (key, values) => desktopText(key, values),
     prepareWindowsUpdate: (manifest) => prepareWindowsAppUpdate({
@@ -1264,8 +1292,8 @@ async function showDesktopUpdateStatusFallback(status) {
       }
       toast.textContent = ${message};
       toast.hidden = false;
-      window.clearTimeout(window.__gitLeafDesktopUpdateToastTimer);
-      window.__gitLeafDesktopUpdateToastTimer = window.setTimeout(() => {
+      window.clearTimeout(window.__openGlanceDesktopUpdateToastTimer);
+      window.__openGlanceDesktopUpdateToastTimer = window.setTimeout(() => {
         toast.hidden = true;
       }, 7000);
       return true;
@@ -1313,7 +1341,7 @@ async function showSettingsAndHelpCenter(section = "general") {
 function settingsCenterHelpSections(resolvedLanguage) {
   const translate = createDesktopTranslatorForLanguage(resolvedLanguage);
   return [
-    ...getGitLeafHelpSections(resolvedLanguage),
+    ...getOpenGlanceHelpSections(resolvedLanguage),
     {
       id: "file-types",
       title: translate("settings.fileTypes.title"),
@@ -1456,7 +1484,7 @@ async function exportCurrentDocumentPdf() {
   let metadata = null;
   try {
     metadata = await mainWindow.webContents.executeJavaScript(
-      "window.gitLeafPreparePdfExport ? window.gitLeafPreparePdfExport() : null",
+      "window.openGlancePreparePdfExport ? window.openGlancePreparePdfExport() : null",
       true,
     );
   } catch (error) {
@@ -1506,7 +1534,7 @@ async function finishCurrentDocumentPdfExport(metadata) {
   }
   const detail = JSON.stringify(metadata || {});
   await mainWindow.webContents.executeJavaScript(
-    `window.gitLeafFinishPdfExport && window.gitLeafFinishPdfExport(${detail});`,
+    `window.openGlanceFinishPdfExport && window.openGlanceFinishPdfExport(${detail});`,
     true,
   ).catch(() => {});
 }
@@ -1524,7 +1552,7 @@ function pdfExportBaseName(metadata) {
   }
   const documentPath = String(metadata?.path || "").trim();
   if (!documentPath) {
-    return "Git Leaf Document";
+    return "OpenGlance Document";
   }
   return path.basename(documentPath, path.extname(documentPath));
 }
@@ -1535,7 +1563,7 @@ function pdfFileName(value) {
     .replace(/[<>:"/\\|?*\x00-\x1F]/g, "-")
     .replace(/\s+/g, " ")
     .replace(/^\.+$/, "")
-    .slice(0, 120) || "Git Leaf Document";
+    .slice(0, 120) || "OpenGlance Document";
   return safeName.toLowerCase().endsWith(".pdf") ? safeName : `${safeName}.pdf`;
 }
 
@@ -1887,7 +1915,7 @@ async function openRepository(
     await previousServer.close();
   }
 
-  const nextServer = await startDesktopGitLeafServer({
+  const nextServer = await startDesktopOpenGlanceServer({
     repoRoot,
     initialFilePath,
     desktopPreferences: preferencesForRenderer(),
@@ -2324,7 +2352,7 @@ function installMenu() {
       label: translate("menu.help"),
       submenu: [
         {
-          label: translate("menu.gitLeafHelp"),
+          label: translate("menu.openGlanceHelp"),
           click: () => {
             void showSettingsAndHelpCenter("help");
           },
@@ -2923,7 +2951,7 @@ async function confirmDesktopHandoff(options) {
     return false;
   }
   await logDesktopHandoff("opened", options);
-  const confirmed = await confirmGitLeafHandoff(options.handoff);
+  const confirmed = await confirmOpenGlanceHandoff(options.handoff);
   await logDesktopHandoff(confirmed ? "confirmed" : "confirm-failed", options);
   return confirmed;
 }
@@ -2937,7 +2965,7 @@ async function logDesktopHandoff(event, request, detail = "") {
       detail,
     });
     if (request?.share && ["received", "cancelled", "failed"].includes(event)) {
-      void reportGitLeafShareHandoffState(request.handoff, event);
+      void reportOpenGlanceShareHandoffState(request.handoff, event);
     }
     return logged;
   } catch {
@@ -3058,7 +3086,7 @@ if (manualWindowsBootstrapBlocked) {
 
 function handleDesktopStartupFailure(error) {
   const invalidConfig = error?.code === "DESKTOP_CONFIG_INVALID";
-  console.error("Git Leaf desktop startup failed", error);
+  console.error("OpenGlance desktop startup failed", error);
   dialog.showErrorBox(
     invalidConfig
       ? desktopText("startup.configInvalidTitle")

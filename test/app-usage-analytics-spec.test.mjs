@@ -60,7 +60,7 @@ test("Deep Link failure reasons stay aligned across the normative telemetry cont
   const sources = await Promise.all([
     readFile("docs/app-usage-analytics-spec.md", "utf8"),
     readFile("public/telemetry.js", "utf8"),
-    readFile("scripts/gitleaf-update-server.py", "utf8"),
+    readFile("scripts/openglance-update-server.py", "utf8"),
     readFile("scripts/summarize-telemetry.mjs", "utf8"),
   ]);
   const reasons = [

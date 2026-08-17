@@ -46,11 +46,11 @@ function fakeMacManifestFetch({
         buildId,
         commit,
         autoUpdater: {
-          name: `Git Leaf ${version}`,
+          name: `OpenGlance ${version}`,
         },
         files: {
           zip: {
-            url: `https://updates.mangofuture.com/git-leaf/${channel}/${platform}/GitLeaf-${version}.zip`,
+            url: `https://updates.mangofuture.com/git-leaf/${channel}/${platform}/OpenGlance-${version}.zip`,
           },
         },
       }),
@@ -139,7 +139,7 @@ test("packaged internal builds ignore environment channel overrides", async () =
     arch: "arm64",
     channel: "stable",
     environment: {
-      GIT_LEAF_UPDATE_CHANNEL: "candidate",
+      OPENGLANCE_UPDATE_CHANNEL: "candidate",
     },
   });
 
@@ -250,7 +250,7 @@ test("packaged source development builds automatically prepare a newer internal 
     platform: "darwin",
     arch: "arm64",
     environment: {
-      GIT_LEAF_UPDATE_CHANNEL: "candidate",
+      OPENGLANCE_UPDATE_CHANNEL: "candidate",
     },
     saveDevelopmentHandoff: async (handoff) => {
       operations.push("save");
@@ -577,7 +577,7 @@ test("desktop update actions cannot bypass development-build update guards", asy
   assert.equal(await controller.handleUpdateAction(), "disabled");
   assert.deepEqual(fetch.urls, []);
   assert.equal(autoUpdater.checked, false);
-  assert.match(dialog.calls[0][0].message, /Git Leaf dev/);
+  assert.match(dialog.calls[0][0].message, /OpenGlance dev/);
 });
 
 test("development builds do not restore version-only update actions from shared preferences", async () => {
@@ -623,7 +623,7 @@ test("desktop updater does not show transient macOS errors before a downloaded u
 
   await controller.checkForUpdates({ manual: true });
   autoUpdater.listeners.get("error")(
-    new Error("文件夹“GitLeaf-1.2.1-darwin-arm64.zip”不存在。：该文件夹不存在。"),
+    new Error("文件夹“OpenGlance-1.2.1-darwin-arm64.zip”不存在。：该文件夹不存在。"),
   );
 
   assert.equal(dialog.calls.length, 0);
@@ -633,6 +633,68 @@ test("desktop updater does not show transient macOS errors before a downloaded u
 
   assert.equal(dialog.calls.length, 0);
   assert.equal(await controller.installPendingUpdateOnQuit(), true);
+});
+
+test("desktop updater prepares the current macOS App path before ShipIt restarts", async () => {
+  const autoUpdater = fakeAutoUpdater();
+  const calls = [];
+  autoUpdater.quitAndInstall = () => {
+    calls.push("quit-and-install");
+    autoUpdater.installed = true;
+  };
+  const controller = createDesktopUpdateController({
+    autoUpdater,
+    buildInfo: { version: "1.2.0" },
+    dialog: fakeDialog(),
+    fetch: fakeMacManifestFetch(),
+    isPackaged: true,
+    platform: "darwin",
+    arch: "arm64",
+    prepareMacUpdateInstallation: async (update) => {
+      calls.push(`preserve-path:${update.version}`);
+    },
+  });
+
+  await controller.checkForUpdates({ manual: true });
+  autoUpdater.listeners.get("update-downloaded")();
+
+  assert.equal(await controller.installPendingUpdateOnQuit(), true);
+  assert.deepEqual(calls, [
+    "preserve-path:1.2.1",
+    "quit-and-install",
+  ]);
+});
+
+test("desktop updater fails closed when the macOS App path cannot be prepared", async () => {
+  const autoUpdater = fakeAutoUpdater();
+  const updates = [];
+  const controller = createDesktopUpdateController({
+    autoUpdater,
+    buildInfo: { version: "1.2.0" },
+    dialog: fakeDialog(),
+    fetch: fakeMacManifestFetch(),
+    isPackaged: true,
+    platform: "darwin",
+    arch: "arm64",
+    prepareMacUpdateInstallation: async () => {
+      throw new Error("ShipIt state mismatch");
+    },
+    recordUpdateState: (update) => updates.push(update),
+  });
+
+  await controller.checkForUpdates({ manual: true });
+  autoUpdater.listeners.get("update-downloaded")();
+
+  assert.equal(await controller.installPendingUpdateOnQuit(), false);
+  assert.equal(autoUpdater.installed, false);
+  assert.deepEqual(updates.at(-1), {
+    state: "failed",
+    trigger: "manual",
+    from_version: "1.2.0",
+    to_version: "1.2.1",
+    error_code: "launch",
+    stage: "install",
+  });
 });
 
 test("desktop updater reports macOS manual update progress", async () => {
@@ -909,7 +971,7 @@ test("desktop updater automatically prepares Windows and launches it on quit", a
     arch: "x64",
     prepareWindowsUpdate: async (manifest) => {
       preparedManifests.push(manifest);
-      return { version: manifest.version, executable: "C:\\updates\\Git Leaf.exe" };
+      return { version: manifest.version, executable: "C:\\updates\\OpenGlance.exe" };
     },
     launchWindowsUpdate: (prepared) => launched.push(prepared),
     showUpdateStatus: async (status) => statuses.push(status),
@@ -997,10 +1059,10 @@ test("a newer macOS release replaces the downloaded update and prunes the old pa
         channel: "stable",
         platform: "darwin-universal",
         version,
-        autoUpdater: { name: `Git Leaf ${version}` },
+        autoUpdater: { name: `OpenGlance ${version}` },
         files: {
           zip: {
-            url: `https://updates.example/GitLeaf-${version}-darwin-universal.zip`,
+            url: `https://updates.example/OpenGlance-${version}-darwin-universal.zip`,
           },
         },
       }),
@@ -1212,7 +1274,7 @@ test("automatic Windows checks prepare immediately and install on quit", async (
         version: "1.9.0",
         files: {
           zip: {
-            url: "https://updates.example/GitLeaf-1.9.0-win32-x64.zip",
+            url: "https://updates.example/OpenGlance-1.9.0-win32-x64.zip",
             sha256: "a".repeat(64),
             size: 123,
           },
@@ -1224,7 +1286,7 @@ test("automatic Windows checks prepare immediately and install on quit", async (
     arch: "x64",
     prepareWindowsUpdate: async (manifest) => {
       prepared.push(manifest.version);
-      return { version: manifest.version, executable: "C:\\updates\\Git Leaf.exe" };
+      return { version: manifest.version, executable: "C:\\updates\\OpenGlance.exe" };
     },
     launchWindowsUpdate: (pending) => launched.push(pending),
   });
@@ -1364,7 +1426,7 @@ test("install lifecycle is recorded at the real entry and entry failures are exp
     isPackaged: true,
     platform: "win32",
     arch: "x64",
-    prepareWindowsUpdate: async () => ({ executable: "Git Leaf.exe" }),
+    prepareWindowsUpdate: async () => ({ executable: "OpenGlance.exe" }),
     launchWindowsUpdate: () => { throw new Error("launch failed"); },
     recordUpdateState: async (update) => updates.push(update),
   });

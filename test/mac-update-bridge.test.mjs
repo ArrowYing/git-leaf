@@ -33,10 +33,10 @@ function readFixtureVersion(appPath) {
 test("mac App process checks exclude the in-bundle update helper only", {
   skip: process.platform === "win32" && "process matching uses macOS path semantics",
 }, () => {
-  const appPath = "/private/tmp/Git Leaf.app";
-  const currentHelper = `${appPath}/Contents/MacOS/Git Leaf helper.mjs`;
+  const appPath = "/private/tmp/OpenGlance.app";
+  const currentHelper = `${appPath}/Contents/MacOS/OpenGlance helper.mjs`;
   const lingeringRenderer =
-    `${appPath}/Contents/Frameworks/Git Leaf Helper.app/Contents/MacOS/Git Leaf Helper --type=renderer`;
+    `${appPath}/Contents/Frameworks/OpenGlance Helper.app/Contents/MacOS/OpenGlance Helper --type=renderer`;
   const processList = [
     `101 ${currentHelper}`,
     `202 ${lingeringRenderer}`,

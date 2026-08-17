@@ -8,6 +8,7 @@ import { promisify } from "node:util";
 
 import {
   canEditRepository,
+  canonicalGithubRepositoryIdentity,
   createRepositoryInfo,
   findGithubRepositoryRoot,
   githubBlobRoot,
@@ -119,6 +120,58 @@ test("GitHub repository identities normalize SSH and HTTPS remotes", () => {
   assert.equal(githubRepositoryIdentityFromRemote("https://gitlab.com/acme/docs.git"), "");
 });
 
+test("OpenGlance repository renames preserve legacy local checkout identity", () => {
+  assert.equal(
+    githubRepositoryIdentityFromRemote("https://github.com/MangoFuture1210/git-leaf.git"),
+    "openglance/openglance",
+  );
+  assert.equal(
+    githubRepositoryIdentityFromRemote("https://github.com/MangoFuture1210/openglance.git"),
+    "openglance/openglance",
+  );
+  assert.equal(
+    githubRepositoryIdentityFromRemote(
+      "git@github.com:MangoFuture1210/git-leaf-example-knowledge-base.git",
+    ),
+    "openglance/openglance-example-knowledge-base",
+  );
+  assert.equal(
+    githubRepositoryIdentityFromRemote(
+      "https://github.com/MangoFuture1210/openglance-example-knowledge-base.git",
+    ),
+    "openglance/openglance-example-knowledge-base",
+  );
+  assert.equal(
+    canonicalGithubRepositoryIdentity("MangoFuture1210/OpenGlance"),
+    "openglance/openglance",
+  );
+  assert.equal(
+    canonicalGithubRepositoryIdentity("OpenGlance/OpenGlance"),
+    "openglance/openglance",
+  );
+  assert.equal(
+    canonicalGithubRepositoryIdentity("ExampleOrg/company-docs"),
+    "exampleorg/company-docs",
+  );
+});
+
+test("findGithubRepositoryRoot matches OpenGlance links against legacy local remotes", async () => {
+  assert.equal(
+    await findGithubRepositoryRoot("openglance/openglance", ["/legacy-openglance"], {
+      originReader: async () => "https://github.com/MangoFuture1210/git-leaf.git",
+      candidateAccess: async () => {},
+    }),
+    "/legacy-openglance",
+  );
+  assert.equal(
+    await findGithubRepositoryRoot("MangoFuture1210/git-leaf", ["/renamed-openglance"], {
+      originReader: async () => "https://github.com/openglance/openglance.git",
+      candidateAccess: async () => {},
+    }),
+    "/renamed-openglance",
+  );
+});
+
 test("findGithubRepositoryRoot matches a stable identity against local candidates", async () => {
   const rootDir = await mkdtemp(path.join(tmpdir(), "git-leaf-repos-"));
   const otherRoot = await createGitRepo(rootDir, "other", {
@@ -177,7 +230,7 @@ test("findGithubRepositoryRoot resolves an exact local worktree without falling 
     branch: "main",
     files: { "README.md": "# Main\n" },
   });
-  await execFileAsync("git", ["config", "user.name", "Git Leaf Tests"], { cwd: repoRoot });
+  await execFileAsync("git", ["config", "user.name", "OpenGlance Tests"], { cwd: repoRoot });
   await execFileAsync("git", ["config", "user.email", "git-leaf@example.com"], { cwd: repoRoot });
   await execFileAsync("git", ["add", "."], { cwd: repoRoot });
   await execFileAsync("git", ["commit", "-m", "Initial"], { cwd: repoRoot });

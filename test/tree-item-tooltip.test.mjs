@@ -19,7 +19,7 @@ test("AI snippet matches preserve filename and title before full highlighted evi
     scrollWidth: 167,
     clientWidth: 167,
   });
-  title.textContent = "Git Leaf UI Smoke Fixture";
+  title.textContent = "OpenGlance UI Smoke Fixture";
   const evidence = createElement({
     className: "tree-file-search-evidence",
     rect: { left: 16, top: 78, width: 167, height: 14 },
@@ -82,7 +82,7 @@ test("AI snippet matches preserve filename and title before full highlighted evi
   assert.deepEqual(source.details(item), {
     name: "README.md",
     nameRanges: [],
-    path: "Git Leaf UI Smoke Fixture",
+    path: "OpenGlance UI Smoke Fixture",
     pathRanges: [],
     evidence: snippetDetails.get(item).evidence,
   });
@@ -119,7 +119,7 @@ test("AI snippet matches preserve filename and title before full highlighted evi
   assert.equal(tooltip.hidden, false);
   assert.equal(tooltip.dataset.source, "file-tree");
   assert.equal(tooltip.children[0].textContent, "README.md");
-  assert.equal(tooltip.children[1].textContent, "Git Leaf UI Smoke Fixture");
+  assert.equal(tooltip.children[1].textContent, "OpenGlance UI Smoke Fixture");
   assert.equal(
     tooltip.children[2].children[1].children.find(
       (child) => child.className === "ui-tooltip-search-match",

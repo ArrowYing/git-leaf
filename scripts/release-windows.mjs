@@ -14,6 +14,8 @@ import {
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { OPENGLANCE_SUPPORTED_PROTOCOLS } from "../src/product-identity.mjs";
+import { openGlanceEnvironmentFlag } from "../src/environment.mjs";
 import { buildUpdateManifest, updateArtifactRemotePath, updateMetadataRelativeDir } from "./update-publish.mjs";
 import {
   assertOfficialReleaseProfile,
@@ -36,9 +38,10 @@ const REPO_ROOT = path.dirname(path.dirname(SCRIPT_PATH));
 export const DEFAULT_ELECTRON_MIRROR = "https://npmmirror.com/mirrors/electron/";
 
 export const DEFAULT_WINDOWS_RELEASE_OPTIONS = {
-  appName: "Git Leaf",
-  companyName: "Git Leaf Community",
-  productName: "Git Leaf Community Build",
+  appName: "OpenGlance",
+  companyName: "OpenGlance Community",
+  productName: "OpenGlance Community Build",
+  iconPath: "assets/icons/openglance.ico",
   version: packageVersion({ rootDir: REPO_ROOT, fallbackVersion: "0.1.1" }),
   outDir: "dist",
   updateBaseUrl: "https://updates.mangofuture.com/git-leaf",
@@ -79,6 +82,7 @@ export function windowsElectronPackagerArgs({
   version = DEFAULT_WINDOWS_RELEASE_OPTIONS.version,
   companyName = DEFAULT_WINDOWS_RELEASE_OPTIONS.companyName,
   productName = DEFAULT_WINDOWS_RELEASE_OPTIONS.productName,
+  iconPath = DEFAULT_WINDOWS_RELEASE_OPTIONS.iconPath,
   outDir = DEFAULT_WINDOWS_RELEASE_OPTIONS.outDir,
 } = {}) {
   return [
@@ -90,8 +94,11 @@ export function windowsElectronPackagerArgs({
     "--overwrite",
     `--app-version=${version}`,
     `--executable-name=${appName}`,
-    "--protocol=git-leaf",
-    "--protocol-name=Git Leaf Document",
+    `--icon=${iconPath}`,
+    ...OPENGLANCE_SUPPORTED_PROTOCOLS.flatMap((protocol) => [
+      `--protocol=${protocol}`,
+      "--protocol-name=OpenGlance Document",
+    ]),
     `--win32metadata.CompanyName=${companyName}`,
     `--win32metadata.FileDescription=${productName}`,
     `--win32metadata.ProductName=${productName}`,
@@ -114,6 +121,9 @@ export function windowsReleasePaths({
     distDir,
     appRoot,
     exePath: path.join(appRoot, `${appName}.exe`),
+    gitLeafExePath: path.join(appRoot, "Git Leaf.exe"),
+    // Compatibility alias for integrations that mean the Git Leaf 1.x bridge.
+    legacyExePath: path.join(appRoot, "Git Leaf.exe"),
     zipPath: path.join(
       distDir,
       releaseArtifactFileName({
@@ -124,6 +134,12 @@ export function windowsReleasePaths({
       }),
     ),
   };
+}
+
+export function windowsCompatibilityExecutablePaths(options = {}, paths = windowsReleasePaths(options)) {
+  return options.distribution === "official" && options.releaseTrack === "internal"
+    ? [paths.gitLeafExePath]
+    : [];
 }
 
 export function windowsUpdateMetadataPaths({
@@ -177,9 +193,7 @@ function windowsReleaseOptionsFromEnv() {
       process.env.UPDATE_REMOTE_ROOT
       || profile.updateRemoteRoot
       || DEFAULT_WINDOWS_RELEASE_OPTIONS.updateRemoteRoot,
-    formalRelease: ["1", "true", "yes"].includes(
-      String(process.env.GIT_LEAF_FORMAL_RELEASE || "").trim().toLowerCase(),
-    ),
+    formalRelease: openGlanceEnvironmentFlag(process.env, "FORMAL_RELEASE"),
   };
 }
 
@@ -209,6 +223,11 @@ function packageWindows(options) {
   withReleaseBuildInfoFile({ rootDir: REPO_ROOT, buildInfo: options }, () => {
     run(packager.command, [...packager.args, ...windowsElectronPackagerArgs(options)]);
   });
+  const paths = windowsReleasePaths(options);
+  requirePath(paths.exePath);
+  for (const compatibilityPath of windowsCompatibilityExecutablePaths(options, paths)) {
+    copyFileSync(paths.exePath, compatibilityPath);
+  }
 }
 
 function createWindowsZip(options) {
@@ -263,6 +282,9 @@ function verifyWindowsPackage(options) {
   const paths = windowsReleasePaths(options);
   requirePath(paths.appRoot);
   requirePath(paths.exePath);
+  for (const compatibilityPath of windowsCompatibilityExecutablePaths(options, paths)) {
+    requirePath(compatibilityPath);
+  }
   requirePath(paths.zipPath);
 }
 

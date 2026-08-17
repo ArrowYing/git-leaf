@@ -1,19 +1,19 @@
 ---
-title: Git Leaf system architecture
+title: OpenGlance system architecture
 domain: ai
 type: architecture
 owner: maintainer
-last_updated: 2026-08-11
-source: git-leaf
+last_updated: 2026-08-15
+source: openglance
 canonical: true
-ai_snippet: "[Architecture] Git Leaf | human desktop interface for shared context repositories | local HTTP service | Git worktrees | Preview Source Live | CodeMirror 6 | guarded Git sync"
+ai_snippet: "[Architecture] OpenGlance | human desktop interface for shared context repositories | local HTTP service | Git worktrees | Preview Source Live | CodeMirror 6 | guarded Git sync"
 ---
 
-# Git Leaf system architecture
+# OpenGlance system architecture
 
 [Documentation index](README.md)
 
-This document defines Git Leaf's system boundaries and long-lived behavioral contracts. It is not a
+This document defines OpenGlance's system boundaries and long-lived behavioral contracts. It is not a
 user guide or an MDX-lite syntax reference.
 
 - Product capabilities and user entry points: [README](../README.md).
@@ -25,29 +25,71 @@ user guide or an MDX-lite syntax reference.
 
 ## Product and data model
 
-Git Leaf is a local desktop interface for Git repositories used as durable shared context by teams and
+OpenGlance is a local desktop interface for Git repositories used as durable shared context by teams and
 AI agents. These repositories are primarily made of Markdown and MDX documents.
 
 The Git repository selected by the user is the shared context system of record. It may contain a
 knowledge base, but it can also contain agent instructions, decisions, plans, playbooks, and operational
-context. Git Leaf does not import documents into a separate database, CMS, context engine, or cloud
-store. Images, attachments, code, and other repository files remain ordinary files. Git Leaf provides
+context. OpenGlance does not import documents into a separate database, CMS, context engine, or cloud
+store. Images, attachments, code, and other repository files remain ordinary files. OpenGlance provides
 the human interface over that repository; AI agents, developers, and automation work with the same files
 directly.
 
-Git Leaf is optimized for three jobs:
+OpenGlance is optimized for three jobs:
 
 - give people who do not work in Git or Markdown a familiar way to read, search, inspect, and make
   focused edits;
 - preserve source paths, line ranges, revisions, branches, and worktrees for agents and automation;
 - let people return to the app to inspect and continue changes made by external agents and tools.
 
-Git Leaf is not an agent runtime, model host, account service, public documentation site, or general
+OpenGlance is not an agent runtime, model host, account service, public documentation site, or general
 code editor.
+
+## Product identity and compatibility
+
+OpenGlance is the canonical product identity beginning with version 3.0; Git Leaf was the 1.x identity.
+New visible desktop bundle names, package
+artifacts, CLI output, generated deep links, environment variables, and embedded build metadata use
+`OpenGlance`, `openglance`, `openglance://`, `OPENGLANCE_*`, and `openglance-build-info.json`.
+
+The rename must not create another application state or strand existing Git Leaf users. These
+identifiers remain compatibility contracts:
+
+- Electron `userData` and `sessionData` stay under the `git-leaf` Profile directory on every platform;
+- `git-leaf` remains a CLI alias, and the app parses and registers `git-leaf://` alongside the canonical
+  protocol while generating only `openglance://` links;
+- `GIT_LEAF_*` environment inputs and `git-leaf-build-info.json` remain read-only fallbacks;
+- official internal macOS packages retain `com.mangofuture.gitleaf` and
+  `com.mangofuture.gitleaf.ShipIt` because installed internal Apps actively depend on those
+  operating-system identities; they also retain the hidden `CFBundleExecutable=Git Leaf` required by
+  shipped internal Git Leaf updaters and the source/development handoff clients in OpenPeek 2.0.0 and
+  OpenGlance 3.0.0-3.0.1, while the visible product and `.app` names are OpenGlance;
+- future official public macOS packages use `com.mangofuture.openglance`, and Community packages use
+  `org.openglance.community`; both use the canonical `OpenGlance` executable and their corresponding
+  ShipIt cache identity;
+- the `git_leaf.*` analytics event namespace remains unchanged because it is a data-schema identity;
+- the former GitHub repository names redirect to `openglance/openglance` and
+  `openglance/openglance-example-knowledge-base`;
+- `gitleaf.mangofuture.com` and update-service `/git-leaf` roots remain unchanged until their separately
+  coordinated domain migration.
+
+On macOS, a new installation uses `OpenGlance.app`. A human development install writes the canonical App
+first and then removes an existing `Git Leaf.app`. For an official internal update from `Git Leaf.app`,
+OpenGlance atomically enables Squirrel's bundle rename only when the containing directory is writable;
+ShipIt then moves the existing bundle to `OpenGlance.app` before installing the signed candidate. If the
+parent is not writable, OpenGlance sets `useUpdateBundleName=false` so the signed `Contents` update still
+succeeds in place. The visible product becomes OpenGlance in either case; the hidden internal executable
+remains `Git Leaf`, no duplicate App is created, and a later update may retry the outer-path rename.
+
+On Windows, internal packages contain one bounded `Git Leaf.exe` copy so the baked-in 1.x updater can
+launch the new code. The new process migrates the old fixed installation into
+`%LOCALAPPDATA%\OpenGlance\app`, removes the compatibility executable from the canonical installation,
+and deletes the old install tree and shortcut only after `OpenGlance.exe` confirms startup. Public and
+Community packages contain only the canonical executable.
 
 ## Runtime model
 
-Git Leaf consists of:
+OpenGlance consists of:
 
 - a Node.js HTTP service bound to localhost;
 - a browser-based workbench served by that process;
@@ -76,12 +118,12 @@ pending Source or Live writes when possible, and restart without treating a stal
 
 ## Repository and worktree model
 
-Git Leaf can open any local Git repository. The Git Leaf source checkout does not need to be inside the
+OpenGlance can open any local Git repository. The OpenGlance source checkout does not need to be inside the
 content repository.
 
 A repository can be selected through the desktop UI, supplied with `--repo`, or discovered upward from
 the CLI working directory. When no saved session or explicit document exists, the initial document
-priority is `AGENTS.md`, `README.md`, then `CONTEXT.md`; if none exists, Git Leaf opens an empty
+priority is `AGENTS.md`, `README.md`, then `CONTEXT.md`; if none exists, OpenGlance opens an empty
 workbench.
 
 Repository identity and worktree state follow these rules:
@@ -115,7 +157,7 @@ panel button remains independent.
 
 Normal branches are editable. A detached worktree can be read and can enter an editing mode, but the
 first actual write must create a protective local branch named like
-`git-leaf/detached-<commit>-<timestamp>`. If branch creation fails, the write fails without modifying the
+`openglance/detached-<commit>-<timestamp>`. If branch creation fails, the write fails without modifying the
 document. No write path may bypass this boundary.
 
 ### External command contract
@@ -125,7 +167,7 @@ check: remote operations use Git's configured credentials and remain available w
 Operating-system launch helpers are action-specific dependencies rather than prerequisites for opening a
 repository. Every external-command caller classifies both process execution and output:
 
-Before macOS desktop environment checks or repository services start, Git Leaf augments the inherited
+Before macOS desktop environment checks or repository services start, OpenGlance augments the inherited
 GUI `PATH` with entries missing from the user's login shell. Existing entry precedence is retained, and
 only `PATH` is imported. A missing shell, timeout, or malformed output leaves the inherited environment
 unchanged rather than blocking startup.
@@ -181,7 +223,7 @@ blob root; repositories without one keep that action disabled.
 Favorites are user preferences, not repository content. Desktop builds persist them in `userData`; the
 browser development entry uses repository-scoped `localStorage` as a best-effort fallback. Missing
 favorite paths are removed only after a complete repository tree loads successfully. Search, filtering,
-or a failed or invalid tree response must never prune favorites. Renames performed inside Git Leaf update
+or a failed or invalid tree response must never prune favorites. Renames performed inside OpenGlance update
 document favorites directly; external renames, deletions, and worktree changes may remove a favorite
 whose saved path is no longer present.
 
@@ -206,7 +248,7 @@ presentation:
   pointer crosses it but remains hit-test transparent, so the underlying file or navigation target keeps
   click ownership;
 - search, the current document, favorites, and Sync may reveal otherwise hidden paths;
-- Git Leaf-created empty folders contain a zero-byte `.gitkeep`; All and Content Files preserve the
+- OpenGlance-created empty folders contain a zero-byte `.gitkeep`; All and Content Files preserve the
   folder while hiding the placeholder, and Sync exposes the placeholder whenever Git reports its change;
 - text search combines whitespace-separated terms with AND, matches each folder or file on its own
   searchable fields, including document titles only while they are displayed, and initially keeps only
@@ -244,7 +286,7 @@ of exposing a second file set that includes ignored content.
 
 ## Document modes
 
-Git Leaf has exactly three document modes; their UI names remain `Preview`, `Source`, and `Live`.
+OpenGlance has exactly three document modes; their UI names remain `Preview`, `Source`, and `Live`.
 
 ### Preview
 
@@ -292,7 +334,7 @@ column; the whole column moves even when the selection covers only part of it. E
 CodeMirror transaction and rewrites only the current table block. Preview remains read-only.
 
 Source and Live reload external changes made by Git, editors, or AI agents. Git conflict markers remain
-ordinary source text; Git Leaf does not own conflict resolution.
+ordinary source text; OpenGlance does not own conflict resolution.
 
 ### Working-tree edit cues
 
@@ -323,9 +365,9 @@ Preview and CodeMirror, including while a changed or active line is highlighted 
 
 ### Markdown interoperability
 
-Except for explicitly allowlisted MDX-lite components, Git Leaf must prefer source syntax that remains
+Except for explicitly allowlisted MDX-lite components, OpenGlance must prefer source syntax that remains
 readable and editable in Obsidian and other CommonMark or GitHub-Flavored Markdown tools. A visual Live
-control is an interface over portable source, not permission to introduce a Git Leaf-only table schema,
+control is an interface over portable source, not permission to introduce an OpenGlance-only table schema,
 hidden metadata, or a second document representation. Exact rendering and editor affordances may still
 differ between applications.
 
@@ -333,13 +375,13 @@ In particular, table rows and alignment remain native pipe-table syntax. Bold, i
 strikethrough use standard Markdown delimiters. Foreground color and text-only highlight use one
 narrowly controlled inline HTML span whose `style` may contain only fixed-palette `color` and
 `background-color` values. Highlight never fills the table cell. No class, event handler, font size,
-arbitrary style declaration, hidden metadata, or Git Leaf data attribute is stored in the document.
-Git Leaf renders only the fixed palettes and escapes unsupported HTML. Alignment changes only the
+arbitrary style declaration, hidden metadata, or OpenGlance data attribute is stored in the document.
+OpenGlance renders only the fixed palettes and escapes unsupported HTML. Alignment changes only the
 colons in the native separator row; clearing text formatting does not change alignment. Column
 movement reorders the header cell, its separator/alignment cell, and every body cell together. These
 sources remain editable in Obsidian even though its toolbar and exact rendering affordances may differ.
 
-MDX-lite is the explicit interoperability exception. It is a Git Leaf controlled extension and is not
+MDX-lite is the explicit interoperability exception. It is an OpenGlance-controlled extension and is not
 expected to open as an interactive component in Obsidian.
 
 ## Rendering, Mermaid, and MDX-lite
@@ -351,7 +393,7 @@ repository-local `.dataset.json` contract whose CSV, TSV, or JSON source remains
 authority. Rendering never creates a second authoritative data model. Preview renders the visual result,
 and Source and Live continue to edit the original MDX view definition.
 
-Markdown uses `markdown-it`. MDX-lite is parsed by Git Leaf before rendering and produces static HTML or
+Markdown uses `markdown-it`. MDX-lite is parsed by OpenGlance before rendering and produces static HTML or
 SVG. It is not a general MDX runtime and cannot execute imports, exports, arbitrary JSX, scripts,
 expressions, or event handlers.
 
@@ -383,7 +425,7 @@ Mermaid runs with strict security, disabled automatic startup, and a 100,000-cha
 The client accepts only an SVG result without executable elements, event-handler attributes, or
 JavaScript links, and rendered links are non-interactive. Invalid, unsafe, or oversized input leaves a
 localized error in the shell while the escaped source remains available through the explicit `</>`
-control. The source fence remains authoritative; Git Leaf does not persist SVG or diagram layout state.
+control. The source fence remains authoritative; OpenGlance does not persist SVG or diagram layout state.
 
 An external dataset component remains the existing allowlisted `Chart` or `DataTable`. The synchronous
 browser-safe renderer emits an inert view shell containing a finite JSON request, not data or executable
@@ -413,7 +455,7 @@ The component allowlist, attributes, input data formats, and rendering contracts
 
 ## Editing and write boundaries
 
-Source and Live write the current file after a short debounce. Watcher events caused by Git Leaf's own
+Source and Live write the current file after a short debounce. Watcher events caused by OpenGlance's own
 write are ignored by content state to avoid reload loops. External changes reload from disk. A narrow
 race may lose not-yet-flushed keystrokes rather than creating an independent hidden draft model.
 
@@ -424,7 +466,7 @@ File-tree mutations are deliberately narrower than a general file manager:
 
 - a context menu creates one folder with a zero-byte `.gitkeep`; creation is refused when Git ignores
   that marker;
-- when a document is then created in that folder during the same server session, Git Leaf removes only
+- when a document is then created in that folder during the same server session, OpenGlance removes only
   the marker it created, and only while it is still zero-byte and untracked;
 - F2 or the context menu renames one regular file within its existing directory and refuses overwrite,
   symlinks, and submodules;
@@ -461,15 +503,15 @@ preference clears the existing timer and schedules the next check from that mome
 visible window after a missed selected interval also triggers a check. Fetching only updates the
 remote-tracking ref:
 
-- when the current branch is behind and the worktree is clean, Git Leaf applies one native fast-forward
+- when the current branch is behind and the worktree is clean, OpenGlance applies one native fast-forward
   from the current HEAD directly to the final fetched commit and refreshes the open document without
   changing its tab or mode;
 - local untracked or staged additions are also eligible only when every path is absent from the old HEAD
-  and its raw bytes and mode exactly match the blob newly added by the final remote tree. Git Leaf adopts
+  and its raw bytes and mode exactly match the blob newly added by the final remote tree. OpenGlance adopts
   those exact blobs into the index before the native fast-forward, then verifies that HEAD, index tree,
   and worktree all equal the final remote state;
 - any other local change pauses background application before creating a snapshot or writing the real
-  repository. Git Leaf exposes **Merge remote changes** as an explicit action. Neither automatic nor
+  repository. OpenGlance exposes **Merge remote changes** as an explicit action. Neither automatic nor
   explicit down-only merging commits or pushes;
 - the explicit action may run the protected object-layer merge for a dirty non-sparse worktree. A
   conflict-free result advances the branch while preserving the user's complete local workspace as
@@ -478,7 +520,7 @@ remote-tracking ref:
 - **Sync and publish** remains the explicit up action. It includes any required remote integration, then
   commits and pushes all local changes.
 
-For an explicitly requested dirty down-only merge, Git Leaf freezes the complete click-time workspace with an alternate Git
+For an explicitly requested dirty down-only merge, OpenGlance freezes the complete click-time workspace with an alternate Git
 index and an immutable snapshot commit. It merges that snapshot with the fetched remote commit in Git's
 object layer. Only a conflict-free result may be applied to the real files, and a final tree comparison
 must match the verified object-layer result. The branch ref advances with a compare-and-swap update, the
@@ -497,7 +539,7 @@ prepares again after the next editing pause. Apply phases for the same repositor
 second prepared result must revalidate after the first one finishes before it can mutate anything.
 
 If an incoming path is the focused Source or Live document, the verified result remains visibly pending
-and **Merge remote changes** stays available. Git Leaf applies it automatically after focus leaves the
+and **Merge remote changes** stays available. OpenGlance applies it automatically after focus leaves the
 editor while the application remains in the foreground; moving to another application leaves the result
 pending. Only the short, revalidated application phase makes that editor surface inert, so preparation
 never drops keystrokes or blocks continued typing. A minimal text update preserves the mapped cursor and
@@ -525,17 +567,20 @@ and the down-only prompt explicitly requires an uncommitted, unpushed result.
 
 ## Deep links and hosted handoff
 
-The desktop app registers `git-leaf://`:
+The desktop app registers `openglance://`:
 
 ```text
-git-leaf://open
-git-leaf://open?repo=<absolute-local-path>&path=<repository-relative.md>
-git-leaf://open?repo=<github-owner/repository>&path=<repository-relative.md>
-git-leaf://open-worktree?repo=<github-owner/repository>&path=<relative.md>&worktree=<local-id>
+openglance://open
+openglance://open?repo=<absolute-local-path>&path=<repository-relative.md>
+openglance://open?repo=<github-owner/repository>&path=<repository-relative.md>
+openglance://open-worktree?repo=<github-owner/repository>&path=<relative.md>&worktree=<local-id>
 ```
 
+The app also registers and parses equivalent `git-leaf://` links created by 1.x, but never emits that
+legacy scheme for a new link.
+
 An empty link only launches or focuses the app. Shareable links use a lowercase GitHub
-`owner/repository` identity and do not expose the sender's absolute path. Git Leaf matches that identity
+`owner/repository` identity and do not expose the sender's absolute path. OpenGlance matches that identity
 against repositories already opened locally; if no match exists, it asks the user to select a local
 repository and verifies its origin before continuing.
 
@@ -548,7 +593,11 @@ metadata into a local protocol launch and maintain a random, in-memory handoff s
 minutes. They do not fetch a Git repository or document body. The exact transmitted metadata and normal
 HTTP exposure are documented in [Hosted link handoff](hosted-links.md).
 
-The separate `/download` page never launches `git-leaf://`. It shows only manifests explicitly marked
+During the installed-client migration, the hosted service emits the equivalent `git-leaf://` handoff
+because that compatibility scheme is registered by both Git Leaf 1.x and OpenGlance.
+OpenGlance-generated links remain canonical `openglance://` links.
+
+The separate `/download` page never launches a desktop protocol. It shows only manifests explicitly marked
 `releaseTrack=public` whose channel, platform, HTTPS URL, SHA-256, size, and on-disk artifact agree.
 Internal, legacy, or missing-track manifests must never appear there.
 
@@ -567,7 +616,7 @@ main that contains the revision; it does not detach at that commit.
 
 The HTTPS URL can include a document title of at most 100 characters for link previews. New links do not
 include `ai_snippet` or document body content. The hosted page accepts the legacy bounded `snippet`
-parameter for compatibility but Git Leaf no longer generates it.
+parameter for compatibility but OpenGlance no longer generates it.
 
 Before copying a link, the sender publishes local changes if the user confirms, fetches the remote, and
 proves the revision is on `origin/main`. A local commit or successful push process exit is not enough.
@@ -575,7 +624,7 @@ The receiver always resolves the primary checkout, fetches `origin/main`, retrie
 failure, and applies only a safe fast-forward or the same guarded sync flow. Ahead, diverged, conflicting,
 missing-revision, or continuously changing states stop without silent Git mutation.
 
-A shared URL grants no GitHub permission. The receiving Git Leaf installation uses that repository's
+A shared URL grants no GitHub permission. The receiving OpenGlance installation uses that repository's
 existing local Git credentials.
 
 ## Desktop Profile and preferences
@@ -583,7 +632,8 @@ existing local Git credentials.
 Human use of installed official, development, and locally run builds shares the same real Electron
 Profile so replacing an app preserves repositories, sessions, appearance, language, favorites, and
 sidebar state. Build identity controls labeling, updater eligibility, and analytics eligibility; it
-must not select another `userData` directory by itself.
+must not select another `userData` directory by itself. The stable Profile directory remains named
+`git-leaf`; renaming that persistent path is not part of the product rename.
 
 The single identity-changing exception is a packaged macOS source development handoff to the official
 internal build. Its requested target is stored as a bounded receipt in the same Profile. Immediately
@@ -616,14 +666,16 @@ No path may form a render → save session → save preference → broadcast →
 
 ## Build identity and updates
 
-Every packaged app embeds build metadata. Community builds use the technical
+Every packaged app embeds build metadata in `openglance-build-info.json`; readers also accept the 1.x
+`git-leaf-build-info.json` filename. Community builds use the technical
 `distribution=source, releaseTrack=source` identity, display `Community build`, use the macOS bundle ID
-`org.gitleaf.community`, and use `Git Leaf Community` publisher metadata on Windows. They do not check
+`org.openglance.community`, and use `OpenGlance Community` publisher metadata on Windows. They do not check
 Mango Future update feeds or send usage analytics.
 
 Official builds require a reviewed release profile, use `distribution=official`, and select either the
-public or internal release track. Only official builds use Mango Future's macOS bundle ID, Windows
-CompanyName, code signature, and update services. See [Release process](release.md).
+public or internal release track. Public macOS builds use `com.mangofuture.openglance`; internal macOS
+builds retain `com.mangofuture.gitleaf`. Both use Mango Future's Windows CompanyName, code signature,
+and track-specific update services. See [Release process](release.md).
 
 A human-installed macOS build with `dev=true, distribution=source, releaseTrack=source` keeps the
 Community Bundle ID and remains telemetry-ineligible. It has one additional routing capability: it
@@ -641,17 +693,20 @@ valid newer package starts downloading and preparing automatically; the sidebar 
 after the package is ready. Choosing **Restart now** or quitting normally installs that ready package.
 Checks continue while a package is waiting, and a newer target supersedes it. Windows and development
 handoff preparation replace their whole private update cache before writing the new target; after
-Squirrel stages a newer official macOS target, Git Leaf removes every orphaned `update.*` directory while
+Squirrel stages a newer official macOS target, OpenGlance removes every orphaned `update.*` directory while
 preserving the one referenced by `ShipItState.plist`. The steady state therefore contains at most one
 complete downloaded-but-uninstalled package. Failed preparation remains retryable and must not
 masquerade as an active download.
+
+Immediately before a normal macOS installation, OpenGlance revalidates that `ShipItState.plist` is a regular file under the official per-user ShipIt cache, that its update bundle remains inside the staged `update.*` directory, and that its target is the currently running App. It atomically enables ShipIt's bundle-name migration only for a `Git Leaf.app` target whose parent is writable; every other update disables the rename and replaces signed `Contents` in place. A mismatch fails closed before `quitAndInstall`.
 
 Windows coordinates preparation and cleanup per update-cache root. A valid cached package is reusable
 only after its sibling entries are removed, and startup cleanup removes current, older, invalid, and
 loose cache entries while preserving at most the newest version that is still newer than the running App.
 
 For a development handoff, the client verifies the extracted App's complete embedded build identity,
-official Bundle ID, and Developer ID team before offering installation. Shutdown starts a detached,
+official Bundle ID, Developer ID team, and legacy-compatible internal executable before offering
+installation. Shutdown starts a detached,
 nonprivileged Node helper from the current App. After the dev process exits, the helper revalidates the
 persisted receipt, waits for the old App's remaining child processes while excluding its own
 Electron-as-Node process, atomically removes the dev-initialized analytics value, transactionally
@@ -701,7 +756,7 @@ The following files are key seams, not an exhaustive module inventory:
 | `src/server/index.mjs` | Local HTTP API, document IO, rendering, Git actions |
 | `src/server/repositories.mjs`, `src/server/git-worktrees.mjs` | Repository identity, worktree discovery, stable IDs |
 | `src/server/external-command.mjs` | Command execution and failure classification |
-| `src/server/hosted-links.mjs`, `src/server/git-leaf-open-link.mjs` | Hosted HTTPS link validation and generation |
+| `src/server/hosted-links.mjs`, `src/server/openglance-open-link.mjs` | Hosted HTTPS link validation and generation |
 | `src/desktop/deep-link.mjs` | Local desktop protocol generation and parsing |
 | `src/server/git-share-publish.mjs`, `src/server/git-share-open.mjs` | Sender publication and receiver safety |
 | `src/content/markdown.mjs`, `src/content/mdx-lite.mjs` | Markdown shells, allowlisted MDX-lite rendering, and inert dataset view declarations |
@@ -719,7 +774,7 @@ another's responsibilities.
 
 ## Non-goals
 
-Git Leaf does not currently provide:
+OpenGlance does not currently provide:
 
 - real-time multi-user editing;
 - cloud accounts, SSO, permissions, or a hosted repository or context service;

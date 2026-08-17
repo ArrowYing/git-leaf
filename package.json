@@ -1,6 +1,6 @@
 {
-  "name": "git-leaf",
-  "version": "1.21.0",
+  "name": "openglance",
+  "version": "3.0.5",
   "private": true,
   "type": "module",
   "main": "src/desktop/main.mjs",
@@ -8,11 +8,11 @@
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/MangoFuture1210/git-leaf.git"
+    "url": "git+https://github.com/openglance/openglance.git"
   },
-  "homepage": "https://github.com/MangoFuture1210/git-leaf#readme",
+  "homepage": "https://github.com/openglance/openglance#readme",
   "bugs": {
-    "url": "https://github.com/MangoFuture1210/git-leaf/issues"
+    "url": "https://github.com/openglance/openglance/issues"
   },
   "scripts": {
     "build:client": "node scripts/build-client.mjs",
@@ -43,6 +43,7 @@
     "test:release:win": "node scripts/test-suite.mjs release:win"
   },
   "bin": {
+    "openglance": "src/cli.mjs",
     "git-leaf": "src/cli.mjs"
   },
   "engines": {

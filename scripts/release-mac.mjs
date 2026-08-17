@@ -23,7 +23,15 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
+  OPENGLANCE_SUPPORTED_PROTOCOLS,
+} from "../src/product-identity.mjs";
+import {
+  openGlanceEnvironmentFlag,
+  openGlanceEnvironmentValue,
+} from "../src/environment.mjs";
+import {
   assertPathIdentitiesDoNotOverlap,
+  DEVELOPMENT_USER_DATA_ARG,
   pathIdentity,
   pathsOverlap,
 } from "../src/desktop/user-data.mjs";
@@ -47,21 +55,22 @@ import {
   patchSquirrelMacPolicy,
   verifySquirrelMacPolicy,
 } from "./squirrel-mac-policy.mjs";
+import { OFFICIAL_INTERNAL_MAC_EXECUTABLE_NAME } from "../src/desktop/mac-app-contents.mjs";
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const REPO_ROOT = path.dirname(path.dirname(SCRIPT_PATH));
 
 export const DEFAULT_RELEASE_OPTIONS = {
-  appName: "Git Leaf",
+  appName: "OpenGlance",
   arch: "universal",
-  bundleId: "org.gitleaf.community",
+  bundleId: "org.openglance.community",
   identity:
     "Developer ID Application: Shenzhen Mango Future Technology Co., Ltd. (HN6X79BUSR)",
   notaryProfile: "",
   version: packageVersion({ rootDir: REPO_ROOT, fallbackVersion: "0.1.1" }),
   outDir: "dist",
   applicationsDir: "/Applications",
-  iconPath: "assets/icons/git-leaf",
+  iconPath: "assets/icons/openglance",
   entitlementsPath: "assets/entitlements.mac.plist",
   updateBaseUrl: "https://updates.mangofuture.com/git-leaf",
   updateChannel: "stable",
@@ -72,6 +81,17 @@ export const DEFAULT_RELEASE_OPTIONS = {
 };
 
 const APPLICATIONS_SHORTCUT_NAME = "Applications";
+const GIT_LEAF_MAC_APP_NAME = "Git Leaf";
+
+export function macExecutableName({
+  appName = DEFAULT_RELEASE_OPTIONS.appName,
+  distribution = "source",
+  releaseTrack = DEFAULT_RELEASE_OPTIONS.releaseTrack,
+} = {}) {
+  return distribution === "official" && releaseTrack === "internal"
+    ? OFFICIAL_INTERNAL_MAC_EXECUTABLE_NAME
+    : appName;
+}
 
 export const releaseSteps = [
   "check-version",
@@ -154,6 +174,8 @@ const DEVELOPMENT_PROFILE_MARKER_SCHEMA_VERSION = 2;
 
 export function electronPackagerArgs({
   appName = DEFAULT_RELEASE_OPTIONS.appName,
+  distribution = "source",
+  releaseTrack = DEFAULT_RELEASE_OPTIONS.releaseTrack,
   version = DEFAULT_RELEASE_OPTIONS.version,
   arch = DEFAULT_RELEASE_OPTIONS.arch,
   bundleId = DEFAULT_RELEASE_OPTIONS.bundleId,
@@ -168,10 +190,13 @@ export function electronPackagerArgs({
     `--arch=${arch}`,
     `--out=${outDir}`,
     "--overwrite",
+    `--executable-name=${macExecutableName({ appName, distribution, releaseTrack })}`,
     `--app-version=${version}`,
     `--app-bundle-id=${bundleId}`,
-    "--protocol=git-leaf",
-    "--protocol-name=Git Leaf Document",
+    ...OPENGLANCE_SUPPORTED_PROTOCOLS.flatMap((protocol) => [
+      `--protocol=${protocol}`,
+      "--protocol-name=OpenGlance Document",
+    ]),
     ...(iconPath ? [`--icon=${iconPath}`] : []),
     ...(electronZipDir ? [`--electron-zip-dir=${electronZipDir}`] : []),
     ...RELEASE_PACKAGE_IGNORE_PATTERNS.map((pattern) => `--ignore=${pattern}`),
@@ -266,11 +291,20 @@ export function macDevelopmentInstallPaths({
   releaseTrack = DEFAULT_RELEASE_OPTIONS.releaseTrack,
   buildId = DEFAULT_RELEASE_OPTIONS.buildId,
   applicationsDir = DEFAULT_RELEASE_OPTIONS.applicationsDir,
+  exists = existsSync,
 } = {}) {
+  const canonicalInstalledAppDir = path.join(applicationsDir, `${appName}.app`);
+  const gitLeafInstalledAppDir = path.join(applicationsDir, `${GIT_LEAF_MAC_APP_NAME}.app`);
+  const installedAppDir = canonicalInstalledAppDir;
   return {
     ...macReleasePaths({ rootDir, appName, arch, outDir, version, releaseTrack, buildId }),
     applicationsDir,
-    installedAppDir: path.join(applicationsDir, `${appName}.app`),
+    canonicalInstalledAppDir,
+    gitLeafInstalledAppDir,
+    legacyInstalledAppDirs: [gitLeafInstalledAppDir],
+    // Compatibility alias for integrations that still mean the Git Leaf 1.x path.
+    legacyInstalledAppDir: gitLeafInstalledAppDir,
+    installedAppDir,
   };
 }
 
@@ -919,10 +953,10 @@ function frameworkSigningTargets(appDir) {
 
 function helperAppSigningTargets(appDir) {
   return [
-    "Contents/Frameworks/Git Leaf Helper.app",
-    "Contents/Frameworks/Git Leaf Helper (Plugin).app",
-    "Contents/Frameworks/Git Leaf Helper (Renderer).app",
-    "Contents/Frameworks/Git Leaf Helper (GPU).app",
+    "Contents/Frameworks/OpenGlance Helper.app",
+    "Contents/Frameworks/OpenGlance Helper (Plugin).app",
+    "Contents/Frameworks/OpenGlance Helper (Renderer).app",
+    "Contents/Frameworks/OpenGlance Helper (GPU).app",
   ].map((target) => path.join(appDir, target));
 }
 
@@ -967,16 +1001,17 @@ function releaseOptionsFromEnv() {
       || DEFAULT_RELEASE_OPTIONS.updateRemoteRoot,
     dmgLocale: detectedDmgLocale(),
     electronZipDir: process.env.ELECTRON_ZIP_DIR || undefined,
-    developmentArch: process.env.GIT_LEAF_DEV_ARCH || undefined,
-    developmentOutDir: process.env.GIT_LEAF_DEV_OUT_DIR || undefined,
-    devUserDataDir: process.env.GIT_LEAF_DEV_USER_DATA_DIR || undefined,
-    smokeUserDataDir: process.env.GIT_LEAF_SMOKE_USER_DATA_DIR || DEFAULT_SMOKE_USER_DATA_DIR,
-    smokeRepoRoot: process.env.GIT_LEAF_SMOKE_REPO_ROOT || "",
-    smokeFile: process.env.GIT_LEAF_SMOKE_FILE || "",
-    smokeRemoteDebuggingPort: process.env.GIT_LEAF_SMOKE_REMOTE_DEBUGGING_PORT || "",
-    formalRelease: ["1", "true", "yes"].includes(
-      String(process.env.GIT_LEAF_FORMAL_RELEASE || "").trim().toLowerCase(),
-    ),
+    developmentArch: openGlanceEnvironmentValue(process.env, "DEV_ARCH") || undefined,
+    developmentOutDir: openGlanceEnvironmentValue(process.env, "DEV_OUT_DIR") || undefined,
+    devUserDataDir: openGlanceEnvironmentValue(process.env, "DEV_USER_DATA_DIR") || undefined,
+    smokeUserDataDir:
+      openGlanceEnvironmentValue(process.env, "SMOKE_USER_DATA_DIR")
+      || DEFAULT_SMOKE_USER_DATA_DIR,
+    smokeRepoRoot: openGlanceEnvironmentValue(process.env, "SMOKE_REPO_ROOT") || "",
+    smokeFile: openGlanceEnvironmentValue(process.env, "SMOKE_FILE") || "",
+    smokeRemoteDebuggingPort:
+      openGlanceEnvironmentValue(process.env, "SMOKE_REMOTE_DEBUGGING_PORT") || "",
+    formalRelease: openGlanceEnvironmentFlag(process.env, "FORMAL_RELEASE"),
   };
 }
 
@@ -1063,7 +1098,7 @@ export function ensureReleaseSigningIdentityAccess({
     );
   }
 
-  const probeDir = mkdtempSync(path.join(temporaryRoot, "git-leaf-release-signing-"));
+  const probeDir = mkdtempSync(path.join(temporaryRoot, "openglance-release-signing-"));
   const probePath = path.join(probeDir, "codesign-probe");
   try {
     copyFileSync(probeSource, probePath);
@@ -1140,6 +1175,8 @@ function packageMac(options) {
     rootDir: REPO_ROOT,
   });
   applyMacBundleIcon(packageOptions, macDevelopmentInstallPaths(packageOptions));
+  applyMacBundleProductName(packageOptions, macDevelopmentInstallPaths(packageOptions));
+  applyMacBundleProtocols(macDevelopmentInstallPaths(packageOptions));
   if (packageOptions.distribution === "source") {
     signMacAppAdHoc({ appDir: macReleasePaths(packageOptions).appDir });
   }
@@ -1194,26 +1231,69 @@ export function applyMacBundleIcon(options, paths) {
   touchMacAppBundle(paths.appDir);
 }
 
+export function applyMacBundleProductName(options, paths) {
+  const appName = String(options?.appName || "").trim();
+  const infoPlistPath = path.join(paths.appDir, "Contents", "Info.plist");
+  if (!appName) {
+    throw new Error("A macOS product name is required.");
+  }
+  requirePath(infoPlistPath);
+  for (const key of ["CFBundleDisplayName", "CFBundleName"]) {
+    run("/usr/bin/plutil", [
+      "-replace",
+      key,
+      "-string",
+      appName,
+      infoPlistPath,
+    ]);
+  }
+  touchMacAppBundle(paths.appDir);
+  return appName;
+}
+
+export function applyMacBundleProtocols(paths) {
+  const infoPlistPath = path.join(paths.appDir, "Contents", "Info.plist");
+  requirePath(infoPlistPath);
+  const protocolRegistration = [{
+    CFBundleURLName: "OpenGlance Document",
+    CFBundleURLSchemes: [...OPENGLANCE_SUPPORTED_PROTOCOLS],
+  }];
+  run("/usr/bin/plutil", [
+    "-replace",
+    "CFBundleURLTypes",
+    "-json",
+    JSON.stringify(protocolRegistration),
+    infoPlistPath,
+  ]);
+  touchMacAppBundle(paths.appDir);
+  return protocolRegistration;
+}
+
 export function touchMacAppBundle(appDir, { now = new Date() } = {}) {
   requirePath(appDir);
   utimesSync(appDir, now, now);
 }
 
 export function developmentAppQuitCommands(appName, paths) {
-  return [
+  return uniqueCommands([
     ["osascript", ["-e", `tell application "${appName}" to quit`]],
+    ["osascript", ["-e", `tell application "${GIT_LEAF_MAC_APP_NAME}" to quit`]],
     ["pkill", ["-x", appName]],
+    ["pkill", ["-x", GIT_LEAF_MAC_APP_NAME]],
     ["pkill", ["-f", paths.installedAppDir]],
+    ...legacyMacInstalledAppDirs(paths).map((appDir) => ["pkill", ["-f", appDir]]),
     ["pkill", ["-f", paths.appDir]],
-  ];
+  ]);
 }
 
 export function developmentAppForceQuitCommands(appName, paths) {
-  return [
+  return uniqueCommands([
     ["pkill", ["-9", "-x", appName]],
+    ["pkill", ["-9", "-x", GIT_LEAF_MAC_APP_NAME]],
     ["pkill", ["-9", "-f", paths.installedAppDir]],
+    ...legacyMacInstalledAppDirs(paths).map((appDir) => ["pkill", ["-9", "-f", appDir]]),
     ["pkill", ["-9", "-f", paths.appDir]],
-  ];
+  ]);
 }
 
 function quitDevelopmentApp(options, paths) {
@@ -1237,6 +1317,9 @@ function installDevelopmentApp(paths) {
   mkdirSync(path.dirname(paths.installedAppDir), { recursive: true });
   rmSync(paths.installedAppDir, { recursive: true, force: true });
   run("ditto", [paths.appDir, paths.installedAppDir]);
+  for (const legacyAppDir of legacyMacInstalledAppDirs(paths)) {
+    rmSync(legacyAppDir, { recursive: true, force: true });
+  }
 }
 
 function waitForDevelopmentAppExit(appName, paths, {
@@ -1260,11 +1343,19 @@ function waitForDevelopmentAppExit(appName, paths, {
 }
 
 export function developmentAppProcessQueries(appName, paths) {
-  return [
+  return uniqueValues([
     ["-x", appName],
+    ["-x", GIT_LEAF_MAC_APP_NAME],
     ["-f", paths.installedAppDir],
+    ...legacyMacInstalledAppDirs(paths).map((appDir) => ["-f", appDir]),
     ["-f", paths.appDir],
-  ];
+  ]);
+}
+
+function legacyMacInstalledAppDirs(paths) {
+  return paths.legacyInstalledAppDirs
+    || [paths.gitLeafInstalledAppDir, paths.legacyInstalledAppDir]
+      .filter(Boolean);
 }
 
 function developmentAppIsRunning(appName, paths) {
@@ -1379,7 +1470,7 @@ export function launchDevelopmentAppCommand(paths, {
       paths.installedAppDir,
       ...(userDataDir ? [
         "--args",
-        `--git-leaf-dev-user-data-dir=${path.resolve(userDataDir)}`,
+        `${DEVELOPMENT_USER_DATA_ARG}=${path.resolve(userDataDir)}`,
       ] : []),
       ...(normalizedRemoteDebuggingPort ? [
         "--remote-debugging-address=127.0.0.1",
@@ -1389,6 +1480,16 @@ export function launchDevelopmentAppCommand(paths, {
       ...(normalizedFile ? [`--file=${normalizedFile}`] : []),
     ],
   ];
+}
+
+function uniqueCommands(commands) {
+  return commands.filter((command, index) => (
+    commands.findIndex((candidate) => JSON.stringify(candidate) === JSON.stringify(command)) === index
+  ));
+}
+
+function uniqueValues(values) {
+  return uniqueCommands(values);
 }
 
 export function codesignArgs(
@@ -1549,6 +1650,21 @@ function createZip(paths) {
   ]);
 }
 
+export function assertMacUpdateArchiveEntries(entries, options = {}) {
+  const expectedAppName = `${options.appName || DEFAULT_RELEASE_OPTIONS.appName}.app`;
+  const expectedRoot = `${expectedAppName}/`;
+  const archiveEntries = entries
+    .map((entry) => String(entry || "").trim())
+    .filter(Boolean);
+  if (
+    archiveEntries.length === 0
+    || archiveEntries.some((entry) => !entry.startsWith(expectedRoot))
+  ) {
+    throw new Error(`macOS update ZIP must contain only ${expectedAppName}`);
+  }
+  return expectedRoot;
+}
+
 export function stageMacUpdateMetadata(options, paths, { rootDir = REPO_ROOT } = {}) {
   requirePath(paths.dmgPath);
   requirePath(paths.zipPath);
@@ -1582,7 +1698,7 @@ export function stageMacUpdateMetadata(options, paths, { rootDir = REPO_ROOT } =
     buildId,
     commit: options.commit,
     builtAt: options.builtAt,
-    notes: `Git Leaf ${options.version}`,
+    notes: `OpenGlance ${options.version}`,
     artifacts,
   });
 
@@ -1611,7 +1727,7 @@ export function stageMacUpdateMetadata(options, paths, { rootDir = REPO_ROOT } =
     buildId,
     commit: options.commit,
     builtAt: options.builtAt,
-    notes: `Git Leaf ${options.version}`,
+    notes: `OpenGlance ${options.version}`,
     artifacts,
   });
   writeUpdateManifests(arm64MigrationPaths, arm64MigrationManifest);
@@ -1643,7 +1759,7 @@ function publishMacUpdates(options, paths) {
   });
 }
 
-function verifyRelease(paths) {
+function verifyRelease(options, paths) {
   const [architectureCommand, architectureArgs] = universalMachOVerificationCommand(paths.appDir);
   run(architectureCommand, architectureArgs);
   verifySquirrelMacPolicy({ appDir: paths.appDir });
@@ -1661,6 +1777,10 @@ function verifyRelease(paths) {
     paths.dmgPath,
   ]);
   run("spctl", ["-a", "-vvv", "-t", "execute", paths.appDir]);
+  assertMacUpdateArchiveEntries(
+    output("unzip", ["-Z1", paths.zipPath]).split("\n"),
+    options,
+  );
   run("shasum", ["-a", "256", paths.dmgPath, paths.zipPath]);
 }
 
@@ -1785,11 +1905,11 @@ Environment overrides:
   ENTITLEMENTS_PATH
   ELECTRON_VERSION
   ELECTRON_ZIP_DIR
-  GIT_LEAF_DEV_USER_DATA_DIR
-  GIT_LEAF_SMOKE_USER_DATA_DIR
-  GIT_LEAF_SMOKE_REPO_ROOT
-  GIT_LEAF_SMOKE_FILE
-  GIT_LEAF_SMOKE_REMOTE_DEBUGGING_PORT
+  OPENGLANCE_DEV_USER_DATA_DIR
+  OPENGLANCE_SMOKE_USER_DATA_DIR
+  OPENGLANCE_SMOKE_REPO_ROOT
+  OPENGLANCE_SMOKE_FILE
+  OPENGLANCE_SMOKE_REMOTE_DEBUGGING_PORT
   UPDATE_BASE_URL
   UPDATE_CHANNEL
   UPDATE_REMOTE_HOST
@@ -1892,7 +2012,7 @@ export function runReleaseCommand(command, options = releaseOptionsFromEnv()) {
     case "zip":
       return createZip(paths);
     case "verify":
-      return verifyRelease(paths);
+      return verifyRelease(options, paths);
     case "stage-updates":
       return stageMacUpdateMetadata(options, paths);
     case "publish-updates":

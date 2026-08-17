@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="OpenGlance">
+  <defs>
+    <radialGradient id="background" cx="50%" cy="43%" r="72%">
+      <stop offset="0" stop-color="#07395b"/>
+      <stop offset="1" stop-color="#022842"/>
+    </radialGradient>
+    <linearGradient id="ivory" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fffaf2"/>
+      <stop offset="1" stop-color="#eee7de"/>
+    </linearGradient>
+    <linearGradient id="coral" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ff4e37"/>
+      <stop offset="1" stop-color="#ff5c42"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1024" height="1024" rx="176" fill="url(#background)"/>
+
+  <path
+    fill="url(#ivory)"
+    fill-rule="evenodd"
+    d="M114 527
+       C286 407 403 224 650 215
+       C826 209 907 305 910 505
+       C914 733 854 839 682 847
+       C460 857 304 692 114 527
+       Z
+       M174 527
+       C324 420 429 282 650 268
+       C781 260 848 330 854 505
+       C861 687 825 781 678 794
+       C486 811 344 667 174 527
+       Z"/>
+
+  <path
+    fill="url(#coral)"
+    d="M487 324
+       H680
+       L790 434
+       V712
+       Q790 720 782 720
+       H486
+       Q478 720 478 712
+       V333
+       Q478 324 487 324
+       Z"/>
+
+  <path fill="url(#ivory)" d="M680 324 L790 434 H680 Z"/>
+</svg>

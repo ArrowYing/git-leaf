@@ -8,6 +8,7 @@ npm-debug.log*
 .env
 .env.*
 !.env.example
+openglance-release-profile*.json
 git-leaf-release-profile*.json
 *.pem
 *.key

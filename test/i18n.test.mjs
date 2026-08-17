@@ -79,7 +79,7 @@ test("translator falls back to English and formats named values", () => {
   };
   const chinese = createTranslator(messages, "zh-CN");
 
-  assert.equal(chinese("greeting", { name: "Git Leaf" }), "你好，Git Leaf");
+  assert.equal(chinese("greeting", { name: "OpenGlance" }), "你好，OpenGlance");
   assert.equal(chinese("onlyEnglish"), "English fallback");
   assert.equal(chinese("missing.key"), "missing.key");
   assert.equal(formatMessage("{count} files", { count: 3 }), "3 files");
@@ -107,12 +107,12 @@ test("workbench locale resources localize linked worktrees and link dialog field
 test("workbench first paint honors the desktop-resolved language before browser languages", async () => {
   const html = await readFile(new URL("../public/index.html", import.meta.url), "utf8");
   const inlineScript = html.match(/<script>\s*([\s\S]*?)<\/script>/)?.[1]
-    .replace("__GIT_LEAF_INITIAL_FILE__", "\"\"")
-    .replace("__GIT_LEAF_INITIAL_REPO__", "\"repo\"")
-    .replace("__GIT_LEAF_WORKTREE_ID__", "\"repo\"")
-    .replace("__GIT_LEAF_CAN_EDIT__", "true")
-    .replace("__GIT_LEAF_DESKTOP_PREFERENCES__", "window.__TEST_PREFERENCES__")
-    .replace("__GIT_LEAF_TELEMETRY_ENABLED__", "false");
+    .replace("__OPENGLANCE_INITIAL_FILE__", "\"\"")
+    .replace("__OPENGLANCE_INITIAL_REPO__", "\"repo\"")
+    .replace("__OPENGLANCE_WORKTREE_ID__", "\"repo\"")
+    .replace("__OPENGLANCE_CAN_EDIT__", "true")
+    .replace("__OPENGLANCE_DESKTOP_PREFERENCES__", "window.__TEST_PREFERENCES__")
+    .replace("__OPENGLANCE_TELEMETRY_ENABLED__", "false");
   assert.ok(inlineScript);
 
   assert.equal(runWorkbenchBootstrap(inlineScript, {
@@ -149,7 +149,7 @@ function runWorkbenchBootstrap(source, { preferences, systemLanguages }) {
   };
   const window = {
     __TEST_PREFERENCES__: preferences,
-    GIT_LEAF_DESKTOP_PREFERENCES: preferences,
+    OPENGLANCE_DESKTOP_PREFERENCES: preferences,
     navigator: {
       languages: systemLanguages,
       language: systemLanguages[0],
@@ -163,5 +163,5 @@ function runWorkbenchBootstrap(source, { preferences, systemLanguages }) {
     document: { documentElement },
     window,
   });
-  return window.GIT_LEAF_INITIAL_LOCALE;
+  return window.OPENGLANCE_INITIAL_LOCALE;
 }

@@ -1,20 +1,145 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import test from "node:test";
 import vm from "node:vm";
 
 import {
+  assertRenameMigrationUserState,
+  assertIsolatedShipItRequest,
   assertSafeMacUpdateRegressionHost,
+  assertTemporaryProcessIsolation,
   downloadUpdateRegressionArtifact,
+  prepareIsolatedShipItRequestForInstallation,
+  prepareInstalledBaselineAppPath,
   updateRegressionInstallExpression,
   updateRegressionChannels,
   validateMacUpdateRegressionEvidence,
   validateUpdateRegressionManifest,
 } from "../scripts/mac-update-regression.mjs";
+
+test("mac update regression applies the real pre-install path policy before stopping the baseline", {
+  skip: process.platform !== "darwin",
+}, async (t) => {
+  const temporaryRoot = await mkdtemp(path.join(tmpdir(), "openglance-shipit-install."));
+  t.after(async () => {
+    await chmod(path.join(temporaryRoot, "install"), 0o755).catch(() => {});
+    await rm(temporaryRoot, { recursive: true, force: true });
+  });
+  const homeDir = path.join(temporaryRoot, "home");
+  const updateRoot = path.join(
+    homeDir,
+    "Library",
+    "Caches",
+    "com.mangofuture.gitleaf.ShipIt",
+  );
+  const stagedApp = path.join(updateRoot, "update.NEW5678", "OpenGlance.app");
+  const targetApp = path.join(temporaryRoot, "install", "Git Leaf.app");
+  const stateFile = path.join(updateRoot, "ShipItState.plist");
+  await Promise.all([
+    mkdir(stagedApp, { recursive: true }),
+    mkdir(targetApp, { recursive: true }),
+  ]);
+  await writeFile(stateFile, JSON.stringify({
+    launchAfterInstallation: false,
+    updateBundleURL: pathToFileURL(stagedApp).href,
+    targetBundleURL: pathToFileURL(targetApp).href,
+    useUpdateBundleName: true,
+  }));
+  await chmod(path.dirname(targetApp), 0o555);
+
+  const request = await prepareIsolatedShipItRequestForInstallation({
+    homeDir,
+    jobLabel: "com.mangofuture.gitleaf.ShipIt",
+    targetAppPath: targetApp,
+    temporaryRoot,
+  });
+
+  assert.equal(request.useUpdateBundleName, false);
+  assert.equal(JSON.parse(await readFile(stateFile, "utf8")).useUpdateBundleName, false);
+});
+
+test("internal mac update regression models the installed Git Leaf outer path", () => {
+  const calls = [];
+  const source = path.resolve("/tmp/openglance-regression/install/OpenGlance.app");
+  const target = path.resolve("/tmp/openglance-regression/install/Git Leaf.app");
+  assert.equal(prepareInstalledBaselineAppPath(source, {
+    track: "internal",
+    renamePath: (...args) => calls.push(args),
+  }), target);
+  assert.deepEqual(calls, [[source, target]]);
+  assert.equal(prepareInstalledBaselineAppPath(source, {
+    track: "public",
+    renamePath: () => assert.fail("public baselines keep the canonical outer path"),
+  }), source);
+});
+
+test("mac update regression rejects a relaunched App that reaches the real Profile", () => {
+  const filesystemRoot = path.parse(process.cwd()).root;
+  const temporaryRoot = path.join(
+    filesystemRoot,
+    "tmp",
+    "openglance-update-regression.123",
+  );
+  const protectedProfilePath = path.join(
+    filesystemRoot,
+    "Users",
+    "example",
+    "Library",
+    "Application Support",
+    "git-leaf",
+  );
+  assert.deepEqual(assertTemporaryProcessIsolation({
+    temporaryRoot,
+    protectedProfilePath,
+    commandOutput: [
+      `${temporaryRoot}/install/Git Leaf.app/Contents/MacOS/Git Leaf --git-leaf-dev-user-data-dir=${temporaryRoot}/user-data`,
+      `${temporaryRoot}/install/Git Leaf.app/Contents/Frameworks/Git Leaf Helper.app/Contents/MacOS/Git Leaf Helper --user-data-dir=${temporaryRoot}/user-data`,
+    ].join("\n"),
+  }).length, 2);
+  assert.throws(() => assertTemporaryProcessIsolation({
+    temporaryRoot,
+    protectedProfilePath,
+    commandOutput:
+      `${temporaryRoot}/install/Git Leaf.app/Contents/Frameworks/Git Leaf Helper.app/Contents/MacOS/Git Leaf Helper --user-data-dir=${protectedProfilePath}`,
+  }), /attempted to use the real OpenGlance Profile/);
+  assert.throws(
+    () => assertTemporaryProcessIsolation({
+      commandOutput: "",
+      protectedProfilePath,
+    }),
+    /temporaryRoot is required/,
+  );
+});
+
+test("mac update regression accepts only a non-relaunching isolated ShipIt request", async () => {
+  const temporaryRoot = await mkdtemp(path.join(tmpdir(), "openglance-shipit-state."));
+  const stateFile = path.join(temporaryRoot, "ShipItState.plist");
+  const request = {
+    launchAfterInstallation: false,
+    updateBundleURL: pathToFileURL(path.join(temporaryRoot, "update", "Git Leaf.app")).href,
+    targetBundleURL: pathToFileURL(path.join(temporaryRoot, "install", "Git Leaf.app")).href,
+  };
+  await writeFile(stateFile, JSON.stringify(request));
+
+  assert.deepEqual(assertIsolatedShipItRequest({ stateFile, temporaryRoot }), request);
+  await writeFile(stateFile, JSON.stringify({
+    ...request,
+    launchAfterInstallation: true,
+  }));
+  assert.throws(
+    () => assertIsolatedShipItRequest({ stateFile, temporaryRoot }),
+    /not isolated/,
+  );
+  assert.throws(
+    () => assertIsolatedShipItRequest({ stateFile }),
+    /temporaryRoot is required/,
+  );
+});
 
 test("mac update regression maps release tracks to their stable and candidate lanes", () => {
   assert.deepEqual(updateRegressionChannels("public"), {
@@ -86,7 +211,7 @@ test("mac update regression refuses conflicting local updater state before launc
       userShipItJobExists: true,
       systemShipItJobExists: false,
     }),
-    /Refusing to start.*conflicting local state[\s\S]*installed Git Leaf App is running[\s\S]*ShipIt/,
+    /Refusing to start.*conflicting local state[\s\S]*OpenGlance or Git Leaf App is running[\s\S]*ShipIt/,
   );
   assert.doesNotThrow(() => assertSafeMacUpdateRegressionHost({
     platform: "darwin",
@@ -96,9 +221,81 @@ test("mac update regression refuses conflicting local updater state before launc
   }));
 });
 
+test("mac product rename migration preserves repositories, workspace state, and preferences", () => {
+  const expected = {
+    renameMigrationSentinel: "git-leaf-1.x-to-openglance-3.x",
+    repoRoot: "/repo",
+    openRepoRoots: ["/repo", "/second"],
+    usageAnalyticsEnabled: false,
+    preferences: {
+      language: "zh-CN",
+      colorMode: "dark",
+      documentFont: "reading-serif",
+      documentFontSize: 18,
+      fileTreeMode: "all",
+      showDocumentTitles: false,
+      mode: "live",
+      sidebarCollapsed: true,
+      sourcePreviewRatio: 61,
+      workbenchSessions: {
+        openglance: { tabs: [{ path: "README.md" }], activeTabPath: "README.md" },
+      },
+      updateRequestedVersion: "2.0.0",
+    },
+  };
+  const afterUpdate = structuredClone(expected);
+  afterUpdate.preferences.updateRequestedVersion = "";
+  afterUpdate.preferences.updateAvailableVersion = "";
+  afterUpdate.preferences.workbenchSessions.currentWorktree = {
+    tabs: [],
+    activeTabPath: "",
+  };
+  assert.equal(assertRenameMigrationUserState(afterUpdate, expected), true);
+  const afterLinkedWorktreeStartup = structuredClone(afterUpdate);
+  afterLinkedWorktreeStartup.openRepoRoots.push("/primary-repository");
+  assert.equal(
+    assertRenameMigrationUserState(afterLinkedWorktreeStartup, expected),
+    true,
+  );
+  assert.throws(
+    () => assertRenameMigrationUserState({
+      ...afterUpdate,
+      openRepoRoots: ["/repo"],
+    }, expected),
+    /did not preserve/,
+  );
+  assert.throws(
+    () => assertRenameMigrationUserState({
+      ...afterUpdate,
+      openRepoRoots: ["/second", "/repo"],
+    }, expected),
+    /did not preserve/,
+  );
+  assert.throws(
+    () => assertRenameMigrationUserState({
+      ...afterUpdate,
+      preferences: { ...afterUpdate.preferences, language: "system" },
+    }, expected),
+    /did not preserve/,
+  );
+  assert.throws(
+    () => assertRenameMigrationUserState({
+      ...afterUpdate,
+      preferences: {
+        ...afterUpdate.preferences,
+        workbenchSessions: {
+          ...afterUpdate.preferences.workbenchSessions,
+          openglance: { tabs: [], activeTabPath: "" },
+        },
+      },
+    }, expected),
+    /did not preserve/,
+  );
+});
+
 test("mac update regression uses the real enabled update action", () => {
-  const runWithAction = (action) => vm.runInNewContext(
-    updateRegressionInstallExpression(),
+  const runWithAction = (action, options) => vm.runInNewContext(
+    updateRegressionInstallExpression(options),
     {
       document: {
         querySelector: () => action,
@@ -141,6 +338,21 @@ test("mac update regression uses the real enabled update action", () => {
     { clicked: true, reason: "action-clicked", label: "Install" },
   );
   assert.equal(clickCount, 1);
+
+  assert.deepEqual(
+    {
+      ...runWithAction({
+        hidden: false,
+        disabled: false,
+        textContent: "Install",
+        click: () => {
+          clickCount += 1;
+        },
+      }, { activate: false }),
+    },
+    { clicked: false, reason: "action-ready", label: "Install" },
+  );
+  assert.equal(clickCount, 1);
 });
 
 test("mac update regression validates candidate identity and ZIP contract", () => {
@@ -152,8 +364,8 @@ test("mac update regression validates candidate identity and ZIP contract", () =
     commit: "0123456789ab",
     files: {
       zip: {
-        name: "GitLeaf-1.12.1-internal-darwin-universal.zip",
-        url: "https://updates.example.test/GitLeaf.zip",
+        name: "OpenGlance-1.12.1-internal-darwin-universal.zip",
+        url: "https://updates.example.test/OpenGlance.zip",
         sha256: "a".repeat(64),
         size: 1024,
       },
@@ -186,8 +398,8 @@ test("mac update regression accepts only the exact internal 1.11.3 public stable
     commit: "9a7baa0cb6d3",
     files: {
       zip: {
-        name: "GitLeaf-1.11.3-internal-darwin-universal.zip",
-        url: "https://updates.example.test/GitLeaf-1.11.3.zip",
+        name: "OpenGlance-1.11.3-internal-darwin-universal.zip",
+        url: "https://updates.example.test/OpenGlance-1.11.3.zip",
         sha256: "b".repeat(64),
         size: 2048,
       },
@@ -233,8 +445,8 @@ test("mac update regression accepts only the exact internal 1.11.3 public stable
 test("mac update regression evidence binds installation and cleanup to the frozen release", () => {
   const fingerprint = { sha256: "a".repeat(64), fileCount: 3 };
   const evidence = {
-    schemaVersion: 3,
-    source: "git-leaf-macos-update-regression",
+    schemaVersion: 5,
+    source: "openglance-macos-update-regression",
     status: "passed",
     track: "internal",
     platform: "darwin-universal",
@@ -247,6 +459,22 @@ test("mac update regression evidence binds installation and cleanup to the froze
     installMode: "contents-bridge",
     directContentsWrite: true,
     appDirectoryInodePreserved: true,
+    profileStatePreserved: true,
+    baselineAppIdentity: {
+      bundleName: "Git Leaf.app",
+      productName: "Git Leaf",
+      executable: "Git Leaf",
+    },
+    candidateAppIdentity: {
+      bundleName: "OpenGlance.app",
+      productName: "OpenGlance",
+      executable: "Git Leaf",
+    },
+    installedAppIdentity: {
+      bundleName: "Git Leaf.app",
+      productName: "OpenGlance",
+      executable: "Git Leaf",
+    },
     installParentWritable: false,
     privilegedShipItJobObserved: false,
     squirrelPolicy: {
@@ -272,6 +500,52 @@ test("mac update regression evidence binds installation and cleanup to the froze
     commit: evidence.commit,
     buildId: "0123456789ab.20260726T120000Z",
   }), evidence);
+  const inAppEvidence = {
+    ...evidence,
+    installMode: "in-app-update",
+    updateActionReady: true,
+    shipItLaunchAfterInstallation: false,
+    installTrigger: "isolated-process-termination",
+    candidateRelaunchedWithIsolatedProfile: true,
+  };
+  assert.equal(validateMacUpdateRegressionEvidence(inAppEvidence, {
+    track: "internal",
+    version: "1.12.1",
+    commit: evidence.commit,
+    buildId: "0123456789ab.20260726T120000Z",
+  }), inAppEvidence);
+  const renamedBaselineEvidence = {
+    ...inAppEvidence,
+    fromVersion: "3.0.4",
+    toVersion: "3.0.5",
+    baselineAppIdentity: {
+      bundleName: "OpenGlance.app",
+      productName: "OpenGlance",
+      executable: "OpenGlance",
+    },
+    installedAppIdentity: {
+      ...inAppEvidence.installedAppIdentity,
+      bundleName: "OpenGlance.app",
+    },
+  };
+  assert.equal(validateMacUpdateRegressionEvidence(renamedBaselineEvidence, {
+    track: "internal",
+    version: "3.0.5",
+    commit: evidence.commit,
+    buildId: "0123456789ab.20260726T120000Z",
+  }), renamedBaselineEvidence);
+  assert.throws(
+    () => validateMacUpdateRegressionEvidence({
+      ...inAppEvidence,
+      candidateRelaunchedWithIsolatedProfile: false,
+    }, {
+      track: "internal",
+      version: "1.12.1",
+      commit: evidence.commit,
+      buildId: "0123456789ab.20260726T120000Z",
+    }),
+    /mandatory cleanup contract/,
+  );
   assert.throws(
     () => validateMacUpdateRegressionEvidence({
       ...evidence,
@@ -291,6 +565,14 @@ test("mac update regression evidence binds installation and cleanup to the froze
     fromTrack: "internal",
     fromChannel: "stable",
     buildId: "0123456789ab.20260726T120000Z.public",
+    candidateAppIdentity: {
+      ...evidence.candidateAppIdentity,
+      executable: "OpenGlance",
+    },
+    installedAppIdentity: {
+      ...evidence.installedAppIdentity,
+      executable: "OpenGlance",
+    },
   };
   assert.equal(validateMacUpdateRegressionEvidence(publicBridgeEvidence, {
     track: "public",

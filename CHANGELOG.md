@@ -1,8 +1,82 @@
 # Changelog
 
-Git Leaf follows Semantic Versioning for its shared app version. Git tags identify source revisions;
+OpenGlance follows Semantic Versioning for its shared app version. Git tags identify source revisions;
 official public artifacts, signatures, checksums, and platform availability are authoritative only on
-the [Git Leaf download page](https://gitleaf.mangofuture.com/download).
+the [OpenGlance download page](https://gitleaf.mangofuture.com/download).
+
+## 3.0.5 — 2026-08-16 (internal release)
+
+### Fixed
+
+- Restored the hidden `Git Leaf` executable identity in internal macOS packages so existing internal
+  Git Leaf 1.x Apps and source/development OpenPeek 2.0.0 and OpenGlance 3.0.0-3.0.1 installations can
+  upgrade to a newer OpenGlance build. The visible product, installer, and `.app` bundle remain
+  OpenGlance.
+- Extended the development-handoff and ordinary macOS update gates to reject an internal artifact that
+  would strand those installed clients, while continuing to require the exact Bundle ID, Developer ID
+  signature, build identity, version, and checksum.
+
+## 3.0.4 — 2026-08-16 (internal release)
+
+### Changed
+
+- Completed the OpenGlance identity transition across runtime aliases, package metadata, updater
+  bridges, documentation, and release tooling.
+- Internal macOS packages now use `OpenGlance` as both the visible product name and executable while
+  retaining `com.mangofuture.gitleaf`, the stable Profile, ShipIt identity, and update coordinates.
+- Once this updater is installed, a later signed update can rename a writable `Git Leaf.app` installation
+  to `OpenGlance.app`; when its parent directory is not writable, updates still succeed in place without
+  creating a duplicate.
+- Internal Windows packages retain only the bounded `Git Leaf.exe` bridge needed to migrate 1.x fixed
+  installations into `%LOCALAPPDATA%\OpenGlance\app`.
+- The short-lived intermediate naming aliases, URL scheme, environment inputs, build-info file, package
+  launchers, and repository mappings are no longer accepted.
+- The packaged macOS update regression now applies the same pre-install App-path policy as a normal
+  shutdown before stopping its isolated baseline, so the non-writable legacy-path fallback is exercised
+  instead of bypassed.
+- The real filesystem-permission assertion in that regression now runs only on macOS, where POSIX
+  directory write permissions model the production updater behavior accurately.
+
+## 3.0.1 — 2026-08-15 (public release)
+
+### Changed
+
+- Prepared the first public OpenGlance release at the globally unique `3.0.1` version after the
+  internal `3.0.0` migration release.
+- Public packages use the OpenGlance-native application identity while retaining the stable Profile,
+  Git Leaf 1.x input aliases, and hosted handoff compatibility needed by existing repositories and links.
+
+## 3.0.0 — 2026-08-15 (internal release)
+
+### Changed
+
+- Renamed the product identity to OpenGlance across the desktop app, packages, artifacts, CLI,
+  documentation, repository references, and generated links.
+- Raised the shared app version to `3.0.0` because this changes the canonical application and
+  operating-system identity surface again.
+- New packages use `OpenGlance.app`, `OpenGlance.exe`, the `openglance` command, `openglance://`,
+  `OPENGLANCE_*`, and `openglance-build-info.json` as their canonical names.
+- Future official public macOS builds use `com.mangofuture.openglance`; Community Builds use
+  `org.openglance.community`. Both use `OpenGlance` as the executable name.
+
+### Compatibility
+
+- The Electron Profile remains `git-leaf`, preserving repositories, sessions, preferences, favorites,
+  browser state, and analytics consent through the rename.
+- The app accepts the `git-leaf` CLI alias, `git-leaf://` links, `GIT_LEAF_*` environment inputs, and
+  the earlier Git Leaf build-info filename. New output always uses OpenGlance.
+- Official internal macOS builds retain `com.mangofuture.gitleaf`,
+  the existing ShipIt identity, and the `internal-stable` update coordinates so installed internal Apps
+  continue upgrading in place.
+- A macOS development install migrates an existing `Git Leaf.app`. Windows packages on the internal
+  track carry a bounded `Git Leaf.exe` launch bridge, migrate the old fixed installation into
+  `%LOCALAPPDATA%\OpenGlance\app`, and remove the old tree only after the new
+  executable confirms startup.
+- The `git_leaf.*` analytics schema, hosted domain, update-service `/git-leaf` roots, and stable Profile
+  directory remain unchanged. Domain migration is intentionally separate.
+
+OpenGlance 3.0.0 was published on the internal track for the installed-user migration. It was not
+published on the public track.
 
 ## 1.14.0 — 2026-07-27
 

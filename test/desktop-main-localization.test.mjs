@@ -26,11 +26,11 @@ test("desktop shell copy honors an explicit saved language over the system langu
   );
   assert.equal(
     windowsStartMenuShortcutOptions(
-      "C:\\GitLeaf\\Git Leaf.exe",
+      "C:\\OpenGlance\\OpenGlance.exe",
       { language: "zh-CN" },
       { systemLanguages: ["en-US"] },
     ).description,
-    "在 Git Leaf 中打开 Git 仓库和 Markdown 文档。",
+    "在 OpenGlance 中打开 Git 仓库和 Markdown 文档。",
   );
 
   assert.match(
@@ -43,11 +43,11 @@ test("desktop shell copy honors an explicit saved language over the system langu
   );
   assert.equal(
     windowsStartMenuShortcutOptions(
-      "C:\\GitLeaf\\Git Leaf.exe",
+      "C:\\OpenGlance\\OpenGlance.exe",
       { language: "en" },
       { systemLanguages: ["zh-CN"] },
     ).description,
-    "Open Git repositories and Markdown documents in Git Leaf.",
+    "Open Git repositories and Markdown documents in OpenGlance.",
   );
 });
 
@@ -89,11 +89,11 @@ test("desktop home retains structured missing-repository context across language
 
   assert.match(
     localizeDesktopHomeError(identityState, { language: "en" }),
-    /acme\/handbook is not yet in Git Leaf/,
+    /acme\/handbook is not yet in OpenGlance/,
   );
   assert.match(
     localizeDesktopHomeError(identityState, { language: "zh-CN" }),
-    /Git Leaf 的仓库列表里还没有 acme\/handbook/,
+    /OpenGlance 的仓库列表里还没有 acme\/handbook/,
   );
   assert.match(
     localizeDesktopHomeError(worktreeState, { language: "en" }),

@@ -7,7 +7,7 @@ import {
   previewServerUrl,
 } from "../src/server/network-address.mjs";
 
-test("Git Leaf URLs stay on localhost and contain no sharing token", () => {
+test("OpenGlance URLs stay on localhost and contain no sharing token", () => {
   assert.equal(DEFAULT_BIND_HOST, "127.0.0.1");
   assert.equal(
     previewServerUrl({
@@ -19,7 +19,7 @@ test("Git Leaf URLs stay on localhost and contain no sharing token", () => {
   );
 });
 
-test("previewServerUrl supports opening Git Leaf without a selected document", () => {
+test("previewServerUrl supports opening OpenGlance without a selected document", () => {
   assert.equal(
     previewServerUrl({ port: 4317, relativePath: "" }),
     "http://127.0.0.1:4317/",

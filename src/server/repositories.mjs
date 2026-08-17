@@ -128,8 +128,13 @@ export async function githubBlobRoot(repoRoot, branch) {
 export function githubRepositoryIdentityFromRemote(remote) {
   const repository = githubRepositoryFromRemote(String(remote || "").trim());
   return repository
-    ? `${repository.owner}/${repository.name}`.toLowerCase()
+    ? canonicalGithubRepositoryIdentity(`${repository.owner}/${repository.name}`)
     : "";
+}
+
+export function canonicalGithubRepositoryIdentity(identity) {
+  const normalized = String(identity || "").trim().replace(/\.git$/i, "").toLowerCase();
+  return GITHUB_REPOSITORY_RENAME_ALIASES.get(normalized) ?? normalized;
 }
 
 export async function findGithubRepositoryRoot(
@@ -226,3 +231,16 @@ function normalizeGithubRepositoryMatch({ owner, name }) {
     name: name.replace(/\.git$/, ""),
   };
 }
+
+const GITHUB_REPOSITORY_RENAME_ALIASES = new Map([
+  ["mangofuture1210/git-leaf", "openglance/openglance"],
+  ["mangofuture1210/openglance", "openglance/openglance"],
+  [
+    "mangofuture1210/git-leaf-example-knowledge-base",
+    "openglance/openglance-example-knowledge-base",
+  ],
+  [
+    "mangofuture1210/openglance-example-knowledge-base",
+    "openglance/openglance-example-knowledge-base",
+  ],
+]);

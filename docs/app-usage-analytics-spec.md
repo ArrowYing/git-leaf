@@ -1,13 +1,13 @@
 ---
-last_updated: 2026-08-08
+last_updated: 2026-08-12
 status: normative
 ---
 
-# Git Leaf app usage analytics specification
+# OpenGlance app usage analytics specification
 
 ## Authority
 
-This is the sole contract for usage analytics in packaged Git Leaf desktop builds. It defines:
+This is the sole contract for usage analytics in packaged OpenGlance desktop builds. It defines:
 
 - allowed events and statistical fields;
 - the product fact represented by each field;
@@ -24,6 +24,13 @@ validation, aggregation, and tests. If the source data cannot answer a question,
 
 The priority is verifiable and repeatable semantics after a capability boundary, not maximum reuse of
 historical records. Preserve old absolute facts without pretending they satisfy a newer contract.
+
+OpenGlance was named Git Leaf in 1.x. The `git_leaf.*` event namespace is deliberately stable across the
+rename because event names are persisted schema keys, not display copy. Clients must not emit
+a parallel `openglance.*` namespace or rewrite historical events; any future namespace migration requires
+an explicit specification version, receiver transition, aggregation update, and compatibility window.
+The receiver storage root `/var/lib/git-leaf/telemetry` is likewise an external operations path and is
+not renamed by this repository-only change.
 
 ## Scope
 
@@ -123,7 +130,7 @@ consent decision, store, and retention policy.
 - Reverse-proxy access logs are retained for at most seven days and are not product analytics JSONL.
 - Date-based cleanup implements retention. Policy changes update this specification and operations
   configuration first.
-- Help states that Git Leaf may send anonymous installation, version, update, active-duration, and
+- Help states that OpenGlance may send anonymous installation, version, update, active-duration, and
   aggregate feature statistics. It does not send repository names, file names, document content,
   searches, or Git data. A device name is an internal inventory label, not a user identity or behavior
   property.
@@ -580,7 +587,7 @@ Every analytics change:
 
 1. defines the question, fact semantics, unit, join key, relationships, and prohibited inferences here;
 2. updates the client allowlist and persistence in `src/desktop/telemetry.mjs`;
-3. updates receiver validation or distribution logging in `scripts/gitleaf-update-server.py`;
+3. updates receiver validation or distribution logging in `scripts/openglance-update-server.py`;
 4. updates formulas and standard Markdown in `scripts/summarize-telemetry.mjs`;
 5. tests normal, duplicate, missing, out-of-order, cross-version, and truncated-window inputs;
 6. updates [architecture](architecture.md) or [release process](release.md) if their boundary changes;
@@ -598,7 +605,7 @@ by field presence, not app version; legacy recovery uses only the deterministic 
 | Update state generation | `src/desktop/updates.mjs`, `src/desktop/main.mjs` |
 | Active minutes | `src/desktop/telemetry-activity.mjs` |
 | Renderer counters | `public/telemetry.js`, `public/app.js`, `src/client/source-editor.mjs` |
-| Receiver validation and download logging | `scripts/gitleaf-update-server.py` |
+| Receiver validation and download logging | `scripts/openglance-update-server.py` |
 | Aggregation and Markdown reporting | `scripts/summarize-telemetry.mjs` |
 | Privacy, transport, storage, retention, and metric contract | This document |
 | Application and publication boundaries | `docs/architecture.md`, `docs/release.md` |

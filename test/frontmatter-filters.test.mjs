@@ -110,10 +110,10 @@ test("normalizeFrontmatterFilters accepts repository-provided allowed keys", () 
 test("file text search requires every term in the file name or searchable metadata", () => {
   const node = { type: "file", name: "editor-design.md", path: "editor-design.md" };
   const metadata = {
-    ai_snippet: "[Plan] Git Leaf editor | CodeMirror live editing | Frontmatter filters",
+    ai_snippet: "[Plan] OpenGlance editor | CodeMirror live editing | Frontmatter filters",
   };
 
-  assert.equal(fileMatchesTextFilter(node, metadata, "leaf live filters"), true);
+  assert.equal(fileMatchesTextFilter(node, metadata, "openglance live filters"), true);
   assert.equal(fileMatchesTextFilter(node, metadata, "editor-design"), true);
   assert.equal(fileMatchesTextFilter(node, metadata, "finance report"), false);
   assert.equal(

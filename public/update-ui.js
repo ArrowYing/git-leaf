@@ -4,7 +4,7 @@ import { WORKBENCH_MESSAGES } from "./workbench-locales.js";
 export function sidebarUpdateView(status = {}, locale = "zh-CN") {
   const t = createTranslator(WORKBENCH_MESSAGES, locale);
   const version = String(status?.version || "").trim();
-  const title = version ? `Git Leaf ${version}` : t("update.newVersion");
+  const title = version ? `OpenGlance ${version}` : t("update.newVersion");
   if (status?.state === "available") {
     return {
       hidden: false,

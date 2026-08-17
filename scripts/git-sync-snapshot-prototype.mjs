@@ -24,7 +24,7 @@ const SCRIPT_PATH = fileURLToPath(import.meta.url);
 export async function createImmutableGitSnapshot({
   repoRoot,
   indexPath,
-  message = "Git Leaf immutable snapshot prototype",
+  message = "OpenGlance immutable snapshot prototype",
 }) {
   const startedAt = performance.now();
   const snapshot = await createProductionSnapshot({ repoRoot, indexPath, message });
@@ -40,7 +40,7 @@ export async function rebaseImmutableGitSnapshot({
   repoRoot,
   snapshotCommit,
   remoteCommit,
-  message = "Git Leaf immutable snapshot prototype",
+  message = "OpenGlance immutable snapshot prototype",
 }) {
   const startedAt = performance.now();
   const result = await rebaseProductionSnapshot({
@@ -69,7 +69,7 @@ export async function benchmarkGitSnapshotStrategies({
   try {
     await mkdir(repoRoot, { recursive: true });
     await runGit(repoRoot, ["init", "-b", "main"]);
-    await runGit(repoRoot, ["config", "user.name", "Git Leaf Prototype"]);
+    await runGit(repoRoot, ["config", "user.name", "OpenGlance Prototype"]);
     await runGit(repoRoot, ["config", "user.email", "prototype@git-leaf.invalid"]);
     const content = "x".repeat(Math.max(1, bytesPerFile - 1)) + "\n";
     for (let index = 0; index < fileCount; index += 1) {

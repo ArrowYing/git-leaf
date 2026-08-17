@@ -128,16 +128,16 @@ test("repository panel normalization rejects incomplete and duplicate display it
 test("repository panel action URLs carry only the opaque repository id", () => {
   assert.equal(
     repositoryPanelActionUrl("switch", "0123456789abcdef"),
-    "git-leaf://switch-repository?id=0123456789abcdef",
+    "openglance://switch-repository?id=0123456789abcdef",
   );
-  assert.equal(repositoryPanelActionUrl("open"), "git-leaf://open-repository");
+  assert.equal(repositoryPanelActionUrl("open"), "openglance://open-repository");
   assert.equal(repositoryPanelActionUrl("unknown"), "");
 });
 
 test("repository panel reorder URLs carry one validated opaque id per repository", () => {
   assert.equal(
     repositoryPanelReorderUrl(["0123456789abcdef", "fedcba9876543210"]),
-    "git-leaf://reorder-repositories?id=0123456789abcdef&id=fedcba9876543210",
+    "openglance://reorder-repositories?id=0123456789abcdef&id=fedcba9876543210",
   );
   assert.equal(repositoryPanelReorderUrl(["0123456789abcdef"]), "");
   assert.equal(repositoryPanelReorderUrl(["0123456789abcdef", "0123456789abcdef"]), "");

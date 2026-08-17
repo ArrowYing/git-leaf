@@ -1717,7 +1717,7 @@ export function telemetryReportMarkdown(report) {
   const legacyUnknown = report.updates.legacy_unknown ?? {};
   const dailyQuality = report.data_quality.daily_summary_inconsistencies ?? {};
   const lines = [
-    "# Git Leaf 使用统计",
+    "# OpenGlance 使用统计",
     "",
     "## 数据源健康",
     "",

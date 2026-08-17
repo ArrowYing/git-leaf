@@ -1,4 +1,4 @@
-# Build Git Leaf from source
+# Build OpenGlance from source
 
 [Documentation index](README.md)
 
@@ -17,8 +17,8 @@ Future release profiles, signing credentials, update infrastructure, or the offi
 ## Run the desktop app
 
 ```bash
-git clone https://github.com/MangoFuture1210/git-leaf.git
-cd git-leaf
+git clone https://github.com/openglance/openglance.git
+cd openglance
 npm ci
 npm run desktop
 ```
@@ -29,16 +29,16 @@ Choose any local Git repository in the app, or select one at launch:
 npm run desktop -- --repo /path/to/knowledge-repository
 ```
 
-To try Git Leaf with prepared public content:
+To try OpenGlance with prepared public content:
 
 ```bash
-git clone https://github.com/MangoFuture1210/git-leaf-example-knowledge-base.git
-npm run desktop -- --repo ../git-leaf-example-knowledge-base
+git clone https://github.com/openglance/openglance-example-knowledge-base.git
+npm run desktop -- --repo ../openglance-example-knowledge-base
 ```
 
 ## Run the browser workbench
 
-From the Git Leaf checkout:
+From the OpenGlance checkout:
 
 ```bash
 npm start -- /path/to/knowledge-repository/README.md
@@ -77,13 +77,13 @@ Community packages have an explicit non-official identity:
 | App status | `Community build` |
 | Embedded distribution | `source` |
 | Release track | `source` |
-| macOS Bundle ID | `org.gitleaf.community` |
-| Windows CompanyName | `Git Leaf Community` |
+| macOS Bundle ID | `org.openglance.community` |
+| Windows CompanyName | `OpenGlance Community` |
 | Official updates | Disabled |
 | Usage analytics | Disabled |
 
 They are not Developer ID-signed or notarized by Mango Future and must not be redistributed as an
-official Git Leaf release. macOS source packages receive only a local ad-hoc signature after packaging
+official OpenGlance release. macOS source packages receive only a local ad-hoc signature after packaging
 so their modified bundled frameworks retain code integrity. The official identity depends on the Mango
 Future signature, official package metadata, download channel, checksum, tag, and matching public
 commit.
@@ -96,10 +96,13 @@ For human testing on a maintainer Mac:
 make install-dev-mac
 ```
 
-This is intentionally different from a distributable Community package. It installs `Git Leaf dev`
-with `dev=true` and the Community Bundle ID at `/Applications/Git Leaf.app`, replacing the current App
-and using the same real Profile. Repositories, workbench sessions, appearance, language, favorites, and
-sidebar state therefore survive replacement. The development build remains telemetry-ineligible.
+This is intentionally different from a distributable Community package. It installs `OpenGlance dev`
+with `dev=true` and the Community Bundle ID, replacing the current App and using the same real Profile.
+A new installation uses `/Applications/OpenGlance.app`; after that canonical copy succeeds, the
+transition removes an existing `/Applications/Git Leaf.app` instead of leaving a duplicate.
+Repositories, workbench sessions,
+appearance, language, favorites, and sidebar state therefore survive replacement. The development build
+remains telemetry-ineligible.
 
 The installed dev build may make one user-selected, one-way switch to the latest signed
 `internal-stable` package only when its version is strictly newer than the development version. Equal or

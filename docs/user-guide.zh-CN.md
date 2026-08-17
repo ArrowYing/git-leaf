@@ -1,38 +1,38 @@
 ---
-last_updated: 2026-08-11
+last_updated: 2026-08-15
 ---
 
-# Git Leaf 用户手册
+# OpenGlance 用户手册
 
 [English](user-guide.md) | 简体中文
 
-Git Leaf 是供人使用的桌面 App，用来打开和维护团队与 AI Agent 共享的 Git 上下文仓库。它直接打开已经
+OpenGlance 是供人使用的桌面 App，用来打开和维护团队与 AI Agent 共享的 Git 上下文仓库。它直接打开已经
 存在于本机的仓库，不会把仓库上传或复制到另一个知识服务。
 
 这份手册面向需要理解和维护仓库、但不希望把 Git、Markdown 或开发工具变成日常工作方式的用户。截图与
 动手示例使用公开的
-[Git Leaf 使用指南 Demo 仓库](https://github.com/MangoFuture1210/git-leaf-example-knowledge-base)。
+[OpenGlance 使用指南 Demo 仓库](https://github.com/openglance/openglance-example-knowledge-base)。
 
 ## 从这里开始
 
-1. 从[公开下载页](https://gitleaf.mangofuture.com/download?lang=zh-CN)安装 Git Leaf，或者使用
+1. 从[公开下载页](https://gitleaf.mangofuture.com/download?lang=zh-CN)安装 OpenGlance，或者使用
    [Community Build](build-from-source.md)。
 2. 确认共享 Git 仓库已经作为一个本机文件夹存在。仓库维护者可以提前准备好，也可以克隆公开示例：
 
    ```bash
-   git clone https://github.com/MangoFuture1210/git-leaf-example-knowledge-base.git
+   git clone https://github.com/openglance/openglance-example-knowledge-base.git
    ```
 
-3. 打开 Git Leaf，选择仓库文件夹。
-4. 通过目录树或搜索找到文档。Git Leaf 默认用 Preview 打开 Markdown 和 MDX。
-5. 需要修改时再切换到 Live 或 Source。Git Leaf 会直接写入原文件并自动保存。
+3. 打开 OpenGlance，选择仓库文件夹。
+4. 通过目录树或搜索找到文档。OpenGlance 默认用 Preview 打开 Markdown 和 MDX。
+5. 需要修改时再切换到 Live 或 Source。OpenGlance 会直接写入原文件并自动保存。
 
-Git Leaf 没有单独的“保存”按钮。自动保存只代表修改已经写入本机；在发布以前，它仍然是尚未共享的本地
+OpenGlance 没有单独的“保存”按钮。自动保存只代表修改已经写入本机；在发布以前，它仍然是尚未共享的本地
 Git 改动。
 
 ## 认识 App 界面
 
-![Git Leaf 展示仓库目录树、文档导航和易读的 Preview](assets/user-guide/browse-and-read.jpg)
+![OpenGlance 展示仓库目录树、文档导航和易读的 Preview](assets/user-guide/browse-and-read.jpg)
 
 App 界面主要分为四个区域：
 
@@ -43,7 +43,7 @@ App 界面主要分为四个区域：
 | 文档导航 | 当前文档的 H1–H5 标题目录，自动压缩跳过的级别；需要更多空间时可以隐藏 |
 | 主区域 | 当前文档、编辑器或只读文件预览 |
 
-下次启动时，Git Leaf 会恢复已经打开的仓库及其工作状态，包括 Tab、目录展开和阅读位置。
+下次启动时，OpenGlance 会恢复已经打开的仓库及其工作状态，包括 Tab、目录展开和阅读位置。
 
 ## 查找和阅读上下文
 
@@ -51,7 +51,7 @@ App 界面主要分为四个区域：
 
 目录结构是理解文档归属的主要方式。像使用普通文件浏览器一样展开文件夹、选择文件即可。
 
-Markdown／MDX 文件名不含汉字时，Git Leaf 会在第一行保留真实文件名，并在 Frontmatter `title` 或
+Markdown／MDX 文件名不含汉字时，OpenGlance 会在第一行保留真实文件名，并在 Frontmatter `title` 或
 首个一级标题提供不同标题时，将该标题显示在第二行。包含汉字的文件名以及没有不同标题的文档仍保持单行。
 标题作为主要视觉信息，文件名略微淡化但仍清晰可读。第二行默认开启；如需紧凑目录树，可在“设置与帮助
 → 文件与目录 → 仅显示文件名”中关闭。标题只用于展示；排序、链接、文件操作和 Git 始终使用真实文件名
@@ -62,7 +62,7 @@ Markdown／MDX 文件名不含汉字时，Git Leaf 会在第一行保留真实�
 - **All** 显示普通仓库目录树。
 - **Favorites** 集中放置经常返回的文件夹和 Markdown／MDX 文档。可以从右键菜单收藏，也可以使用当前
   文档旁的星标，或在 macOS 按 `Command+D`、在 Windows 按 `Ctrl+D`。完整仓库目录树成功刷新后，
-  Git Leaf 会自动取消路径已经不存在的收藏；文件在外部改名后，可以在新位置重新收藏。
+  OpenGlance 会自动取消路径已经不存在的收藏；文件在外部改名后，可以在新位置重新收藏。
 - **Sync** 显示远端状态和全部尚未发布的本地文件。
 
 在 **All**、搜索筛选结果、**Favorites** 和 **Sync** 中，文件使用同一套 Tab 规则。直接点击文件，会在
@@ -74,7 +74,7 @@ Markdown／MDX 文件名不含汉字时，Git Leaf 会在第一行保留真实�
 这个文件对应的 GitHub 源文件页面。
 
 设置中可以选择“内容文件”或“全部仓库文件”。内容模式默认保留 Markdown、MDX、HTML、图片和 PDF；
-其他文件在被打开、发生改动或被搜索命中时出现。这个偏好只改变目录树显示，绝不会改变 Git Leaf 发现、
+其他文件在被打开、发生改动或被搜索命中时出现。这个偏好只改变目录树显示，绝不会改变 OpenGlance 发现、
 同步、提交或推送的范围。
 
 ### 不必为了搜索而重组仓库
@@ -90,20 +90,20 @@ Markdown／MDX 文件名不含汉字时，Git Leaf 会在第一行保留真实�
 Preview 呈现文档，同时保留原文件行号。右侧文档导航跟随 H1–H5 标题；唯一且位于开头的 H1 作为
 文档标题，不重复出现在导航中。跳过的标题级别不会产生空缩进：例如文档直接使用 H3、H5 时，
 导航中仍显示为连续的两级。H6 可以继续出现在正文中，但不会进入文档导航。普通内部链接会留在
-Git Leaf 内打开；在 macOS 使用 Command-click，在 Windows 使用 Ctrl-click，可以把链接打开到另一个
+OpenGlance 内打开；在 macOS 使用 Command-click，在 Windows 使用 Ctrl-click，可以把链接打开到另一个
 Tab。
 
 这些源文件行号也能在需要提问或纠正时，准确告诉 AI Agent 内容来自哪里。
 
 ### 快速回到尚未发布的编辑
 
-当前 Markdown／MDX 文件与最后一次提交的版本不同时，Git Leaf 会在 Preview、Source 和 Live 中显示
+当前 Markdown／MDX 文件与最后一次提交的版本不同时，OpenGlance 会在 Preview、Source 和 Live 中显示
 一条轻量的编辑轨迹：
 
 - 当前新增或替换的正文与对应行号使用低干扰的暖色高亮；
 - 每个受影响章节在文档导航中铺满整行底色，点击区域和跳转到原章节的行为保持不变；
 - 首个可见导航标题以前的改动归入“文档顶部”，点击后返回文档开头；
-- 打开其他文档再返回时，Git Leaf 会从仓库重新生成同样的提示，不需要维护另一份草稿标记。
+- 打开其他文档再返回时，OpenGlance 会从仓库重新生成同样的提示，不需要维护另一份草稿标记。
 
 只有文档包含删除内容时，右上角才会出现紧凑的“显示删除内容”图标开关，而且默认关闭。开启后，图标
 右上角会显示一个实心状态点，在不提升为主要操作的同时明确区分开／关。被删除的片段和整行只在原有
@@ -116,7 +116,7 @@ Tab。
 
 ## 选择合适的编辑方式
 
-Git Leaf 始终编辑原来的 Markdown 或 MDX 文件。三种模式只是同一份源文件的不同界面：
+OpenGlance 始终编辑原来的 Markdown 或 MDX 文件。三种模式只是同一份源文件的不同界面：
 
 | 模式 | 适合什么时候使用 |
 | --- | --- |
@@ -146,14 +146,14 @@ macOS 可用 `Command+B`／`Command+I`／`Command+U`，Windows 可用 `Ctrl+B`�
 格式不会改变列对齐。两个固定色板只在点开时展开，工具栏可通过关闭按钮或 Esc 关闭。同一列纵向选中
 两个或更多单元格后，列顶部会显示拖动把手；拖动它会移动整列，不要求先选满整列。这些操作只在 Live
 中提供，Preview 仍然只读。写回内容仍是原生管道表格、标准 Markdown 标记、分隔行对齐和 Obsidian
-可识别的受控内联样式，不会变成 Git Leaf 私有的表格格式。
+可识别的受控内联样式，不会变成 OpenGlance 私有的表格格式。
 
 ![Source 同时显示准确的 Markdown 和呈现结果](assets/user-guide/source-editor.jpg)
 
 当 Agent 写入了一段需要精确检查的语法，或者需要调整 Frontmatter 和结构化数据时，可以使用 Source。
 Source 和 Live 都会自动写入本机工作目录。
 
-Git Leaf 内只有 Markdown 和 MDX 可以编辑。其他仓库文件提供只读预览，或交给系统应用打开。普通只读
+OpenGlance 内只有 Markdown 和 MDX 可以编辑。其他仓库文件提供只读预览，或交给系统应用打开。普通只读
 文件会把目录树整行宽度留给文件名；打开后，顶部模式区域会在 Preview 旁显示“只读”。目录树只为会改变
 或推迟打开结果的状态保留标签，例如“检测”“不支持”和“缺失”。
 
@@ -168,7 +168,7 @@ Mermaid 源码之间切换。这些控件只是临时阅读状态，不会改写
 
 对于复杂 `flowchart`，“智能阅读”把从上到下作为文档阅读方向。横向源码只有在节点、关系和分组数量与
 原图一致、节点不重叠时，才会以纵向方式呈现；已有纵向图绝不会被自动旋转成横向。完整纵向图始终可见。
-Git Leaf 不会用节点列表或自动生成的一跳小图替换它；需要参照作者原始布局时，可关闭“智能阅读”。
+OpenGlance 不会用节点列表或自动生成的一跳小图替换它；需要参照作者原始布局时，可关闭“智能阅读”。
 
 这个决定只使用图的结构和实际几何测量，不读取标签含义，也没有业务专用规则。作者显式选择的 Mermaid
 布局不会被覆盖。方向明确的过程可使用自动布局的 `flowchart`；位置本身有含义时，应显式选择布局或使用
@@ -177,7 +177,7 @@ Git Leaf 不会用节点列表或自动生成的一跳小图替换它；需要�
 ## Agent 直接读数据，人直接看图表
 
 `.mdx` 文档可以把图表序列、表格行、指标、时间线、决策和流程保存为普通 CSV、TSV、JSON 或 Markdown
-文本。AI Agent 能直接读取和修改源数据；Git Leaf 则把同一份源文件呈现为供人理解的视觉内容。
+文本。AI Agent 能直接读取和修改源数据；OpenGlance 则把同一份源文件呈现为供人理解的视觉内容。
 
 长期报表也可以把完整数据放在文档旁边的 CSV、TSV 或 JSON 文件里，再用 `.dataset.json` 说明源数据
 粒度和口径。报表作者为 `Chart` 或 `DataTable` 指定日期区间后，读者只能选择该源数据可靠支持的视图：
@@ -187,10 +187,10 @@ Git Leaf 不会用节点列表或自动生成的一跳小图替换它；需要�
 如果表格或 BI 导出包含展示辅助列、重复表头或多行表头，sidecar 可以显式选择所需物理列，原始文件仍
 保持不变。
 
-![Git Leaf 把 MDX 文档内的结构化数据呈现为图表](assets/user-guide/mdx-visuals.png)
+![OpenGlance 把 MDX 文档内的结构化数据呈现为图表](assets/user-guide/mdx-visuals.png)
 
 这样可以避免截图或另一个仪表盘成为重要数据唯一的存在位置。Preview 呈现结果，Source 和 Live 仍然
-编辑原文件。Git Leaf 只接受一组受控组件，不会运行任意 JSX、JavaScript、`import` 或文档脚本。
+编辑原文件。OpenGlance 只接受一组受控组件，不会运行任意 JSX、JavaScript、`import` 或文档脚本。
 
 负责制作这类组件的仓库维护者可以查看英文技术文档
 [MDX-lite reference](mdx-lite-guide.md)。普通读者只需要打开文档、使用呈现结果。
@@ -210,8 +210,8 @@ Git Leaf 不会用节点列表或自动生成的一跳小图替换它；需要�
 例如，选中 `demos/agent-context-and-sync.md` 的第 16–17 行，复制结果是：
 
 ````markdown
-> 16 | Git Leaf opens a local Git repository and presents it as a readable workspace. The repository remains
-> 17 | the shared source of truth. Git Leaf does not upload the content or create a separate hosted copy.
+> 16 | OpenGlance opens a local Git repository and presents it as a readable workspace. The repository remains
+> 17 | the shared source of truth. OpenGlance does not upload the content or create a separate hosted copy.
 
 Source: demos/agent-context-and-sync.md:16-17
 ````
@@ -237,13 +237,13 @@ Agent Context。
 ````markdown
 # Agent Context
 
-Repository: git-leaf-example-knowledge-base
+Repository: openglance-example-knowledge-base
 Worktree: main checkout
 Branch: main
 Revision: 0123456789abcdef
 
-> 16 | Git Leaf opens a local Git repository and presents it as a readable workspace. The repository remains
-> 17 | the shared source of truth. Git Leaf does not upload the content or create a separate hosted copy.
+> 16 | OpenGlance opens a local Git repository and presents it as a readable workspace. The repository remains
+> 17 | the shared source of truth. OpenGlance does not upload the content or create a separate hosted copy.
 
 Source: demos/agent-context-and-sync.md:L16-L17
 
@@ -254,7 +254,7 @@ Source: demos/agent-context-and-sync.md:L24-L25
 ````
 
 仓库、worktree、分支和 revision 只在顶部出现一次；之后每一段内容都是引用，并在引用外带有文件路径和
-行号范围。上面的元数据只是示例，Git Leaf 实际复制的是当前工作目录的真实信息。最后一个来源说明之后，
+行号范围。上面的元数据只是示例，OpenGlance 实际复制的是当前工作目录的真实信息。最后一个来源说明之后，
 同样会预留一个可以直接输入提示词的空白段落。
 
 Agent Context 是按仓库和 worktree 隔离的临时会话状态。它可以收集当前工作目录中的多个文件，但不能跨
@@ -262,15 +262,15 @@ Agent Context 是按仓库和 worktree 隔离的临时会话状态。它可以�
 
 ## 检查本地和远端改动
 
-Git Leaf 会在打开仓库时检查一次 Git 远端，之后按“设置 → 常规”中的频率继续检查。默认值为
+OpenGlance 会在打开仓库时检查一次 Git 远端，之后按“设置 → 常规”中的频率继续检查。默认值为
 10 分钟，可选 1、2、5、10、30、60、120 分钟：
 
-- 本机工作目录干净、只是落后于远端时，Git Leaf 会安全地自动快进。本地若仅提前存在与远端最终新增
+- 本机工作目录干净、只是落后于远端时，OpenGlance 会安全地自动快进。本地若仅提前存在与远端最终新增
   文件逐字节相同的副本，也会被安全接管，不会长期阻塞或留下脏状态。
 - 本地已有未发布编辑时，自动更新会暂停，不改动分支、索引或文件，并显示“合并远端修改”作为明确
   操作；受保护合并无冲突时，全部本地修改仍保持未提交。
-- 如果可安全自动应用的更新涉及当前聚焦的 Source 或 Live 文档，Git Leaf 会在后台完成准备，显示“远端更新待合并”，
-  并在 Git Leaf 仍处于前台、焦点离开编辑区域后自动应用；切换到其他 App 会继续保持待合并。
+- 如果可安全自动应用的更新涉及当前聚焦的 Source 或 Live 文档，OpenGlance 会在后台完成准备，显示“远端更新待合并”，
+  并在 OpenGlance 仍处于前台、焦点离开编辑区域后自动应用；切换到其他 App 会继续保持待合并。
   继续输入会让准备结果失效，而不会丢失输入。
 - 真正发生冲突，或 sparse-checkout 工作树存在本地修改时，真实工作目录保持不变，需要人工处理 Git。
 - “同步并发布”会先整合必要的远端更新，再提交并推送**整个仓库的全部本地改动**。
@@ -283,52 +283,52 @@ Sync 刻意采用仓库级操作：它不让用户逐个暂存文件，也不要
 列出的每个文件都应该进入下一份共享版本。
 
 外部 AI Agent 修改同一个本机工作目录后，这些文件会像其他本地修改一样出现在 Sync。打开相关文档即可
-阅读当前结果。Git Leaf 目前显示改动文件和当前文档内容，不提供完整的逐行 Diff 审核，也不会判断一处
+阅读当前结果。OpenGlance 目前显示改动文件和当前文档内容，不提供完整的逐行 Diff 审核，也不会判断一处
 改动来自哪个 Agent。
 
-如果本地和远端历史已经分叉、出现冲突，或另一个 Git 操作正在进行，Git Leaf 会停止，不会改写历史，也
+如果本地和远端历史已经分叉、出现冲突，或另一个 Git 操作正在进行，OpenGlance 会停止，不会改写历史，也
 不会把未解决的合并留在真实工作目录。需要开发者级 Git 修复时，失败界面可以提供一段交给 AI Agent 的
 提示词。
 
 ## 用 URL 打开本机对应文档
 
-在线文档让协作显得简单，其中一个重要原因是：一个 URL 就能打开正确的文档。Git Leaf 保留这种点击即达
+在线文档让协作显得简单，其中一个重要原因是：一个 URL 就能打开正确的文档。OpenGlance 保留这种点击即达
 的便利，但文件与事实源仍然位于本地优先的 Git 仓库中。
 
 Agent 把文档交给人检查时，完整流程是：
 
 1. 仓库提示词要求 Agent 为需要检查的 Markdown／MDX 文件运行可信的链接生成器。
-2. Agent 在最终回复中给出 HTTPS **Open in Git Leaf** 链接，而不是只给一个本机路径。
+2. Agent 在最终回复中给出 HTTPS **Open in OpenGlance** 链接，而不是只给一个本机路径。
 3. 浏览器打开 Mango Future 托管的 `/open` 中转页；第一次使用时，浏览器可能询问是否允许启动
-   Git Leaf。
-4. Git Leaf 根据 GitHub 仓库标识匹配本机 checkout，必要时请用户选择本机目录，然后打开指定文档。
+   OpenGlance。
+4. OpenGlance 根据 GitHub 仓库标识匹配本机 checkout，必要时请用户选择本机目录，然后打开指定文档。
    如果链接来自 linked worktree，还会在同一台机器上选择那个准确的 worktree。
 
-安装 Git Leaf，并让公开示例仓库在本机可用后，可以直接体验完整中转：
+安装 OpenGlance，并让公开示例仓库在本机可用后，可以直接体验完整中转：
 
-Open in Git Leaf：
-[Git Leaf 使用指南 Demo](https://gitleaf.mangofuture.com/open?repo=mangofuture1210%2Fgit-leaf-example-knowledge-base&path=guide%2Fuser-guide.zh-CN.md)
+Open in OpenGlance：
+[OpenGlance 使用指南 Demo](https://gitleaf.mangofuture.com/open?repo=openglance%2Fopenglance-example-knowledge-base&path=guide%2Fuser-guide.zh-CN.md)
 
 ### 让 Agent 在交付时返回链接
 
 本仓库提供了一份
-[可以直接复制使用的独立生成器](../tools/generate-git-leaf-open-link.mjs)，只依赖 Node.js 和 Git。
+[可以直接复制使用的独立生成器](../tools/generate-openglance-open-link.mjs)，只依赖 Node.js 和 Git。
 内容仓库可以把它放在同一路径，再在 `AGENTS.md` 等仓库提示文件中加入下面的通用写法：
 
 ```markdown
-## Git Leaf 文档预览链接
+## OpenGlance 文档预览链接
 
-最终回复需要让用户预览 Markdown 或 MDX 文件时，运行仓库自带的 Git Leaf 链接生成器：
+最终回复需要让用户预览 Markdown 或 MDX 文件时，运行仓库自带的 OpenGlance 链接生成器：
 
-node "$(git rev-parse --show-toplevel)/tools/generate-git-leaf-open-link.mjs" \
+node "$(git rev-parse --show-toplevel)/tools/generate-openglance-open-link.mjs" \
   --repo-root "$(git rev-parse --show-toplevel)" \
   --file "<仓库相对路径.md-or-mdx>"
 
 把生成器返回的 HTTPS URL 原样放进 Markdown 链接：
-`Open in Git Leaf: [<文档标题>](<返回的 HTTPS URL>)`
+`Open in OpenGlance: [<文档标题>](<返回的 HTTPS URL>)`
 
-不要只返回本机绝对路径，也不要手工拼接 `/open`、`/share` 或 `git-leaf://` URL。`/open` 只用于本机
-定位和预览，不证明文件已经发布。需要把链接发送给其他人时，先把文档发布到 `main`，再使用 Git Leaf
+不要只返回本机绝对路径，也不要手工拼接 `/open`、`/share` 或 `openglance://` URL。`/open` 只用于本机
+定位和预览，不证明文件已经发布。需要把链接发送给其他人时，先把文档发布到 `main`，再使用 OpenGlance
 的“复制分享链接”。
 ```
 
@@ -348,7 +348,7 @@ node "$(git rev-parse --show-toplevel)/tools/generate-git-leaf-open-link.mjs" \
 
 ## 分享已经发布的文档
 
-“复制分享链接”用于分享主工作目录 `main` 上的 Markdown／MDX 文档。文档尚未发布时，Git Leaf 会先
+“复制分享链接”用于分享主工作目录 `main` 上的 Markdown／MDX 文档。文档尚未发布时，OpenGlance 会先
 询问；确认“同步并复制”后，它会提交并推送仓库、复核 `origin/main` 上的 revision，再复制版本化链接。
 
 需要注意这些边界：
@@ -363,7 +363,7 @@ HTTPS 中转服务由 Mango Future 托管。在敏感仓库路径或标题中使
 
 ## 使用多个仓库和 worktree
 
-Git Leaf 可以保持多个仓库处于已打开状态。保存的仓库顺序会保持稳定，直到你主动调整；每个仓库分别恢复
+OpenGlance 可以保持多个仓库处于已打开状态。保存的仓库顺序会保持稳定，直到你主动调整；每个仓库分别恢复
 自己的 Tab 和导航状态。
 
 点击当前仓库名称旁的仓库按钮，或在 macOS 按 `Command+O`、在 Windows 按 `Ctrl+O`，会打开位于窗口
@@ -375,21 +375,21 @@ Git Leaf 可以保持多个仓库处于已打开状态。保存的仓库顺序�
 拖动仓库行左侧的手柄即可上下调整并保存顺序；手柄获得焦点时，也可以使用上下方向键移动。面板中的数字
 快捷键会立即按照新顺序重新编号。
 
-仓库行的操作菜单可以把仓库移出 Git Leaf。这个操作只会将它从已打开仓库列表中移除，不会删除本机目录、
-Git 文件、分支或未发布修改；以后重新打开同一个仓库时，Git Leaf 会继续恢复已保存的工作区状态和收藏。
+仓库行的操作菜单可以把仓库移出 OpenGlance。这个操作只会将它从已打开仓库列表中移除，不会删除本机目录、
+Git 文件、分支或未发布修改；以后重新打开同一个仓库时，OpenGlance 会继续恢复已保存的工作区状态和收藏。
 
 一个仓库存在多个 Git worktree 时，worktree 选择器会取代侧栏头部重复的仓库名称，仓库面板按钮仍保持
 独立。每个 worktree 分别保存 Tab、目录状态、阅读位置和本地改动；收藏在同一个仓库内共享。普通用户通常
 应留在主工作目录，除非仓库维护者或 AI Agent 明确要求使用另一个 worktree。
 
-如果 worktree 当前没有分支，Git Leaf 会在第一次真正写入前创建保护分支，不会让修改停留在 Detached
+如果 worktree 当前没有分支，OpenGlance 会在第一次真正写入前创建保护分支，不会让修改停留在 Detached
 HEAD。
 
 ## 打开其他仓库文件
 
-Git Leaf 保持以文档为中心，但仍然让周边证据可以被查看：
+OpenGlance 保持以文档为中心，但仍然让周边证据可以被查看：
 
-| 文件 | Git Leaf 的处理方式 |
+| 文件 | OpenGlance 的处理方式 |
 | --- | --- |
 | 图片和 PDF | 只读视觉预览 |
 | HTML | 只读效果预览 |
@@ -415,7 +415,7 @@ Git Leaf 保持以文档为中心，但仍然让周边证据可以被查看：
 准备完成后才显示“立即重启”，正常退出也会完成安装。如果安装前又出现更新版本，新包会替换等待中的旧包，
 更新缓存中最多保留一个已完整下载但尚未安装的版本。
 
-同一页面还包含 Git Leaf 帮助、文件类型支持、环境与仓库状态，以及完整快捷键列表。在 macOS 使用
+同一页面还包含 OpenGlance 帮助、文件类型支持、环境与仓库状态，以及完整快捷键列表。在 macOS 使用
 `Command+?`，在 Windows 使用 `Ctrl+?` 可以直接打开快捷键。在“快捷键”页点击可修改的按键组合后，
 直接按下新组合即可替换；按 Backspace 或 Delete 可取消绑定，也可以恢复单项或全部默认值。重复的可编辑
 快捷键不会被保存。侧栏开关现在默认使用 macOS 的 `Command+\` 或 Windows 的 `Ctrl+\`，把常规的
@@ -423,11 +423,11 @@ Git Leaf 保持以文档为中心，但仍然让周边证据可以被查看：
 
 ## 什么时候应该换用其他工具
 
-当团队和 AI Agent 共享同一个 Git 仓库，而一部分对内容负责的人不希望采用开发者工作流时，Git Leaf
+当团队和 AI Agent 共享同一个 Git 仓库，而一部分对内容负责的人不希望采用开发者工作流时，OpenGlance
 才是合适的人类界面。
 
 详细 Diff、选择性暂存、创建分支、Rebase、解决冲突、重构代码和仓库管理，应使用 IDE 或 Git 客户端；
-大范围修改和开发者级修复，应交给外部 AI Agent。Git Leaf 保持专注：让人能够阅读、检查、提供准确
+大范围修改和开发者级修复，应交给外部 AI Agent。OpenGlance 保持专注：让人能够阅读、检查、提供准确
 上下文，并对同一批文件做范围明确的修正。
 
-产品范围、下载方式和构建身份见 [Git Leaf README](../README.zh-CN.md)。
+产品范围、下载方式和构建身份见 [OpenGlance README](../README.zh-CN.md)。

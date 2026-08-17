@@ -1,20 +1,20 @@
 ---
-title: Git Leaf MDX-lite renderer reference
+title: OpenGlance MDX-lite renderer reference
 domain: ai
 type: guide
 owner: maintainer
-last_updated: 2026-08-04
-source: git-leaf
+last_updated: 2026-08-15
+source: openglance
 canonical: true
-ai_snippet: "[AI Reference] Git Leaf MDX-lite renderer | inline data and repository-local dataset views | DataTable Timeline Chart DecisionBox MetricGrid FlowDiagram"
+ai_snippet: "[AI Reference] OpenGlance MDX-lite renderer | inline data and repository-local dataset views | DataTable Timeline Chart DecisionBox MetricGrid FlowDiagram"
 ---
 
-# Git Leaf MDX-lite renderer reference
+# OpenGlance MDX-lite renderer reference
 
 [Documentation index](README.md)
 
-This is the authoritative renderer and editor reference for Git Leaf's MDX-lite capability. A repository
-opened by Git Leaf can be any local Git repository; the implementation in Git Leaf defines the supported
+This is the authoritative renderer and editor reference for OpenGlance's MDX-lite capability. A repository
+opened by OpenGlance can be any local Git repository; the implementation in OpenGlance defines the supported
 syntax and security boundary.
 
 The design goal is one source for two consumers. Small component data stays as readable CSV, TSV, JSON,
@@ -25,7 +25,7 @@ Live continue to edit the original MDX view definition. Rendered output is never
 
 MDX-lite is a local presentation layer. It is not Next.js, Docusaurus, or a general MDX runtime. It does
 not support imports, exports, JavaScript expressions, arbitrary JSX, custom components, or script
-execution. Git Leaf recognizes only the components documented here and renders their body data to static
+execution. OpenGlance recognizes only the components documented here and renders their body data to static
 HTML or SVG.
 
 ## Maintenance boundary
@@ -35,8 +35,8 @@ HTML or SVG.
   regression fixture.
 - A component change updates code, tests, this reference, and the demo together.
 - Content repositories may maintain their own adoption rules and selected examples, but cannot override
-  Git Leaf's implementation contract. The
-  [public User Guide Demo repository](https://github.com/MangoFuture1210/git-leaf-example-knowledge-base)
+  OpenGlance's implementation contract. The
+  [public User Guide Demo repository](https://github.com/openglance/openglance-example-knowledge-base)
   uses only a small, natural subset for first-run experience; it must not duplicate this full reference
   or regression matrix.
 
@@ -80,7 +80,7 @@ npm start -- docs/mdx-lite-components-demo.mdx
 ```
 
 In Source or Live, enter `/` to insert templates for `DataTable`, `Timeline`, `Chart`, `DecisionBox`,
-`MetricGrid`, and `FlowDiagram`. In a `.md` document Git Leaf asks before renaming it to `.mdx`.
+`MetricGrid`, and `FlowDiagram`. In a `.md` document OpenGlance asks before renaming it to `.mdx`.
 
 Check the rendered result in Preview or in an inactive Live block. Renderer or editor changes require:
 
@@ -117,7 +117,7 @@ Rules:
 - Self-closing syntax is the normal form for an external `Chart` or `DataTable`; inline components
   generally require body data.
 
-On error Git Leaf displays `MDX component failed to render: ...`; the source remains editable.
+On error OpenGlance displays `MDX component failed to render: ...`; the source remains editable.
 
 ## Data formats
 
@@ -151,7 +151,7 @@ metric data normally uses an array; FlowDiagram normally uses an object with `no
 - Paths are repository-relative and never contain a contributor's absolute machine path.
 - Images live in a nearby `_assets/` directory.
 - Allowlisted component attributes may stay on one line or span multiple lines like HTML attributes.
-  Git Leaf's insertion templates put one attribute on each line by default so longer components remain
+  OpenGlance's insertion templates put one attribute on each line by default so longer components remain
   readable and easy to review.
 - Standard Markdown images and controlled single-line HTML `<img>` are previewable. The controlled image
   form keeps only `src`, `alt`, `width`, `height`, `data-align`, and `data-caption`.
@@ -208,7 +208,7 @@ documents need bounded human views of the same data. This capability extends the
 
 The interval controls change only transient view state and expose only intervals supported by the manifest's
 source granularity. A chart also omits an interval when the current query range would produce more than
-120 plotted periods. If the configured or remembered interval is too dense, Git Leaf selects the finest
+120 plotted periods. If the configured or remembered interval is too dense, OpenGlance selects the finest
 remaining readable interval. This density rule applies only to charts; a `DataTable` keeps its explicitly
 requested source-compatible intervals. Clicking an available interval sends a finite request to Git
 Leaf's localhost service. The service reads and validates repository files, applies the
@@ -337,7 +337,7 @@ Available views follow a safe compatibility matrix:
 | `month` | `month`, `quarter` |
 | `quarter` | `quarter` |
 
-A weekly source period remains atomic when it is shown by natural month or quarter: Git Leaf assigns the
+A weekly source period remains atomic when it is shown by natural month or quarter: OpenGlance assigns the
 whole week to the bucket containing its fourth day (`week_start + 3 days`). This majority-days rule puts
 a Monday-through-Sunday week in the month or quarter containing Thursday, without inventing daily values
 or splitting a de-duplicated weekly metric. The field's explicit rollup then applies directly to all
@@ -348,7 +348,7 @@ never exposes a day view.
 
 Rollups are `sum`, `avg`, `min`, `max`, `count`, `first`, or `last`. `ratioOfSums` is the one derived
 rollup and divides the sum of a numeric numerator by the sum of a numeric denominator. If a requested
-field has no rollup and multiple source rows enter a period, Git Leaf reports an error instead of
+field has no rollup and multiple source rows enter a period, OpenGlance reports an error instead of
 guessing. `first` and `last` also require at most one filtered row per source period, so a snapshot is
 never chosen arbitrarily among companies or other dimensions. The engine never fills a missing source
 period with zero. It reports missing expected source periods and any displayed period that is incomplete
@@ -362,7 +362,7 @@ file identity and change fingerprint. Dataset changes participate in document re
 source itself is unchanged.
 
 For `Chart`, use `x="period"` or the manifest time-field name and name numeric series explicitly. For
-`DataTable`, `columns` controls order; without it, Git Leaf shows the time field plus fields that declare
+`DataTable`, `columns` controls order; without it, OpenGlance shows the time field plus fields that declare
 rollups. `granularity` defaults to the manifest's source granularity. `granularityOptions` can only narrow
 the safe views above; it cannot add a view that the source granularity does not support. Controls stay
 hidden until the manifest has been validated, so readers never see unavailable finer-grained buttons.
@@ -404,7 +404,7 @@ Defaults are deliberately conservative:
 - a complex table with more than 20 rows and at least 6 columns freezes the first column;
 - search becomes automatic only above 100 rows.
 
-Do not encode manual column widths. Git Leaf estimates them, keeps compact tables natural, scrolls wide
+Do not encode manual column widths. OpenGlance estimates them, keeps compact tables natural, scrolls wide
 tables horizontally, and wraps long text first.
 
 ## Timeline
@@ -631,7 +631,7 @@ Use fenced Mermaid for swimlanes, many branches, deep architecture, or layout-se
 Leaf renders a standard `mermaid` fence locally in Preview and inactive Live blocks, with fit, zoom,
 pan, Smart view, and an explicit `</>` source fallback; the saved content remains ordinary Markdown.
 For a dense horizontal flowchart, Smart view may choose a topology-equivalent top-to-bottom view. The
-complete graph stays visible; Git Leaf does not synthesize isolated node lists or one-hop diagrams.
+complete graph stays visible; OpenGlance does not synthesize isolated node lists or one-hop diagrams.
 
 Within Mermaid, prefer an automatic `flowchart` for a directional process. Use an explicit Mermaid
 layout or `block-beta` with columns, rows, and `space` blocks when placement itself is part of the
@@ -676,6 +676,6 @@ Do not embed multi-page dashboards, linked filters, drill-down, maps, or complex
 - Use only documented components, attributes, and data formats.
 - Never generate imports, exports, scripts, inline events, or unsupported custom components.
 - Do not claim YAML component bodies are renderable.
-- Rely on Git Leaf layout instead of inventing width and positioning properties.
-- Open the result in Git Leaf and inspect Preview or Live.
+- Rely on OpenGlance layout instead of inventing width and positioning properties.
+- Open the result in OpenGlance and inspect Preview or Live.
 - Run `npm test` after changing the renderer, editor, or this contract.

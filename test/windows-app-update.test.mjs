@@ -20,7 +20,7 @@ test("Windows updates download privately, verify, extract, and reuse a ready cac
     version: "1.7.0",
     files: {
       zip: {
-        url: "https://updates.mangofuture.com/git-leaf/stable/win32-x64/GitLeaf-1.7.0-win32-x64.zip",
+        url: "https://updates.mangofuture.com/git-leaf/stable/win32-x64/OpenGlance-1.7.0-win32-x64.zip",
         sha256,
         size: archive.length,
       },
@@ -37,15 +37,15 @@ test("Windows updates download privately, verify, extract, and reuse a ready cac
     },
     async extractArchive(_archivePath, { dir }) {
       extractCount += 1;
-      const sourceRoot = path.join(dir, "Git Leaf-win32-x64");
+      const sourceRoot = path.join(dir, "OpenGlance-win32-x64");
       await mkdir(sourceRoot, { recursive: true });
-      await writeFile(path.join(sourceRoot, "Git Leaf.exe"), "exe");
+      await writeFile(path.join(sourceRoot, "OpenGlance.exe"), "exe");
     },
   };
 
   const prepared = await prepareWindowsAppUpdate(options);
   assert.equal(prepared.version, "1.7.0");
-  assert.equal(path.basename(prepared.executable), "Git Leaf.exe");
+  assert.equal(path.basename(prepared.executable), "OpenGlance.exe");
   assert.equal(fetchCount, 1);
   assert.equal(extractCount, 1);
   assert.equal(
@@ -83,7 +83,7 @@ test("preparing a newer Windows update removes the older uninstalled package", a
         version,
         files: {
           zip: {
-            url: `https://updates.example/GitLeaf-${version}.zip`,
+            url: `https://updates.example/OpenGlance-${version}.zip`,
             sha256: createHash("sha256").update(archive).digest("hex"),
             size: archive.length,
           },
@@ -93,7 +93,7 @@ test("preparing a newer Windows update removes the older uninstalled package", a
       fetchFn: async () => new Response(archive, { status: 200 }),
       async extractArchive(_archivePath, { dir }) {
         await mkdir(dir, { recursive: true });
-        await writeFile(path.join(dir, "Git Leaf.exe"), version);
+        await writeFile(path.join(dir, "OpenGlance.exe"), version);
       },
     });
   }
@@ -145,7 +145,7 @@ test("concurrent Windows retries share one download and extraction", async () =>
     version: "1.8.0",
     files: {
       zip: {
-        url: "https://updates.example/GitLeaf-1.8.0.zip",
+        url: "https://updates.example/OpenGlance-1.8.0.zip",
         sha256: createHash("sha256").update(archive).digest("hex"),
         size: archive.length,
       },
@@ -173,7 +173,7 @@ test("concurrent Windows retries share one download and extraction", async () =>
       extractionStarted();
       await extractionCanFinish;
       await mkdir(dir, { recursive: true });
-      await writeFile(path.join(dir, "Git Leaf.exe"), "1.8.0");
+      await writeFile(path.join(dir, "OpenGlance.exe"), "1.8.0");
     },
   };
 
@@ -226,7 +226,7 @@ test("a concurrent newer Windows target waits, then replaces the earlier package
         version,
         files: {
           zip: {
-            url: `https://updates.example/GitLeaf-${version}.zip`,
+            url: `https://updates.example/OpenGlance-${version}.zip`,
             sha256: createHash("sha256").update(archive).digest("hex"),
             size: archive.length,
           },
@@ -240,7 +240,7 @@ test("a concurrent newer Windows target waits, then replaces the earlier package
           await firstExtractionCanFinish;
         }
         await mkdir(dir, { recursive: true });
-        await writeFile(path.join(dir, "Git Leaf.exe"), version);
+        await writeFile(path.join(dir, "OpenGlance.exe"), version);
       },
     };
   }
@@ -288,10 +288,13 @@ test("Windows prepared update launches outside the fixed directory and waits for
   const launches = [];
   const result = windowsPreparedUpdateLaunch({
     prepared: {
-      executable: "C:\\Users\\mango\\AppData\\Local\\GitLeaf\\updates\\1.7.0\\app\\Git Leaf.exe",
+      executable: "C:\\Users\\mango\\AppData\\Local\\OpenGlance\\updates\\1.7.0\\app\\OpenGlance.exe",
     },
     currentProcessId: 4321,
-    args: ["git-leaf://open?repo=owner%2Frepo&path=README.md"],
+    args: [
+      "--git-leaf-update-wait-pid=1234",
+      "openglance://open?repo=owner%2Frepo&path=README.md",
+    ],
     spawnProcess(executable, args, options) {
       launches.push({ executable, args, options });
       return { unref() {} };
@@ -300,8 +303,8 @@ test("Windows prepared update launches outside the fixed directory and waits for
 
   assert.equal(result.status, "launched");
   assert.deepEqual(launches[0].args, [
-    "--git-leaf-update-wait-pid=4321",
-    "git-leaf://open?repo=owner%2Frepo&path=README.md",
+    "--openglance-update-wait-pid=4321",
+    "openglance://open?repo=owner%2Frepo&path=README.md",
   ]);
   assert.equal(launches[0].options.detached, true);
 });

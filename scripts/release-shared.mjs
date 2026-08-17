@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
+import { openGlanceEnvironmentValue } from "../src/environment.mjs";
 import {
   BUILD_INFO_FILENAME,
   DEFAULT_DISTRIBUTION,
@@ -50,21 +51,37 @@ const RELEASE_TRACKS = new Set(["source", "public", "internal"]);
 const OFFICIAL_RELEASE_TRACKS = new Set(["public", "internal"]);
 
 export const COMMUNITY_PACKAGE_IDENTITY = Object.freeze({
-  macBundleId: "org.gitleaf.community",
-  windowsCompanyName: "Git Leaf Community",
-  windowsProductName: "Git Leaf Community Build",
+  macBundleId: "org.openglance.community",
+  macExecutableName: "OpenGlance",
+  windowsCompanyName: "OpenGlance Community",
+  windowsProductName: "OpenGlance Community Build",
 });
 
-export const OFFICIAL_PACKAGE_IDENTITY = Object.freeze({
-  macBundleId: "com.mangofuture.gitleaf",
+export const OFFICIAL_PUBLIC_PACKAGE_IDENTITY = Object.freeze({
+  macBundleId: "com.mangofuture.openglance",
+  macExecutableName: "OpenGlance",
   windowsCompanyName: "Shenzhen Mango Future Technology Co., Ltd.",
-  windowsProductName: "Git Leaf",
+  windowsProductName: "OpenGlance",
 });
+
+export const OFFICIAL_INTERNAL_PACKAGE_IDENTITY = Object.freeze({
+  macBundleId: "com.mangofuture.gitleaf",
+  macExecutableName: "OpenGlance",
+  windowsCompanyName: "Shenzhen Mango Future Technology Co., Ltd.",
+  windowsProductName: "OpenGlance",
+});
+
+// Kept as a source-level compatibility alias for release integrations written
+// before public and internal packages received distinct operating-system identities.
+export const OFFICIAL_PACKAGE_IDENTITY = OFFICIAL_INTERNAL_PACKAGE_IDENTITY;
 
 export function releasePackageIdentity(buildInfo = {}) {
-  return buildInfo.distribution === "official"
-    ? OFFICIAL_PACKAGE_IDENTITY
-    : COMMUNITY_PACKAGE_IDENTITY;
+  if (buildInfo.distribution !== "official") {
+    return COMMUNITY_PACKAGE_IDENTITY;
+  }
+  return buildInfo.releaseTrack === "internal"
+    ? OFFICIAL_INTERNAL_PACKAGE_IDENTITY
+    : OFFICIAL_PUBLIC_PACKAGE_IDENTITY;
 }
 
 export function releaseBuildInfoFromEnv({
@@ -74,7 +91,9 @@ export function releaseBuildInfoFromEnv({
   fallbackVersion = "0.0.0",
 } = {}) {
   const profile = releaseProfileFromEnv({ env });
-  const releaseProfileConfigured = Boolean(String(env.GIT_LEAF_RELEASE_PROFILE || "").trim());
+  const releaseProfileConfigured = Boolean(String(
+    openGlanceEnvironmentValue(env, "RELEASE_PROFILE") || "",
+  ).trim());
   const releaseProfileDistribution = profile.distribution
     ? distributionValue(profile.distribution)
     : undefined;
@@ -93,7 +112,7 @@ export function releaseBuildInfoFromEnv({
     releaseTrack,
   });
   const usageAnalyticsDefault = booleanValue(
-    env.GIT_LEAF_USAGE_ANALYTICS_DEFAULT,
+    openGlanceEnvironmentValue(env, "USAGE_ANALYTICS_DEFAULT"),
     profile.usageAnalyticsDefault,
     releaseTrack === "internal",
   );
@@ -120,14 +139,16 @@ export function releaseBuildInfoFromEnv({
     releaseProfileReleaseTrack,
     legacyInternalMigrationConfirmed,
     distribution: distributionValue(
-      env.GIT_LEAF_DISTRIBUTION || profile.distribution || DEFAULT_DISTRIBUTION,
+      openGlanceEnvironmentValue(env, "DISTRIBUTION")
+      || profile.distribution
+      || DEFAULT_DISTRIBUTION,
     ),
     usageAnalyticsDefault,
   };
 }
 
 export function releaseProfileFromEnv({ env = process.env } = {}) {
-  const profilePath = String(env.GIT_LEAF_RELEASE_PROFILE || "").trim();
+  const profilePath = String(openGlanceEnvironmentValue(env, "RELEASE_PROFILE") || "").trim();
   if (!profilePath) {
     return {};
   }
@@ -136,10 +157,10 @@ export function releaseProfileFromEnv({ env = process.env } = {}) {
   try {
     parsed = JSON.parse(readFileSync(path.resolve(profilePath), "utf8"));
   } catch (error) {
-    throw new Error(`Could not read GIT_LEAF_RELEASE_PROFILE: ${profilePath}`, { cause: error });
+    throw new Error(`Could not read OPENGLANCE_RELEASE_PROFILE: ${profilePath}`, { cause: error });
   }
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-    throw new Error("GIT_LEAF_RELEASE_PROFILE must contain one JSON object.");
+    throw new Error("OPENGLANCE_RELEASE_PROFILE must contain one JSON object.");
   }
   return parsed;
 }
@@ -159,7 +180,7 @@ export function assertOfficialReleaseProfile(options) {
     )
   ) {
     throw new Error(
-      "Official release commands require GIT_LEAF_RELEASE_PROFILE with distribution=official, " +
+      "Official release commands require OPENGLANCE_RELEASE_PROFILE with distribution=official, " +
         "an explicit public/internal releaseTrack, the track's required analytics default, " +
         "and legacyInternalMigrationConfirmed=true for public releases.",
     );
@@ -179,7 +200,7 @@ export function releaseArtifactFileName({
   if (!cleanVersion || !cleanPlatformKey || !cleanExtension) {
     throw new Error("Release artifact file name requires version, platformKey, and extension");
   }
-  return `GitLeaf-${cleanVersion}-${cleanReleaseTrack}-${cleanPlatformKey}.${cleanExtension}`;
+  return `OpenGlance-${cleanVersion}-${cleanReleaseTrack}-${cleanPlatformKey}.${cleanExtension}`;
 }
 
 export function releaseBuildId({ buildId, releaseTrack = "source" } = {}) {
@@ -201,7 +222,7 @@ export function releaseTrackUpdateChannel(releaseTrack = "source") {
     case "source":
       return "";
     default:
-      throw new Error(`Unsupported Git Leaf release track: ${releaseTrack}`);
+      throw new Error(`Unsupported OpenGlance release track: ${releaseTrack}`);
   }
 }
 
@@ -268,7 +289,7 @@ export function ensureReleaseGitTag({
     return { tagName, commit: headCommit, created: false };
   }
 
-  gitRun(["tag", "-a", tagName, "-m", `Git Leaf ${version}`], {
+  gitRun(["tag", "-a", tagName, "-m", `OpenGlance ${version}`], {
     cwd: rootDir,
     runCommand,
   });
@@ -323,7 +344,7 @@ function distributionValue(value) {
   if (normalized === "source" || normalized === "official") {
     return normalized;
   }
-  throw new Error(`Unsupported Git Leaf distribution: ${value}`);
+  throw new Error(`Unsupported OpenGlance distribution: ${value}`);
 }
 
 function releaseTrackValue(value) {
@@ -331,7 +352,7 @@ function releaseTrackValue(value) {
   if (RELEASE_TRACKS.has(normalized)) {
     return normalized;
   }
-  throw new Error(`Unsupported Git Leaf release track: ${value}`);
+  throw new Error(`Unsupported OpenGlance release track: ${value}`);
 }
 
 function officialReleaseTrackValue(value) {

@@ -234,7 +234,7 @@ test("settings renderer clears an update result when the interface language chan
     checkForUpdates: async () => ({
       result: {
         state: "current",
-        message: "Git Leaf 已经是最新版本。",
+        message: "OpenGlance 已经是最新版本。",
       },
     }),
   });
@@ -245,7 +245,7 @@ test("settings renderer clears an update result when the interface language chan
   await settle();
   harness.checkForUpdatesButton.dispatch("click", {});
   await settle();
-  assert.equal(harness.updateCheckResult.textContent, "Git Leaf 已经是最新版本。");
+  assert.equal(harness.updateCheckResult.textContent, "OpenGlance 已经是最新版本。");
 
   const englishInput = harness.radio("language", "en");
   englishInput.checked = true;
@@ -426,7 +426,7 @@ function createRendererHarness({
     },
   };
   const window = {
-    gitLeafSettings: api,
+    openGlanceSettings: api,
     matchMedia() {
       return {
         matches: false,

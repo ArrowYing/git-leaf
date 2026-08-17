@@ -16,13 +16,18 @@ import { pipeline } from "node:stream/promises";
 import extractZip from "extract-zip";
 import { compareAppVersions } from "./app-updates.mjs";
 
-const WINDOWS_UPDATE_WAIT_ARGUMENT = "--git-leaf-update-wait-pid=";
-const WINDOWS_EXECUTABLE = "Git Leaf.exe";
+const WINDOWS_UPDATE_WAIT_ARGUMENT = "--openglance-update-wait-pid=";
+const GIT_LEAF_WINDOWS_UPDATE_WAIT_ARGUMENT = "--git-leaf-update-wait-pid=";
+const WINDOWS_UPDATE_WAIT_ARGUMENTS = [
+  WINDOWS_UPDATE_WAIT_ARGUMENT,
+  GIT_LEAF_WINDOWS_UPDATE_WAIT_ARGUMENT,
+];
+const WINDOWS_EXECUTABLE = "OpenGlance.exe";
 const activePreparations = new Map();
 const activeCleanups = new Map();
 
 export function windowsUpdateCachePaths({ localAppData, version } = {}) {
-  const updateRoot = path.join(localAppData, "GitLeaf", "updates");
+  const updateRoot = path.join(localAppData, "OpenGlance", "updates");
   const versionRoot = path.join(updateRoot, safeVersion(version));
   return {
     updateRoot,
@@ -132,7 +137,7 @@ export function windowsPreparedUpdateLaunch({
   }
   const launchArgs = [
     `${WINDOWS_UPDATE_WAIT_ARGUMENT}${currentProcessId}`,
-    ...args.filter((argument) => !String(argument).startsWith(WINDOWS_UPDATE_WAIT_ARGUMENT)),
+    ...withoutWindowsUpdateArguments(args),
   ];
   const child = spawnProcess(prepared.executable, launchArgs, {
     detached: true,
@@ -150,7 +155,7 @@ export async function cleanupWindowsUpdateCache({
   if (!localAppData) {
     return false;
   }
-  const updateRoot = path.join(localAppData, "GitLeaf", "updates");
+  const updateRoot = path.join(localAppData, "OpenGlance", "updates");
   const activeCleanup = activeCleanups.get(updateRoot);
   if (activeCleanup) {
     return activeCleanup;
@@ -219,13 +224,20 @@ async function pruneWindowsUpdateRoot({ updateRoot, preservedVersionRoot }) {
 }
 
 export function windowsUpdateWaitProcessId(args = []) {
-  const argument = args.find((value) => String(value).startsWith(WINDOWS_UPDATE_WAIT_ARGUMENT));
-  const processId = Number.parseInt(String(argument || "").slice(WINDOWS_UPDATE_WAIT_ARGUMENT.length), 10);
+  const argument = args.find((value) => WINDOWS_UPDATE_WAIT_ARGUMENTS.some(
+    (prefix) => String(value).startsWith(prefix),
+  ));
+  const prefix = WINDOWS_UPDATE_WAIT_ARGUMENTS.find((candidate) => (
+    String(argument || "").startsWith(candidate)
+  )) || WINDOWS_UPDATE_WAIT_ARGUMENT;
+  const processId = Number.parseInt(String(argument || "").slice(prefix.length), 10);
   return Number.isInteger(processId) && processId > 0 ? processId : null;
 }
 
 export function withoutWindowsUpdateArguments(args = []) {
-  return args.filter((argument) => !String(argument).startsWith(WINDOWS_UPDATE_WAIT_ARGUMENT));
+  return args.filter((argument) => !WINDOWS_UPDATE_WAIT_ARGUMENTS.some(
+    (prefix) => String(argument).startsWith(prefix),
+  ));
 }
 
 async function downloadWindowsUpdateArchive({ url, destination, fetchFn }) {
@@ -279,7 +291,7 @@ async function findExtractedWindowsApp(extractRoot, pathExists) {
     .map((entry) => path.join(extractRoot, entry.name))
     .filter((candidate) => pathExists(path.join(candidate, WINDOWS_EXECUTABLE)));
   if (candidates.length !== 1) {
-    throw new Error("Windows update archive does not contain one complete Git Leaf app directory.");
+    throw new Error("Windows update archive does not contain one complete OpenGlance app directory.");
   }
   return candidates[0];
 }

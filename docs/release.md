@@ -1,10 +1,10 @@
-# Git Leaf release process
+# OpenGlance release process
 
 This document defines the public release contract. Mango Future's host names, deployment directories, credentials, and private release profiles are maintained outside this repository.
 
 ## Release tracks and build identities
 
-Every packaged app contains `git-leaf-build-info.json` with three independent fields:
+Every newly packaged app contains `openglance-build-info.json` with three independent fields:
 
 ```json
 {
@@ -24,12 +24,33 @@ Supported identities:
 
 `distribution` identifies the publisher class. `releaseTrack` identifies which official release lane an installed app follows. The two official tracks use separate manifests and artifacts; a packaged app trusts its embedded track and cannot be moved to another track by an environment variable.
 
-The safe default is always `source + source + false`. A Community Build uses
-`org.gitleaf.community` as its macOS bundle identifier and `Git Leaf Community` as its Windows company
-name. Official profiles select `com.mangofuture.gitleaf` and Mango Future's legal publisher identity.
-Build metadata is informational and can be changed by anyone compiling the source. Official identity is
+The safe default is always `source + source + false`. Operating-system identities are track-specific:
+
+| Identity | macOS Bundle ID | macOS executable | Windows compatibility executables |
+| --- | --- | --- | --- |
+| `source + source` | `org.openglance.community` | `OpenGlance` | none |
+| `official + public` | `com.mangofuture.openglance` | `OpenGlance` | none |
+| `official + internal` | `com.mangofuture.gitleaf` | `Git Leaf` | `Git Leaf.exe` |
+
+On Windows, Community package metadata uses `OpenGlance Community`; both official tracks use the
+Mango Future publisher identity.
+
+All newly built Windows packages use `OpenGlance.exe` as the canonical executable. The extra file
+exists only in internal packages so the baked-in 1.x updater can launch the migration. Build
+metadata is informational and can be changed by anyone compiling the source. Official identity is
 established by the Mango Future code signature, official download channel, SHA-256, release tag, and
 matching public commit.
+
+Version 3.0 changes the canonical name from Git Leaf to OpenGlance. Runtime readers accept
+`git-leaf-build-info.json` / `GIT_LEAF_*` from 1.x after the canonical OpenGlance names. Every newly
+prepared package writes only `openglance-build-info.json` and `OPENGLANCE_*`. The internal macOS Bundle
+ID, ShipIt identity, `git-leaf` Profile directory, analytics schema, and update-service coordinates
+remain stable for installed company users. Its hidden macOS executable also remains `Git Leaf`, because
+shipped internal Git Leaf updaters and the source/development handoff clients in OpenPeek 2.0.0 and
+OpenGlance 3.0.0-3.0.1 depend on that identity; the product name, bundle root, installer, and interface
+remain OpenGlance. Earlier public packages were not
+promoted, so future public and Community packages use clean OpenGlance-native Bundle IDs. GitHub
+repository names use the canonical OpenGlance identity and preserve earlier URLs as redirects.
 
 The analytics default is normally used only when initializing a new local setting. Once
 `usageAnalyticsEnabled` exists in userData, an ordinary update must preserve it. The bounded
@@ -98,11 +119,12 @@ official profile and track are present.
 
 ## Human and automation Profiles
 
-The installed formal app and a development build installed for human use are the same `Git Leaf.app`.
-They use the same real Electron Profile so replacing one build with the other preserves repositories,
-workbench sessions, favorites, language, and preferences. A packaged `dev=true, source, source` build
-may perform only the one-way internal handoff defined below; the build marker does not make it official,
-enable telemetry, or select a `git-leaf-dev` directory.
+The installed formal app and a development build installed for human use are the same App installation.
+A new installation is `OpenGlance.app`; a development install copies the canonical App successfully
+before removing an existing `Git Leaf.app`. All use the same real Electron Profile so replacing one build with
+another preserves repositories, workbench sessions, favorites, language, and preferences. A packaged
+`dev=true, source, source` build may perform only the one-way internal handoff defined below; the build
+marker does not make it official, enable telemetry, or select a `git-leaf-dev` directory.
 
 Agent-driven automated UI verification, when run as a separate development task, is the only macOS flow
 that selects another Profile. It creates a one-time snapshot of the real Profile, passes its temporary
@@ -156,7 +178,7 @@ not repeat it.
 
 ## Community Builds
 
-The concise contributor entry point is [Build Git Leaf from source](build-from-source.md). The commands
+The concise contributor entry point is [Build OpenGlance from source](build-from-source.md). The commands
 below are the packaging subset of that guide:
 
 ```bash
@@ -164,7 +186,7 @@ npm run package:mac
 npm run package:win
 ```
 
-Verify that packaged `git-leaf-build-info.json` contains:
+Verify that packaged `openglance-build-info.json` contains:
 
 ```json
 {
@@ -200,6 +222,8 @@ development App persists that complete target identity before automatically down
 exact internal ZIP. It verifies the ZIP's size and SHA-256, extracts it into a private update cache, and
 verifies its official Bundle ID, Developer ID team, version, and embedded build identity. Preparing a
 different target first removes the previous private cache, so only one complete handoff package remains.
+The target must retain `CFBundleExecutable=Git Leaf`; this is an operating-system compatibility identity,
+not a visible legacy product name.
 Ordinary Squirrel feeds remain strictly newer-version-only.
 
 When the package is ready and the user chooses installation, normal shutdown launches a detached
@@ -338,7 +362,7 @@ The frozen `RELEASE_COMMIT` must have a `Windows Release Smoke` workflow run wit
 properties:
 
 - the run has reached `completed` status with a `success` conclusion;
-- the run belongs to the `MangoFuture1210/git-leaf` repository;
+- the run belongs to the `openglance/openglance` repository;
 - the run uses `.github/workflows/windows-release-smoke.yml`;
 - the run's head SHA exactly equals the frozen `RELEASE_COMMIT`;
 - the run exposes a non-expired, non-empty smoke artifact whose name ends with that exact frozen commit.
@@ -374,13 +398,15 @@ npm run release:verify-update:mac -- \
   --output dist/macos-update-regression/release-gate.json
 ```
 
-The harness refuses to start while the installed Git Leaf App is running or any ShipIt launchd job
+The harness refuses to start while an installed OpenGlance or Git Leaf App is running or any relevant ShipIt launchd job
 already exists. It uses a temporary App location whose parent is deliberately not writable, plus
 isolated HOME and Electron Profile paths when exercising the in-App updater. For a stable version older
 than the first nonprivileged-only package, it uses the one-time `Contents` bridge instead of launching
 that legacy package's defective privileged Helper path. Its mandatory `finally` cleanup removes only
 state owned by that run. It then proves the real Profile and real ShipIt cache fingerprints did not change.
 A failure never creates passing evidence.
+
+For a Squirrel baseline, the harness waits until the real packaged update action is ready but does not activate `quitAndInstall`, because ShipIt's automatic relaunch cannot carry the explicit one-time Profile arguments. It instead confirms the isolated ShipIt request has `launchAfterInstallation=false`, stops only the temporary baseline process, lets ShipIt install the exact candidate, and manually relaunches the signed candidate with the same explicit isolated userData and sessionData. During both launches it inspects the real process command lines and fails immediately if any process under the temporary App root names the production Profile. This preserves the installation and ShipIt behavior under test without allowing an automated relaunch to touch real user data.
 
 The first public release after the internal migration bridge is one bounded exception to same-track
 baseline validation: physical `stable` still contains the exact `1.11.3 + internal + stable` bridge.
@@ -399,9 +425,10 @@ npm run verify:dev-handoff:mac -- \
 
 It packages a deliberately lower-version source dev App, uses the exact newer signed `internal-stable`
 ZIP, drives the real user-visible update action, and proves the Bundle ID transition, target signature,
-preserved App directory inode, nonprivileged `Contents` bridge, absence of Squirrel/ShipIt use, target analytics
-default, telemetry initialization, receipt consumption, cleanup, and unchanged real Profile/cache
-fingerprints. The intent flag is mandatory to prevent accidental direct invocation because the
+legacy-compatible target executable, preserved App directory inode, nonprivileged `Contents` bridge,
+absence of Squirrel/ShipIt use, target analytics default, telemetry initialization, receipt consumption,
+cleanup, and unchanged real Profile/cache fingerprints. The intent flag is mandatory to prevent
+accidental direct invocation because the
 temporary App opens and restarts on the current desktop, but the Agent supplies it without asking the
 maintainer for another confirmation once the development or release workflow is authorized. Each
 transition action is clicked at most once;
@@ -426,10 +453,18 @@ and cleanup proof. The former manual
 `mark-update-regression-verified` command does not exist.
 
 Official packaged macOS builds persist Squirrel's direct-`Contents` default and carry a build-verified
-Squirrel policy that never launches a privileged Helper. A user-owned `/Applications/Git Leaf.app`
+Squirrel policy that never launches a privileged Helper. A user-owned `/Applications/OpenGlance.app`
 therefore replaces its signed `Contents` directory without write access to the root-owned
 `/Applications` parent; an App bundle that is itself not writable fails closed as an installation repair
 case. The regression requires the `.app` directory inode to remain unchanged.
+
+Internal official macOS packages use the canonical `OpenGlance.app` bundle and ZIP root with the hidden
+`CFBundleExecutable=Git Leaf`. Before ShipIt installs into a legacy `Git Leaf.app`, OpenGlance
+atomically sets `useUpdateBundleName=true` only when the parent directory is writable, allowing ShipIt
+to move the existing bundle to `OpenGlance.app`. With a non-writable parent it sets the value to `false`,
+preserving the outer path while updating signed `Contents` in place. Both outcomes preserve one App and
+the same Profile. Public official and Community packages use the canonical executable and their
+OpenGlance-native Bundle IDs; they do not inherit the internal machine identity.
 
 This gate validates installation of the final signed package and its cleanup contract. It is not a
 feature-by-feature UI test, and it is not repeated after releases whose recorded risk assessment does
@@ -509,7 +544,9 @@ After upgrading, the embedded `internal` track reads only `internal-stable`.
 
 - macOS official releases use Mango Future's Developer ID signature and notarization.
 - Windows is currently distributed as an unsigned Preview ZIP. Documentation and download surfaces must state this plainly until Authenticode signing is implemented.
-- Public and internal official builds share the existing application identity and userData location so updates preserve repositories, sessions, and preferences.
+- Public and internal official builds share the stable `git-leaf` userData location but use separate
+  macOS Bundle IDs. Internal builds retain the old identity for upgrades; future public builds start
+  with the clean OpenGlance identity.
 - Human-installed development builds share that userData location too; only explicit Agent smoke uses a temporary Profile.
 - Community Builds never join an official update channel.
 
@@ -521,8 +558,11 @@ Before publication:
 2. Search for private repository names, personal paths, private email addresses, internal IPs, host aliases, server directories, and release credentials.
 3. Build macOS and Windows candidates.
 4. Inspect the DMG, ZIP, and `app.asar` file lists and text content.
-5. Confirm packages exclude `.agents/`, `docs/`, `test/`, `dist/`, `.git/`, release profiles, signing material, and internal operations documents.
-6. Verify source, official public, and official internal behavior independently.
-7. Confirm track, channel, manifest, SHA-256, tag, and public commit correspondence.
+5. Confirm an official macOS DMG and update ZIP use the visible `OpenGlance.app` identity and ZIP root;
+   public and Community Apps use `CFBundleExecutable=OpenGlance`, while internal Apps retain the hidden
+   `CFBundleExecutable=Git Leaf` required by shipped updaters.
+6. Confirm packages exclude `.agents/`, `docs/`, `test/`, `dist/`, `.git/`, release profiles, signing material, and internal operations documents.
+7. Verify source, official public, and official internal behavior independently.
+8. Confirm track, channel, manifest, SHA-256, tag, and public commit correspondence.
 
 The formal release controller is the only supported path for publishing Mango Future official artifacts.

@@ -37,7 +37,7 @@ export function configureMacUpdateInstallation({
   }
 
   log(
-    `[Git Leaf updates] Enabled ${SQUIRREL_DIRECT_CONTENTS_WRITE_KEY} for user-owned App updates.`,
+    `[OpenGlance updates] Enabled ${SQUIRREL_DIRECT_CONTENTS_WRITE_KEY} for user-owned App updates.`,
   );
   return { configured: true };
 }

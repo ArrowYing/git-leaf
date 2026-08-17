@@ -121,7 +121,7 @@ test(
       await mkdir(toolBin, { recursive: true });
       await git(bare, ["init", "--bare", "--initial-branch=main"]);
       await git(root, ["clone", bare, repoRoot]);
-      await git(repoRoot, ["config", "user.name", "Git Leaf Tests"]);
+      await git(repoRoot, ["config", "user.name", "OpenGlance Tests"]);
       await git(repoRoot, ["config", "user.email", "git-leaf@example.test"]);
       await writeFile(path.join(repoRoot, "document.md"), "before\n");
       await git(repoRoot, ["add", "-A"]);
@@ -192,7 +192,7 @@ test(
       await mkdir(bare, { recursive: true });
       await git(bare, ["init", "--bare", "--initial-branch=main"]);
       await git(root, ["clone", bare, repoRoot]);
-      await git(repoRoot, ["config", "user.name", "Git Leaf Tests"]);
+      await git(repoRoot, ["config", "user.name", "OpenGlance Tests"]);
       await git(repoRoot, ["config", "user.email", "git-leaf@example.test"]);
       await writeFile(path.join(repoRoot, "document.md"), "before\n");
       await git(repoRoot, ["add", "-A"]);

@@ -17,6 +17,7 @@ import {
   extractMacDevelopmentHandoffArchive,
   installPreparedMacDevelopmentHandoff,
   launchMacDevelopmentHandoffUpdate,
+  macAppBundlePathFromExecutable,
   macDevelopmentHandoffCachePaths,
   prepareMacDevelopmentHandoffUpdate,
 } from "../src/desktop/mac-development-handoff-update.mjs";
@@ -40,7 +41,7 @@ function manifest() {
     ...RECEIPT,
     files: {
       zip: {
-        name: "GitLeaf-1.16.0-internal-darwin-universal.zip",
+        name: "OpenGlance-1.16.0-internal-darwin-universal.zip",
         url: "https://updates.example.test/internal.zip",
         sha256: ARCHIVE_SHA256,
         size: ARCHIVE.length,
@@ -52,6 +53,7 @@ function manifest() {
 function inspectedTarget(receipt = RECEIPT) {
   return {
     bundleId: "com.mangofuture.gitleaf",
+    executableName: "Git Leaf",
     teamIdentifier: "HN6X79BUSR",
     version: receipt.version,
     buildInfo: {
@@ -97,7 +99,7 @@ test("mac development handoff prepares only the exact signed internal target", {
   const root = mkdtempSync(path.join(tmpdir(), "git-leaf-mac-handoff-test."));
   try {
     const userDataDir = path.join(root, "user-data");
-    const targetAppPath = path.join(root, "installed", "Git Leaf.app");
+    const targetAppPath = path.join(root, "installed", "OpenGlance.app");
     mkdirSync(targetAppPath, { recursive: true });
     const prepared = await prepareMacDevelopmentHandoffUpdate({
       manifest: manifest(),
@@ -110,7 +112,7 @@ test("mac development handoff prepares only the exact signed internal target", {
         body: Readable.from([ARCHIVE]),
       }),
       extractArchive: async (_archivePath, { dir }) => {
-        mkdirSync(path.join(dir, "Git Leaf.app"), { recursive: true });
+        mkdirSync(path.join(dir, "OpenGlance.app"), { recursive: true });
       },
       inspectApp: () => inspectedTarget(),
     });
@@ -119,12 +121,60 @@ test("mac development handoff prepares only the exact signed internal target", {
     assert.equal(prepared.handoff.buildId, RECEIPT.buildId);
     const ready = JSON.parse(readFileSync(prepared.readyFile, "utf8"));
     assert.equal(ready.schemaVersion, 1);
-    assert.equal(ready.sourceAppPath.endsWith("Git Leaf.app"), true);
+    assert.equal(ready.sourceAppPath.endsWith("OpenGlance.app"), true);
     assert.equal(ready.targetAppPath, targetAppPath);
     assert.deepEqual(ready.handoff, RECEIPT);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+test("mac development handoff rejects an internal target that strands shipped clients", {
+  skip: process.platform === "win32" && "preparation uses macOS-native removal",
+}, async () => {
+  const root = mkdtempSync(path.join(tmpdir(), "git-leaf-mac-handoff-test."));
+  try {
+    const targetAppPath = path.join(root, "installed", "OpenGlance.app");
+    mkdirSync(targetAppPath, { recursive: true });
+    await assert.rejects(
+      prepareMacDevelopmentHandoffUpdate({
+        manifest: manifest(),
+        handoff: RECEIPT,
+        userDataDir: path.join(root, "user-data"),
+        targetAppPath,
+        fetchFn: async () => ({
+          ok: true,
+          status: 200,
+          body: Readable.from([ARCHIVE]),
+        }),
+        extractArchive: async (_archivePath, { dir }) => {
+          mkdirSync(path.join(dir, "OpenGlance.app"), { recursive: true });
+        },
+        inspectApp: () => ({
+          ...inspectedTarget(),
+          executableName: "OpenGlance",
+        }),
+      }),
+      /target identity/i,
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("mac App path detection accepts source and official compatibility executables", () => {
+  assert.equal(
+    macAppBundlePathFromExecutable("/Applications/OpenGlance.app/Contents/MacOS/OpenGlance"),
+    path.resolve("/Applications/OpenGlance.app"),
+  );
+  assert.equal(
+    macAppBundlePathFromExecutable("/Applications/Git Leaf.app/Contents/MacOS/Git Leaf"),
+    path.resolve("/Applications/Git Leaf.app"),
+  );
+  assert.throws(
+    () => macAppBundlePathFromExecutable("/Applications/OpenGlance.app/Contents/MacOS/Other"),
+    /not running from a macOS App bundle/,
+  );
 });
 
 test("a newer development handoff removes the older uninstalled package", {
@@ -133,7 +183,7 @@ test("a newer development handoff removes the older uninstalled package", {
   const root = mkdtempSync(path.join(tmpdir(), "git-leaf-mac-handoff-replace."));
   try {
     const userDataDir = path.join(root, "user-data");
-    const targetAppPath = path.join(root, "installed", "Git Leaf.app");
+    const targetAppPath = path.join(root, "installed", "OpenGlance.app");
     mkdirSync(targetAppPath, { recursive: true });
     const replacement = {
       ...RECEIPT,
@@ -148,7 +198,7 @@ test("a newer development handoff removes the older uninstalled package", {
         files: {
           zip: {
             ...manifest().files.zip,
-            name: `GitLeaf-${handoff.version}-internal-darwin-universal.zip`,
+            name: `OpenGlance-${handoff.version}-internal-darwin-universal.zip`,
           },
         },
       },
@@ -161,7 +211,7 @@ test("a newer development handoff removes the older uninstalled package", {
         body: Readable.from([ARCHIVE]),
       }),
       extractArchive: async (_archivePath, { dir }) => {
-        mkdirSync(path.join(dir, "Git Leaf.app"), { recursive: true });
+        mkdirSync(path.join(dir, "OpenGlance.app"), { recursive: true });
       },
       inspectApp: () => inspectedTarget(handoff),
     });
@@ -195,7 +245,7 @@ test("mac development handoff shares one preparation for concurrent retries", {
   });
   try {
     const userDataDir = path.join(root, "user-data");
-    const targetAppPath = path.join(root, "installed", "Git Leaf.app");
+    const targetAppPath = path.join(root, "installed", "OpenGlance.app");
     mkdirSync(targetAppPath, { recursive: true });
     let fetchCalls = 0;
     let extractCalls = 0;
@@ -216,7 +266,7 @@ test("mac development handoff shares one preparation for concurrent retries", {
         extractCalls += 1;
         extractionStarted();
         await extractionReleased;
-        mkdirSync(path.join(dir, "Git Leaf.app"), { recursive: true });
+        mkdirSync(path.join(dir, "OpenGlance.app"), { recursive: true });
       },
       inspectApp: () => inspectedTarget(),
     };
@@ -241,7 +291,7 @@ test("mac development handoff rejects an extracted App with another build identi
 }, async () => {
   const root = mkdtempSync(path.join(tmpdir(), "git-leaf-mac-handoff-test."));
   try {
-    mkdirSync(path.join(root, "installed", "Git Leaf.app"), {
+    mkdirSync(path.join(root, "installed", "OpenGlance.app"), {
       recursive: true,
     });
     await assert.rejects(
@@ -249,14 +299,14 @@ test("mac development handoff rejects an extracted App with another build identi
         manifest: manifest(),
         handoff: RECEIPT,
         userDataDir: path.join(root, "user-data"),
-        targetAppPath: path.join(root, "installed", "Git Leaf.app"),
+        targetAppPath: path.join(root, "installed", "OpenGlance.app"),
         fetchFn: async () => ({
           ok: true,
           status: 200,
           body: Readable.from([ARCHIVE]),
         }),
         extractArchive: async (_archivePath, { dir }) => {
-          mkdirSync(path.join(dir, "Git Leaf.app"), { recursive: true });
+          mkdirSync(path.join(dir, "OpenGlance.app"), { recursive: true });
         },
         inspectApp: () => ({
           ...inspectedTarget(),
@@ -287,8 +337,8 @@ test("mac development handoff helper prepares config before switching Contents",
     ready: {
       schemaVersion: 1,
       handoff: RECEIPT,
-      sourceAppPath: "/tmp/internal/Git Leaf.app",
-      targetAppPath: "/Applications/Git Leaf.app",
+      sourceAppPath: "/tmp/internal/OpenGlance.app",
+      targetAppPath: "/Applications/OpenGlance.app",
       userDataDir: "/tmp/profile",
       launchArgs: ["--repo", "/tmp/repo"],
     },
@@ -296,7 +346,7 @@ test("mac development handoff helper prepares config before switching Contents",
     waitForProcessExit: async () => calls.push("wait"),
     waitForAppProcessesExit: async (appPath, options) => {
       calls.push("wait-app");
-      assert.equal(appPath, "/Applications/Git Leaf.app");
+      assert.equal(appPath, "/Applications/OpenGlance.app");
       assert.deepEqual(options.excludedProcessIds, [process.pid]);
     },
     prepareInstallation: async () => {
@@ -332,8 +382,8 @@ test("mac development handoff helper rolls back Contents and config when relaunc
       ready: {
         schemaVersion: 1,
         handoff: RECEIPT,
-        sourceAppPath: "/tmp/internal/Git Leaf.app",
-        targetAppPath: "/Applications/Git Leaf.app",
+        sourceAppPath: "/tmp/internal/OpenGlance.app",
+        targetAppPath: "/Applications/OpenGlance.app",
         userDataDir: "/tmp/profile",
         launchArgs: [],
       },
@@ -378,8 +428,8 @@ test("mac development handoff launches a detached Node helper from the current A
       readyFile: "/tmp/profile/updates/handoff/ready.json",
     },
     currentProcessId: 1234,
-    executable: "/Applications/Git Leaf.app/Contents/MacOS/Git Leaf",
-    helperPath: "/Applications/Git Leaf.app/Contents/Resources/app.asar/src/desktop/mac-development-handoff-update.mjs",
+    executable: "/Applications/OpenGlance.app/Contents/MacOS/OpenGlance",
+    helperPath: "/Applications/OpenGlance.app/Contents/Resources/app.asar/src/desktop/mac-development-handoff-update.mjs",
     spawnProcess(command, args, options) {
       spawned.push({ command, args, options });
       return child;
@@ -387,9 +437,9 @@ test("mac development handoff launches a detached Node helper from the current A
   });
   assert.equal(result.status, "launched");
   assert.equal(child.unrefCalled, true);
-  assert.equal(spawned[0].command, "/Applications/Git Leaf.app/Contents/MacOS/Git Leaf");
+  assert.equal(spawned[0].command, "/Applications/OpenGlance.app/Contents/MacOS/OpenGlance");
   assert.deepEqual(spawned[0].args, [
-    "/Applications/Git Leaf.app/Contents/Resources/app.asar/src/desktop/mac-development-handoff-update.mjs",
+    "/Applications/OpenGlance.app/Contents/Resources/app.asar/src/desktop/mac-development-handoff-update.mjs",
     "--install-ready",
     "/tmp/profile/updates/handoff/ready.json",
     "--wait-pid",

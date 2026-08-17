@@ -15,22 +15,29 @@ import {
   withoutWindowsUpdateArguments,
 } from "./windows-app-update.mjs";
 
-const WINDOWS_INSTALL_PARENT = "GitLeaf";
+const WINDOWS_INSTALL_PARENT = "OpenGlance";
 const WINDOWS_INSTALL_DIR = "app";
-const WINDOWS_EXECUTABLE = "Git Leaf.exe";
+const WINDOWS_EXECUTABLE = "OpenGlance.exe";
 const WINDOWS_INSTALL_STATE = "install-state.json";
-const WINDOWS_INSTALL_CONFIRM_ARGUMENT = "--git-leaf-install-confirm=";
+const GIT_LEAF_WINDOWS_INSTALL_PARENT = "GitLeaf";
+const GIT_LEAF_WINDOWS_EXECUTABLE = "Git Leaf.exe";
+const WINDOWS_INSTALL_CONFIRM_ARGUMENT = "--openglance-install-confirm=";
+const GIT_LEAF_WINDOWS_INSTALL_CONFIRM_ARGUMENT = "--git-leaf-install-confirm=";
+const WINDOWS_INSTALL_CONFIRM_ARGUMENTS = [
+  WINDOWS_INSTALL_CONFIRM_ARGUMENT,
+  GIT_LEAF_WINDOWS_INSTALL_CONFIRM_ARGUMENT,
+];
 const WINDOWS_INSTALL_MESSAGES = Object.freeze({
   en: Object.freeze({
-    "outdated.title": "This is an older version of Git Leaf{version}",
-    "redirect.title": "Git Leaf{version} is installed",
-    "outdated.message": "A newer Git Leaf{installedVersion} is already installed. The older package will not overwrite it.",
-    "redirect.message": "Starting Git Leaf from its fixed location.",
-    "outdated.detail": "Start Git Leaf from the Start menu. You can delete this older extracted folder.",
-    "redirect.detail": "Continue to start Git Leaf from the Start menu. You can delete this and older extracted folders.",
+    "outdated.title": "This is an older version of OpenGlance{version}",
+    "redirect.title": "OpenGlance{version} is installed",
+    "outdated.message": "A newer OpenGlance{installedVersion} is already installed. The older package will not overwrite it.",
+    "redirect.message": "Starting OpenGlance from its fixed location.",
+    "outdated.detail": "Start OpenGlance from the Start menu. You can delete this older extracted folder.",
+    "redirect.detail": "Continue to start OpenGlance from the Start menu. You can delete this and older extracted folders.",
     "stage.fixedLocation": "Starting from fixed location",
-    "progress.updateTitle": "Updating Git Leaf{version}",
-    "progress.installTitle": "Preparing Git Leaf{version}",
+    "progress.updateTitle": "Updating OpenGlance{version}",
+    "progress.installTitle": "Preparing OpenGlance{version}",
     "waiting.message": "Closing the current version…",
     "stage.waiting": "Waiting for current version to exit",
     "copying.message": "Copying the new version…",
@@ -39,24 +46,24 @@ const WINDOWS_INSTALL_MESSAGES = Object.freeze({
     "stage.switching": "Switching versions",
     "starting.message": "Starting the new version from its fixed location…",
     "stage.starting": "Confirming the new version",
-    "complete.updateTitle": "Git Leaf update complete",
-    "complete.installTitle": "Git Leaf is ready",
-    "complete.updateMessage": "Updated Git Leaf{version} has started.",
-    "complete.installMessage": "Git Leaf{version} has started from its fixed location.",
-    "complete.automaticDetail": "Temporary update files will be cleaned up automatically. Continue to start Git Leaf from the Start menu.",
-    "complete.manualDetail": "Continue to start Git Leaf from the Start menu. You can delete this and older extracted folders.",
+    "complete.updateTitle": "OpenGlance update complete",
+    "complete.installTitle": "OpenGlance is ready",
+    "complete.updateMessage": "Updated OpenGlance{version} has started.",
+    "complete.installMessage": "OpenGlance{version} has started from its fixed location.",
+    "complete.automaticDetail": "Temporary update files will be cleaned up automatically. Continue to start OpenGlance from the Start menu.",
+    "complete.manualDetail": "Continue to start OpenGlance from the Start menu. You can delete this and older extracted folders.",
     "stage.complete": "Complete",
   }),
   "zh-CN": Object.freeze({
-    "outdated.title": "这是旧版本的 Git Leaf{version}",
-    "redirect.title": "Git Leaf{version} 已安装",
-    "outdated.message": "本机已安装更新的 Git Leaf{installedVersion}，不会使用旧版本覆盖。",
+    "outdated.title": "这是旧版本的 OpenGlance{version}",
+    "redirect.title": "OpenGlance{version} 已安装",
+    "outdated.message": "本机已安装更新的 OpenGlance{installedVersion}，不会使用旧版本覆盖。",
     "redirect.message": "正在从固定位置启动。",
-    "outdated.detail": "请从开始菜单启动 Git Leaf。这个旧版解压目录可以删除。",
-    "redirect.detail": "以后请从开始菜单启动 Git Leaf。当前和旧版解压目录均可删除。",
+    "outdated.detail": "请从开始菜单启动 OpenGlance。这个旧版解压目录可以删除。",
+    "redirect.detail": "以后请从开始菜单启动 OpenGlance。当前和旧版解压目录均可删除。",
     "stage.fixedLocation": "从固定位置启动",
-    "progress.updateTitle": "正在更新 Git Leaf{version}",
-    "progress.installTitle": "正在准备 Git Leaf{version}",
+    "progress.updateTitle": "正在更新 OpenGlance{version}",
+    "progress.installTitle": "正在准备 OpenGlance{version}",
     "waiting.message": "正在关闭当前版本…",
     "stage.waiting": "等待当前版本退出",
     "copying.message": "正在复制新版本文件…",
@@ -66,11 +73,11 @@ const WINDOWS_INSTALL_MESSAGES = Object.freeze({
     "starting.message": "正在启动固定目录中的新版本…",
     "stage.starting": "确认新版本",
     "complete.updateTitle": "版本更新已完成",
-    "complete.installTitle": "Git Leaf 已准备完成",
-    "complete.updateMessage": "已启动更新后的 Git Leaf{version}。",
-    "complete.installMessage": "已从固定位置启动 Git Leaf{version}。",
-    "complete.automaticDetail": "更新临时文件会自动清理；以后继续从开始菜单启动 Git Leaf。",
-    "complete.manualDetail": "以后请从开始菜单启动 Git Leaf。当前和旧版解压目录均可删除。",
+    "complete.installTitle": "OpenGlance 已准备完成",
+    "complete.updateMessage": "已启动更新后的 OpenGlance{version}。",
+    "complete.installMessage": "已从固定位置启动 OpenGlance{version}。",
+    "complete.automaticDetail": "更新临时文件会自动清理；以后继续从开始菜单启动 OpenGlance。",
+    "complete.manualDetail": "以后请从开始菜单启动 OpenGlance。当前和旧版解压目录均可删除。",
     "stage.complete": "完成",
   }),
 });
@@ -80,18 +87,40 @@ export function windowsInstalledAppPaths({
   roamingAppData = inferRoamingAppData(localAppData),
 } = {}) {
   const installRoot = path.win32.join(localAppData, WINDOWS_INSTALL_PARENT, WINDOWS_INSTALL_DIR);
+  const gitLeafInstallParent = path.win32.join(localAppData, GIT_LEAF_WINDOWS_INSTALL_PARENT);
+  const gitLeafInstallRoot = path.win32.join(gitLeafInstallParent, WINDOWS_INSTALL_DIR);
+  const shortcutRoot = path.win32.join(
+    roamingAppData,
+    "Microsoft",
+    "Windows",
+    "Start Menu",
+    "Programs",
+  );
+  const gitLeafInstallation = {
+    name: "Git Leaf",
+    installParent: gitLeafInstallParent,
+    installRoot: gitLeafInstallRoot,
+    executable: path.win32.join(gitLeafInstallRoot, GIT_LEAF_WINDOWS_EXECUTABLE),
+    stateFile: path.win32.join(gitLeafInstallParent, WINDOWS_INSTALL_STATE),
+    shortcut: path.win32.join(shortcutRoot, "Git Leaf.lnk"),
+  };
   return {
     installRoot,
     executable: path.win32.join(installRoot, WINDOWS_EXECUTABLE),
     stateFile: path.win32.join(localAppData, WINDOWS_INSTALL_PARENT, WINDOWS_INSTALL_STATE),
-    shortcut: path.win32.join(
-      roamingAppData,
-      "Microsoft",
-      "Windows",
-      "Start Menu",
-      "Programs",
-      "Git Leaf.lnk",
-    ),
+    shortcut: path.win32.join(shortcutRoot, "OpenGlance.lnk"),
+    gitLeafInstallParent,
+    gitLeafInstallRoot,
+    gitLeafExecutable: gitLeafInstallation.executable,
+    gitLeafStateFile: gitLeafInstallation.stateFile,
+    gitLeafShortcut: gitLeafInstallation.shortcut,
+    legacyInstallations: [gitLeafInstallation],
+    // Source-level aliases retained for integrations that mean the Git Leaf 1.x installation.
+    legacyInstallParent: gitLeafInstallParent,
+    legacyInstallRoot: gitLeafInstallRoot,
+    legacyExecutable: gitLeafInstallation.executable,
+    legacyStateFile: gitLeafInstallation.stateFile,
+    legacyShortcut: gitLeafInstallation.shortcut,
   };
 }
 
@@ -100,7 +129,10 @@ export function shouldBootstrapWindowsApp({
   isPackaged = false,
   execPath = process.execPath,
   localAppData = process.env.LOCALAPPDATA,
-  portable = process.env.GIT_LEAF_PORTABLE === "1",
+  portable = (
+    process.env.OPENGLANCE_PORTABLE
+    ?? process.env.GIT_LEAF_PORTABLE
+  ) === "1",
 } = {}) {
   if (platform !== "win32" || !isPackaged || portable || !localAppData) {
     return false;
@@ -116,7 +148,10 @@ export function windowsAppBootstrapPlan({
   execPath = process.execPath,
   args = process.argv.slice(1),
   localAppData = process.env.LOCALAPPDATA,
-  portable = process.env.GIT_LEAF_PORTABLE === "1",
+  portable = (
+    process.env.OPENGLANCE_PORTABLE
+    ?? process.env.GIT_LEAF_PORTABLE
+  ) === "1",
   processId = process.pid,
   version = "",
   pathExists = existsSync,
@@ -135,21 +170,29 @@ export function windowsAppBootstrapPlan({
   const paths = windowsInstalledAppPaths({ localAppData });
   const parent = path.win32.dirname(paths.installRoot);
   const hasInstalledApp = pathExists(paths.installRoot);
+  const previousInstallation = !hasInstalledApp
+    ? paths.legacyInstallations.find((candidate) => pathExists(candidate.installRoot))
+    : undefined;
+  const hasLegacyInstalledApp = Boolean(previousInstallation);
   const installedVersion = hasInstalledApp
     ? readInstalledVersion(paths.stateFile)
-    : "";
+    : hasLegacyInstalledApp
+      ? readInstalledVersion(previousInstallation.stateFile)
+      : "";
   const versionComparison = version && installedVersion
     ? compareAppVersions(version, installedVersion)
     : null;
   const waitForPid = windowsUpdateWaitProcessId(args);
   return {
-    status: hasInstalledApp && versionComparison === 0
-      ? "redirect"
-      : hasInstalledApp && versionComparison < 0
-        ? "outdated"
-      : hasInstalledApp
-        ? "update"
-        : "install",
+    status: hasLegacyInstalledApp
+      ? "update"
+      : hasInstalledApp && versionComparison === 0
+        ? "redirect"
+        : hasInstalledApp && versionComparison < 0
+          ? "outdated"
+          : hasInstalledApp
+            ? "update"
+            : "install",
     version,
     processId,
     installedVersion,
@@ -163,6 +206,12 @@ export function windowsAppBootstrapPlan({
     stagingRoot: path.win32.join(parent, `.installing-${processId}`),
     previousRoot: path.win32.join(parent, `.previous-${processId}`),
     confirmFile: path.win32.join(parent, `.launch-confirm-${processId}.json`),
+    ...(hasLegacyInstalledApp ? {
+      previousProductName: previousInstallation.name,
+      legacyInstallParent: previousInstallation.installParent,
+      legacyInstallRoot: previousInstallation.installRoot,
+      legacyShortcut: previousInstallation.shortcut,
+    } : {}),
   };
 }
 
@@ -240,6 +289,12 @@ export async function bootstrapWindowsApp({
   await removePath(plan.stagingRoot, { recursive: true, force: true });
   await removePath(plan.previousRoot, { recursive: true, force: true });
   await copyWindowsAppDirectory(plan.sourceRoot, plan.stagingRoot, copyDirectory);
+  for (const executableName of [GIT_LEAF_WINDOWS_EXECUTABLE]) {
+    await removePath(path.win32.join(plan.stagingRoot, executableName), {
+      recursive: false,
+      force: true,
+    });
+  }
 
   await onProgress({
     phase: "switching",
@@ -267,7 +322,7 @@ export async function bootstrapWindowsApp({
         } catch (copyError) {
           recoveryError = new AggregateError(
             [renameError, copyError],
-            `Git Leaf could not restore the previous app automatically. Backup: ${plan.previousRoot}`,
+            `OpenGlance could not restore the previous app automatically. Backup: ${plan.previousRoot}`,
           );
           recoveryError.code = "WINDOWS_INSTALL_RECOVERY_REQUIRED";
         }
@@ -299,6 +354,10 @@ export async function bootstrapWindowsApp({
     await persistInstalledVersion(plan, {
       writeTextFile,
       moveStateFile,
+      removePath,
+    });
+    await cleanupLegacyWindowsInstallation(plan, {
+      pathExists,
       removePath,
     });
   } catch (error) {
@@ -335,6 +394,62 @@ export async function bootstrapWindowsApp({
   });
   await wait(completionDelayMs);
   return relaunched.result;
+}
+
+async function cleanupLegacyWindowsInstallation(plan, { pathExists, removePath }) {
+  if (!plan.legacyInstallParent || !pathExists(plan.legacyInstallParent)) {
+    return false;
+  }
+  const sourceRoot = normalizeWindowsPath(plan.sourceRoot);
+  const legacyRoot = normalizeWindowsPath(plan.legacyInstallParent);
+  if (sourceRoot === legacyRoot || sourceRoot.startsWith(`${legacyRoot}\\`)) {
+    return false;
+  }
+  try {
+    await removePath(plan.legacyInstallParent, { recursive: true, force: true });
+    if (plan.legacyShortcut) {
+      await removePath(plan.legacyShortcut, { recursive: false, force: true });
+    }
+    return true;
+  } catch {
+    // The confirmed OpenGlance install remains authoritative; stale legacy cleanup can retry later.
+    return false;
+  }
+}
+
+export async function cleanupLegacyWindowsInstallationAfterRename({
+  platform = process.platform,
+  isPackaged = false,
+  execPath = process.execPath,
+  localAppData = process.env.LOCALAPPDATA,
+  roamingAppData = process.env.APPDATA,
+  pathExists = existsSync,
+  removePath = rm,
+} = {}) {
+  if (platform !== "win32" || !isPackaged || !localAppData) {
+    return false;
+  }
+  const paths = windowsInstalledAppPaths({ localAppData, roamingAppData });
+  if (
+    normalizeWindowsPath(execPath) !== normalizeWindowsPath(paths.executable)
+    || !pathExists(paths.executable)
+  ) {
+    return false;
+  }
+  let removed = false;
+  for (const previous of paths.legacyInstallations) {
+    if (!pathExists(previous.installParent)) {
+      continue;
+    }
+    try {
+      await removePath(previous.shortcut, { recursive: false, force: true });
+      await removePath(previous.installParent, { recursive: true, force: true });
+      removed = true;
+    } catch {
+      // A previous updater can still be exiting. The canonical App retries on its next launch.
+    }
+  }
+  return removed;
 }
 
 function relaunchWindowsApp(plan, spawnProcess, { confirm = false } = {}) {
@@ -388,7 +503,7 @@ async function rollbackWindowsAppSwitch({
 
 function windowsInstallRecoveryRequiredError(plan, cause) {
   const error = new Error(
-    `Git Leaf could not restore the previous app automatically. Backup: ${plan.previousRoot}`,
+    `OpenGlance could not restore the previous app automatically. Backup: ${plan.previousRoot}`,
     { cause },
   );
   error.code = "WINDOWS_INSTALL_RECOVERY_REQUIRED";
@@ -466,9 +581,14 @@ export function windowsInstallConfirmationPath(args = [], {
   if (!localAppData) {
     return "";
   }
-  const argument = args.find((value) => String(value).startsWith(WINDOWS_INSTALL_CONFIRM_ARGUMENT));
+  const argument = args.find((value) => WINDOWS_INSTALL_CONFIRM_ARGUMENTS.some(
+    (prefix) => String(value).startsWith(prefix),
+  ));
+  const prefix = WINDOWS_INSTALL_CONFIRM_ARGUMENTS.find((candidate) => (
+    String(argument || "").startsWith(candidate)
+  )) || WINDOWS_INSTALL_CONFIRM_ARGUMENT;
   const candidate = path.win32.resolve(
-    String(argument || "").slice(WINDOWS_INSTALL_CONFIRM_ARGUMENT.length),
+    String(argument || "").slice(prefix.length),
   );
   const parent = path.win32.join(localAppData, WINDOWS_INSTALL_PARENT);
   if (
@@ -539,12 +659,12 @@ export async function waitForWindowsRelaunchConfirmation(confirmFile, {
         throw launchError;
       }
       if (exitedBeforeConfirmation || child?.exitCode != null) {
-        const error = new Error("The updated Git Leaf exited before startup confirmation.");
+        const error = new Error("The updated OpenGlance exited before startup confirmation.");
         error.code = "WINDOWS_INSTALL_LAUNCH_FAILED";
         throw error;
       }
       if (now() - startedAt >= timeoutMs) {
-        const error = new Error("Timed out waiting for the updated Git Leaf to finish starting.");
+        const error = new Error("Timed out waiting for the updated OpenGlance to finish starting.");
         error.code = "WINDOWS_INSTALL_LAUNCH_TIMEOUT";
         throw error;
       }
@@ -591,7 +711,7 @@ export async function waitForWindowsProcessExit(processId, {
   const startedAt = now();
   while (processExists(processId)) {
     if (now() - startedAt >= timeoutMs) {
-      throw new Error("Timed out waiting for the current Git Leaf process to exit.");
+      throw new Error("Timed out waiting for the current OpenGlance process to exit.");
     }
     await wait(pollMs);
   }

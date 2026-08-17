@@ -1,0 +1,4 @@
+interface:
+  display_name: "OpenGlance Release"
+  short_description: "Run repository-governed OpenGlance releases and update gates"
+  default_prompt: "Use $openglance-release to execute or diagnose the documented OpenGlance release workflow."

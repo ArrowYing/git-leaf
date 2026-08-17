@@ -1,15 +1,187 @@
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
-import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
+import {
+  mkdtemp,
+  mkdir,
+  readFile,
+  readdir,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import test from "node:test";
 
 import {
+  COMMUNITY_MAC_SHIPIT_JOB_LABEL,
+  macShipItJobLabelForBuildInfo,
+  OFFICIAL_INTERNAL_MAC_SHIPIT_JOB_LABEL,
+  OFFICIAL_PUBLIC_MAC_SHIPIT_JOB_LABEL,
   macUpdateCachePaths,
+  prepareMacUpdateAppPath,
   pruneObsoleteMacUpdatePackages,
 } from "../src/desktop/mac-update-cache.mjs";
+
+test("macOS ShipIt cache identity follows public, internal, and Community Bundle IDs", () => {
+  assert.equal(macShipItJobLabelForBuildInfo({
+    distribution: "official",
+    releaseTrack: "public",
+  }), OFFICIAL_PUBLIC_MAC_SHIPIT_JOB_LABEL);
+  assert.equal(macShipItJobLabelForBuildInfo({
+    distribution: "official",
+    releaseTrack: "internal",
+  }), OFFICIAL_INTERNAL_MAC_SHIPIT_JOB_LABEL);
+  assert.equal(macShipItJobLabelForBuildInfo({
+    distribution: "source",
+    releaseTrack: "source",
+  }), COMMUNITY_MAC_SHIPIT_JOB_LABEL);
+});
+
+test("macOS update installation preserves the canonical App directory name", async () => {
+  const homeDir = await mkdtemp(path.join(tmpdir(), "openglance-mac-update-path-"));
+  const paths = macUpdateCachePaths({ homeDir });
+  const stagedDirectory = path.join(paths.updateRoot, "update.NEW5678");
+  const stagedApp = path.join(stagedDirectory, "OpenGlance.app");
+  const targetApp = path.join(homeDir, "Applications", "OpenGlance.app");
+  await Promise.all([
+    mkdir(stagedApp, { recursive: true }),
+    mkdir(targetApp, { recursive: true }),
+  ]);
+  const request = {
+    launchAfterInstallation: true,
+    updateBundleURL: pathToFileURL(stagedApp).href,
+    targetBundleURL: pathToFileURL(targetApp).href,
+    bundleIdentifier: "com.mangofuture.gitleaf",
+    useUpdateBundleName: true,
+  };
+  await writeFile(paths.stateFile, JSON.stringify(request));
+
+  const result = await prepareMacUpdateAppPath({
+    homeDir,
+    targetAppPath: targetApp,
+    now: () => 123,
+    processId: 456,
+  });
+  const persisted = JSON.parse(await readFile(paths.stateFile, "utf8"));
+
+  assert.equal(result.targetAppPath, targetApp);
+  assert.equal(result.stagedDirectory, stagedDirectory);
+  assert.equal(result.useUpdateBundleName, false);
+  assert.deepEqual(persisted, {
+    ...request,
+    useUpdateBundleName: false,
+  });
+  assert.deepEqual(
+    (await readdir(paths.updateRoot)).filter((name) => name.endsWith(".tmp")),
+    [],
+  );
+});
+
+test("macOS update installation lets ShipIt rename a writable Git Leaf app", async () => {
+  const homeDir = await mkdtemp(path.join(tmpdir(), "openglance-mac-update-rename-"));
+  const paths = macUpdateCachePaths({ homeDir });
+  const stagedDirectory = path.join(paths.updateRoot, "update.NEW5678");
+  const stagedApp = path.join(stagedDirectory, "OpenGlance.app");
+  const targetApp = path.join(homeDir, "Applications", "Git Leaf.app");
+  await Promise.all([
+    mkdir(stagedApp, { recursive: true }),
+    mkdir(targetApp, { recursive: true }),
+  ]);
+  await writeFile(paths.stateFile, JSON.stringify({
+    updateBundleURL: pathToFileURL(stagedApp).href,
+    targetBundleURL: pathToFileURL(targetApp).href,
+    useUpdateBundleName: false,
+  }));
+
+  const result = await prepareMacUpdateAppPath({
+    homeDir,
+    targetAppPath: targetApp,
+    accessFn: async () => {},
+  });
+
+  assert.equal(result.useUpdateBundleName, true);
+  assert.equal(
+    JSON.parse(await readFile(paths.stateFile, "utf8")).useUpdateBundleName,
+    true,
+  );
+});
+
+test("macOS update installation keeps a non-writable Git Leaf app path upgradeable", async () => {
+  const homeDir = await mkdtemp(path.join(tmpdir(), "openglance-mac-update-no-rename-"));
+  const paths = macUpdateCachePaths({ homeDir });
+  const stagedDirectory = path.join(paths.updateRoot, "update.NEW5678");
+  const stagedApp = path.join(stagedDirectory, "OpenGlance.app");
+  const targetApp = path.join(homeDir, "Applications", "Git Leaf.app");
+  await Promise.all([
+    mkdir(stagedApp, { recursive: true }),
+    mkdir(targetApp, { recursive: true }),
+  ]);
+  await writeFile(paths.stateFile, JSON.stringify({
+    updateBundleURL: pathToFileURL(stagedApp).href,
+    targetBundleURL: pathToFileURL(targetApp).href,
+    useUpdateBundleName: true,
+  }));
+
+  const result = await prepareMacUpdateAppPath({
+    homeDir,
+    targetAppPath: targetApp,
+    accessFn: async () => {
+      throw Object.assign(new Error("permission denied"), { code: "EACCES" });
+    },
+  });
+
+  assert.equal(result.useUpdateBundleName, false);
+  assert.equal(
+    JSON.parse(await readFile(paths.stateFile, "utf8")).useUpdateBundleName,
+    false,
+  );
+});
+
+test("macOS update installation refuses to rewrite state for another App path", async () => {
+  const homeDir = await mkdtemp(path.join(tmpdir(), "openglance-mac-update-path-"));
+  const paths = macUpdateCachePaths({ homeDir });
+  const stagedApp = path.join(paths.updateRoot, "update.NEW5678", "Git Leaf.app");
+  const targetApp = path.join(homeDir, "Applications", "Git Leaf.app");
+  await mkdir(stagedApp, { recursive: true });
+  await writeFile(paths.stateFile, JSON.stringify({
+    updateBundleURL: pathToFileURL(stagedApp).href,
+    targetBundleURL: pathToFileURL(targetApp).href,
+    useUpdateBundleName: true,
+  }));
+
+  await assert.rejects(
+    prepareMacUpdateAppPath({
+      homeDir,
+      targetAppPath: path.join(homeDir, "Applications", "OpenGlance.app"),
+    }),
+    /targets another App path/,
+  );
+  assert.equal(
+    JSON.parse(await readFile(paths.stateFile, "utf8")).useUpdateBundleName,
+    true,
+  );
+});
+
+test("macOS update installation requires a direct App bundle in the ShipIt package", async () => {
+  const homeDir = await mkdtemp(path.join(tmpdir(), "openglance-mac-update-path-"));
+  const paths = macUpdateCachePaths({ homeDir });
+  const stagedBundle = path.join(paths.updateRoot, "update.NEW5678", "payload");
+  const targetApp = path.join(homeDir, "Applications", "Git Leaf.app");
+  await Promise.all([
+    mkdir(stagedBundle, { recursive: true }),
+    mkdir(targetApp, { recursive: true }),
+  ]);
+  await writeFile(paths.stateFile, JSON.stringify({
+    updateBundleURL: pathToFileURL(stagedBundle).href,
+    targetBundleURL: pathToFileURL(targetApp).href,
+    useUpdateBundleName: true,
+  }));
+
+  await assert.rejects(
+    prepareMacUpdateAppPath({ homeDir, targetAppPath: targetApp }),
+    /outside the official ShipIt cache/,
+  );
+});
 
 test("macOS update cache keeps only the package staged by ShipIt", async () => {
   const homeDir = await mkdtemp(path.join(tmpdir(), "git-leaf-mac-update-cache-"));
@@ -18,12 +190,12 @@ test("macOS update cache keeps only the package staged by ShipIt", async () => {
   const current = path.join(paths.updateRoot, "update.NEW5678");
   const unrelated = path.join(paths.updateRoot, "logs");
   await Promise.all([
-    mkdir(path.join(stale, "Git Leaf.app"), { recursive: true }),
-    mkdir(path.join(current, "Git Leaf.app"), { recursive: true }),
+    mkdir(path.join(stale, "OpenGlance.app"), { recursive: true }),
+    mkdir(path.join(current, "OpenGlance.app"), { recursive: true }),
     mkdir(unrelated, { recursive: true }),
   ]);
   await writeFile(paths.stateFile, JSON.stringify({
-    updateBundleURL: pathToFileURL(path.join(current, "Git Leaf.app")).href,
+    updateBundleURL: pathToFileURL(path.join(current, "OpenGlance.app")).href,
   }));
 
   const result = await pruneObsoleteMacUpdatePackages({ homeDir });
@@ -42,14 +214,14 @@ test("macOS update cache rechecks ShipIt state before removing each package", as
   const oldPackage = path.join(paths.updateRoot, "update.A-OLD");
   const newPackage = path.join(paths.updateRoot, "update.B-NEW");
   await Promise.all([
-    mkdir(path.join(oldPackage, "Git Leaf.app"), { recursive: true }),
-    mkdir(path.join(newPackage, "Git Leaf.app"), { recursive: true }),
+    mkdir(path.join(oldPackage, "OpenGlance.app"), { recursive: true }),
+    mkdir(path.join(newPackage, "OpenGlance.app"), { recursive: true }),
   ]);
   let reads = 0;
   const readFileFn = async () => JSON.stringify({
     updateBundleURL: pathToFileURL(path.join(
       reads++ === 0 ? oldPackage : newPackage,
-      "Git Leaf.app",
+      "OpenGlance.app",
     )).href,
   });
   const readdirFn = async () => [
@@ -77,10 +249,10 @@ test("macOS update cache reports incomplete pruning without removing the staged 
   const current = path.join(paths.updateRoot, "update.NEW5678");
   await Promise.all([
     mkdir(stale, { recursive: true }),
-    mkdir(path.join(current, "Git Leaf.app"), { recursive: true }),
+    mkdir(path.join(current, "OpenGlance.app"), { recursive: true }),
   ]);
   await writeFile(paths.stateFile, JSON.stringify({
-    updateBundleURL: pathToFileURL(path.join(current, "Git Leaf.app")).href,
+    updateBundleURL: pathToFileURL(path.join(current, "OpenGlance.app")).href,
   }));
 
   const result = await pruneObsoleteMacUpdatePackages({
@@ -102,7 +274,7 @@ test("macOS update cache fails closed when ShipIt state points outside its cache
   const staged = path.join(paths.updateRoot, "update.KEEP123");
   await mkdir(staged, { recursive: true });
   await writeFile(paths.stateFile, JSON.stringify({
-    updateBundleURL: pathToFileURL(path.join(homeDir, "elsewhere", "Git Leaf.app")).href,
+    updateBundleURL: pathToFileURL(path.join(homeDir, "elsewhere", "OpenGlance.app")).href,
   }));
 
   assert.deepEqual(await pruneObsoleteMacUpdatePackages({ homeDir }), {
