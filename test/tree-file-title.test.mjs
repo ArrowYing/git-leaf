@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   displayedTreeFileTitle,
+  treeDirectoryPresentation,
   treeFileCanShowDocumentTitle,
   treeFilePresentation,
   treeFilenameContainsHan,
@@ -89,5 +90,69 @@ test("only non-Chinese Markdown filenames need title indexing", () => {
   assert.equal(
     treeFileCanShowDocumentTitle({ kind: "pdf", path: "docs/weekly-report.pdf" }),
     false,
+  );
+});
+
+test("favorite folders keep the directory name and show the parent path when nested", () => {
+  assert.deepEqual(
+    treeDirectoryPresentation({
+      type: "directory",
+      name: "guides",
+      path: "docs/guides",
+    }, { view: "favorites" }),
+    {
+      name: "guides",
+      parentPath: "docs",
+      lines: [
+        { kind: "name", text: "guides" },
+        { kind: "parent", text: "docs" },
+      ],
+    },
+  );
+  assert.deepEqual(
+    treeDirectoryPresentation({
+      type: "directory",
+      name: "guides",
+      path: "archive/2025/guides",
+    }, { view: "favorites" }),
+    {
+      name: "guides",
+      parentPath: "archive/2025",
+      lines: [
+        { kind: "name", text: "guides" },
+        { kind: "parent", text: "archive/2025" },
+      ],
+    },
+  );
+});
+
+test("favorite folder parent paths stay display-only for top-level favorites", () => {
+  assert.deepEqual(
+    treeDirectoryPresentation({
+      type: "directory",
+      name: "docs",
+      path: "docs",
+    }, { view: "favorites" }),
+    {
+      name: "docs",
+      parentPath: "",
+      lines: [{ kind: "name", text: "docs" }],
+    },
+  );
+  assert.equal(
+    treeDirectoryPresentation({
+      type: "directory",
+      name: "guides",
+      path: "docs/guides",
+    }, { view: "all" }).parentPath,
+    "",
+  );
+  assert.equal(
+    treeDirectoryPresentation({
+      type: "directory",
+      name: "start",
+      path: "docs/guides/start",
+    }, { view: "favorites", parentPath: "docs/guides" }).parentPath,
+    "",
   );
 });

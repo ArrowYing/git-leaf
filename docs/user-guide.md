@@ -1,5 +1,5 @@
 ---
-last_updated: 2026-08-15
+last_updated: 2026-08-27
 ---
 
 # OpenGlance user guide
@@ -71,9 +71,11 @@ The sidebar offers three views:
 - **All** shows the normal repository tree.
 - **Favorites** collects folders and Markdown or MDX documents you return to frequently. Add an item
   from its context menu, use the star beside the open document, or press `Command+D` on macOS /
-  `Ctrl+D` on Windows. After the complete repository tree refreshes successfully, OpenGlance automatically
-  removes favorites whose saved paths no longer exist; externally renamed files can be favorited again
-  at their new location.
+  `Ctrl+D` on Windows. A nested favorite folder keeps its folder name on the first line and shows the
+  parent repository-relative path underneath, so two folders with the same name stay distinguishable.
+  Top-level folders and folders inside an expanded favorite stay on one line. After the complete
+  repository tree refreshes successfully, OpenGlance automatically removes favorites whose saved paths
+  no longer exist; externally renamed files can be favorited again at their new location.
 - **Sync** shows remote status and every local file that has not been published.
 
 Files use the same tab behavior in **All**, filtered search results, **Favorites**, and **Sync**. Click a

@@ -189,6 +189,51 @@ test("a truncated default document title expands together with its source filena
   });
 });
 
+test("a truncated favorite folder parent path expands together with the directory name", () => {
+  const root = createEventTarget();
+  const label = createElement({
+    className: "tree-directory-label",
+    scrollWidth: 80,
+    clientWidth: 80,
+  });
+  label.textContent = "guides";
+  const parent = createElement({
+    className: "tree-directory-parent",
+    scrollWidth: 260,
+    clientWidth: 180,
+  });
+  parent.textContent = "archive/2025";
+  const item = createElement({
+    dataset: {
+      treeItem: "directory",
+      treePath: "archive/2025/guides",
+    },
+  });
+  item.querySelector = (selector) => (
+    selector === ".tree-directory-label"
+      ? label
+      : selector === ".tree-directory-parent"
+        ? parent
+        : null
+  );
+  item.contains = (candidate) => candidate === item || candidate === label || candidate === parent;
+  label.closest = () => item;
+  parent.closest = () => item;
+  root.contains = (candidate) => item.contains(candidate);
+
+  const source = createTreeItemTooltipSource({ container: root });
+
+  assert.equal(source.anchorElement(item), label);
+  assert.equal(source.shouldShow(item), true);
+  assert.deepEqual(source.details(item), {
+    name: "guides",
+    nameRanges: [],
+    path: "archive/2025",
+    pathRanges: [],
+    evidence: null,
+  });
+});
+
 function createEventTarget() {
   const listeners = new Map();
   return {

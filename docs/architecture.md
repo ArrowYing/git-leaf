@@ -3,7 +3,7 @@ title: OpenGlance system architecture
 domain: ai
 type: architecture
 owner: maintainer
-last_updated: 2026-08-15
+last_updated: 2026-08-27
 source: openglance
 canonical: true
 ai_snippet: "[Architecture] OpenGlance | human desktop interface for shared context repositories | local HTTP service | Git worktrees | Preview Source Live | CodeMirror 6 | guarded Git sync"
@@ -244,6 +244,10 @@ presentation:
   frontmatter `title` or first level-one heading as the primary second row while slightly muting the
   filename; disabling the preference, filenames containing Han characters, and documents without a
   distinct title remain single-row;
+- in Favorites, a nested folder keeps its directory name on the first row and shows its parent
+  repository-relative path as a second row so same-named folders stay distinguishable; a top-level
+  folder and folders nested inside an expanded favorite remain single-row; this path line is
+  display-only and does not change favorite identity, sorting, or Git scope;
 - truncated navigation text expands in a content-aligned tooltip that stays visually stable while the
   pointer crosses it but remains hit-test transparent, so the underlying file or navigation target keeps
   click ownership;
