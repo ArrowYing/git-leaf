@@ -137,10 +137,12 @@ current-document line numbers stay exactly as they were; a removed whole line us
 marker. These cues do not write deleted text back into the file.
 
 The committed version means `HEAD`, while the current side is the file now on disk. This includes both
-staged and unstaged local work; a new, untracked document is compared with an empty baseline. The
-feature is intentionally not a full Git diff viewer: it does not expose hunks, stage or discard changes,
-or resolve conflicts. Sync remains the place to see all unpublished files, while this document view is
-for quickly locating and continuing an edit.
+staged and unstaged local work. A new, untracked document has no committed version to compare and opens
+as an ordinary document instead of highlighting its entire contents; Sync still shows it as unpublished.
+After the document has been committed, later edits receive the normal cues. The feature is intentionally
+not a full Git diff viewer: it does not expose hunks, stage or discard changes, or resolve conflicts. Sync
+remains the place to see all unpublished files, while this document view is for quickly locating and
+continuing an edit.
 
 ## Choose the right editing view
 

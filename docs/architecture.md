@@ -343,10 +343,12 @@ ordinary source text; OpenGlance does not own conflict resolution.
 ### Working-tree edit cues
 
 For an editable local Markdown or MDX response, the service may return the committed `HEAD:<path>` text
-alongside the current source. A path absent from `HEAD`, including an untracked document, has an empty
-baseline. The index is not a separate presentation authority: the current file is compared with `HEAD`,
-so both staged and unstaged edits remain visible. Hosted and other non-editable responses never receive
-this baseline or any other local source expansion.
+alongside the current source only when that path exists in `HEAD`. A new untracked document has no
+committed baseline and therefore reads as an ordinary document without whole-document edit cues; Sync
+still reports it as unpublished. A committed empty document does have an empty baseline, so content
+added afterward receives the normal edit cues. The index is not a separate presentation authority: the
+current file is compared with `HEAD`, so both staged and unstaged edits remain visible. Hosted and other
+non-editable responses never receive this baseline or any other local source expansion.
 
 The browser derives transient line and text mappings from those two sources. Current additions and
 replacements receive restrained document and gutter highlights in Preview, Source, and Live. Each
