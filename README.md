@@ -47,10 +47,11 @@ than Obsidian.
 - **Preview first, edit when needed.** Markdown and MDX documents open in a fully rendered Preview with
   source-backed line numbers and text selection; Live and Source remain available for focused edits to
   the original files.
-- **Unpublished edits stay easy to find.** OpenGlance highlights current additions and replacements in the
-  document, colors the full affected row in document navigation, and offers an off-by-default control
-  for struck-through deletions while the existing current-document line numbers stay unchanged. This is
-  a lightweight editing trace, not a developer-oriented Git diff.
+- **Unpublished edits stay easy to find.** In a previously committed document, OpenGlance highlights
+  current additions and replacements, colors the full affected row in document navigation, and offers
+  an off-by-default control for struck-through deletions while the existing current-document line numbers
+  stay unchanged. A new untracked document remains an ordinary readable document while Sync identifies it
+  as unpublished. This is a lightweight editing trace, not a developer-oriented Git diff.
 - **Precise context for agents.** Users can select source-backed lines from one file or combine content
   from multiple files, then copy portable Markdown context for an agent.
 - **Quiet updates, controlled publishing.** OpenGlance applies remote updates automatically when safe;

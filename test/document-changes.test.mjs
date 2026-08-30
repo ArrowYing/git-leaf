@@ -98,16 +98,16 @@ test("document change model exposes whole deleted lines at their current anchor"
   ]);
 });
 
-test("new and emptied documents still produce useful top-of-document change cues", () => {
-  const added = createDocumentChangeModel({
+test("committed empty and later emptied documents produce useful top-of-document change cues", () => {
+  const formerlyEmpty = createDocumentChangeModel({
     baselineSource: "",
     currentSource: "New document\n",
   });
-  assert.deepEqual(added.changedLines, [1]);
-  assert.deepEqual(added.currentLines, [
+  assert.deepEqual(formerlyEmpty.changedLines, [1]);
+  assert.deepEqual(formerlyEmpty.currentLines, [
     { line: 1, baselineLine: null, kind: "added" },
   ]);
-  assert.equal(added.hasDeletions, false);
+  assert.equal(formerlyEmpty.hasDeletions, false);
 
   const emptied = createDocumentChangeModel({
     baselineSource: "Removed document\n",

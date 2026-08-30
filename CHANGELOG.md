@@ -4,6 +4,14 @@ OpenGlance follows Semantic Versioning for its shared app version. Git tags iden
 official public artifacts, signatures, checksums, and platform availability are authoritative only on
 the [OpenGlance download page](https://gitleaf.mangofuture.com/download).
 
+## 3.0.6 — 2026-08-30 (internal release)
+
+### Fixed
+
+- Kept a new untracked Markdown or MDX document in its ordinary readable form instead of presenting
+  its entire contents as an edit. Working-tree edit cues now locate changes only within a document that
+  already has a committed baseline, while Sync continues to identify the new document as unpublished.
+
 ## 3.0.5 — 2026-08-16 (internal release)
 
 ### Fixed

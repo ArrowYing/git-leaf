@@ -1253,10 +1253,7 @@ async function documentChangeBaselinePayload(repo, relativePath, gitRunner) {
       changeBaselineSource: String(result.stdout ?? ""),
     };
   } catch {
-    return {
-      changeBaselineAvailable: true,
-      changeBaselineSource: "",
-    };
+    return { changeBaselineAvailable: false };
   }
 }
 

@@ -37,7 +37,7 @@ import {
   outlineItemsFromHeadings,
 } from "./outline.js";
 import { createTreeItemTooltipSource } from "./tree-item-tooltip.js";
-import { treeFilePresentation } from "./tree-file-title.js";
+import { treeDirectoryPresentation, treeFilePresentation } from "./tree-file-title.js";
 import {
   shouldShowReadonlyModeStatus,
   treeFileCapability,
@@ -5730,6 +5730,10 @@ function renderNode(node, parentPath) {
   }
 
   const directoryPath = node.path || treeDirectoryPath(parentPath, node.name);
+  const presentation = treeDirectoryPresentation(node, {
+    parentPath,
+    view: state.sidebarTab,
+  });
   const details = document.createElement("details");
   details.open = shouldOpenTreeDirectory({
     directoryPath,
@@ -5757,17 +5761,29 @@ function renderNode(node, parentPath) {
   }
   summary.tabIndex = 0;
   summary.classList.toggle("is-missing", node.missing === true);
+  summary.classList.toggle("has-directory-parent", Boolean(presentation.parentPath));
   if (node.missing === true) {
     summary.dataset.treeMissing = "true";
     summary.setAttribute("aria-disabled", "true");
     summary.setAttribute("aria-label", `${directoryPath}，${t("file.missing")}`);
     summary.addEventListener("click", (event) => event.preventDefault());
+  } else if (presentation.parentPath) {
+    summary.setAttribute("aria-label", directoryPath);
   }
   summary.setAttribute("aria-expanded", String(details.open));
+  const copy = document.createElement("span");
+  copy.className = "tree-directory-copy";
   const label = document.createElement("span");
   label.className = "tree-directory-label";
-  appendTreeSearchLabel(label, node.name);
-  summary.append(label);
+  appendTreeSearchLabel(label, presentation.name);
+  copy.append(label);
+  if (presentation.parentPath) {
+    const parent = document.createElement("span");
+    parent.className = "tree-directory-parent";
+    appendTreeSearchLabel(parent, presentation.parentPath);
+    copy.append(parent);
+  }
+  summary.append(copy);
   details.append(summary);
   details.addEventListener("toggle", () => {
     summary.setAttribute("aria-expanded", String(details.open));

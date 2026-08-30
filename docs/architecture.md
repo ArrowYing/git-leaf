@@ -3,7 +3,7 @@ title: OpenGlance system architecture
 domain: ai
 type: architecture
 owner: maintainer
-last_updated: 2026-08-15
+last_updated: 2026-08-27
 source: openglance
 canonical: true
 ai_snippet: "[Architecture] OpenGlance | human desktop interface for shared context repositories | local HTTP service | Git worktrees | Preview Source Live | CodeMirror 6 | guarded Git sync"
@@ -244,6 +244,10 @@ presentation:
   frontmatter `title` or first level-one heading as the primary second row while slightly muting the
   filename; disabling the preference, filenames containing Han characters, and documents without a
   distinct title remain single-row;
+- in Favorites, a nested folder keeps its directory name on the first row and shows its parent
+  repository-relative path as a second row so same-named folders stay distinguishable; a top-level
+  folder and folders nested inside an expanded favorite remain single-row; this path line is
+  display-only and does not change favorite identity, sorting, or Git scope;
 - truncated navigation text expands in a content-aligned tooltip that stays visually stable while the
   pointer crosses it but remains hit-test transparent, so the underlying file or navigation target keeps
   click ownership;
@@ -339,10 +343,12 @@ ordinary source text; OpenGlance does not own conflict resolution.
 ### Working-tree edit cues
 
 For an editable local Markdown or MDX response, the service may return the committed `HEAD:<path>` text
-alongside the current source. A path absent from `HEAD`, including an untracked document, has an empty
-baseline. The index is not a separate presentation authority: the current file is compared with `HEAD`,
-so both staged and unstaged edits remain visible. Hosted and other non-editable responses never receive
-this baseline or any other local source expansion.
+alongside the current source only when that path exists in `HEAD`. A new untracked document has no
+committed baseline and therefore reads as an ordinary document without whole-document edit cues; Sync
+still reports it as unpublished. A committed empty document does have an empty baseline, so content
+added afterward receives the normal edit cues. The index is not a separate presentation authority: the
+current file is compared with `HEAD`, so both staged and unstaged edits remain visible. Hosted and other
+non-editable responses never receive this baseline or any other local source expansion.
 
 The browser derives transient line and text mappings from those two sources. Current additions and
 replacements receive restrained document and gutter highlights in Preview, Source, and Live. Each

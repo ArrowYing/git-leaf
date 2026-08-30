@@ -575,7 +575,7 @@ test("document API returns file metadata for auto refresh and actions", async ()
   }
 });
 
-test("document API returns the committed Markdown baseline for local edit cues", async () => {
+test("document API exposes edit cues only when the document has a committed baseline", async () => {
   const repoRoot = await mkdtemp(path.join(tmpdir(), "git-leaf-document-baseline-"));
   const baseline = "# Plan\n\nBefore launch.\n\n## Delivery\n\nKeep this.\n";
   const current = "# Plan\n\nLaunch this week.\n\n## Delivery\n\nKeep this.\n";
@@ -583,9 +583,11 @@ test("document API returns the committed Markdown baseline for local edit cues",
   await execFileAsync("git", ["config", "user.email", "git-leaf@example.test"], { cwd: repoRoot });
   await execFileAsync("git", ["config", "user.name", "OpenGlance Test"], { cwd: repoRoot });
   await writeFile(path.join(repoRoot, "sample.md"), baseline);
-  await execFileAsync("git", ["add", "sample.md"], { cwd: repoRoot });
+  await writeFile(path.join(repoRoot, "empty.md"), "");
+  await execFileAsync("git", ["add", "sample.md", "empty.md"], { cwd: repoRoot });
   await execFileAsync("git", ["commit", "-qm", "Initial"], { cwd: repoRoot });
   await writeFile(path.join(repoRoot, "sample.md"), current);
+  await writeFile(path.join(repoRoot, "empty.md"), "# Added after commit\n");
   await writeFile(path.join(repoRoot, "new.md"), "# New\n");
   const initialFile = await resolvePreviewPath(repoRoot, "sample.md");
   const server = createPreviewServer({ repoRoot, initialFile });
@@ -597,9 +599,13 @@ test("document API returns the committed Markdown baseline for local edit cues",
     assert.equal(edited.changeBaselineAvailable, true);
     assert.equal(edited.changeBaselineSource, baseline);
 
+    const formerlyEmpty = await getJson(`${baseUrl}/api/document?file=empty.md`);
+    assert.equal(formerlyEmpty.changeBaselineAvailable, true);
+    assert.equal(formerlyEmpty.changeBaselineSource, "");
+
     const untracked = await getJson(`${baseUrl}/api/document?file=new.md`);
-    assert.equal(untracked.changeBaselineAvailable, true);
-    assert.equal(untracked.changeBaselineSource, "");
+    assert.equal(untracked.changeBaselineAvailable, false);
+    assert.equal(Object.hasOwn(untracked, "changeBaselineSource"), false);
   } finally {
     await close(server);
     await rm(repoRoot, { recursive: true, force: true });

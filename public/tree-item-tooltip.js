@@ -23,9 +23,13 @@ export function createTreeItemTooltipSource({
   }
 
   function titleElement(item) {
-    return item?.dataset.treeItem === "file"
-      ? item.querySelector?.(".tree-file-document-title")
-      : null;
+    if (item?.dataset.treeItem === "file") {
+      return item.querySelector?.(".tree-file-document-title");
+    }
+    if (item?.dataset.treeItem === "directory") {
+      return item.querySelector?.(".tree-directory-parent");
+    }
+    return null;
   }
 
   function details(item) {

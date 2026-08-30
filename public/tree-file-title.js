@@ -13,6 +13,23 @@ export function treeFilePresentation(node, { showDocumentTitles = true } = {}) {
   };
 }
 
+export function treeDirectoryPresentation(node, { parentPath = "", view = "all" } = {}) {
+  const name = String(node?.name ?? "");
+  const path = normalizeTreePath(node?.path || [parentPath, name].filter(Boolean).join("/"));
+  const parent = directoryParentPath(path);
+  const showParentPath = view === "favorites"
+    && !String(parentPath ?? "").trim()
+    && Boolean(parent);
+  return {
+    name,
+    parentPath: showParentPath ? parent : "",
+    lines: [
+      { kind: "name", text: name },
+      ...(showParentPath ? [{ kind: "parent", text: parent }] : []),
+    ],
+  };
+}
+
 export function displayedTreeFileTitle(node, { showDocumentTitles = true } = {}) {
   const filename = String(node?.name ?? "");
   if (
@@ -45,4 +62,14 @@ function filenameStem(filename) {
 
 function basename(value) {
   return String(value ?? "").replaceAll("\\", "/").split("/").at(-1) ?? "";
+}
+
+function normalizeTreePath(value) {
+  return String(value ?? "").replaceAll("\\", "/").replace(/^\/+|\/+$/g, "");
+}
+
+function directoryParentPath(path) {
+  const normalized = normalizeTreePath(path);
+  const index = normalized.lastIndexOf("/");
+  return index > 0 ? normalized.slice(0, index) : "";
 }
