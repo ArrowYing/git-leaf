@@ -2187,6 +2187,7 @@ test("public module assets are served for the browser", async () => {
       "document-tabs.js",
       "document-search.js",
       "keyboard-shortcuts.js",
+      "mouse-navigation.js",
       "repository-panel.js",
       "help-content.js",
       "frontmatter-filters.js",

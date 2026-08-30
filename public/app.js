@@ -138,6 +138,7 @@ import {
   keyboardShortcutDisplay,
   keyboardShortcutMatches,
 } from "./keyboard-shortcuts.js";
+import { historyCommandFromMouseEvent } from "./mouse-navigation.js";
 import {
   findTextRanges,
   nextSearchIndex,
@@ -741,6 +742,8 @@ document.addEventListener("keydown", handleAppShortcutKeydown, true);
 document.addEventListener("keydown", handleDocumentKeydown, true);
 document.addEventListener("keydown", handleOutlineContentNavigationIntent, true);
 document.addEventListener("keydown", handleToolStatusActivity);
+document.addEventListener("mousedown", handleMouseHistoryButton, true);
+document.addEventListener("auxclick", suppressMouseHistoryButtonDefault, true);
 document.addEventListener("visibilitychange", handleRemoteSyncVisibilityChange);
 window.addEventListener("git-leaf-desktop-shortcut", handleDesktopShortcutEvent);
 window.addEventListener("git-leaf-desktop-repositories", handleDesktopRepositoriesEvent);
@@ -7262,6 +7265,26 @@ function handleAppShortcutKeydown(event) {
   event.preventDefault();
   event.stopPropagation();
   void runAppShortcut(action);
+}
+
+function handleMouseHistoryButton(event) {
+  const command = historyCommandFromMouseEvent(event);
+  if (!command) {
+    return;
+  }
+
+  event.preventDefault();
+  event.stopPropagation();
+  void runAppShortcut(command);
+}
+
+function suppressMouseHistoryButtonDefault(event) {
+  if (!historyCommandFromMouseEvent(event)) {
+    return;
+  }
+
+  event.preventDefault();
+  event.stopPropagation();
 }
 
 function shortcutActionFromKeyboardEvent(event) {
