@@ -228,6 +228,7 @@ async function handleRequest(request, response, context) {
     requestUrl.pathname === "/tree-file-title.js" ||
     requestUrl.pathname === "/file-capability.js" ||
     requestUrl.pathname === "/ndjson.js" ||
+    requestUrl.pathname === "/csv-preview.js" ||
     requestUrl.pathname === "/file-actions.js" ||
     requestUrl.pathname === "/pointer-resize.js" ||
     requestUrl.pathname === "/outline.js" ||

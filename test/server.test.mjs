@@ -2169,6 +2169,7 @@ test("public module assets are served for the browser", async () => {
       "tree-file-title.js",
       "file-capability.js",
       "ndjson.js",
+      "csv-preview.js",
       "file-actions.js",
       "pointer-resize.js",
       "outline.js",
