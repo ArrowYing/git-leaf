@@ -270,7 +270,7 @@ opening, favorites, sessions, file operations, Git status, or synchronization.
 | File class | Capability |
 | --- | --- |
 | Markdown and MDX | Preview, Source, and Live; editable |
-| Images, PDF, CSV, JSON, JSON Lines, YAML, HTML, and plain text | Read-only preview where supported |
+| Images, PDF, CSV, JSON, JSON Lines, YAML, HTML, and plain text | Read-only preview where supported; full-cell repository Markdown links in CSV navigate through the document workflow |
 | Recognized UTF-8 code and configuration | Read-only code preview |
 | Unknown text | Detected on open and shown read-only |
 | Other binary files, symlinks, and submodules | Visible with an unsupported-preview state and an Open in System App action |

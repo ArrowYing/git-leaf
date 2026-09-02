@@ -143,7 +143,7 @@ Preview 负责呈现文档，Source 和 Live 仍编辑原文件，不需要同�
   更易扫读；也可关闭第二行以获得更紧凑的目录树。
 - 可搜索、可拖动排序的仓库面板，用于打开、切换仓库或将仓库移出 OpenGlance（不会删除本地文件）；
   切换仓库与 worktree 时分别恢复文档 Tab、导航历史、滚动位置和焦点。
-- 只读预览图片、PDF、CSV、JSON、JSON Lines（`.ndjson`／`.jsonl`）、YAML、HTML、代码和其他仓库附件。
+- 只读预览图片、PDF、CSV、JSON、JSON Lines（`.ndjson`／`.jsonl`）、YAML、HTML、代码和其他仓库附件；CSV 单元格只包含仓库内 Markdown 链接时，可以直接打开对应文档。
 - 把选中内容作为引用粘贴，保留源文件行号与来源，并预留一个可以直接输入提示词的空白段落。
 - 克制的文件操作，避免把 OpenGlance 变成通用文件管理器或 IDE。
 

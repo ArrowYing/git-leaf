@@ -177,7 +177,8 @@ JSX, JavaScript, imports, or scripts.
   OpenGlance without deleting local files, plus worktree switching with restored tabs, navigation history,
   scroll positions, and focus.
 - Read-only previews for images, PDFs, CSV, JSON, JSON Lines (`.ndjson` / `.jsonl`), YAML, HTML, code,
-  and other repository attachments.
+  and other repository attachments. A CSV cell containing only a repository-local Markdown link opens
+  that document directly.
 - Source line references that paste as quoted context, preserve where selected text came from, and leave
   a blank paragraph ready for the user's prompt.
 - Conservative file operations that avoid turning OpenGlance into a general file manager or IDE.

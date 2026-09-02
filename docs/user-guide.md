@@ -462,7 +462,7 @@ OpenGlance keeps the document workflow focused while still making surrounding ev
 | --- | --- |
 | Images and PDFs | Read-only visual preview |
 | HTML | Read-only rendered preview |
-| CSV | Read-only table preview |
+| CSV | Read-only table preview; a cell containing only a repository-local Markdown link opens that document |
 | JSON | Formatted tree, with text fallback when parsing fails |
 | JSON Lines (`.ndjson`, `.jsonl`) | One collapsible, wrapping JSON tree per line; invalid lines keep their original text |
 | YAML, text, code, and configuration | Read-only text or code preview |

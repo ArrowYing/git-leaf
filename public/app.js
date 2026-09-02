@@ -43,6 +43,7 @@ import {
   treeFileCapability,
 } from "./file-capability.js";
 import { parseNdjsonRecords } from "./ndjson.js";
+import { csvMarkdownDocumentLink, parseCsvRows } from "./csv-preview.js";
 import { githubFileUrl } from "./file-actions.js";
 import { hasTreeChanged } from "./tree-refresh.js";
 import { shouldReplaceDocumentHtml } from "./document-refresh.js";
@@ -6153,7 +6154,16 @@ function csvPreviewElement(text) {
     const tr = document.createElement("tr");
     for (const cell of row) {
       const td = document.createElement("td");
-      td.textContent = cell;
+      const documentLink = csvMarkdownDocumentLink(cell);
+      if (documentLink) {
+        const anchor = document.createElement("a");
+        anchor.href = documentLink.href;
+        anchor.textContent = documentLink.text;
+        anchor.dataset.csvDocumentLink = "true";
+        td.append(anchor);
+      } else {
+        td.textContent = cell;
+      }
       tr.append(td);
     }
     body.append(tr);
@@ -6362,48 +6372,6 @@ function jsonPrimitiveLabel(value, type) {
     return "null";
   }
   return String(value);
-}
-
-function parseCsvRows(text) {
-  const rows = [];
-  let row = [];
-  let cell = "";
-  let quoted = false;
-  for (let index = 0; index < text.length; index += 1) {
-    const char = text[index];
-    const next = text[index + 1];
-    if (quoted) {
-      if (char === "\"" && next === "\"") {
-        cell += "\"";
-        index += 1;
-      } else if (char === "\"") {
-        quoted = false;
-      } else {
-        cell += char;
-      }
-      continue;
-    }
-
-    if (char === "\"") {
-      quoted = true;
-    } else if (char === ",") {
-      row.push(cell);
-      cell = "";
-    } else if (char === "\n") {
-      row.push(cell);
-      rows.push(row);
-      row = [];
-      cell = "";
-    } else if (char !== "\r") {
-      cell += char;
-    }
-  }
-
-  if (cell || row.length > 0) {
-    row.push(cell);
-    rows.push(row);
-  }
-  return rows.filter((item) => item.some((cellValue) => cellValue.length > 0));
 }
 
 function formatBytes(value) {
@@ -8594,6 +8562,16 @@ function handleDocumentClick(event) {
     return;
   }
 
+  const csvDocumentLink = event.target.closest?.("a[data-csv-document-link]");
+  if (csvDocumentLink) {
+    event.preventDefault();
+    void openCsvDocumentLink(
+      csvDocumentLink.getAttribute("href"),
+      documentTabBehaviorFromModifiers(event),
+    );
+    return;
+  }
+
   const isInteractive = isInteractiveClick(event);
   if (isInteractive) {
     return;
@@ -8619,6 +8597,11 @@ function handleDocumentClick(event) {
   }
 
   selectSourceLine(line, event);
+}
+
+async function openCsvDocumentLink(href, behavior) {
+  const target = await liveDocumentTargetFromHref(href);
+  if (target) await navigateDocumentLocation(target, { behavior });
 }
 
 function handlePreviewContentKeydown(event) {
