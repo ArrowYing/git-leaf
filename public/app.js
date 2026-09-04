@@ -114,6 +114,7 @@ import {
   closeOtherDocumentTabs,
   documentTabBehaviorFromModifiers,
   documentTabHistoryAvailability,
+  documentTabPresentations,
   isTreeDocumentNewTabShortcut,
   moveDocumentTabHistory,
   navigateDocumentTab,
@@ -1269,6 +1270,7 @@ async function loadTree({ force = false } = {}) {
   renderFrontmatterFilterAvailability();
   renderActiveFrontmatterFilters();
   renderTree();
+  renderDocumentTabs();
 }
 
 function resetTreePolling() {
@@ -2264,6 +2266,7 @@ function applyDocumentData(
   state.currentDocument = documentData;
   state.documentChangeModel = documentChangeModelForDocument(documentData);
   state.currentFile = documentData.path;
+  renderDocumentTabs();
   hideNoDocumentSurface();
   state.lastWrittenHash = documentData.sourceHash ?? state.lastWrittenHash;
   updateDocumentActions(true);
@@ -4427,30 +4430,53 @@ function replaceOpenDocumentTabPath(fromPath, toPath) {
 function renderDocumentTabs() {
   uiTooltipController.hide();
   documentTabs.innerHTML = "";
-  for (const { id, path } of state.documentTabs) {
+  const presentations = documentTabPresentations({
+    tabs: state.documentTabs,
+    tree: state.tree,
+    currentDocument: state.currentDocument,
+  });
+  for (const { id, path, filename, title: documentTitle } of presentations) {
     const isActive = id === state.activeTabId;
     const tab = document.createElement("div");
     tab.className = isActive ? "document-tab is-active" : "document-tab";
+    tab.classList.toggle("has-document-title", Boolean(documentTitle));
     tab.dataset.documentTabId = id;
     tab.dataset.documentTabPath = path;
+    tab.dataset.documentTabFilename = filename;
+    if (documentTitle) {
+      tab.dataset.documentTabTitle = documentTitle;
+    }
     tab.addEventListener("pointerdown", (event) => startDocumentTabPointerDrag(event, id));
     tab.addEventListener("pointermove", handleDocumentTabPointerMove);
     tab.addEventListener("pointerup", finishDocumentTabPointerDrag);
     tab.addEventListener("pointercancel", cancelDocumentTabPointerDrag);
 
-    const title = document.createElement("button");
-    title.type = "button";
-    title.className = "document-tab-title";
-    title.textContent = tabTitleFromPath(path);
-    title.addEventListener("click", () => openFileFromTab(id));
-    tab.append(title);
+    const label = document.createElement("button");
+    label.type = "button";
+    label.className = "document-tab-title";
+    label.setAttribute(
+      "aria-label",
+      [documentTitle || filename, path].filter(Boolean).join(" — "),
+    );
+    const filenameLine = document.createElement("span");
+    filenameLine.className = "document-tab-filename";
+    filenameLine.textContent = filename;
+    label.append(filenameLine);
+    if (documentTitle) {
+      const titleLine = document.createElement("span");
+      titleLine.className = "document-tab-document-title";
+      titleLine.textContent = documentTitle;
+      label.append(titleLine);
+    }
+    label.addEventListener("click", () => openFileFromTab(id));
+    tab.append(label);
 
     const close = document.createElement("button");
     close.type = "button";
     close.className = "document-tab-close";
     setShortcutTooltip(close, t("action.closeCurrentTab"), "Command+W");
     close.setAttribute("aria-label", t("action.closeNamedTab", {
-      name: tabTitleFromPath(path),
+      name: documentTitle || filename,
     }));
     close.textContent = "×";
     close.addEventListener("click", (event) => {
@@ -4628,7 +4654,9 @@ function documentTabItemFromEventTarget(target) {
 function documentTabTooltipDetails(item) {
   const path = item?.dataset.documentTabPath || "";
   return {
-    name: tabTitleFromPath(path),
+    name: item?.dataset.documentTabTitle
+      || item?.dataset.documentTabFilename
+      || tabTitleFromPath(path),
     path: documentTabDisplayPath(path),
   };
 }

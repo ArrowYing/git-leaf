@@ -173,6 +173,8 @@ JSX, JavaScript, imports, or scripts.
   and MDX files with non-Chinese source names show their document title below the unchanged filename by
   default. The filename is slightly muted so the title is easier to scan; this second line can be turned
   off for a compact tree.
+- Compact document tabs use that same filename-and-title hierarchy whenever a distinct human title is
+  available, while keeping the full repository-relative path in the hover tooltip.
 - A searchable, drag-reorderable repository panel for opening, switching, and removing repositories from
   OpenGlance without deleting local files, plus worktree switching with restored tabs, navigation history,
   scroll positions, and focus.

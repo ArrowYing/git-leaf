@@ -51,6 +51,12 @@ The app window has four main areas:
 OpenGlance restores open repositories and the working state of each repository on later launches,
 including tabs, expanded folders, and reading position.
 
+For a Markdown or MDX document whose non-Chinese source filename has a distinct frontmatter `title` or
+first level-one heading, its compact tab keeps the filename on a muted first line and uses the document
+title as the primary second line. Other files remain on one line. Hover a tab to see the full human title
+and repository-relative path. This tab label remains readable even when the directory tree is configured
+to show filenames only; the stored tab identity and navigation history still use the real path.
+
 ## Find and read context
 
 ### Start with the directory tree

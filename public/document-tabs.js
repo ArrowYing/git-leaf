@@ -1,8 +1,54 @@
+import { documentTitleForFile } from "./tree-file-title.js";
+
 export const MAX_DOCUMENT_TAB_HISTORY_ENTRIES = 50;
 
 export function tabTitleFromPath(filePath) {
   const normalized = String(filePath || "").replace(/\\/g, "/");
   return normalized.split("/").filter(Boolean).at(-1) || normalized || "Untitled";
+}
+
+export function documentTabPresentations({
+  tabs = [],
+  tree = [],
+  currentDocument = null,
+} = {}) {
+  const normalizedTabs = normalizeDocumentTabs(tabs);
+  const filesByPath = new Map();
+  indexDocumentTabFiles(tree, filesByPath);
+
+  const currentPath = normalizePath(currentDocument?.path);
+  if (currentPath) {
+    filesByPath.set(currentPath, {
+      ...filesByPath.get(currentPath),
+      ...currentDocument,
+      name: filesByPath.get(currentPath)?.name || tabTitleFromPath(currentPath),
+      path: currentPath,
+    });
+  }
+
+  const presentations = normalizedTabs.map(({ id, path }) => ({
+    id,
+    path,
+    filename: tabTitleFromPath(path),
+    title: documentTitleForFile(filesByPath.get(path)),
+  }));
+  const collisionGroups = new Map();
+  for (const presentation of presentations) {
+    const key = `${presentation.filename}\0${presentation.title}`;
+    const group = collisionGroups.get(key) ?? [];
+    group.push(presentation);
+    collisionGroups.set(key, group);
+  }
+  for (const group of collisionGroups.values()) {
+    if (group.length < 2) {
+      continue;
+    }
+    const paths = group.map(({ path }) => path);
+    for (const presentation of group) {
+      presentation.filename = shortestUniquePathSuffix(presentation.path, paths);
+    }
+  }
+  return presentations;
 }
 
 export function documentTabBehaviorFromModifiers({
@@ -370,6 +416,38 @@ function nextDocumentTabId(tabs) {
     index += 1;
   }
   return `tab-${index}`;
+}
+
+function indexDocumentTabFiles(nodes, index) {
+  for (const node of Array.isArray(nodes) ? nodes : []) {
+    if (node?.type === "file") {
+      const path = normalizePath(node.path);
+      if (path) {
+        index.set(path, {
+          ...node,
+          name: String(node.name || tabTitleFromPath(path)),
+          path,
+        });
+      }
+      continue;
+    }
+    if (node?.type === "directory") {
+      indexDocumentTabFiles(node.children, index);
+    }
+  }
+}
+
+function shortestUniquePathSuffix(filePath, peerPaths) {
+  const parts = normalizePath(filePath).split("/").filter(Boolean);
+  const peers = peerPaths.map((path) => normalizePath(path).split("/").filter(Boolean));
+  for (let length = 2; length <= parts.length; length += 1) {
+    const suffix = parts.slice(-length).join("/");
+    const matches = peers.filter((peer) => peer.slice(-length).join("/") === suffix).length;
+    if (matches === 1) {
+      return suffix;
+    }
+  }
+  return tabTitleFromPath(filePath);
 }
 
 function normalizeHistory(value, fallbackPath) {

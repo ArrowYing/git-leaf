@@ -216,6 +216,14 @@ a new tab. Internal-document links keep a separate contract: a normal click repl
 Command/Ctrl-click creates a background tab, and adding Shift activates the new tab. Browser URL state
 is a projection of the active location, not the application's navigation history.
 
+Tab labels are a display projection over that path identity. A Markdown or MDX document whose source
+filename contains no Han characters and whose frontmatter `title` or first level-one heading supplies a
+distinct title uses a compact two-line tab: the filename remains on the first, muted line and the human
+title is the primary second line. Other files remain single-line. When open tabs would otherwise have
+the same filename and title, their filename lines expand to the shortest unique repository-relative path
+suffix. The hover tooltip retains the human title and complete path. This tab treatment is independent of
+the file tree's `showDocumentTitles` density preference and never changes persisted tab state.
+
 File-tree context actions bind to the right-clicked repository-relative path rather than the active
 document. GitHub source actions derive the target URL from the current repository's validated GitHub
 blob root; repositories without one keep that action disabled.
