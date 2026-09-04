@@ -31,16 +31,20 @@ export function treeDirectoryPresentation(node, { parentPath = "", view = "all" 
 }
 
 export function displayedTreeFileTitle(node, { showDocumentTitles = true } = {}) {
-  const filename = String(node?.name ?? "");
-  if (
-    showDocumentTitles === false
-    || String(node?.kind ?? "") !== "markdown"
-    || treeFilenameContainsHan(filename)
-  ) {
+  if (showDocumentTitles === false) {
     return "";
   }
 
-  const title = String(node?.title ?? "").trim();
+  return documentTitleForFile(node);
+}
+
+export function documentTitleForFile(file) {
+  const filename = String(file?.name ?? basename(file?.path));
+  if (!treeFileCanShowDocumentTitle({ ...file, name: filename })) {
+    return "";
+  }
+
+  const title = String(file?.title ?? "").trim();
   if (!title || title === filename || title === filenameStem(filename)) {
     return "";
   }

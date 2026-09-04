@@ -420,9 +420,9 @@ input {
   align-items: center;
   flex: 0 1 auto;
   gap: 4px;
-  max-width: none;
+  max-width: 260px;
   min-width: var(--document-tab-min-width);
-  height: 28px;
+  height: 34px;
   border: 0;
   border-radius: 6px;
   background: transparent;
@@ -448,6 +448,10 @@ input {
 }
 
 .document-tab-title {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
   flex: 1 1 auto;
   min-width: 0;
   height: 100%;
@@ -458,8 +462,33 @@ input {
   font: inherit;
   overflow: hidden;
   padding: 0;
+  text-align: left;
+}
+
+.document-tab-filename,
+.document-tab-document-title {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.document-tab-filename {
+  line-height: 16px;
+}
+
+.document-tab.has-document-title .document-tab-filename {
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 11px;
+  opacity: 0.72;
+}
+
+.document-tab-document-title {
+  font-size: 12px;
+  line-height: 14px;
 }
 
 .document-tab-close {

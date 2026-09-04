@@ -2,12 +2,32 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  documentTitleForFile,
   displayedTreeFileTitle,
   treeDirectoryPresentation,
   treeFileCanShowDocumentTitle,
   treeFilePresentation,
   treeFilenameContainsHan,
 } from "../public/tree-file-title.js";
+
+test("document title presentation identifies a distinct title for non-Chinese Markdown filenames", () => {
+  assert.equal(
+    documentTitleForFile({
+      kind: "markdown",
+      name: "15a634e2-8056-4915-ab8a-21cf55aa4363.md",
+      title: "Teacher profile",
+    }),
+    "Teacher profile",
+  );
+  assert.equal(
+    documentTitleForFile({
+      kind: "markdown",
+      name: "教师档案.md",
+      title: "Teacher profile",
+    }),
+    "",
+  );
+});
 
 test("English Markdown filenames keep the filename first and show the document title second", () => {
   assert.deepEqual(

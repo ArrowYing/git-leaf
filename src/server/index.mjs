@@ -228,6 +228,7 @@ async function handleRequest(request, response, context) {
     requestUrl.pathname === "/tree-file-title.js" ||
     requestUrl.pathname === "/file-capability.js" ||
     requestUrl.pathname === "/ndjson.js" ||
+    requestUrl.pathname === "/csv-preview.js" ||
     requestUrl.pathname === "/file-actions.js" ||
     requestUrl.pathname === "/pointer-resize.js" ||
     requestUrl.pathname === "/outline.js" ||
@@ -1573,7 +1574,7 @@ async function linkTargetPayload({
   rawTarget,
   locale = "en",
 }) {
-  const currentDocument = await resolvePreviewPath(currentRepo.root, file);
+  const currentFile = await resolveOpenablePath(currentRepo.root, file);
   const openGlanceTarget = openGlanceDocumentUrlTarget(rawTarget);
   if (openGlanceTarget?.repo && openGlanceTarget.repo !== currentRepo.id) {
     const error = new Error(localizedServerMessage(locale, "linkRepositoryUnavailable", {
@@ -1587,12 +1588,12 @@ async function linkTargetPayload({
     targetRepo.root,
     openGlanceTarget
       ? [repoRootDocumentInput(openGlanceTarget.file, locale)]
-      : documentLinkTargetInputs(currentRepo.root, currentDocument.relativePath, rawTarget, locale),
+      : documentLinkTargetInputs(currentRepo.root, currentFile.relativePath, rawTarget, locale),
     { locale },
   );
   const source = await readFile(targetDocument.absolutePath, "utf8");
   const suffix = openGlanceTarget?.suffix ?? "";
-  const href = documentLinkHref(currentDocument.relativePath, targetDocument.relativePath, suffix);
+  const href = documentLinkHref(currentFile.relativePath, targetDocument.relativePath, suffix);
   const title = extractTitle(source, targetDocument.relativePath);
   return {
     repo: targetRepo.id,

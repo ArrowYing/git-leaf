@@ -43,6 +43,7 @@ import {
   treeFileCapability,
 } from "./file-capability.js";
 import { parseNdjsonRecords } from "./ndjson.js";
+import { csvMarkdownDocumentLink, parseCsvRows } from "./csv-preview.js";
 import { githubFileUrl } from "./file-actions.js";
 import { hasTreeChanged } from "./tree-refresh.js";
 import { shouldReplaceDocumentHtml } from "./document-refresh.js";
@@ -113,6 +114,7 @@ import {
   createBlankDocumentTab,
   documentTabBehaviorFromModifiers,
   documentTabHistoryAvailability,
+  documentTabPresentations,
   isTreeDocumentNewTabShortcut,
   moveDocumentTabHistory,
   navigateDocumentTab,
@@ -1294,6 +1296,7 @@ async function loadTree({ force = false } = {}) {
   renderFrontmatterFilterAvailability();
   renderActiveFrontmatterFilters();
   renderTree();
+  renderDocumentTabs();
 }
 
 function resetTreePolling() {
@@ -2311,6 +2314,7 @@ function applyDocumentData(
   state.currentDocument = documentData;
   state.documentChangeModel = documentChangeModelForDocument(documentData);
   state.currentFile = documentData.path;
+  renderDocumentTabs();
   hideNoDocumentSurface();
   state.lastWrittenHash = documentData.sourceHash ?? state.lastWrittenHash;
   updateDocumentActions(true);
@@ -4508,32 +4512,61 @@ function replaceOpenDocumentTabPath(fromPath, toPath) {
 function renderDocumentTabs() {
   uiTooltipController.hide();
   documentTabs.innerHTML = "";
-  for (const { id, path, blank = false } of state.documentTabs) {
+  const presentations = documentTabPresentations({
+    tabs: state.documentTabs,
+    tree: state.tree,
+    currentDocument: state.currentDocument,
+  });
+  for (const {
+    id,
+    path,
+    blank = false,
+    filename,
+    title: documentTitle,
+  } of presentations) {
     const isActive = id === state.activeTabId;
     const tabTitle = blank ? t("tabs.new") : tabTitleFromPath(path);
     const tab = document.createElement("div");
     tab.className = isActive ? "document-tab is-active" : "document-tab";
+    tab.classList.toggle("has-document-title", Boolean(documentTitle));
     tab.dataset.documentTabId = id;
     tab.dataset.documentTabPath = path;
     tab.dataset.documentTabBlank = String(blank);
+    tab.dataset.documentTabFilename = filename || tabTitle;
+    if (documentTitle) {
+      tab.dataset.documentTabTitle = documentTitle;
+    }
     tab.addEventListener("pointerdown", (event) => startDocumentTabPointerDrag(event, id));
     tab.addEventListener("pointermove", handleDocumentTabPointerMove);
     tab.addEventListener("pointerup", finishDocumentTabPointerDrag);
     tab.addEventListener("pointercancel", cancelDocumentTabPointerDrag);
 
-    const title = document.createElement("button");
-    title.type = "button";
-    title.className = "document-tab-title";
-    title.textContent = tabTitle;
-    title.addEventListener("click", () => openFileFromTab(id));
-    tab.append(title);
+    const label = document.createElement("button");
+    label.type = "button";
+    label.className = "document-tab-title";
+    label.setAttribute(
+      "aria-label",
+      [documentTitle || filename || tabTitle, path].filter(Boolean).join(" — "),
+    );
+    const filenameLine = document.createElement("span");
+    filenameLine.className = "document-tab-filename";
+    filenameLine.textContent = filename || tabTitle;
+    label.append(filenameLine);
+    if (documentTitle) {
+      const titleLine = document.createElement("span");
+      titleLine.className = "document-tab-document-title";
+      titleLine.textContent = documentTitle;
+      label.append(titleLine);
+    }
+    label.addEventListener("click", () => openFileFromTab(id));
+    tab.append(label);
 
     const close = document.createElement("button");
     close.type = "button";
     close.className = "document-tab-close";
     setShortcutTooltip(close, t("action.closeCurrentTab"), "Command+W");
     close.setAttribute("aria-label", t("action.closeNamedTab", {
-      name: tabTitle,
+      name: documentTitle || filename || tabTitle,
     }));
     close.textContent = "×";
     close.addEventListener("click", (event) => {
@@ -4717,7 +4750,9 @@ function documentTabTooltipDetails(item) {
     };
   }
   return {
-    name: tabTitleFromPath(path),
+    name: item?.dataset.documentTabTitle
+      || item?.dataset.documentTabFilename
+      || tabTitleFromPath(path),
     path: documentTabDisplayPath(path),
   };
 }
@@ -6279,7 +6314,16 @@ function csvPreviewElement(text) {
     const tr = document.createElement("tr");
     for (const cell of row) {
       const td = document.createElement("td");
-      td.textContent = cell;
+      const documentLink = csvMarkdownDocumentLink(cell);
+      if (documentLink) {
+        const anchor = document.createElement("a");
+        anchor.href = documentLink.href;
+        anchor.textContent = documentLink.text;
+        anchor.dataset.csvDocumentLink = "true";
+        td.append(anchor);
+      } else {
+        td.textContent = cell;
+      }
       tr.append(td);
     }
     body.append(tr);
@@ -6488,48 +6532,6 @@ function jsonPrimitiveLabel(value, type) {
     return "null";
   }
   return String(value);
-}
-
-function parseCsvRows(text) {
-  const rows = [];
-  let row = [];
-  let cell = "";
-  let quoted = false;
-  for (let index = 0; index < text.length; index += 1) {
-    const char = text[index];
-    const next = text[index + 1];
-    if (quoted) {
-      if (char === "\"" && next === "\"") {
-        cell += "\"";
-        index += 1;
-      } else if (char === "\"") {
-        quoted = false;
-      } else {
-        cell += char;
-      }
-      continue;
-    }
-
-    if (char === "\"") {
-      quoted = true;
-    } else if (char === ",") {
-      row.push(cell);
-      cell = "";
-    } else if (char === "\n") {
-      row.push(cell);
-      rows.push(row);
-      row = [];
-      cell = "";
-    } else if (char !== "\r") {
-      cell += char;
-    }
-  }
-
-  if (cell || row.length > 0) {
-    row.push(cell);
-    rows.push(row);
-  }
-  return rows.filter((item) => item.some((cellValue) => cellValue.length > 0));
 }
 
 function formatBytes(value) {
@@ -8728,6 +8730,16 @@ function handleDocumentClick(event) {
     return;
   }
 
+  const csvDocumentLink = event.target.closest?.("a[data-csv-document-link]");
+  if (csvDocumentLink) {
+    event.preventDefault();
+    void openCsvDocumentLink(
+      csvDocumentLink.getAttribute("href"),
+      documentTabBehaviorFromModifiers(event),
+    );
+    return;
+  }
+
   const isInteractive = isInteractiveClick(event);
   if (isInteractive) {
     return;
@@ -8753,6 +8765,11 @@ function handleDocumentClick(event) {
   }
 
   selectSourceLine(line, event);
+}
+
+async function openCsvDocumentLink(href, behavior) {
+  const target = await liveDocumentTargetFromHref(href);
+  if (target) await navigateDocumentLocation(target, { behavior });
 }
 
 function handlePreviewContentKeydown(event) {

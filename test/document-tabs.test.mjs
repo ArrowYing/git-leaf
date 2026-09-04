@@ -10,6 +10,7 @@ import {
   createBlankDocumentTab,
   documentTabBehaviorFromModifiers,
   documentTabHistoryAvailability,
+  documentTabPresentations,
   isTreeDocumentNewTabShortcut,
   moveDocumentTabHistory,
   navigateDocumentTab,
@@ -57,6 +58,13 @@ test("a new blank tab is active without pretending to be a repository file", () 
     canGoBack: false,
     canGoForward: false,
   });
+  assert.deepEqual(documentTabPresentations({ tabs: result.tabs })[1], {
+    id: "tab-2",
+    path: "",
+    blank: true,
+    filename: "",
+    title: "",
+  });
 });
 
 test("current navigation fills the active blank tab instead of adding another tab", () => {
@@ -103,6 +111,119 @@ test("blank tabs normalize, reorder, and survive unrelated path deletion", () =>
   assert.deepEqual(result.tabs.map((item) => item.id), ["tab-blank"]);
   assert.equal(result.activeTabId, "tab-blank");
   assert.equal(result.location, null);
+});
+
+test("document tabs show a human title beneath an opaque Markdown filename", () => {
+  const path = "teachers/15a634e2-8056-4915-ab8a-21cf55aa4363.md";
+  const presentations = documentTabPresentations({
+    tabs: [tab("tab-1", path)],
+    tree: [{
+      type: "directory",
+      name: "teachers",
+      children: [{
+        type: "file",
+        kind: "markdown",
+        name: "15a634e2-8056-4915-ab8a-21cf55aa4363.md",
+        path,
+        title: "Teacher profile",
+      }],
+    }],
+  });
+
+  assert.deepEqual(presentations, [{
+    id: "tab-1",
+    path,
+    filename: "15a634e2-8056-4915-ab8a-21cf55aa4363.md",
+    title: "Teacher profile",
+  }]);
+});
+
+test("document tabs keep readable Chinese filenames and titleless files on one line", () => {
+  const presentations = documentTabPresentations({
+    tabs: [tab("tab-1", "教师档案.md"), tab("tab-2", "notes.txt")],
+    tree: [
+      {
+        type: "file",
+        kind: "markdown",
+        name: "教师档案.md",
+        path: "教师档案.md",
+        title: "Teacher profile",
+      },
+      {
+        type: "file",
+        kind: "text",
+        name: "notes.txt",
+        path: "notes.txt",
+      },
+    ],
+  });
+
+  assert.deepEqual(
+    presentations.map(({ filename, title }) => ({ filename, title })),
+    [
+      { filename: "教师档案.md", title: "" },
+      { filename: "notes.txt", title: "" },
+    ],
+  );
+});
+
+test("document tabs use the shortest unique path when filename and title both repeat", () => {
+  const presentations = documentTabPresentations({
+    tabs: [tab("tab-1", "guides/README.md"), tab("tab-2", "api/README.md")],
+    tree: [
+      {
+        type: "directory",
+        name: "guides",
+        children: [{
+          type: "file",
+          kind: "markdown",
+          name: "README.md",
+          path: "guides/README.md",
+          title: "Overview",
+        }],
+      },
+      {
+        type: "directory",
+        name: "api",
+        children: [{
+          type: "file",
+          kind: "markdown",
+          name: "README.md",
+          path: "api/README.md",
+          title: "Overview",
+        }],
+      },
+    ],
+  });
+
+  assert.deepEqual(
+    presentations.map(({ filename, title }) => ({ filename, title })),
+    [
+      { filename: "guides/README.md", title: "Overview" },
+      { filename: "api/README.md", title: "Overview" },
+    ],
+  );
+});
+
+test("the loaded current document title wins over stale tree metadata", () => {
+  const path = "reports/weekly-report.md";
+  const [presentation] = documentTabPresentations({
+    tabs: [tab("tab-1", path)],
+    tree: [{
+      type: "file",
+      kind: "markdown",
+      name: "weekly-report.md",
+      path,
+      title: "Last week",
+    }],
+    currentDocument: {
+      kind: "markdown",
+      path,
+      title: "This week",
+    },
+  });
+
+  assert.equal(presentation.title, "This week");
 });
 
 test("internal-link modifiers select current, background, and foreground tab intents", () => {

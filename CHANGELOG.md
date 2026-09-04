@@ -4,6 +4,15 @@ OpenGlance follows Semantic Versioning for its shared app version. Git tags iden
 official public artifacts, signatures, checksums, and platform availability are authoritative only on
 the [OpenGlance download page](https://gitleaf.mangofuture.com/download).
 
+## 3.1.0 — 2026-09-04 (internal release)
+
+### Added
+
+- Made relative Markdown and MDX links in CSV preview cells open the referenced repository document,
+  including the existing modifier-key behavior for choosing the current tab or a new tab.
+- Added readable document titles to open-document tabs while preserving filenames and repository paths
+  as the stable navigation and session identity.
+
 ## 3.0.6 — 2026-08-30 (internal release)
 
 ### Fixed
