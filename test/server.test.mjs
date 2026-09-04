@@ -8,7 +8,11 @@ import test from "node:test";
 import { promisify } from "node:util";
 
 import { createPreviewServer, documentPayload } from "../src/server/index.mjs";
-import { resolveNewDocumentPath, resolvePreviewPath } from "../src/server/paths.mjs";
+import {
+  resolveNewDocumentPath,
+  resolveOpenablePath,
+  resolvePreviewPath,
+} from "../src/server/paths.mjs";
 import { createRepositoryInfo } from "../src/server/repositories.mjs";
 
 const execFileAsync = promisify(execFile);
@@ -1111,6 +1115,40 @@ test("link target API returns titled safe repository document links", async () =
     assert.equal(openGlanceUrl.markdown, "[Peer Doc](./peer.md#L3)");
   } finally {
     await close(server);
+  }
+});
+
+test("link target API opens a repository document relative to a CSV preview", async () => {
+  const repoRoot = await mkdtemp(path.join(tmpdir(), "git-leaf-csv-link-"));
+  await mkdir(path.join(repoRoot, "reviews", "views"), { recursive: true });
+  await mkdir(path.join(repoRoot, "reviews", "teachers"), { recursive: true });
+  await writeFile(
+    path.join(repoRoot, "reviews", "views", "pending-reviews.csv"),
+    "teacher_id,teacher\nexample,[Example](../teachers/example.md)\n",
+  );
+  await writeFile(
+    path.join(repoRoot, "reviews", "teachers", "example.md"),
+    "# Example Teacher\n",
+  );
+  const initialFile = await resolveOpenablePath(
+    repoRoot,
+    "reviews/views/pending-reviews.csv",
+  );
+  const server = createPreviewServer({ repoRoot, initialFile });
+  const baseUrl = await listen(server);
+
+  try {
+    const response = await fetch(
+      `${baseUrl}/api/link-target?file=reviews%2Fviews%2Fpending-reviews.csv&target=..%2Fteachers%2Fexample.md`,
+    );
+    const payload = await response.json();
+
+    assert.equal(response.status, 200);
+    assert.equal(payload.path, "reviews/teachers/example.md");
+    assert.equal(payload.href, "../teachers/example.md");
+  } finally {
+    await close(server);
+    await rm(repoRoot, { recursive: true, force: true });
   }
 });
 
