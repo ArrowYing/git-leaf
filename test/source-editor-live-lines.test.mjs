@@ -30,6 +30,7 @@ import {
   liveMdxComponentForLine,
   liveMdxTargetIsEmbeddedViewControl,
   minimalDocumentChange,
+  liveMarkdownDecorationsNeedRebuild,
   liveMarkdownSelectionPresentation,
   nextLiveEditingSuppression,
   listItemIndentChange,
@@ -38,6 +39,7 @@ import {
   slashCommandCompletionSource,
   slashCommandsForLocale,
   slashCommandTemplate,
+  shouldUseNativePasteDuringComposition,
 } from "../src/client/source-editor.mjs";
 
 test("Markdown heading folds stop before the next heading at the same or higher level", () => {
@@ -477,6 +479,43 @@ test("Live text dragging keeps reading decorations stable until the selection co
   assert.equal(liveMarkdownSelectionPresentation(dragging, true), null);
 });
 
+test("Live IME composition keeps the composing line structurally stable", () => {
+  const cursor = EditorState.create({
+    doc: "第一段\n第二段",
+    selection: { anchor: 1 },
+  });
+  const compositionRange = cursor.update({
+    selection: { anchor: 1, head: 3 },
+  }).state;
+
+  assert.equal(liveMarkdownSelectionPresentation(compositionRange), null);
+  assert.equal(
+    liveMarkdownSelectionPresentation(compositionRange, false, true),
+    1,
+  );
+  assert.equal(
+    liveMarkdownDecorationsNeedRebuild({
+      docChanged: true,
+      activeComposition: true,
+    }),
+    false,
+  );
+  assert.equal(
+    liveMarkdownDecorationsNeedRebuild({
+      docChanged: true,
+      activeComposition: false,
+    }),
+    true,
+  );
+  assert.equal(
+    liveMarkdownDecorationsNeedRebuild({
+      activeComposition: true,
+      selectionPresentationChanged: true,
+    }),
+    true,
+  );
+});
+
 test("Live reading decorations render reusable text styles without exposing span source", () => {
   const source =
     '<span style="color: #dc2626; background-color: #d9770633;">**_重点_**</span> 和 ~~删除~~';
@@ -661,6 +700,18 @@ test("pastedTextLinkCandidate only handles URLs and Markdown document paths", ()
   assert.equal(pastedTextLinkCandidate("/Users/demo/repo/docs/report.mdx"), "/Users/demo/repo/docs/report.mdx");
   assert.equal(pastedTextLinkCandidate("ordinary text"), "");
   assert.equal(pastedTextLinkCandidate("https://example.com\nsecond line"), "");
+});
+
+test("Live paste stays native while an input method composition is active", () => {
+  assert.equal(
+    shouldUseNativePasteDuringComposition({ isComposing: true }, {}),
+    true,
+  );
+  assert.equal(
+    shouldUseNativePasteDuringComposition({}, { compositionStarted: true }),
+    true,
+  );
+  assert.equal(shouldUseNativePasteDuringComposition({}, {}), false);
 });
 
 test("Slash menu templates keep frontmatter human-entered and format MDX attributes on separate lines", () => {
