@@ -6302,6 +6302,7 @@ export function liveMarkdownLinksForLine(text) {
     const textTo = textFrom + match[1].length;
     const destinationFrom = textTo + 2;
     const destinationTo = destinationFrom + match[2].length;
+    const destination = match[2].trim();
     return {
       from,
       to: destinationTo + 1,
@@ -6310,7 +6311,9 @@ export function liveMarkdownLinksForLine(text) {
       destinationFrom,
       destinationTo,
       text: match[1],
-      href: match[2],
+      href: destination.startsWith("<") && destination.endsWith(">")
+        ? destination.slice(1, -1)
+        : destination,
     };
   });
 }

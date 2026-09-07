@@ -33596,6 +33596,15 @@ function createTranslator(messages, locale = DEFAULT_LOCALE) {
   return translate;
 }
 
+// src/content/link-path.mjs
+function decodeMarkdownLinkPath(value) {
+  try {
+    return decodeURIComponent(value.replace(/%(?![\da-f]{2})/gi, "%25"));
+  } catch {
+    return value;
+  }
+}
+
 // src/content/markdown-table.mjs
 var MARKDOWN_TABLE_TEXT_COLORS = Object.freeze([
   Object.freeze({ name: "green", value: "#16a34a" }),
@@ -36844,8 +36853,7 @@ function transformDestination(rawDestination, options, kind) {
   if (!options.currentFile || isExternalDestination(destination) || destination.startsWith("#")) {
     return destination;
   }
-  const resolved = resolveRelativeRepoLink(options.currentFile, destination);
-  const [pathPart, suffix = ""] = splitSuffix(resolved);
+  const { file: pathPart, suffix } = resolveRelativeRepoLink(options.currentFile, destination);
   if (kind === "link" && isMarkdownPath(pathPart)) {
     return withRepositoryQuery("/", {
       repo: options.currentRepo,
@@ -36865,7 +36873,13 @@ function withRepositoryQuery(pathname, { repo, file, suffix = "" }) {
     query.set("repo", repo);
   }
   query.set("file", file);
-  return `${pathname}?${query.toString()}${suffix}`;
+  const hashIndex = suffix.indexOf("#");
+  const hash2 = hashIndex < 0 ? "" : suffix.slice(hashIndex);
+  const destinationQuery = hashIndex < 0 ? suffix : suffix.slice(0, hashIndex);
+  for (const [key, value] of new URLSearchParams(destinationQuery)) {
+    if (key !== "repo" && key !== "file") query.append(key, value);
+  }
+  return `${pathname}?${query.toString()}${hash2}`;
 }
 function isOpenGlanceDocumentDestination(destination) {
   try {
@@ -36892,20 +36906,14 @@ function sanitizeOpenGlanceDocumentDestination(destination) {
   return `${url.pathname}${url.search}${url.hash}`;
 }
 function resolveRelativeRepoLink(sourceRelativePath, destination) {
-  if (isExternalDestination(destination) || destination.startsWith("#")) {
-    return destination;
-  }
   const [pathPart, suffix = ""] = splitDestinationSuffix(destination);
   if (!pathPart) {
-    return destination;
+    return { file: sourceRelativePath, suffix };
   }
-  const decodedPath = decodeURI(pathPart);
+  const decodedPath = decodeMarkdownLinkPath(pathPart);
   const sourceDir = posixDirname(sourceRelativePath);
   const resolved = decodedPath.startsWith("/") ? posixNormalize(decodedPath.slice(1)) : posixNormalize(`${sourceDir}/${decodedPath}`);
-  if (resolved.startsWith("../") || resolved === "..") {
-    return destination;
-  }
-  return encodeURI(resolved) + suffix;
+  return { file: resolved, suffix };
 }
 function isMarkdownPath(value) {
   const extension = posixExtname(value).toLowerCase();
@@ -36925,23 +36933,13 @@ function splitDestinationSuffix(destination) {
   const splitIndex = Math.min(...indexes);
   return [destination.slice(0, splitIndex), destination.slice(splitIndex)];
 }
-function splitSuffix(destination) {
-  const hashIndex = destination.indexOf("#");
-  const queryIndex = destination.indexOf("?");
-  const indexes = [hashIndex, queryIndex].filter((index) => index >= 0);
-  if (indexes.length === 0) {
-    return [destination, ""];
-  }
-  const splitIndex = Math.min(...indexes);
-  return [destination.slice(0, splitIndex), destination.slice(splitIndex)];
-}
 function posixDirname(value) {
   const normalized = String(value ?? "").replace(/\/+$/g, "");
   const slashIndex = normalized.lastIndexOf("/");
   return slashIndex >= 0 ? normalized.slice(0, slashIndex) : ".";
 }
 function posixExtname(value) {
-  const pathPart = String(value ?? "").split(/[?#]/, 1)[0];
+  const pathPart = String(value ?? "");
   const slashIndex = pathPart.lastIndexOf("/");
   const dotIndex = pathPart.lastIndexOf(".");
   return dotIndex > slashIndex ? pathPart.slice(dotIndex) : "";
@@ -37862,6 +37860,8 @@ var WORKBENCH_MESSAGES = Object.freeze({
     "document.emptyTitle": "No file open",
     "document.emptyDetail": "Select a repository file from the sidebar. Markdown and MDX can be edited; other files are read-only.",
     "sync.agentTitle": "AI Agent assistance required",
+    "sync.noteLabel": "Change summary (optional)",
+    "sync.notePlaceholder": "What changed? Leave blank to generate automatically.",
     "sync.agentDetail": "Your local changes are preserved. You can hand this off to an AI Agent to finish syncing.",
     "error.repositoryList": "Could not read the repository list.",
     "error.noRepository": "No repository is available.",
@@ -38343,6 +38343,8 @@ var WORKBENCH_MESSAGES = Object.freeze({
     "document.emptyTitle": "\u672A\u6253\u5F00\u6587\u4EF6",
     "document.emptyDetail": "\u4ECE\u5DE6\u4FA7\u76EE\u5F55\u6811\u9009\u62E9\u4ED3\u5E93\u6587\u4EF6\u3002Markdown / MDX \u652F\u6301\u7F16\u8F91\uFF0C\u5176\u4ED6\u6587\u4EF6\u53EA\u8BFB\u67E5\u770B\u3002",
     "sync.agentTitle": "\u9700\u8981 AI Agent \u5904\u7406",
+    "sync.noteLabel": "\u672C\u6B21\u4FEE\u6539\u6458\u8981\uFF08\u9009\u586B\uFF09",
+    "sync.notePlaceholder": "\u7B80\u5355\u8BF4\u8BF4\u6539\u4E86\u4EC0\u4E48\uFF1B\u7559\u7A7A\u81EA\u52A8\u751F\u6210",
     "sync.agentDetail": "\u672C\u5730\u4FEE\u6539\u90FD\u5DF2\u4FDD\u7559\uFF0C\u53EF\u4EE5\u4EA4\u7ED9 AI Agent \u7EE7\u7EED\u5B8C\u6210\u540C\u6B65\u3002",
     "error.repositoryList": "\u65E0\u6CD5\u8BFB\u53D6\u4ED3\u5E93\u5217\u8868\u3002",
     "error.noRepository": "\u6CA1\u6709\u53EF\u7528\u4ED3\u5E93\u3002",
@@ -44587,6 +44589,7 @@ function liveMarkdownLinksForLine(text2) {
     const textTo = textFrom + match2[1].length;
     const destinationFrom = textTo + 2;
     const destinationTo = destinationFrom + match2[2].length;
+    const destination = match2[2].trim();
     return {
       from,
       to: destinationTo + 1,
@@ -44595,7 +44598,7 @@ function liveMarkdownLinksForLine(text2) {
       destinationFrom,
       destinationTo,
       text: match2[1],
-      href: match2[2]
+      href: destination.startsWith("<") && destination.endsWith(">") ? destination.slice(1, -1) : destination
     };
   });
 }

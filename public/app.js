@@ -387,6 +387,7 @@ const state = {
   frontmatterActiveKey: "domain",
   frontmatterFacetsLoading: false,
   gitChanges: [],
+  gitSyncNotes: new Map(),
   gitStatusTimer: null,
   remoteSync: {
     ok: null,
@@ -507,6 +508,8 @@ const gitRemoteStatus = document.querySelector("#git-remote-status");
 const gitRemoteDetail = document.querySelector("#git-remote-detail");
 const gitMergeRemote = document.querySelector("#git-merge-remote");
 const gitSyncOpen = document.querySelector("#git-sync-open");
+const gitSyncNoteWrap = document.querySelector("#git-sync-note-wrap");
+const gitSyncNote = document.querySelector("#git-sync-note");
 const gitSyncPanel = document.querySelector("#git-sync-panel");
 const gitSyncClose = document.querySelector("#git-sync-close");
 const gitSyncResult = document.querySelector("#git-sync-result");
@@ -716,6 +719,9 @@ frontmatterFilterToggle.addEventListener("click", toggleFrontmatterFilterPopover
 frontmatterActiveFilters.addEventListener("click", handleActiveFrontmatterFilterClick);
 frontmatterFilterPopover.addEventListener("click", handleFrontmatterFilterPopoverClick);
 gitSyncOpen.addEventListener("click", handlePrimaryGitSyncAction);
+gitSyncNote.addEventListener("input", () => {
+  state.gitSyncNotes.set(remoteSyncScope(), gitSyncNote.value);
+});
 gitMergeRemote.addEventListener("click", () => mergeRemoteIntoWorkspace({ automatic: false }));
 gitSyncClose.addEventListener("click", closeGitSyncPanel);
 gitSyncPanel.addEventListener("click", handleGitSyncPanelBackdropClick);
@@ -6758,6 +6764,10 @@ function filterNodesByFrontmatter(nodes) {
 function renderGitChangeToolbar() {
   const hasChanges = state.gitChanges.length > 0;
   const decision = currentRemoteSyncDecision();
+  gitSyncNoteWrap.hidden = !hasChanges;
+  gitSyncNote.disabled = !decision.canRunPrimary;
+  const note = state.gitSyncNotes.get(remoteSyncScope()) || "";
+  if (gitSyncNote.value !== note) gitSyncNote.value = note;
   gitChangeToolbar.hidden = state.sidebarTab !== "sync";
   gitChangeLabel.textContent = hasChanges
     ? t(state.gitChanges.length === 1 ? "git.localChangeOne" : "git.localChangeCount", {
@@ -6957,6 +6967,8 @@ async function submitGitSync() {
     return;
   }
 
+  const noteScope = remoteSyncScope();
+  const note = state.gitSyncNotes.get(noteScope) || "";
   await discardPreparedAutomaticRemoteMerge();
   const files = state.gitChanges.map((change) => change.path);
   const startedAt = performance.now();
@@ -6972,6 +6984,7 @@ async function submitGitSync() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         allChanges: true,
+        note,
       }),
     });
     const payload = await response.json().catch(() => ({
@@ -7003,6 +7016,7 @@ async function submitGitSync() {
       return;
     }
 
+    if (state.gitSyncNotes.get(noteScope) === note) state.gitSyncNotes.delete(noteScope);
     closeGitSyncPanel();
     recordTelemetryFeature("git.sync", {
       strategy: "guarded_live_v1",
@@ -9413,6 +9427,8 @@ async function showShareLinkUnavailable(payload, documentPath) {
 }
 
 async function publishShareLinkForPath(documentPath) {
+  const noteScope = remoteSyncScope();
+  const note = state.gitSyncNotes.get(noteScope) || "";
   for (;;) {
     let response;
     let payload;
@@ -9422,6 +9438,8 @@ async function publishShareLinkForPath(documentPath) {
         locale: state.locale,
       }), {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ note }),
       });
       payload = await response.json().catch(() => ({
         ok: false,
@@ -9440,6 +9458,7 @@ async function publishShareLinkForPath(documentPath) {
     }
 
     if (response?.ok && payload?.ok !== false && payload?.url) {
+      if (payload.published && state.gitSyncNotes.get(noteScope) === note) state.gitSyncNotes.delete(noteScope);
       await writeRichLinkClipboard(
         payload.url,
         shareLinkClipboardTitle(payload.url, documentPath),
@@ -10684,6 +10703,7 @@ async function liveDocumentTargetFromHref(href) {
     const response = await fetch(apiUrl("/api/link-target", {
       file: state.currentDocument.path,
       target: href,
+      targetFormat: "markdown",
       locale: state.locale,
     }));
     const payload = await response.json().catch(() => ({ error: t("error.openTargetDocument") }));
@@ -10719,7 +10739,7 @@ function openGlanceDocumentTargetFromHref(href) {
   try {
     const url = new URL(String(href ?? "").trim(), window.location.origin);
     const file = url.searchParams.get("file") ?? "";
-    if (!/^https?:$/i.test(url.protocol) || !/\.mdx?$/i.test(file)) {
+    if (!/^https?:$/i.test(url.protocol) || url.pathname !== "/" || !/\.mdx?$/i.test(file)) {
       return null;
     }
     if (url.origin !== window.location.origin && !url.searchParams.has("repo")) {
