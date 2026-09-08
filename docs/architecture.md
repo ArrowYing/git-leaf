@@ -126,6 +126,12 @@ the CLI working directory. When no saved session or explicit document exists, th
 priority is `AGENTS.md`, `README.md`, then `CONTEXT.md`; if none exists, OpenGlance opens an empty
 workbench.
 
+Desktop startup validates the repository independently of the requested document. A missing or
+unreadable initial file is reported through the document API inside the workbench, preserving access
+to the tree and repository switcher. When repository startup itself fails, Home renders the saved
+repository display records and reuses opaque-ID switching, including reopening a retained server's
+repository. File errors must not be classified as a missing Git executable.
+
 Repository identity and worktree state follow these rules:
 
 - the repository is the stable top-level identity;
@@ -609,6 +615,12 @@ An empty link only launches or focuses the app. Shareable links use a lowercase 
 against repositories already opened locally; if no match exists, it asks the user to select a local
 repository and verifies its origin before continuing.
 
+An ordinary identity-based `/open` request resolves the matched repository's primary checkout from
+Git worktree metadata, regardless of the active or remembered linked worktree. This also applies when
+the user selects a linked worktree in the directory chooser. It reads the primary checkout as it is;
+it does not switch branches, synchronize Git, or search other worktrees for a missing document.
+Explicit local paths and ordinary session restoration continue to use their requested working directory.
+
 `path` must be a safe repository-relative Markdown or MDX path. Traversal, absolute paths, and other file
 types are rejected. A worktree-specific link uses `open-worktree`, fails if the exact local ID is
 missing, and never silently falls back to another worktree.
@@ -670,6 +682,8 @@ Agent automation is a separate launch intent. `make smoke-dev-mac` creates a one
 snapshot, passes explicit isolated `userData` and `sessionData`, verifies the production Profile
 fingerprint after the run, and deletes only the temporary snapshot. Failure to create or verify the
 snapshot must stop automation; it may not fall back to the real Profile.
+The smoke App is installed inside that temporary directory and removed with it. Smoke does not replace
+or quit the human App, refresh its Dock icon, or claim the user's default protocol handlers.
 
 Eight preferences are user configurable: `language`, `colorMode`, `documentFont`, `documentFontSize`,
 `fileTreeMode`, `showDocumentTitles`, `gitRemoteCheckIntervalMinutes`, and `keyboardShortcuts`. Tabs, tree

@@ -58,7 +58,8 @@ than Obsidian.
   when a user chooses to publish, one action commits and pushes all local changes in the current
   repository.
 - **Links that share like online documents.** Teammates and agents can send OpenGlance HTTPS links in chat,
-  letting recipients open the matching document in their local knowledge base. OpenGlance creates a
+  letting recipients open the matching document in their local knowledge base. Ordinary document links
+  open the primary checkout; worktree-specific links select that exact local worktree. OpenGlance creates a
   versioned share link only after verifying the published revision.
 - **Agent-readable data, human-readable visuals.** Standard Mermaid fences and controlled MDX keep
   diagrams, charts, tables, and metrics as readable repository text that agents can edit and OpenGlance
@@ -180,7 +181,8 @@ JSX, JavaScript, imports, or scripts.
   available, while keeping the full repository-relative path in the hover tooltip.
 - A searchable, drag-reorderable repository panel for opening, switching, and removing repositories from
   OpenGlance without deleting local files, plus worktree switching with restored tabs, navigation history,
-  scroll positions, and focus.
+  scroll positions, and focus. Missing documents leave the workbench usable; if a repository is
+  unavailable, Home keeps the saved repository list available for recovery.
 - Read-only previews for images, PDFs, CSV, JSON, JSON Lines (`.ndjson` / `.jsonl`), YAML, HTML, code,
   and other repository attachments. A CSV cell containing only a repository-local Markdown link opens
   that document directly.

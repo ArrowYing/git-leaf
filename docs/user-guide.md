@@ -387,9 +387,9 @@ The normal Agent-to-person flow is:
 2. The Agent returns an HTTPS **Open in OpenGlance** link instead of only a local path.
 3. The browser opens Mango Future's `/open` handoff page and, on the first use, may ask permission to
    launch OpenGlance.
-4. OpenGlance matches the GitHub repository identity to a local checkout, asks the user to choose one
-   when necessary, and opens the requested document. A linked-worktree URL also selects that exact
-   worktree on the same machine.
+4. OpenGlance matches the GitHub repository identity, asks the user to choose a local repository when
+   necessary, and opens the document in its primary checkout. A linked-worktree URL selects that exact
+   worktree on the same machine and reports an error if it is missing.
 
 After installing OpenGlance and making the public example available locally, try the complete handoff:
 
@@ -472,6 +472,11 @@ new order.
 The row action can remove a repository from OpenGlance. This removes it only from the open repository
 list: OpenGlance does not delete the local directory, Git files, branches, or unpublished changes. Opening
 the same repository again restores its saved workspace state and Favorites.
+
+If a requested document is missing or unreadable, its error appears in the workbench. Choose another
+file from the tree or switch repositories as usual. If the repository or worktree itself is unavailable,
+Home shows the error alongside **Opened repositories**, where you can choose another saved repository
+without locating its folder again.
 
 When a repository has multiple Git worktrees, the worktree selector replaces the repeated repository
 name in the sidebar header while the repository-panel button remains separate. Each worktree keeps

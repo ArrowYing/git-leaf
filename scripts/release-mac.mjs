@@ -119,11 +119,9 @@ export const devInstallSteps = [
 export const devSmokeSteps = [
   "validate-smoke-user-data",
   "package",
-  "quit-dev-app",
   "prepare-dev-user-data",
   "install-dev-app",
   "cleanup-dev-package",
-  "refresh-dev-app-icon",
   "launch-dev-app-and-wait",
   "verify-production-profile",
   "cleanup-smoke-user-data",
@@ -332,6 +330,9 @@ export function macDevelopmentInstallOptions(options = {}, {
     ...baseOptions,
     arch,
     outDir: developmentOutDir || defaultOutDir,
+    ...(baseOptions.smoke ? {
+      applicationsDir: path.join(baseOptions.devUserDataDir || DEFAULT_SMOKE_USER_DATA_DIR, "Applications"),
+    } : {}),
     dev: true,
   };
 }
