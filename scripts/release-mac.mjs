@@ -42,6 +42,7 @@ import {
   electronPackagerCommand,
   ensureReleaseGitTag,
   packageVersion,
+  publishUpdateDirectory,
   releaseArtifactFileName,
   releaseBuildId,
   releaseBuildInfoFromEnv,
@@ -1010,6 +1011,7 @@ function releaseOptionsFromEnv() {
       || DEFAULT_SMOKE_USER_DATA_DIR,
     smokeRepoRoot: openGlanceEnvironmentValue(process.env, "SMOKE_REPO_ROOT") || "",
     smokeFile: openGlanceEnvironmentValue(process.env, "SMOKE_FILE") || "",
+    smokeScenario: openGlanceEnvironmentValue(process.env, "SMOKE_SCENARIO") || "",
     smokeRemoteDebuggingPort:
       openGlanceEnvironmentValue(process.env, "SMOKE_REMOTE_DEBUGGING_PORT") || "",
     formalRelease: openGlanceEnvironmentFlag(process.env, "FORMAL_RELEASE"),
@@ -1408,6 +1410,13 @@ function refreshDevelopmentAppIcon(paths) {
 }
 
 function launchDevelopmentApp(options, paths, { wait = false } = {}) {
+  if (options.smoke && options.smokeScenario === "mac-app-name") {
+    return run(process.execPath, [
+      path.join(REPO_ROOT, "scripts", "smoke-mac-app-name.mjs"),
+      paths.installedAppDir,
+      macDevelopmentUserDataPaths(options).devUserDataDir,
+    ]);
+  }
   const [command, args] = launchDevelopmentAppCommand(paths, {
     userDataDir: options.smoke
       ? macDevelopmentUserDataPaths(options).devUserDataDir
@@ -1748,6 +1757,7 @@ function publishMacUpdates(options, paths) {
       channel: options.updateChannel,
       platformKey: "darwin-universal",
     }),
+    runCommand: run,
   });
   publishUpdateDirectory({
     localDir: arm64MigrationPaths.updateDir,
@@ -1757,6 +1767,7 @@ function publishMacUpdates(options, paths) {
       channel: options.updateChannel,
       platformKey: "darwin-arm64",
     }),
+    runCommand: run,
   });
 }
 
@@ -1822,32 +1833,6 @@ function writeUpdateManifests(paths, manifest) {
     current: manifest.version,
     releases: [manifest],
   });
-}
-
-function publishUpdateDirectory({ localDir, remoteHost, remotePath }) {
-  const incomingPath = `${remotePath}.incoming-${Date.now()}`;
-  const previousPath = `${remotePath}.previous`;
-  run("ssh", [
-    remoteHost,
-    [
-      `rm -rf ${shellQuote(incomingPath)}`,
-      `mkdir -p ${shellQuote(incomingPath)} ${shellQuote(path.posix.dirname(remotePath))}`,
-    ].join(" && "),
-  ]);
-  run("rsync", ["-az", "--delete", `${localDir}/`, `${remoteHost}:${incomingPath}/`]);
-  run("ssh", [
-    remoteHost,
-    [
-      `rm -rf ${shellQuote(previousPath)}`,
-      `if [ -d ${shellQuote(remotePath)} ]; then mv ${shellQuote(remotePath)} ${shellQuote(previousPath)}; fi`,
-      `mv ${shellQuote(incomingPath)} ${shellQuote(remotePath)}`,
-      `rm -rf ${shellQuote(previousPath)}`,
-    ].join(" && "),
-  ]);
-}
-
-function shellQuote(value) {
-  return `'${String(value).replace(/'/g, "'\\''")}'`;
 }
 
 function runTests() {

@@ -348,6 +348,12 @@ Hash equality binds those local platform checks to the published artifact withou
 transfer. These worktree-local files remain the source for the final local archive; `finish` must not
 download another copy from the network.
 
+Candidate and stable uploads use an incoming directory keyed by the staged `latest.json` SHA-256.
+Interrupted rsync transfers retain only that immutable candidate's partial bytes and retry into the
+same directory with bounded SSH liveness checks. A different manifest selects a different incoming
+directory. Publication still becomes visible only through the existing remote directory swap, and the
+subsequent official-URL byte count and SHA-256 verification remains mandatory.
+
 Then record candidate verification:
 
 ```bash
@@ -400,9 +406,15 @@ npm run release:verify-update:mac -- \
   --output dist/macos-update-regression/release-gate.json
 ```
 
-The harness refuses to start while an installed OpenGlance or Git Leaf App is running or any relevant ShipIt launchd job
-already exists. It uses a temporary App location whose parent is deliberately not writable, plus
-isolated HOME and Electron Profile paths when exercising the in-App updater. For a stable version older
+The harness refuses to start while an installed OpenGlance or Git Leaf App is running, while a system
+ShipIt job exists, or while a user ShipIt job is active, failed, still owns a staged update, or cannot be
+classified safely. A same-track user job is a completed dormant registration only when it has run at
+least once, exited successfully, is no longer active, belongs to the installed official App, and its
+recorded staged-update directory no longer exists. The harness may let Squirrel's normal submission
+replace that completed registration; it never manually unloads or boots out a production job. If the
+regression fails before Squirrel replaces it, cleanup preserves the original registration unchanged.
+The harness uses a temporary App location whose parent is deliberately not writable, plus isolated HOME
+and Electron Profile paths when exercising the in-App updater. For a stable version older
 than the first nonprivileged-only package, it uses the one-time `Contents` bridge instead of launching
 that legacy package's defective privileged Helper path. Its mandatory `finally` cleanup removes only
 state owned by that run. It then proves the real Profile and real ShipIt cache fingerprints did not change.
@@ -435,7 +447,11 @@ temporary App opens and restarts on the current desktop, but the Agent supplies 
 maintainer for another confirmation once the development or release workflow is authorized. Each
 transition action is clicked at most once;
 a failed helper may not create an automated restart loop. The harness refuses to run while the
-installed human App or either official/community ShipIt job is active.
+installed human App or either official/community ShipIt job is active, failed, still owns a staged
+update, or cannot be classified safely. It may accept a completed dormant user job only when it exited
+successfully, belongs to the installed App, and its staged-update directory no longer exists. Because
+the development handoff must not invoke Squirrel, the harness preserves any such preexisting dormant
+registration byte-for-byte and fails if it changes or if a new ShipIt job appears.
 
 An update regression that requests system account credentials or starts a privileged Helper is a
 failure, not an installation step. Do not authorize it or manually load, unload, or boot out ShipIt jobs
@@ -461,12 +477,14 @@ therefore replaces its signed `Contents` directory without write access to the r
 case. The regression requires the `.app` directory inode to remain unchanged.
 
 Internal official macOS packages use the canonical `OpenGlance.app` bundle and ZIP root with the hidden
-`CFBundleExecutable=Git Leaf`. Before ShipIt installs into a legacy `Git Leaf.app`, OpenGlance
-atomically sets `useUpdateBundleName=true` only when the parent directory is writable, allowing ShipIt
-to move the existing bundle to `OpenGlance.app`. With a non-writable parent it sets the value to `false`,
-preserving the outer path while updating signed `Contents` in place. Both outcomes preserve one App and
-the same Profile. Public official and Community packages use the canonical executable and their
-OpenGlance-native Bundle IDs; they do not inherit the internal machine identity.
+`CFBundleExecutable=Git Leaf`. ShipIt's `useUpdateBundleName` is always set to `false`: Squirrel derives
+its proposed name from the executable, so enabling it cannot migrate the legacy internal App and can
+revert an already canonical path. The newly installed App instead migrates `Git Leaf.app` to its
+`OpenGlance.app` sibling on startup, after its helper confirms readiness and the old instance exits.
+It preserves the original App directory inode, signed Contents, Bundle ID, executable, launch arguments,
+and Profile. A non-writable parent or occupied destination leaves the App usable at its existing path;
+a failed relaunch restores that path and prevents an immediate retry loop. Public official and Community
+packages retain their canonical executable and OpenGlance-native Bundle IDs.
 
 This gate validates installation of the final signed package and its cleanup contract. It is not a
 feature-by-feature UI test, and it is not repeated after releases whose recorded risk assessment does
