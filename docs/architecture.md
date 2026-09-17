@@ -3,7 +3,7 @@ title: OpenGlance system architecture
 domain: ai
 type: architecture
 owner: maintainer
-last_updated: 2026-08-27
+last_updated: 2026-09-16
 source: openglance
 canonical: true
 ai_snippet: "[Architecture] OpenGlance | human desktop interface for shared context repositories | local HTTP service | Git worktrees | Preview Source Live | CodeMirror 6 | guarded Git sync"
@@ -206,6 +206,12 @@ Nonzero exit codes are normal only when a specific command contract declares the
 an explicit call site; for example, a failed share-title preview can fall back to the filename.
 
 ## Workbench state and navigation
+
+After repository identity and worktree resolution, ordinary desktop document links targeting the active
+worktree reuse its server and renderer. They flush pending editor writes, activate an existing document
+tab or open a new one, and acknowledge navigation only after it completes. A failed save or document
+read preserves the current workbench. A different worktree or a Home page still uses the full repository
+transition; matching the repository alone is not sufficient for reuse.
 
 The front end has four stable areas:
 
@@ -611,6 +617,60 @@ Neither action starts during merge, rebase, cherry-pick, revert, or an existing 
 publish rebase attempts `rebase --abort`. Divergence, conflicts, repeated workspace drift, and
 unexpected Git state stop safely. A copyable prompt for the user's chosen AI agent is the final fallback,
 and the down-only prompt explicitly requires an uncommitted, unpushed result.
+
+## Link hover previews
+
+Preview and Live share an on-demand, nonmodal link card. `public/link-preview-target.js` classifies a
+finite set of local Markdown/MDX and `https://github.com` resource URLs in both renderer and service.
+The renderer waits for deliberate hover or link focus, cancels obsolete fetches, and rejects results
+after navigation or source changes. Moving into the card retains it; Escape dismisses it. The card
+uses text nodes for all remote content and never renders returned HTML, images, or executable MDX.
+
+`GET /api/link-preview` uses the existing localhost and same-origin request boundary. Document reads
+resolve real paths within the selected repository/worktree and are bounded by file size. Heading IDs
+and line offsets share the document parser. Same-repository hosted links resolve the primary or exact
+worktree without selecting it; cross-repository links remain unavailable until opened. Shared links
+only preview a labeled local copy and cannot trigger fetch, sync, publication, or revision verification.
+
+The GitHub provider reads current credentials using `gh auth token --hostname github.com` on every
+hover request (simultaneous credential reads are coalesced). Tokens stay in the local service and never
+enter renderer responses, URLs, logs, or command arguments. A service-owned HTTP connection pool sends
+fixed GET routes to `https://api.github.com`, with one reusable connection across different resource
+URLs, a 20-second API deadline, 2 MiB response limits, and at most two distinct preview operations.
+It honors `HTTPS_PROXY`,
+`HTTP_PROXY`, and `NO_PROXY` (including lowercase variants). Same-origin API redirects support renamed
+repositories; credentials are never forwarded to another origin. The pool is destroyed when the service
+closes. No global dispatcher or unrelated network client is changed.
+
+HTTP/2 is negotiated when available, with up to four concurrent GET streams on the same connection;
+file branch and tag resolution can therefore run together. HTTP/1.1 remains the fallback with ordered
+responses. Reusing a connection avoids repeated connection setup but does not remove API round trips
+or the first connection's network latency; it is independent of the content cache below.
+
+Successful GitHub cards use a bounded, 128-entry LRU memory cache for 60 seconds after completion.
+Each credential read is fingerprinted; an account switch or failed credential read clears the cache and
+cancels old in-flight requests. Identical pending previews share one operation, including when a browser
+fetch was cancelled on pointer exit. Late results from an invalidated account cannot return or populate
+the cache. HTTP 401, 403, or 404 clears retained content for the current credential context; failures are
+not cached. Expiry timers remove entries even without another hover. Cache hits still check local
+credentials, but cannot detect server-side permission changes until another API read: content and
+Milestone progress may be up to 60 seconds old. Private content and credentials are never persisted.
+
+Slash-bearing file refs resolve against matching Git refs before reading Contents at the resolved SHA
+when the ref/path split could be ambiguous. Unambiguous file URLs use their explicit ref directly.
+GitHub file line anchors use original source lines; other anchors are explicitly labeled as resource
+excerpts. Milestone URLs (`/milestone/{number}`) read the dedicated Milestones endpoint. Structured
+status, UTC calendar due date, and open/closed Issue counts are formatted in the renderer locale; zero
+total counts show an empty state instead of a completion percentage. Errors map to bounded public
+states rather than exposing command stderr, response bodies, credentials, or private paths.
+
+The browser API still sends `Cache-Control: no-store`; dismissal removes card content. No AI service or
+public preview proxy participates. The regression suite covers path containment, worktree identity,
+authentication changes, expiry/eviction, request coalescing, endpoint boundaries, and source extraction.
+`make smoke-link-previews-mac` uses the isolated development App and a loopback TLS fixture to exercise
+Preview and Live, stationary hover through multiple refresh cycles, keyboard dismissal, card retention,
+expansion, asynchronous race handling, cached-hover latency, reuse across uncached file URLs after idle,
+concurrent HTTP/2 ref reads, HTTP/1.1 fallback, and credential changes.
 
 ## Deep links and hosted handoff
 

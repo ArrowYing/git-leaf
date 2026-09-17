@@ -4,6 +4,36 @@ OpenGlance follows Semantic Versioning for its shared app version. Git tags iden
 official public artifacts, signatures, checksums, and platform availability are authoritative only on
 the [OpenGlance download page](https://gitleaf.mangofuture.com/download).
 
+## 3.3.0 — 2026-09-16 (internal release)
+
+### Added
+
+- Added hover previews in Preview and Live for local Markdown/MDX documents and GitHub repositories,
+  issues, pull requests, milestones, files, commits, and releases, using the local GitHub CLI login.
+
+### Changed
+
+- Made link preview cards more compact and improved GitHub preview latency through connection reuse,
+  HTTP/2 multiplexing, and a bounded in-memory cache that clears when credentials change.
+
+## 3.2.6 — 2026-09-16 (internal release)
+
+### Fixed
+
+- Reused the active workbench when opening document links in the same worktree, preserving open
+  tabs and navigation state without reloading the workspace.
+- Updated Windows release smoke to verify the active document independently of the server's initial
+  file, covering document links that reuse an existing workbench.
+
+## 3.2.5 — 2026-09-15 (internal release)
+
+### Fixed
+
+- Restored desktop usage analytics initialization after launch-protocol classification, allowing
+  eligible internal installations to resume durable daily activity summaries and periodic uploads.
+- Kept universal macOS package verification compatible with toolchains that require one architecture
+  per `lipo -verify_arch` invocation, while still rejecting either missing architecture.
+
 ## 3.2.4 — 2026-09-13 (internal release)
 
 ### Changed

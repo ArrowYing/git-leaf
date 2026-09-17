@@ -44509,6 +44509,7 @@ function liveInlineRangesForLine(text2) {
     push(link2.from, link2.textFrom, "cm-live-marker");
     push(link2.textFrom, link2.textTo, "cm-live-link-text", {
       "data-live-link": "true",
+      "data-link-preview-href": link2.href,
       "data-live-link-from": String(link2.from),
       "data-live-link-to": String(link2.to)
     });
