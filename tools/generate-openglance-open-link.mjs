@@ -174,7 +174,11 @@ export async function createOpenGlanceOpenLink({
   if (previewTitle) {
     const title = (await readOpenLinkPreviewTitle(currentRoot, url.searchParams.get("path")))
       .replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim();
-    if (title) url.searchParams.set("title", title.length <= 100 ? title : `${title.slice(0, 99).trimEnd()}…`);
+    const comparable = (value) => value.normalize("NFC").replace(/[-_\s]+/g, " ").trim().toLowerCase();
+    const filename = path.posix.basename(url.searchParams.get("path"));
+    const redundant = [filename, filename.replace(/\.mdx?$/i, "")]
+      .some((name) => comparable(name) === comparable(title));
+    if (title && !redundant) url.searchParams.set("title", title.length <= 100 ? title : `${title.slice(0, 99).trimEnd()}…`);
   }
   return url.toString();
 }
@@ -233,7 +237,8 @@ function printHelp() {
 
 Creates a portable link for the primary worktree or a local-exact link containing the
 worktree id for a linked worktree. The target repository must have a GitHub origin.
-Includes a document title for external previews; --no-preview-title omits it.`);
+Includes a distinct document title for external previews; filename-equivalent titles are omitted.
+Use --no-preview-title to omit all titles.`);
 }
 
 const invokedPath = process.argv[1] ? pathToFileURL(path.resolve(process.argv[1])).href : "";

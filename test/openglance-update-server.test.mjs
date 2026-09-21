@@ -814,7 +814,7 @@ test("OpenGlance update server renders a safe optional document deep link", asyn
     assert.doesNotMatch(html, /scheduleClose\(\);window\.location\.href/);
     assert.doesNotMatch(html, /lk_jump_to_browser/);
     assert.match(html, /<meta property="og:title" content="strategy.md">/);
-    assert.match(html, /<meta property="og:description" content="exampleorg\/company-docs · company\/strategy.md · 在本机指定工作目录打开">/);
+    assert.match(html, /<meta property="og:description" content="exampleorg\/company-docs · 本机工作区 · company">/);
 
     const base = `http://127.0.0.1:${port}/open?repo=owner%2Frepo&path=docs%2Fplan.md`;
     const titled = await fetch(`${base}&title=${encodeURIComponent('团队 <Plan> & "Review"')}&snippet=PRIVATE_BODY`);
@@ -830,6 +830,21 @@ test("OpenGlance update server renders a safe optional document deep link", asyn
     assert.equal(titledTarget.searchParams.has("title"), false);
     for (const suffix of ["&title=one&title=two", "&title=", `&title=${"x".repeat(101)}`, "&title=bad%00title"]) {
       assert.equal((await fetch(base + suffix)).status, 400);
+    }
+    // Metadata must be complete in the first HTML response, before any page script runs.
+    for (const [query, expectedTitle, expectedDescription] of [
+      ["path=docs%2Fplan.md", "plan.md", "owner/repo · docs"],
+      ["path=README.md", "README.md", "owner/repo"],
+      ["path=README.md&title=Project+Handbook", "Project Handbook", "owner/repo · README.md"],
+      ["path=docs%2Fweekly-report.md&title=Weekly+Report", "Weekly Report", "owner/repo · docs"],
+      ["path=README.md&worktree=0123456789abcdef", "README.md", "owner/repo · 本机工作区"],
+    ]) {
+      const metadataResponse = await fetch(`http://127.0.0.1:${port}/open?repo=owner%2Frepo&${query}`);
+      assert.equal(metadataResponse.status, 200);
+      const initialHead = (await metadataResponse.text()).split("</head>")[0];
+      assert.ok(initialHead.includes(`<meta property="og:title" content="${expectedTitle}">`));
+      assert.ok(initialHead.includes(`<meta property="og:description" content="${expectedDescription}">`));
+      assert.ok(initialHead.includes(`<meta name="description" content="${expectedDescription}">`));
     }
     const head = await fetch(`${base}&title=Plan`, { method: "HEAD" });
     assert.equal(head.status, 200);
@@ -958,7 +973,7 @@ test("OpenGlance update server renders versioned share links and reports handoff
     const legacyHtml = await legacyResponse.text();
     assert.equal(legacyResponse.status, 200);
     assert.match(legacyHtml, /<meta property="og:title" content="README.md">/);
-    assert.match(legacyHtml, /<meta property="og:description" content="owner\/repo · README\.md">/);
+    assert.ok(legacyHtml.includes(`<meta property="og:description" content="owner/repo · 发布版本 ${rev.slice(0, 8)}">`));
   } finally {
     server.kill("SIGTERM");
   }

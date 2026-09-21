@@ -133,7 +133,7 @@ test("createOpenGlanceShareLink falls back to the file name when preview metadat
   });
 
   const shareUrl = new URL(link);
-  assert.equal(shareUrl.searchParams.get("title"), "report.md");
+  assert.equal(shareUrl.searchParams.has("title"), false);
   assert.equal(shareUrl.searchParams.has("snippet"), false);
 });
 

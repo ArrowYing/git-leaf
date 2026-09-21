@@ -698,9 +698,14 @@ metadata into a local protocol launch and maintain a random, in-memory handoff s
 minutes. They do not fetch a Git repository or document body. The exact transmitted metadata and normal
 HTTP exposure are documented in [Hosted link handoff](hosted-links.md). Ordinary link generators add
 an optional bounded document title (frontmatter title, then H1), with `--no-preview-title` for omission.
-They read at most 64 KiB inside the selected repository and never transmit content summaries.
+Ordinary generators read at most 64 KiB inside the selected repository and never transmit content summaries.
+Both open and share URLs omit titles equivalent to the filename or its stem after NFC, case,
+whitespace, hyphen, and underscore normalization; comparison happens before title truncation.
 Hosted responses provide HTML/Open Graph text metadata and a small icon; external clients own card
-rendering and caching. Display metadata never enters the desktop protocol's navigation parameters.
+rendering and caching. Metadata is complete in the initial HTML head and does not depend on target-page
+JavaScript or access to the recipient’s localhost or filesystem. Descriptions identify the repository,
+location, and relevant worktree or published revision, omitting a filename already identified by the title.
+Display metadata never enters the desktop protocol's navigation parameters.
 
 During the installed-client migration, the hosted service emits the equivalent `git-leaf://` handoff
 because that compatibility scheme is registered by both Git Leaf 1.x and OpenGlance.

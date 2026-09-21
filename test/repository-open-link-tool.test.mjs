@@ -69,7 +69,7 @@ test("portable link tool parses null- and newline-delimited worktree records", (
 test("portable link tool matches OpenGlance for primary and linked worktrees", async (t) => {
   const fixture = await createRepositoryFixture(t);
   const expectedPrimaryLink =
-    "https://gitleaf.mangofuture.com/open?repo=exampleorg%2Fshared-context&path=docs%2Freport.md&title=Report";
+    "https://gitleaf.mangofuture.com/open?repo=exampleorg%2Fshared-context&path=docs%2Freport.md";
 
   assert.equal(
     await createOpenGlanceOpenLink({ repoRoot: fixture.primaryRoot, file: "docs/report.md" }),
@@ -82,7 +82,7 @@ test("portable link tool matches OpenGlance for primary and linked worktrees", a
 
   const linkedRoot = await realpath(fixture.linkedRoot);
   const expectedLinkedLink =
-    `${expectedPrimaryLink.replace("&title=Report", "")}&worktree=${worktreeIdForPath(linkedRoot)}&title=Report`;
+    `${expectedPrimaryLink}&worktree=${worktreeIdForPath(linkedRoot)}`;
   assert.equal(
     await createOpenGlanceOpenLink({ repoRoot: fixture.linkedRoot, file: "docs/report.md" }),
     expectedLinkedLink,
@@ -166,5 +166,27 @@ test("link previews never read titles outside the repository or require a presen
       assert.equal(new URL(await generate({ repoRoot: fixture.primaryRoot, file })).searchParams.has("title"), false);
     }
     await assert.rejects(generate({ repoRoot: fixture.primaryRoot, file: "../outside.md" }));
+  }
+});
+
+test("both generators omit filename-equivalent titles and retain distinct document identities", async (t) => {
+  const fixture = await createRepositoryFixture(t);
+  for (const [file, title, expected] of [
+    ["docs/weekly-report.md", "Weekly Report", null],
+    ["docs/团队周报.mdx", "团队周报", null],
+    ["docs/cafe\u0301.md", "café", null],
+    ["docs/weekly_report.md", "Weekly Report.md", null],
+    ["docs/README.md", "Project Handbook", "Project Handbook"],
+    ["docs/index.mdx", "团队工作指南", "团队工作指南"],
+    ["docs/c.md", "C++", "C++"],
+    [`docs/${"x".repeat(110)}.md`, "x".repeat(110), null],
+  ]) {
+    await writeFile(path.join(fixture.primaryRoot, file), `# ${title}\n`);
+    const links = await Promise.all([createOpenGlanceOpenLink, createCanonicalOpenLink].map(
+      (generate) => generate({ repoRoot: fixture.primaryRoot, file }),
+    ));
+    assert.equal(links[0], links[1]);
+    assert.equal(new URL(links[0]).searchParams.get("title"), expected, file);
+    assert.equal(new URL(links[0]).searchParams.get("path"), file);
   }
 });

@@ -15,6 +15,7 @@ import shutil
 import sys
 import threading
 import time
+import unicodedata
 from http import HTTPStatus
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
@@ -662,7 +663,7 @@ class OpenGlanceUpdateHandler(SimpleHTTPRequestHandler):
             deep_link,
             handoff_id,
             preview_title=title,
-            preview_description=detail + (" · 在本机指定工作目录打开" if worktree else " · 在 OpenGlance 中打开") if repository else detail,
+            preview_description=link_preview_description(repository, document_path, title, worktree=worktree) if repository else detail,
         ).encode("utf-8")
         self.send_response(HTTPStatus.OK)
         self._send_open_headers(len(body))
@@ -730,7 +731,9 @@ class OpenGlanceUpdateHandler(SimpleHTTPRequestHandler):
             handoff_id,
             status_endpoint="/share/status",
             preview_title=preview_title or posixpath.basename(document_path),
-            preview_description=preview_snippet or detail,
+            preview_description=preview_snippet or link_preview_description(
+                repository, document_path, preview_title or posixpath.basename(document_path), revision=revision,
+            ),
         ).encode("utf-8")
         self.send_response(HTTPStatus.OK)
         self._send_open_headers(len(body))
@@ -1628,6 +1631,26 @@ def normalize_share_preview_text(value, max_length):
     if any(ord(character) < 32 for character in text):
         return ""
     return text
+
+
+def link_preview_description(repository, document_path, title, *, worktree="", revision=""):
+    # The title already identifies the filename when no distinct human title is supplied.
+    filename = posixpath.basename(document_path)
+    def comparable(value):
+        return re.sub(r"[-_\s]+", " ", unicodedata.normalize("NFC", value)).strip().lower()
+
+    repeated_filename = comparable(title) in {
+        comparable(filename), comparable(re.sub(r"\.mdx?$", "", filename, flags=re.I)),
+    }
+    location = posixpath.dirname(document_path) if repeated_filename else document_path
+    parts = [repository]
+    if worktree:
+        parts.append("本机工作区")
+    if revision:
+        parts.append(f"发布版本 {revision[:8]}")
+    if location:
+        parts.append(location)
+    return " · ".join(parts)
 
 
 def open_page_html(

@@ -33,7 +33,7 @@ function printHelp() {
 
 Creates a portable repository link from the primary worktree, or a local-exact link containing
 the worktree id when the selected repository root is a linked worktree.
-Includes the document title for external previews. Use --no-preview-title to omit it.`);
+Includes a distinct document title for external previews; filename-equivalent titles are omitted. Use --no-preview-title to omit it.`);
 }
 
 async function main() {
