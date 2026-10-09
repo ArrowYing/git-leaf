@@ -112,7 +112,7 @@ test("editing a long cell keeps soft wrapping and grows with its column", async 
   assert.equal(editor.getAttribute("rows"), "1");
   assert.equal(editor.getAttribute("wrap"), "soft");
 
-  editor.value = "first line\nsecond line with enough text to wrap";
+  editor.value = "first line\r\nsecond line with enough text to wrap";
   editor.selectionStart = editor.value.length;
   editor.selectionEnd = editor.value.length;
   editor.scrollHeight = 72;
@@ -120,11 +120,73 @@ test("editing a long cell keeps soft wrapping and grows with its column", async 
 
   assert.equal(
     editor.value,
-    "first line second line with enough text to wrap",
+    "first line\nsecond line with enough text to wrap",
   );
   assert.equal(editor.style.height, "72px");
   assert.equal(editor.selectionStart, editor.value.length);
   assert.equal(editor.selectionEnd, editor.value.length);
+});
+
+test("Shift+Enter inserts and persists a table-safe cell line break", async () => {
+  const fixture = liveTableFixture();
+  const cell = fixture.cell(1, 1);
+
+  fixture.interaction.handlePointerDown(pointerEvent(cell, {
+    pointerId: 31,
+    clientX: 280,
+    clientY: 260,
+  }));
+  fixture.interaction.handlePointerUp(pointerEvent(cell, {
+    pointerId: 31,
+    clientX: 280,
+    clientY: 260,
+  }));
+
+  const editor = cell.querySelector(".cm-live-table-cell-editor");
+  assert.ok(editor);
+  editor.value = "firstsecond";
+  editor.setSelectionRange(5, 5);
+  const lineBreakEvent = {
+    ...keyEvent("Enter"),
+    shiftKey: true,
+  };
+  editor.dispatchEvent(lineBreakEvent);
+
+  assert.equal(lineBreakEvent.defaultPrevented, true);
+  assert.equal(editor.value, "first\nsecond");
+  assert.equal(editor.selectionStart, 6);
+  assert.equal(editor.selectionEnd, 6);
+  assert.equal(cell.querySelector(".cm-live-table-cell-editor"), editor);
+
+  editor.dispatchEvent(keyEvent("Enter"));
+  await nextTask();
+  assert.match(
+    fixture.view.state.doc.toString(),
+    /\| A1 \| first<br>second \| C1 \|/,
+  );
+});
+
+test("existing table line breaks reopen as editable newlines", () => {
+  const fixture = liveTableFixture({
+    source: tableSource.replace("B1", "first<br>second"),
+  });
+  const cell = fixture.cell(1, 1);
+
+  fixture.interaction.handlePointerDown(pointerEvent(cell, {
+    pointerId: 32,
+    clientX: 280,
+    clientY: 260,
+  }));
+  fixture.interaction.handlePointerUp(pointerEvent(cell, {
+    pointerId: 32,
+    clientX: 280,
+    clientY: 260,
+  }));
+
+  assert.equal(
+    cell.querySelector(".cm-live-table-cell-editor")?.value,
+    "first\nsecond",
+  );
 });
 
 test("releasing an editor-originated pointer outside the editor ends the pending table gesture", async () => {
