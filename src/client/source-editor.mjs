@@ -3131,6 +3131,35 @@ export function createLiveTableInteraction({
     };
   };
 
+  const resizeCellEditor = (editor) => {
+    editor.style.height = "auto";
+    const contentHeight = Number(editor.scrollHeight);
+    if (Number.isFinite(contentHeight) && contentHeight > 0) {
+      editor.style.height = `${Math.ceil(contentHeight)}px`;
+    }
+  };
+
+  const updateCellEditor = (editor) => {
+    const value = String(editor.value ?? "");
+    const normalized = value.replace(/\r\n?|\n/g, " ");
+    if (normalized !== value) {
+      const selectionStart = editor.selectionStart;
+      const selectionEnd = editor.selectionEnd;
+      editor.value = normalized;
+      if (
+        Number.isInteger(selectionStart) &&
+        Number.isInteger(selectionEnd) &&
+        typeof editor.setSelectionRange === "function"
+      ) {
+        editor.setSelectionRange(
+          value.slice(0, selectionStart).replace(/\r\n?|\n/g, " ").length,
+          value.slice(0, selectionEnd).replace(/\r\n?|\n/g, " ").length,
+        );
+      }
+    }
+    resizeCellEditor(editor);
+  };
+
   const beginCellEditor = () => {
     if (!isEditable() || getMode() !== "live" || !selection) {
       return false;
@@ -3155,11 +3184,12 @@ export function createLiveTableInteraction({
       return false;
     }
 
-    const input = documentRoot.createElement("input");
-    input.type = "text";
+    const input = documentRoot.createElement("textarea");
     input.className = "cm-live-table-cell-editor";
     input.value = sourceCell.content;
     input.setAttribute("aria-label", translate("cell.edit"));
+    input.setAttribute("rows", "1");
+    input.setAttribute("wrap", "soft");
     input.autocomplete = "off";
     input.spellcheck = false;
     const editor = {
@@ -3180,6 +3210,7 @@ export function createLiveTableInteraction({
     input.addEventListener("pointerdown", stopPointerPropagation);
     input.addEventListener("mousedown", stopPointerPropagation);
     input.addEventListener("click", stopPointerPropagation);
+    input.addEventListener("input", () => updateCellEditor(input));
     input.addEventListener("keydown", (event) => {
       if (!["Escape", "Enter", "Tab"].includes(event.key)) {
         event.stopPropagation();
@@ -3207,6 +3238,7 @@ export function createLiveTableInteraction({
     });
     input.focus({ preventScroll: true });
     input.setSelectionRange(input.value.length, input.value.length);
+    updateCellEditor(input);
     scheduleRefresh();
     return true;
   };

@@ -95,6 +95,42 @@ test("editing a cell preserves native input clicks and upgrades a cross-cell dra
   await nextTask();
 });
 
+test("editing a long cell keeps soft wrapping and grows with its column", async () => {
+  const fixture = liveTableFixture();
+  const cell = fixture.cell(1, 1);
+
+  fixture.interaction.handlePointerDown(pointerEvent(cell, {
+    pointerId: 30,
+    clientX: 280,
+    clientY: 260,
+  }));
+  fixture.interaction.handlePointerUp(pointerEvent(cell, {
+    pointerId: 30,
+    clientX: 280,
+    clientY: 260,
+  }));
+
+  const editor = cell.querySelector(".cm-live-table-cell-editor");
+  assert.ok(editor);
+  assert.equal(editor.tagName, "TEXTAREA");
+  assert.equal(editor.getAttribute("rows"), "1");
+  assert.equal(editor.getAttribute("wrap"), "soft");
+
+  editor.value = "first line\nsecond line with enough text to wrap";
+  editor.selectionStart = editor.value.length;
+  editor.selectionEnd = editor.value.length;
+  editor.scrollHeight = 72;
+  editor.dispatchEvent({ type: "input" });
+
+  assert.equal(
+    editor.value,
+    "first line second line with enough text to wrap",
+  );
+  assert.equal(editor.style.height, "72px");
+  assert.equal(editor.selectionStart, editor.value.length);
+  assert.equal(editor.selectionEnd, editor.value.length);
+});
+
 test("releasing an editor-originated pointer outside the editor ends the pending table gesture", async () => {
   const fixture = liveTableFixture();
   const origin = fixture.cell(1, 1);
