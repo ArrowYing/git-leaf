@@ -497,7 +497,7 @@ test("only a vertical multi-cell range qualifies for column reordering", () => {
   }), false);
 });
 
-function liveTableFixture() {
+function liveTableFixture({ source = tableSource } = {}) {
   const document = new FakeDocument();
   const root = document.createElement("div");
   const container = document.createElement("div");
@@ -577,7 +577,7 @@ function liveTableFixture() {
 
   const view = {
     dom: root,
-    state: EditorState.create({ doc: tableSource }),
+    state: EditorState.create({ doc: source }),
     dispatch(spec) {
       this.state = this.state.update(spec).state;
     },
