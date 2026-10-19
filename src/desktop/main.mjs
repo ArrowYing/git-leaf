@@ -82,7 +82,11 @@ import {
   DESKTOP_OPEN_REPOSITORY_URL,
   DESKTOP_OPEN_WORKTREE_URL,
 } from "./home.mjs";
-import { classifyDesktopNavigation, openActiveWorkbenchDocument } from "./navigation.mjs";
+import {
+  classifyDesktopNavigation,
+  clearDesktopNavigationHistory,
+  openActiveWorkbenchDocument,
+} from "./navigation.mjs";
 import {
   loadWebContentsUrl,
   waitForWebContentsPaint,
@@ -119,6 +123,7 @@ import {
   repositoryAfterClose,
   repositoryAtIndex,
 } from "./repository-navigation.mjs";
+import { historyCommandFromBrowserShortcut } from "../../public/mouse-navigation.js";
 import {
   desktopRepositoryPanelItems,
   desktopRepositoryPanelShortcutFromInput,
@@ -682,6 +687,7 @@ async function createMainWindow() {
     handleDesktopNavigation(url);
   });
   mainWindow.webContents.on("did-finish-load", () => {
+    clearDesktopNavigationHistory(mainWindow?.webContents);
     isRepositoryPanelOpen = false;
     void syncDesktopUpdateStatus();
   });
@@ -901,6 +907,17 @@ function installDesktopShortcutBridge(browserWindow) {
       return;
     }
 
+    const browserHistoryCommand = historyCommandFromBrowserShortcut(input, {
+      platform: process.platform,
+    });
+    if (browserHistoryCommand) {
+      event.preventDefault();
+      if (activeServer && !isRepositoryTransitioning) {
+        void sendShortcutToRenderer({ command: browserHistoryCommand });
+      }
+      return;
+    }
+
     const repositoryPanelAction = desktopRepositoryPanelShortcutFromInput(input, {
       open: isRepositoryPanelOpen,
     });
@@ -949,6 +966,10 @@ function installSettingsViewShortcutBridge(webContents) {
     if (shellAction) {
       event.preventDefault();
       void runDesktopShellShortcut(shellAction, mainWindow);
+      return;
+    }
+    if (historyCommandFromBrowserShortcut(input, { platform: process.platform })) {
+      event.preventDefault();
       return;
     }
     const repositoryPanelAction = desktopRepositoryPanelShortcutFromInput(input, {

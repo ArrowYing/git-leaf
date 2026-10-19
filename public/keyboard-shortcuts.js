@@ -4,11 +4,11 @@ import { WORKBENCH_MESSAGES } from "./workbench-locales.js";
 const SHORTCUT_ACTION_DEFINITIONS = Object.freeze({
   "repository.open": shortcutDefinition("Mod+O", "shortcut.openRepository"),
   "repository.previous": shortcutDefinition(
-    "Mod+Alt+Left",
+    "Mod+Alt+Shift+Left",
     "shortcut.previousRepository",
   ),
   "repository.next": shortcutDefinition(
-    "Mod+Alt+Right",
+    "Mod+Alt+Shift+Right",
     "shortcut.nextRepository",
   ),
   "document.close-tab": shortcutDefinition("Mod+W", "shortcut.closeTab"),

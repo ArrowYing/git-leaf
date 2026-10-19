@@ -3,7 +3,11 @@ import test from "node:test";
 import vm from "node:vm";
 import path from "node:path";
 
-import { classifyDesktopNavigation, openActiveWorkbenchDocument } from "../src/desktop/navigation.mjs";
+import {
+  classifyDesktopNavigation,
+  clearDesktopNavigationHistory,
+  openActiveWorkbenchDocument,
+} from "../src/desktop/navigation.mjs";
 import { DESKTOP_OPEN_DOCUMENT_EVENT, createDesktopDocumentNavigationHandler } from "../public/desktop-document-navigation.js";
 
 function workbench({ prepareNavigation = async () => {}, navigate = async () => true, ready = true } = {}) {
@@ -119,4 +123,24 @@ test("desktop navigation keeps only same-origin OpenGlance URLs inside the app",
     }),
     "blocked",
   );
+});
+
+test("desktop loads discard Chromium history without depending on the API", () => {
+  let receiver;
+  const navigationHistory = {
+    clear() {
+      receiver = this;
+    },
+  };
+  assert.equal(clearDesktopNavigationHistory({ navigationHistory }), true);
+  assert.equal(receiver, navigationHistory);
+  assert.equal(clearDesktopNavigationHistory({}), false);
+  assert.equal(clearDesktopNavigationHistory(null), false);
+  assert.equal(clearDesktopNavigationHistory({
+    navigationHistory: {
+      clear() {
+        throw new Error("unavailable");
+      },
+    },
+  }), false);
 });

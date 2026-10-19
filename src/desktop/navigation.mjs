@@ -44,6 +44,19 @@ export function classifyDesktopNavigation({ currentUrl, targetUrl }) {
   return "blocked";
 }
 
+export function clearDesktopNavigationHistory(webContents) {
+  const navigationHistory = webContents?.navigationHistory;
+  if (typeof navigationHistory?.clear !== "function") {
+    return false;
+  }
+  try {
+    navigationHistory.clear();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function parsedUrl(value) {
   try {
     return new URL(String(value ?? ""));

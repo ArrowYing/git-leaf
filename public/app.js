@@ -146,7 +146,10 @@ import {
   keyboardShortcutDisplay,
   keyboardShortcutMatches,
 } from "./keyboard-shortcuts.js";
-import { historyCommandFromMouseEvent } from "./mouse-navigation.js";
+import {
+  historyCommandFromBrowserShortcut,
+  historyCommandFromMouseEvent,
+} from "./mouse-navigation.js";
 import {
   findTextRanges,
   nextSearchIndex,
@@ -777,6 +780,7 @@ document.addEventListener("keydown", handleDocumentKeydown, true);
 document.addEventListener("keydown", handleOutlineContentNavigationIntent, true);
 document.addEventListener("keydown", handleToolStatusActivity);
 document.addEventListener("mousedown", handleMouseHistoryButton, true);
+document.addEventListener("mouseup", suppressMouseHistoryButtonDefault, true);
 document.addEventListener("auxclick", suppressMouseHistoryButtonDefault, true);
 document.addEventListener("visibilitychange", handleRemoteSyncVisibilityChange);
 window.addEventListener("git-leaf-desktop-shortcut", handleDesktopShortcutEvent);
@@ -7376,6 +7380,13 @@ function shortcutActionFromKeyboardEvent(event) {
   const key = String(event.key || "").toLowerCase();
   if (event.isComposing) {
     return null;
+  }
+
+  const browserHistoryCommand = historyCommandFromBrowserShortcut(event, {
+    platform: navigator.platform,
+  });
+  if (browserHistoryCommand) {
+    return { command: browserHistoryCommand };
   }
 
   if (isTreeDocumentNewTabShortcut(event) && treeFileNewTabShortcutTarget(event.target)) {

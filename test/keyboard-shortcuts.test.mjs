@@ -81,8 +81,8 @@ test("keyboard shortcut help keeps the agreed OpenGlance shortcuts", () => {
   assert.match(text, /Command\+1\.\.9\s+Switch to Visible Repository 1\.\.9 \(panel open\)/);
   assert.match(text, /Command\+0\s+Open Another Repository \(panel open\)/);
   assert.match(text, /Command\+Option\+1\.\.9\s+Switch to Repository 1\.\.9/);
-  assert.match(text, /Command\+Option\+Left\s+Previous Repository/);
-  assert.match(text, /Command\+Option\+Right\s+Next Repository/);
+  assert.match(text, /Command\+Option\+Shift\+Left\s+Previous Repository/);
+  assert.match(text, /Command\+Option\+Shift\+Right\s+Next Repository/);
   assert.match(text, /Command\+W\s+Close Current Tab/);
   assert.match(text, /Command\+T\s+New Tab/);
   assert.match(text, /Command\+F\s+Find in Current Document/);
