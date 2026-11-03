@@ -1,5 +1,5 @@
 ---
-last_updated: 2026-09-16
+last_updated: 2026-10-28
 ---
 
 # OpenGlance user guide
@@ -112,6 +112,20 @@ it is not full-text document search. When document-title display is turned off, 
 excluded from tree search rather than becoming invisible search fields. When a search summary needs an
 expansion, the floating window keeps the filename and title above the complete highlighted summary
 instead of replacing them.
+
+### Refresh while reading
+
+Preview checks file lists, displayed titles, search metadata, worktrees, local Git status and fallback
+document changes about once a minute. Ordinary changes to the current file still arrive through file
+events. A commit, MDX data change or missed event may take up to about a minute under normal scheduling.
+Click **Refresh now** (↻) in the top bar to initiate an immediate local check, or refocus the window.
+Hidden windows pause local checks and catch up when shown again. Actual completion depends on the
+repository and system load.
+
+Before entering Source or Live, OpenGlance checks the current document and keeps the editor unavailable
+until that check succeeds. Both editors retain two-second external-change checks and save local edits
+after a short typing pause. Switching modes flushes pending writes. Your own file operations and sync
+results update promptly; these reading intervals do not delay a save or publish action.
 
 ### Read with source references
 
@@ -293,6 +307,33 @@ Repository maintainers who create these components can use the technical
 [MDX-lite reference](mdx-lite-guide.md). Most readers only need to open the document and use the
 rendered result.
 
+## Discuss a passage
+
+On a `.md` document, drag to select text in Preview, Live, or Source, then click **Add comment**
+beside the selection. Keyboard selections in the editor show the same action; selecting source line
+numbers also works. Preview uses the exact selection for plain paragraphs; for formatted
+or complex blocks the composer explicitly labels the paragraph or line range being discussed. Check
+that quotation before saving. MDX comments are not supported yet.
+
+The speech-bubble icon after **Copy share link** opens the right **Comments** panel. Its tooltip
+shows the number of open threads. The panel contains open threads and a **Resolved** filter; its
+**New comment** action becomes available after selecting document text or source lines. Add a reply below a
+thread, choose **Resolve** when the discussion is complete, or find it under **Resolved** and choose
+**Reopen**. Resolving removes that thread's marks from the body completely. Reading its resolved
+history leaves the body normal. Reopening restores the marker when the original text can still be
+located. If it has changed, the panel keeps the quote and reports that its location needs review.
+
+Enter a name for attribution if needed; this is a local signature, not an authenticated account.
+Comments and statuses are saved directly into HTML comment blocks in the same Markdown file. Source
+shows those records; Preview and Live hide them. Replies from agents use the same file format and
+appear after the document refreshes. The initial panel displays message bodies as inert text, including
+any Markdown syntax, so embedded HTML, links, and images cannot execute or load resources.
+
+**Save locally**, **Resolve**, and **Reopen** only change the local file. They do not commit, push,
+or publish. Use the existing **Sync and publish** action when you intend to share those changes.
+If saving encounters a newer file version, OpenGlance keeps the input rather than overwriting it.
+Agent Context remains in the left sidebar and works independently of comments.
+
 ## Give exact context to an AI agent
 
 There are two ways to copy source-backed context, depending on whether the answer is in one document or
@@ -453,6 +494,10 @@ node "$(git rev-parse --show-toplevel)/tools/generate-openglance-open-link.mjs" 
 
 Use the returned HTTPS URL exactly in a Markdown link:
 `Open in OpenGlance: [<document title>](<returned HTTPS URL>)`
+
+The generator includes a distinct document title for external previews such as Codex, omitting titles
+that repeat the filename. The title is visible to recipients and preview services; use `--no-preview-title` for sensitive titles. Document bodies
+and AI summaries are not transmitted.
 
 Do not return only a local absolute path, and do not handcraft `/open`, `/share`, or `openglance://`
 URLs. `/open` is for local navigation and preview; it does not prove the file is published. For a link

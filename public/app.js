@@ -1,3 +1,4 @@
+import { createDocumentComments, selectedCommentRange } from "./document-comments.js";
 import {
   formatLineRange,
   formatLineReference,
@@ -48,7 +49,8 @@ import {
 import { parseNdjsonRecords } from "./ndjson.js";
 import { csvMarkdownDocumentLink, parseCsvRows } from "./csv-preview.js";
 import { githubFileUrl } from "./file-actions.js";
-import { hasTreeChanged } from "./tree-refresh.js";
+import { hasTreeChanged, updateTreeDocumentTitle } from "./tree-refresh.js";
+import { LOCAL_STATE_INTERVAL_MS, documentStatusIntervalMs, createRefreshQueue, createResumeRefresh } from "./refresh-policy.js";
 import {
   documentStatusRefreshKind,
   shouldReplaceDocumentHtml,
@@ -181,6 +183,7 @@ import {
   addFrontmatterFieldToSource,
   deleteFrontmatterLineFromSource,
   frontmatterKeysFromSource,
+  frontmatterSourceSignature,
   frontmatterLineForValue,
 } from "./frontmatter-edit.js";
 import {
@@ -218,6 +221,7 @@ import {
 } from "./tree-state.js";
 import {
   createSourceEditor,
+  hasOnlyCommentChanges,
   imageLineAttributes,
   imageLineForAction,
   normalizeImageAlign,
@@ -246,7 +250,7 @@ const SIDEBAR_WIDTH_STEP = 24;
 const DOCUMENT_OUTLINE_WIDTH_STEP = 24;
 const SOURCE_SPLIT_STEP = 5;
 const NDJSON_RECORD_BATCH_SIZE = 100;
-const TREE_REFRESH_INTERVAL_MS = 5000;
+const TREE_REFRESH_INTERVAL_MS = LOCAL_STATE_INTERVAL_MS;
 const SOURCE_SYNC_DELAY_MS = 500;
 const AUTOMATIC_REMOTE_MERGE_IDLE_MS = 2500;
 const GIT_STATUS_REFRESH_DELAY_MS = 800;
@@ -323,6 +327,9 @@ const outlineActiveViewportState = createOutlineActiveViewportState();
 
 const state = {
   tree: [],
+  treeRevision: null,
+  treeVersion: null,
+  savedFrontmatter: "",
   currentRepo: initialRepoId,
   currentWorktreeId: initialWorktreeId,
   worktrees: [],
@@ -375,10 +382,15 @@ const state = {
   activeFrontmatterField: null,
   statusTimer: null,
   treeTimer: null,
+  treeRefreshInFlight: null,
+  modeTransitionId: 0,
   watchStream: null,
   sourceEditor: null,
   sourceSyncTimer: null,
   sourceWriteInFlight: false,
+  sourceWritePromise: null,
+  sourceDirty: false,
+  commentWriteInFlight: false,
   sourceSyncState: "idle",
   lastSourceEditAt: 0,
   sourceRevision: 0,
@@ -571,6 +583,69 @@ const documentSearchNext = document.querySelector("#document-search-next");
 const documentSearchClose = document.querySelector("#document-search-close");
 const modeButtons = [...document.querySelectorAll("[data-mode]")];
 const modeReadonlyStatus = document.querySelector("#mode-readonly-status");
+const documentComments = createDocumentComments({
+  getDocument: () => state.currentDocument,
+  getLocale: () => state.locale,
+  getEditor: () => state.sourceEditor,
+  getSelection: () => currentTextCommentSelection()?.selection ?? selectedCommentRange({
+    source: state.currentDocument?.source ?? "", mode: "preview", lines: state.selectedLines, root: documentContent, selection: null,
+  }),
+  getTextSelection: currentTextCommentSelection,
+  revealLine: (line) => { selectSourceRange(line, line); scrollToHashSelectedLine(); },
+  mutate: async (input) => {
+    const request = currentDocumentRequest();
+    if (!request || state.commentWriteInFlight || state.remoteSyncOperation === "merge") throw new Error("Document is busy; retain the draft and retry.");
+    state.commentWriteInFlight = true;
+    state.sourceEditor?.setEditable(false);
+    try {
+      await flushPendingSourceSync();
+      if (state.sourceDirty || state.sourceWriteInFlight || state.sourceSyncState === "error") throw new Error("Save the editor changes before changing comments. Your draft is retained.");
+      if (!isCurrentDocumentRequest(request)) throw new Error("Document changed. Your draft is retained.");
+      await discardPreparedAutomaticRemoteMerge();
+      const expectedSourceHash = input.type === "create" && input.selectionSource !== state.currentDocument.source.replace(/\r\n?/g, "\n")
+        ? input.expectedSourceHash : state.lastWrittenHash;
+      const response = await fetch(apiUrl("/api/document-comments", { repo: request.repoId, file: request.path, locale: state.locale }), {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...input, expectedSourceHash, selectionSource: undefined }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Comment could not be saved. Your draft is retained.");
+      await applyBranchProtectionPayload(result);
+      if (isCurrentDocumentRequest(request)) {
+        state.sourceRevision++;
+        applyDocumentData(result, { preserveScroll: true, preserveEditorState: true });
+        state.selectedLines = new Set(); updateLineSelectionUi();
+        window.getSelection()?.removeAllRanges();
+        updateSourceSyncStatus("idle");
+      }
+      scheduleGitStatusRefresh();
+    } finally {
+      state.commentWriteInFlight = false;
+      state.sourceEditor?.setEditable(canEditCurrentDocument());
+    }
+  },
+});
+
+function currentTextCommentSelection() {
+  const doc = state.currentDocument;
+  if (!doc?.comments?.supported || !canEditCurrentDocument() || state.commentWriteInFlight || state.selectedLines.size) return null;
+  if (document.activeElement?.closest("#document-comments, input, textarea")) return null;
+  const native = window.getSelection();
+  if (!documentContent.hidden && native?.rangeCount && !native.isCollapsed) {
+    const range = native.getRangeAt(0);
+    if (documentContent.contains(range.startContainer) && documentContent.contains(range.endContainer)) {
+      const selection = selectedCommentRange({ source: doc.source, mode: "preview", lines: [], root: documentContent, selection: native });
+      const rect = [...range.getClientRects()].filter((item) => item.height > 0 && item.bottom > 0 && item.top < window.innerHeight).at(-1);
+      return selection?.text.trim() && rect ? { selection, rect } : null;
+    }
+  }
+  if (isEditorMode() && state.sourceEditor?.hasFocus()) {
+    const selection = selectedCommentRange({ source: doc.source, mode: state.mode, editor: state.sourceEditor, lines: [], selection: null });
+    const rect = state.sourceEditor.selectionRect();
+    return selection?.text.trim() && rect ? { selection, rect } : null;
+  }
+  return null;
+}
+
 const linkPreviewController = attachLinkPreviews({
   containers: [documentContent, sourceEditorHost],
   getContext: () => ({ repo: state.currentRepo, file: state.currentDocument?.path || state.currentFile,
@@ -810,8 +885,17 @@ window.addEventListener(DESKTOP_OPEN_DOCUMENT_EVENT, createDesktopDocumentNaviga
   },
   onError: () => showCopyToast(t("sourceSync.error")),
 }));
+const runImmediateRefresh = createRefreshQueue();
+const scheduleResumeRefresh = createResumeRefresh({
+  refresh: () => refreshWorkbenchNow({ fresh: true }),
+  schedule: (fn, ms) => window.setTimeout(fn, ms),
+  cancel: (id) => window.clearTimeout(id),
+});
+
 window.addEventListener("focus", handleToolStatusActivity);
-window.addEventListener("focus", refreshWorktreesOnWindowFocus);
+window.addEventListener("focus", () => {
+  if (document.visibilityState !== "hidden" && !document.documentElement.classList.contains("is-workbench-loading")) scheduleResumeRefresh();
+});
 window.addEventListener("focus", handleRemoteSyncWindowFocus);
 window.addEventListener("resize", positionFrontmatterFilterPopover);
 window.addEventListener("resize", positionWorktreeSwitcherMenu);
@@ -1324,19 +1408,30 @@ function handleWorktreeSelection(event) {
 }
 
 async function loadTree({ force = false } = {}) {
-  const response = await fetch(apiUrl("/api/tree"));
+  const response = await fetch(apiUrl("/api/tree", {
+    refresh: force ? "1" : undefined,
+    version: state.treeVersion ?? undefined,
+  }), { cache: "no-store" });
   if (!response.ok) {
     throw new Error("Unable to load repository tree");
   }
   const payload = await response.json();
+  if (payload.unchanged === true && payload.version === state.treeVersion) {
+    payload.tree = state.tree;
+  }
   if (!Array.isArray(payload.tree)) {
     throw new Error("Repository tree response is invalid");
   }
+  applyRepositoryStatus(payload);
+  enforceCurrentRepoEditCapability();
   const frontmatterAllowedKeys = normalizeFrontmatterAllowedKeys(payload.frontmatterAllowedKeys);
   const frontmatterKeysChanged = !sameStringArray(state.frontmatterAllowedKeys, frontmatterAllowedKeys);
   const treeChanged = hasTreeChanged(state.tree, payload.tree);
+  const metadataChanged = state.treeVersion !== payload.version;
+  state.treeRevision = payload.revision;
+  state.treeVersion = payload.version;
   const favoritesChanged = await pruneMissingSidebarFavorites(payload.tree);
-  if (!force && !treeChanged && !frontmatterKeysChanged) {
+  if (!force && !treeChanged && !frontmatterKeysChanged && !metadataChanged) {
     if (favoritesChanged && state.sidebarTab === "favorites") {
       renderTree();
     }
@@ -1356,20 +1451,68 @@ async function loadTree({ force = false } = {}) {
   renderActiveFrontmatterFilters();
   renderTree();
   renderDocumentTabs();
+  if (metadataChanged && (state.filter || state.frontmatterFilters.length > 0)) {
+    await ensureFrontmatterFacets();
+  }
 }
 
 function resetTreePolling() {
   if (state.treeTimer) {
     window.clearInterval(state.treeTimer);
+    state.treeTimer = null;
   }
-  state.treeTimer = window.setInterval(refreshTreeAndGitStatus, TREE_REFRESH_INTERVAL_MS);
+  if (document.visibilityState === "hidden") {
+    return;
+  }
+  state.treeTimer = window.setInterval(() => {
+    void refreshTreeAndGitStatus().catch(() => {});
+  }, TREE_REFRESH_INTERVAL_MS);
 }
 
-async function refreshTreeAndGitStatus() {
-  await loadWorktrees();
-  await loadTree();
-  await loadGitStatus();
+async function refreshTreeAndGitStatus({ force = false } = {}) {
+  while (state.treeRefreshInFlight) {
+    await state.treeRefreshInFlight;
+    if (!force) return;
+  }
+  state.treeRefreshInFlight = (async () => {
+    await loadWorktrees();
+    await loadTree({ force });
+    await loadGitStatus();
+  })();
+  try { await state.treeRefreshInFlight; }
+  finally { state.treeRefreshInFlight = null; }
 }
+
+document.addEventListener("visibilitychange", () => {
+  resetTreePolling();
+  resetStatusPolling();
+  resetDocumentWatch();
+  if (document.visibilityState === "visible") scheduleResumeRefresh();
+  else scheduleResumeRefresh.cancel();
+});
+
+
+async function refreshWorkbenchNow({ fresh = false } = {}) {
+  if (fresh) scheduleResumeRefresh.cancel();
+  return runImmediateRefresh(async () => {
+    const refreshButton = document.querySelector("#workbench-refresh");
+    refreshButton.disabled = true;
+    try {
+      await flushPendingSourceSync();
+      if (state.sourceWriteInFlight) throw new Error("Save is still in progress");
+      await Promise.all([
+        refreshTreeAndGitStatus({ force: true }),
+        checkDocumentStatus({ required: true }),
+      ]);
+      return true;
+    } catch { showCopyToast(t("error.load")); return false; }
+    finally { refreshButton.disabled = false; }
+  }, { fresh });
+}
+
+document.querySelector("#workbench-refresh").addEventListener("click", () => {
+  void refreshWorkbenchNow({ fresh: true });
+});
 
 async function loadGitStatus() {
   const previousGitChanges = state.gitChanges;
@@ -1531,7 +1674,7 @@ async function prepareAutomaticRemoteMerge() {
   renderGitChangeToolbar();
   try {
     await flushPendingSourceSync();
-    if (state.sourceWriteInFlight) {
+    if (state.commentWriteInFlight || state.sourceWriteInFlight) {
       scheduleAutomaticRemoteMergeRetry();
       return;
     }
@@ -1606,6 +1749,7 @@ async function prepareAutomaticRemoteMerge() {
 }
 
 async function applyPreparedAutomaticRemoteMerge() {
+  if (state.commentWriteInFlight) { scheduleAutomaticRemoteMergeRetry(); return; }
   if (state.remoteSyncOperation || !state.remoteSyncPreparedMerge) {
     return;
   }
@@ -2372,6 +2516,8 @@ function applyDocumentData(
     : null;
   const shouldReplace = forceReplace || shouldReplaceDocumentHtml(state.currentDocument, documentData);
   state.currentDocument = documentData;
+  state.sourceDirty = false;
+  state.savedFrontmatter = frontmatterSourceSignature(documentData.source);
   state.documentChangeModel = documentChangeModelForDocument(documentData);
   state.currentFile = documentData.path;
   renderDocumentTabs();
@@ -2396,6 +2542,7 @@ function applyDocumentData(
     setMode(readModePreference({ preferences: state.desktopPreferences }), {
       persist: false,
       focus: false,
+      documentFresh: true,
     });
   } else if (!canEditCurrentDocument() && isEditingModeName(state.mode)) {
     setMode("preview", { persist: false, focus: false });
@@ -2443,9 +2590,32 @@ function applyDocumentData(
   updateDocumentHistoryControls();
   refreshDocumentSearch({ preserveIndex: true, reveal: false });
   persistWorkbenchSession();
+  documentComments.render();
 }
 
-function setMode(mode, { persist = true, focus = true } = {}) {
+function setMode(mode, options = {}) {
+  const transition = ++state.modeTransitionId;
+  if (options.documentFresh || mode === state.mode || !state.currentDocument || !canEditCurrentDocument()) {
+    sourceEditorPane.inert = documentWorkspace.classList.contains("is-applying-remote-merge");
+    applyMode(mode, options);
+    return Promise.resolve();
+  }
+  const request = currentDocumentRequest();
+  sourceEditorPane.inert = true;
+  return (async () => {
+    try {
+      await flushPendingSourceSync();
+      if (isEditingModeName(mode) && !(await refreshWorkbenchNow({ fresh: true }))) return;
+      if (transition === state.modeTransitionId && isCurrentDocumentRequest(request)) {
+        sourceEditorPane.inert = documentWorkspace.classList.contains("is-applying-remote-merge");
+        applyMode(mode, options);
+      }
+    } catch { showCopyToast(t("error.load")); }
+    finally { if (transition === state.modeTransitionId) sourceEditorPane.inert = documentWorkspace.classList.contains("is-applying-remote-merge"); }
+  })();
+}
+
+function applyMode(mode, { persist = true, focus = true } = {}) {
   linkPreviewController.hide();
   outlineClickViewportGuard.end();
   const previousMode = state.mode;
@@ -2505,6 +2675,7 @@ function setMode(mode, { persist = true, focus = true } = {}) {
     scrollPreviewToSourceLine(previousSourceLine);
   }
   refreshDocumentSearch({ preserveIndex: true, reveal: false });
+  resetStatusPolling();
 }
 
 function currentSourceEditorVisibleLine() {
@@ -2559,6 +2730,7 @@ function documentChangeModelForDocument(documentData) {
   ) {
     return emptyDocumentChangeModel();
   }
+  if (/\.md$/i.test(documentData.path) && hasOnlyCommentChanges(documentData.changeBaselineSource ?? "", documentData.source)) return emptyDocumentChangeModel();
   return createDocumentChangeModel({
     baselineSource: documentData.changeBaselineSource ?? "",
     currentSource: documentData.source,
@@ -3625,6 +3797,7 @@ function apiUrl(pathname, params = {}) {
 function updateDocumentActions(hasDocument) {
   const canUseEditor = hasDocument && canEditCurrentDocument();
   floatingDocumentActions.hidden = !hasDocument;
+  if (!hasDocument) documentComments.render();
   documentFavoriteToggle.hidden = !hasDocument || !isMarkdownDocument();
   copyShareLinkButton.hidden = !hasDocument || !isMarkdownDocument();
   copyShareLinkButton.disabled = !hasDocument || !isMarkdownDocument();
@@ -3656,6 +3829,7 @@ function ensureSourceEditor() {
     locale: state.locale,
     onChange: scheduleSourceSync,
     onFocusChange: handleSourceEditorFocusChange,
+    onSelectionChange: () => documentComments.selectionChanged(),
     onScroll: handleSourceEditorScroll,
     onLineSelect: selectSourceLine,
     onBlankClick: clearLineSelection,
@@ -3673,6 +3847,7 @@ function ensureSourceEditor() {
     getKeyboardShortcuts: () => state.keyboardShortcuts,
   });
   applySourceEditorDocumentChangeBaseline();
+  documentComments.render();
 }
 
 function applyAppearancePreferences(preferences) {
@@ -4107,6 +4282,7 @@ function scheduleSourceSync(source) {
   if (!canEditCurrentDocument() || !isEditorMode() || !state.currentDocument) {
     return;
   }
+  state.sourceDirty = true;
   state.currentDocument.source = source;
   state.lastSourceEditAt = Date.now();
   state.sourceRevision += 1;
@@ -4124,6 +4300,16 @@ function scheduleSourceSync(source) {
 }
 
 async function syncSourceToDisk() {
+  if (state.sourceWritePromise) {
+    const result = await state.sourceWritePromise;
+    return result && state.sourceDirty ? syncSourceToDisk() : result;
+  }
+  state.sourceWritePromise = writeSourceToDisk();
+  try { return await state.sourceWritePromise; }
+  finally { state.sourceWritePromise = null; }
+}
+
+async function writeSourceToDisk() {
   if (!canEditCurrentDocument() || !state.currentDocument || !state.sourceEditor) {
     return true;
   }
@@ -4135,18 +4321,22 @@ async function syncSourceToDisk() {
   window.clearTimeout(state.sourceSyncTimer);
   state.sourceSyncTimer = null;
   state.sourceWriteInFlight = true;
+  const revision = state.sourceRevision;
   const source = state.sourceEditor.getValue();
+  const expectedSourceHash = state.lastWrittenHash;
+  const metadataChanged = state.savedFrontmatter !== frontmatterSourceSignature(source);
   try {
     const response = await fetch(
       apiUrl("/api/document", { repo: request.repoId, file: request.path }),
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ source }),
+        body: JSON.stringify({ source, expectedSourceHash }),
       },
     );
     if (!response.ok) {
-      throw new Error("Source sync failed");
+      const result = await response.json();
+      throw new Error(result.error || "Source sync failed");
     }
     const payload = await response.json();
     await applyBranchProtectionPayload(payload);
@@ -4156,21 +4346,25 @@ async function syncSourceToDisk() {
     }
     state.currentDocument = {
       ...state.currentDocument,
-      source,
+      source: revision === state.sourceRevision ? source : state.currentDocument.source,
       mtimeMs: payload.mtimeMs,
       sourceHash: payload.sourceHash,
     };
     state.lastWrittenHash = payload.sourceHash;
-    state.frontmatterFacets = null;
-    await refreshCurrentDocument();
-    if (
+    if (metadataChanged) state.frontmatterFacets = null;
+    if (revision === state.sourceRevision) {
+      state.sourceDirty = false;
+      await refreshCurrentDocument();
+    }
+    if (metadataChanged && (
       state.frontmatterFilters.length > 0 ||
       (state.filter.length > 0 && state.frontmatterAllowedKeys.length > 0)
-    ) {
+    )) {
       await ensureFrontmatterFacets({ force: true });
     }
+    if (updateTreeDocumentTitle(state.tree, state.currentDocument.path, state.currentDocument.treeTitle)) renderTree();
     scheduleGitStatusRefresh();
-    updateSourceSyncStatus("idle");
+    updateSourceSyncStatus(state.sourceDirty ? "syncing" : "idle");
     const telemetryNow = Date.now();
     if (telemetryNow - lastEditingTelemetryAt >= EDITING_TELEMETRY_INTERVAL_MS) {
       recordTelemetryFeature("editing.activity", { mode: state.mode });
@@ -4180,6 +4374,7 @@ async function syncSourceToDisk() {
   } catch (error) {
     if (isCurrentDocumentRequest(request)) {
       updateSourceSyncStatus("error");
+      showCopyToast(error.message);
     }
     return false;
   } finally {
@@ -4248,22 +4443,11 @@ async function restartToolAfterUpdate(status) {
 }
 
 async function flushPendingSourceSync() {
-  if (!state.canEdit || !isEditorMode() || !state.currentDocument || !state.sourceEditor) {
-    return;
-  }
-
-  if (state.sourceSyncTimer) {
-    window.clearTimeout(state.sourceSyncTimer);
-    state.sourceSyncTimer = null;
-    const synced = await syncSourceToDisk();
-    if (!synced) {
-      throw new Error("Source sync failed before restart");
-    }
-  }
-
-  const startedAt = Date.now();
-  while (state.sourceWriteInFlight && Date.now() - startedAt < 3_000) {
-    await delay(50);
+  if (!state.canEdit || !state.currentDocument || !state.sourceEditor) return;
+  if (state.sourceWritePromise) await state.sourceWritePromise;
+  while (state.sourceSyncTimer || state.sourceDirty) {
+    window.clearTimeout(state.sourceSyncTimer); state.sourceSyncTimer = null;
+    if (!await syncSourceToDisk()) throw new Error("Source save failed. Local editor changes are retained.");
   }
 }
 
@@ -8915,7 +9099,7 @@ function selectSourceLine(line, event) {
   selectSourceRange(line, line, event);
 }
 
-function selectSourceRange(start, end, event) {
+function selectSourceRange(start, end, event = {}) {
   if (!Number.isInteger(start) || !Number.isInteger(end)) {
     return;
   }
@@ -9284,11 +9468,11 @@ function resetStatusPolling() {
     window.clearInterval(state.statusTimer);
     state.statusTimer = null;
   }
-  if (!state.currentDocument) {
+  if (!state.currentDocument || document.visibilityState === "hidden") {
     return;
   }
 
-  state.statusTimer = window.setInterval(checkDocumentStatus, 2000);
+  state.statusTimer = window.setInterval(() => { void checkDocumentStatus(); }, documentStatusIntervalMs(state.mode));
 }
 
 function resetDocumentWatch() {
@@ -9297,7 +9481,7 @@ function resetDocumentWatch() {
     state.watchStream = null;
   }
   const request = currentDocumentRequest();
-  if (!request || !window.EventSource) {
+  if (!request || !window.EventSource || document.visibilityState === "hidden") {
     return;
   }
 
@@ -9321,7 +9505,7 @@ async function handleWatchedDocumentChange(event, request = currentDocumentReque
   }
   applyRepositoryStatus(payload);
   enforceCurrentRepoEditCapability();
-  if (state.sourceWriteInFlight || state.remoteSyncOperation === "merge") {
+  if (state.sourceDirty || state.commentWriteInFlight || state.sourceWriteInFlight || state.remoteSyncOperation === "merge") {
     return;
   }
   const refreshKind = documentStatusRefreshKind(state.currentDocument, payload, {
@@ -9333,7 +9517,7 @@ async function handleWatchedDocumentChange(event, request = currentDocumentReque
   }
 }
 
-async function checkDocumentStatus() {
+async function checkDocumentStatus({ required = false } = {}) {
   const request = currentDocumentRequest();
   if (!request) {
     return;
@@ -9344,10 +9528,12 @@ async function checkDocumentStatus() {
     response = await fetch(
       apiUrl("/api/document-status", { repo: request.repoId, file: request.path }),
     );
-  } catch {
+  } catch (error) {
+    if (required) throw error;
     return;
   }
   if (!response.ok) {
+    if (required) throw new Error("Unable to check current document");
     return;
   }
 
@@ -9357,7 +9543,8 @@ async function checkDocumentStatus() {
   }
   applyRepositoryStatus(status);
   enforceCurrentRepoEditCapability();
-  if (state.sourceWriteInFlight || state.remoteSyncOperation === "merge") {
+  if (state.sourceDirty || state.commentWriteInFlight || state.sourceWriteInFlight || state.remoteSyncOperation === "merge") {
+    if (required) throw new Error("Document is changing");
     return;
   }
   const refreshKind = documentStatusRefreshKind(state.currentDocument, status, {
@@ -9365,16 +9552,17 @@ async function checkDocumentStatus() {
     lastWrittenHash: state.lastWrittenHash,
   });
   if (refreshKind) {
-    await refreshCurrentDocument({ external: true, baselineOnly: refreshKind === "baseline" });
+    await refreshCurrentDocument({ external: true, baselineOnly: refreshKind === "baseline", required });
   }
 }
 
-async function refreshCurrentDocument({ external = false, remoteMerge = false, baselineOnly = false } = {}) {
+async function refreshCurrentDocument({ external = false, remoteMerge = false, baselineOnly = false, required = false } = {}) {
   const request = currentDocumentRequest();
   if (!request) {
     return;
   }
 
+  const revision = state.sourceRevision;
   const response = await fetch(
     apiUrl("/api/document", {
       repo: request.repoId,
@@ -9383,13 +9571,16 @@ async function refreshCurrentDocument({ external = false, remoteMerge = false, b
     }),
   );
   if (!response.ok) {
+    if (required) throw new Error("Unable to read current document");
     return;
   }
 
   const documentData = await response.json();
   if (!isCurrentDocumentRequest(request, documentData)) {
+    if (required && isCurrentDocumentRequest(request)) throw new Error("Invalid current document response");
     return;
   }
+  if (revision !== state.sourceRevision || state.sourceDirty) return;
   if (baselineOnly) {
     // A commit changes the comparison baseline, not the editor's current text or pending writes.
     state.currentDocument = withDocumentChangeBaseline(state.currentDocument, documentData);
@@ -9583,7 +9774,7 @@ async function preparePdfExport() {
     }
   }
   chartTooltipController.hide();
-  setMode("preview", { persist: false, focus: false });
+  await setMode("preview", { persist: false, focus: false });
   await waitForPdfExportSurface();
   return {
     path: state.currentDocument.path,

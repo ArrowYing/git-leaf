@@ -23,6 +23,7 @@ An ordinary document link can transmit these URL fields:
 | `repo` | Lowercase GitHub `owner/repository` identity |
 | `path` | Repository-relative `.md` or `.mdx` path |
 | `worktree` | Optional 16-character local worktree ID for a same-machine exact link |
+| `title` | Optional document title, at most 100 characters, for external link previews |
 
 The worktree ID is derived from a canonical local path but does not include that absolute path. It is not
 portable to another machine. A link without repository fields only launches or focuses OpenGlance.
@@ -31,6 +32,28 @@ Without `worktree`, the app opens the document in the matching repository's prim
 the last session used a linked worktree. With `worktree`, it opens only that exact available local
 worktree and reports an error if it is missing. A missing document is reported in the selected checkout;
 the app does not search other worktrees or synchronize the repository as part of `/open`.
+
+### External previews, including Codex
+
+Link generators read the local document's frontmatter `title` or first level-one heading and include
+at most 100 characters in the URL when the title adds information beyond the filename.
+Equivalent titles are omitted, ignoring case, Markdown extensions, and word separators.
+Use `--no-preview-title` to omit all titles. Missing files or missing titles do not prevent link creation; the hosted page falls back to the filename.
+Recipients, hosting infrastructure, and preview clients can see the title and path, including for
+private repositories. Generators do not read title metadata through symlinks outside the repository
+and do not transmit body text, `description`, or `ai_snippet`.
+
+The initial HTML response includes a document title, description, Open Graph title/description/site
+name, and a PNG icon. The description uses repository identity, location, and an explicit local-worktree
+or published-revision label. When the title repeats the filename, the location contains only its parent
+directory. It is not a content summary. No large cover image is supplied. Clients such as Codex choose which fields
+to display, card dimensions, and cache lifetime; OpenGlance does not control their card layout.
+Titles are display-only and do not affect document or worktree resolution. Old links gain filename
+previews without regeneration.
+
+Preview metadata is complete in the initial HTML head; it does not depend on page JavaScript, a
+localhost request, or reading the recipient’s filesystem. External previews cannot be assumed to
+reflect current local content. Local document content previews remain an in-app capability.
 
 ## `/share`
 

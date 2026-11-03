@@ -1,14 +1,17 @@
 import { createReadStream, watch } from "node:fs";
 import { spawn } from "node:child_process";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, stat, writeFile } from "node:fs/promises";
 import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { BUILD_INFO } from "../build-info.mjs";
+import { transactDocument } from "./document-writes.mjs";
+import { commentMutation, commentsPayload } from "./document-comments.mjs";
+import { maskCommentRecords } from "../content/document-comments.mjs";
 import { decodeMarkdownLinkPath } from "../content/link-path.mjs";
-import { extractTitle, renderMarkdown } from "../content/markdown.mjs";
+import { extractTitle, extractDocumentTitle, renderMarkdown } from "../content/markdown.mjs";
 import {
   datasetReferencesFromMarkdown,
   renderMdxLiteRows,
@@ -38,7 +41,7 @@ import {
   listGitWorktrees,
   worktreeDisplayPath,
 } from "./git-worktrees.mjs";
-import { buildFileTree } from "./tree.mjs";
+import { createRepositoryTreeCache } from "./repository-tree-cache.mjs";
 import {
   frontmatterDocumentProfile,
   frontmatterFacetsPayload,
@@ -126,6 +129,7 @@ export function createPreviewServer({
     repoRoot,
     initialFile,
     assetVersion,
+    treeScope: randomUUID(),
     toolVersionMonitor,
     restartSelf,
     gitRunner,
@@ -138,6 +142,7 @@ export function createPreviewServer({
     linkPreview: createLinkPreviewProvider({ ghRunner, githubTransport }),
     managedPlaceholders: new Set(),
     remoteMergePreparations: createRemoteMergePreparationStore(),
+    treeCache: createRepositoryTreeCache({ repoRoot }),
   };
   const server = http.createServer(async (request, response) => {
     try {
@@ -155,6 +160,7 @@ export function createPreviewServer({
       : null;
   };
   server.on("close", () => {
+    serverContext.treeCache.dispose();
     void serverContext.linkPreview.dispose();
     void serverContext.remoteMergePreparations.dispose();
   });
@@ -228,6 +234,7 @@ async function handleRequest(request, response, context) {
     requestUrl.pathname === "/image-preview.js" ||
     requestUrl.pathname === "/line-selection.js" ||
     requestUrl.pathname === "/agent-context.js" ||
+    requestUrl.pathname === "/document-comments.js" ||
     requestUrl.pathname === "/layout.js" ||
     requestUrl.pathname === "/ui-tooltip.js" ||
     requestUrl.pathname === "/tree-item-tooltip.js" ||
@@ -239,6 +246,7 @@ async function handleRequest(request, response, context) {
     requestUrl.pathname === "/pointer-resize.js" ||
     requestUrl.pathname === "/outline.js" ||
     requestUrl.pathname === "/tree-refresh.js" ||
+    requestUrl.pathname === "/refresh-policy.js" ||
     requestUrl.pathname === "/document-refresh.js" ||
     requestUrl.pathname === "/chart-tooltip.js" ||
     requestUrl.pathname === "/link-preview.js" ||
@@ -311,7 +319,13 @@ async function handleRequest(request, response, context) {
 
   if (requestUrl.pathname === "/api/tree") {
     const repo = await localRequestRepository(request, requestUrl, context);
-    const tree = await buildFileTree(repo.root);
+    const tree = await context.treeCache.get({
+      head: repo.head,
+      force: requestUrl.searchParams.get("refresh") === "1",
+    });
+    const revision = context.treeCache.revision;
+    const version = `${context.treeScope}:${revision}`;
+    const unchanged = requestUrl.searchParams.get("version") === version && requestUrl.searchParams.get("refresh") !== "1";
     const frontmatterProfile = await frontmatterFilterProfile(repo.root);
     sendJson(response, 200, {
       repo: repo.id,
@@ -319,7 +333,9 @@ async function handleRequest(request, response, context) {
       detached: repo.detached,
       canEdit: canEditRepository({ repo, isLocalRequest: canEditRequest(request, context) }),
       frontmatterAllowedKeys: frontmatterProfile.allowedKeys,
-      tree,
+      revision,
+      version,
+      ...(unchanged ? { unchanged: true } : { tree }),
     });
     return;
   }
@@ -658,6 +674,31 @@ async function handleRequest(request, response, context) {
     return;
   }
 
+  if (requestUrl.pathname === "/api/document-comments") {
+    let repo = await localRequestRepository(request, requestUrl, context);
+    requireEditableRequest(request, context, repo);
+    if (request.method !== "POST") {
+      sendJson(response, 405, { error: "Method not allowed" });
+      return;
+    }
+    const file = documentFileFromRequest(requestUrl, repo);
+    const input = await readJsonRequest(request);
+    let branchState = { repo, created: false };
+    await transactDocument({
+      repoRoot: repo.root, file, expectedHash: `sha256:${input.expectedSourceHash}`,
+      mutate: (source) => commentMutation(source, input),
+      beforeWrite: async (protection) => {
+        branchState = await ensureRepositoryWriteBranch(repo, context, protection);
+        repo = branchState.repo;
+      },
+    });
+    sendJson(response, 200, {
+      ...(await documentPayload(repo, file, { locale: previewLocaleFromRequest(requestUrl), gitRunner: context.gitRunner })),
+      ...branchStatePayload(branchState),
+    });
+    return;
+  }
+
   if (requestUrl.pathname === "/api/document") {
     let repo = await localRequestRepository(request, requestUrl, context);
     const file = documentFileFromRequest(requestUrl, repo);
@@ -667,8 +708,8 @@ async function handleRequest(request, response, context) {
       let branchState = { repo, created: false };
       sendJson(response, 200, {
         ...(await writeDocumentPayload(repo, file, request, {
-          beforeWrite: async () => {
-            branchState = await ensureRepositoryWriteBranch(repo, context);
+          beforeWrite: async (protection) => {
+            branchState = await ensureRepositoryWriteBranch(repo, context, protection);
             repo = branchState.repo;
             return repo;
           },
@@ -1046,7 +1087,9 @@ async function requestRepository(requestUrl, context) {
     notFound.statusCode = 404;
     throw notFound;
   }
-  return withRuntimeBranch(context.repository);
+  return withRuntimeBranch(context.repository, {
+    includeLinks: !["/api/tree", "/api/worktrees", "/api/git-status", "/api/document-status", "/api/watch"].includes(requestUrl.pathname),
+  });
 }
 
 async function localRequestRepository(request, requestUrl, context) {
@@ -1086,7 +1129,7 @@ function publicWorktree(worktree) {
   };
 }
 
-async function withRuntimeBranch(repo) {
+async function withRuntimeBranch(repo, { includeLinks = true } = {}) {
   const branch = await currentBranchOrFallback(repo);
   const head = await currentHead(repo.root).catch(() => repo.head ?? "");
   return {
@@ -1094,15 +1137,15 @@ async function withRuntimeBranch(repo) {
     branch,
     detached: !branch,
     head,
-    githubBlobRoot: await githubBlobRoot(repo.root, branch || head) ?? repo.githubBlobRoot,
+    ...(includeLinks ? { githubBlobRoot: await githubBlobRoot(repo.root, branch || head) ?? repo.githubBlobRoot } : {}),
   };
 }
 
-async function ensureRepositoryWriteBranch(repo, context) {
-  if (repo.branch && !repo.detached) {
+async function ensureRepositoryWriteBranch(repo, context, protection) {
+  if (!protection && repo.branch && !repo.detached) {
     return { repo, created: false };
   }
-  const result = await ensureWorktreeBranch(repo.root);
+  const result = protection ?? await ensureWorktreeBranch(repo.root);
   if (!result.created) {
     return { repo: { ...repo, branch: result.branch, detached: false }, created: false };
   }
@@ -1228,7 +1271,7 @@ export async function documentPayload(
   const dependencyHash = await datasetDependencyFingerprint({
     repoRoot: repo.root,
     documentPath: documentPath.relativePath,
-    datasetPaths: datasetReferencesFromMarkdown(source),
+    datasetPaths: datasetReferencesFromMarkdown(/\.mdx$/i.test(documentPath.relativePath) ? source : maskCommentRecords(source)),
   });
   const html = renderMarkdown(source, {
     currentFile: documentPath.relativePath,
@@ -1241,6 +1284,7 @@ export async function documentPayload(
     canEdit,
     path: documentPath.relativePath,
     title: extractTitle(source, documentPath.relativePath),
+    treeTitle: extractDocumentTitle(source),
     html,
     sourceHash: hashSource(source),
     dependencyHash,
@@ -1251,6 +1295,7 @@ export async function documentPayload(
 
   if (includeSource) {
     payload.source = source;
+    payload.comments = commentsPayload(source, documentPath.relativePath);
     payload.repoRoot = repo.root;
     payload.absolutePath = documentPath.absolutePath;
     Object.assign(
@@ -1305,7 +1350,7 @@ async function documentStatusPayload(repo, file, { canEdit = true, gitRunner = n
     ? await datasetDependencyFingerprint({
         repoRoot: repo.root,
         documentPath: documentPath.relativePath,
-        datasetPaths: datasetReferencesFromMarkdown(source),
+        datasetPaths: datasetReferencesFromMarkdown(/\.mdx$/i.test(documentPath.relativePath) ? source : maskCommentRecords(source)),
       })
     : "";
   return {
@@ -1462,8 +1507,12 @@ async function writeDocumentPayload(repo, file, request, { beforeWrite = async (
     throw error;
   }
 
-  repo = await beforeWrite();
-  await writeFile(documentPath.absolutePath, body.source, "utf8");
+  await transactDocument({
+    repoRoot: repo.root, file: documentPath.relativePath,
+    expectedHash: `sha256:${body.expectedSourceHash}`, allowMdx: true, maxBytes: 32 * 1024 * 1024,
+    mutate: () => body.source, validate: () => null,
+    beforeWrite: async (protection) => { repo = await beforeWrite(protection); },
+  });
   const fileStat = await stat(documentPath.absolutePath);
   return {
     path: documentPath.relativePath,
@@ -1837,7 +1886,7 @@ async function streamDocumentWatch(request, response, repo, file, context) {
       return;
     }
     try {
-      const currentRepo = await withRuntimeBranch(repo);
+      const currentRepo = await withRuntimeBranch(repo, { includeLinks: false });
       const payload = await documentStatusPayload(currentRepo, documentPath.relativePath, {
         gitRunner: context.gitRunner,
         canEdit: canEditRepository({
@@ -1854,12 +1903,15 @@ async function streamDocumentWatch(request, response, repo, file, context) {
       );
     }
   };
-  const watcher = watch(documentPath.absolutePath, { persistent: false }, () => {
+  const watcher = watch(path.dirname(documentPath.absolutePath), { persistent: false }, (_event, name) => {
+    if (name && String(name) !== path.basename(documentPath.absolutePath)) return;
     if (changeTimer) {
       clearTimeout(changeTimer);
     }
     changeTimer = setTimeout(sendChange, 40);
   });
+
+  watcher.on("error", () => response.end());
 
   request.on("close", () => {
     closed = true;
@@ -1881,6 +1933,12 @@ function readJsonRequest(request) {
     let body = "";
     request.setEncoding("utf8");
     request.on("data", (chunk) => {
+      if (body.length + chunk.length > 40 * 1024 * 1024) {
+        const error = new Error("Request body exceeds size limit.");
+        error.statusCode = 413;
+        reject(error);
+        return;
+      }
       body += chunk;
     });
     request.on("end", () => {
@@ -2070,7 +2128,7 @@ function sendHtml(response, body) {
 }
 
 function sendJson(response, statusCode, body) {
-  response.writeHead(statusCode, { "Content-Type": "application/json; charset=utf-8" });
+  response.writeHead(statusCode, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
   response.end(JSON.stringify(body));
 }
 

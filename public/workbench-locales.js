@@ -1,5 +1,6 @@
 export const WORKBENCH_MESSAGES = Object.freeze({
   en: Object.freeze({
+    "action.refreshNow": "Refresh now",
     "loading.title": "Opening repository",
     "loading.detail": "Preparing documents and workspace.",
     "aria.windowToolbar": "Window toolbar",
@@ -483,6 +484,7 @@ export const WORKBENCH_MESSAGES = Object.freeze({
     "shortcut.unassigned": "Unassigned",
   }),
   "zh-CN": Object.freeze({
+    "action.refreshNow": "立即刷新",
     "loading.title": "正在打开仓库",
     "loading.detail": "正在准备文档与工作区。",
     "aria.windowToolbar": "窗口工具栏",

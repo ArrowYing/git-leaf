@@ -1,3 +1,4 @@
+import { withWorktreeMutation } from "./worktree-mutation.mjs";
 import { randomBytes } from "node:crypto";
 import { lstat, mkdtemp, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -174,27 +175,6 @@ export async function inspectRemoteSync({
 }
 
 const DEFAULT_REMOTE_MERGE_PREPARATION_TTL_MS = 60_000;
-const remoteMutationQueues = new Map();
-
-async function withRemoteMutationLock(repoRoot, operation) {
-  const key = path.resolve(repoRoot);
-  const previous = remoteMutationQueues.get(key) ?? Promise.resolve();
-  let release;
-  const gate = new Promise((resolve) => {
-    release = resolve;
-  });
-  const tail = previous.then(() => gate);
-  remoteMutationQueues.set(key, tail);
-  await previous;
-  try {
-    return await operation();
-  } finally {
-    release();
-    if (remoteMutationQueues.get(key) === tail) {
-      remoteMutationQueues.delete(key);
-    }
-  }
-}
 
 export function createRemoteMergePreparationStore({
   ttlMs = DEFAULT_REMOTE_MERGE_PREPARATION_TTL_MS,
@@ -286,60 +266,62 @@ export async function prepareRemoteChanges({
 
   const context = { repo, locale: translate.locale };
   try {
-    await assertNoGitOperationInProgress(context, gitRunner, operationPathExists);
-    const status = await runRemoteStep(repo, "status", gitRunner, [
-      "status",
-      "--porcelain=v1",
-      "-z",
-      "--untracked-files=all",
-    ]);
-    const changes = repositoryChangesFromPorcelain(status.stdout);
-    const redundantRemoteFiles = changes.length > 0
-      ? await byteIdenticalRemoteAdditions({ repo, remote, changes, gitRunner })
-      : [];
-    if (changes.length === 0 || redundantRemoteFiles.length === changes.length) {
-      return await prepareCleanRemoteMerge({
+    return await withWorktreeMutation(repo.root, async () => {
+      await assertNoGitOperationInProgress(context, gitRunner, operationPathExists);
+      const status = await runRemoteStep(repo, "status", gitRunner, [
+        "status",
+        "--porcelain=v1",
+        "-z",
+        "--untracked-files=all",
+      ]);
+      const changes = repositoryChangesFromPorcelain(status.stdout);
+      const redundantRemoteFiles = changes.length > 0
+        ? await byteIdenticalRemoteAdditions({ repo, remote, changes, gitRunner })
+        : [];
+      if (changes.length === 0 || redundantRemoteFiles.length === changes.length) {
+        return await prepareCleanRemoteMerge({
+          repo,
+          remote,
+          preparationStore,
+          translate,
+          gitRunner,
+          redundantRemoteFiles,
+        });
+      }
+      if (!allowLocalChanges) {
+        return remoteMergeFailure({
+          repo,
+          translate,
+          step: "confirm local changes",
+          error: translate("error.confirmLocalChanges"),
+          code: "local_changes_require_confirmation",
+          files: changes.map((change) => change.path),
+          includeAgentPrompt: false,
+          checkedAt: remote.checkedAt,
+          remote,
+        });
+      }
+      if (await repositoryUsesSparseCheckout(repo, gitRunner)) {
+        return remoteMergeFailure({
+          repo,
+          translate,
+          step: "protect sparse checkout",
+          error: translate("error.sparseCheckoutLocalChanges"),
+          code: "sparse_checkout_local_changes",
+          files: changes.map((change) => change.path),
+          checkedAt: remote.checkedAt,
+          remote,
+        });
+      }
+      return await prepareDirtyRemoteMerge({
         repo,
         remote,
+        changes,
         preparationStore,
         translate,
         gitRunner,
-        redundantRemoteFiles,
+        snapshotCommandRunner,
       });
-    }
-    if (!allowLocalChanges) {
-      return remoteMergeFailure({
-        repo,
-        translate,
-        step: "confirm local changes",
-        error: translate("error.confirmLocalChanges"),
-        code: "local_changes_require_confirmation",
-        files: changes.map((change) => change.path),
-        includeAgentPrompt: false,
-        checkedAt: remote.checkedAt,
-        remote,
-      });
-    }
-    if (await repositoryUsesSparseCheckout(repo, gitRunner)) {
-      return remoteMergeFailure({
-        repo,
-        translate,
-        step: "protect sparse checkout",
-        error: translate("error.sparseCheckoutLocalChanges"),
-        code: "sparse_checkout_local_changes",
-        files: changes.map((change) => change.path),
-        checkedAt: remote.checkedAt,
-        remote,
-      });
-    }
-    return await prepareDirtyRemoteMerge({
-      repo,
-      remote,
-      changes,
-      preparationStore,
-      translate,
-      gitRunner,
-      snapshotCommandRunner,
     });
   } catch (error) {
     return remoteMergeFailure({
@@ -383,8 +365,8 @@ export async function applyPreparedRemoteChanges({
     });
   }
 
-  return withRemoteMutationLock(repo.root, async () => {
-    try {
+  try {
+    return await withWorktreeMutation(repo.root, async () => {
       await assertNoGitOperationInProgress(
         { repo, locale: translate.locale },
         gitRunner,
@@ -431,21 +413,21 @@ export async function applyPreparedRemoteChanges({
         snapshotCommandRunner,
         guard,
       });
-    } catch (error) {
-      return remoteMergeFailure({
-        repo,
-        translate,
-        step: error.step ?? "apply prepared remote merge",
-        error: commandErrorText(error, { locale: translate.locale }),
-        code: "merge_failed",
-        files: preparation.remote.incomingFiles,
-        checkedAt: preparation.remote.checkedAt,
-        remote: preparation.remote,
-      });
-    } finally {
-      await preparation.cleanup();
-    }
-  });
+    });
+  } catch (error) {
+    return remoteMergeFailure({
+      repo,
+      translate,
+      step: error.step ?? "apply prepared remote merge",
+      error: commandErrorText(error, { locale: translate.locale }),
+      code: "merge_failed",
+      files: preparation.remote.incomingFiles,
+      checkedAt: preparation.remote.checkedAt,
+      remote: preparation.remote,
+    });
+  } finally {
+    await preparation.cleanup();
+  }
 }
 
 async function applyPreparedCleanRemoteMerge({

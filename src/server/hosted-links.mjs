@@ -5,7 +5,7 @@ export const OPENGLANCE_HTTPS_SHARE_URL = "https://gitleaf.mangofuture.com/share
 export const OPENGLANCE_SHARE_VERSION = "1";
 export const OPENGLANCE_SHARE_TITLE_MAX_LENGTH = 100;
 
-export function openGlanceHttpsOpenUrl({ repository, file = "", worktree = "" } = {}) {
+export function openGlanceHttpsOpenUrl({ repository, file = "", worktree = "", title = "" } = {}) {
   const normalized = normalizeOpenGlanceLinkTarget({ repository, file, worktree });
   if (!normalized?.repository) {
     throw new Error("OpenGlance HTTPS links require a GitHub repository identity.");
@@ -19,6 +19,8 @@ export function openGlanceHttpsOpenUrl({ repository, file = "", worktree = "" } 
   if (normalized.worktree) {
     url.searchParams.set("worktree", normalized.worktree);
   }
+  const previewTitle = distinctPreviewTitle(title, normalized.file);
+  if (normalized.file && previewTitle) url.searchParams.set("title", previewTitle);
   return url.toString();
 }
 
@@ -34,7 +36,7 @@ export function openGlanceShareUrl({ repository, file, rev, title = "" } = {}) {
   url.searchParams.set("repo", target.repository);
   url.searchParams.set("path", target.file);
   url.searchParams.set("rev", revision);
-  const previewTitle = normalizeSharePreviewText(title, OPENGLANCE_SHARE_TITLE_MAX_LENGTH);
+  const previewTitle = distinctPreviewTitle(title, target.file);
   if (previewTitle) {
     url.searchParams.set("title", previewTitle);
   }
@@ -117,9 +119,19 @@ function normalizeRepositoryIdentity(value) {
 }
 
 function normalizeSharePreviewText(value, maxLength) {
-  const normalized = String(value ?? "").replace(/\s+/g, " ").trim();
+  const normalized = String(value ?? "").replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim();
   if (normalized.length <= maxLength) {
     return normalized;
   }
   return `${normalized.slice(0, Math.max(0, maxLength - 1)).trimEnd()}…`;
+}
+
+// Compare before truncating so long filenames do not acquire a redundant title parameter.
+function distinctPreviewTitle(title, file) {
+  const comparable = (value) => String(value ?? "").normalize("NFC")
+    .replace(/[\u0000-\u001f\u007f]/g, " ").replace(/[-_\s]+/g, " ").trim().toLowerCase();
+  const filename = path.posix.basename(file || "");
+  const candidate = comparable(title);
+  if (!candidate || [filename, filename.replace(/\.mdx?$/i, "")].some((name) => comparable(name) === candidate)) return "";
+  return normalizeSharePreviewText(title, OPENGLANCE_SHARE_TITLE_MAX_LENGTH);
 }

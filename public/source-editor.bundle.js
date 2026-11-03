@@ -3455,8 +3455,8 @@ var StyleModule = class {
   constructor(spec, options) {
     this.rules = [];
     let { finish } = options || {};
-    function splitSelector(selector) {
-      return /^@/.test(selector) ? [selector] : selector.split(/,\s*/);
+    function splitSelector(selector2) {
+      return /^@/.test(selector2) ? [selector2] : selector2.split(/,\s*/);
     }
     function render(selectors, spec2, target, isKeyframes) {
       let local = [], isAt = /^@(\w+)\b/.exec(selectors[0]), keyframes = isAt && isAt[1] == "keyframes";
@@ -28979,8 +28979,8 @@ function isString(obj) {
   return _class(obj) === "[object String]";
 }
 var _hasOwnProperty = Object.prototype.hasOwnProperty;
-function has(object, key) {
-  return _hasOwnProperty.call(object, key);
+function has(object2, key) {
+  return _hasOwnProperty.call(object2, key);
 }
 function assign(obj) {
   const sources = Array.prototype.slice.call(arguments, 1);
@@ -33567,6 +33567,311 @@ MarkdownIt.prototype.renderInline = function(src, env) {
 };
 var lib_default = MarkdownIt;
 
+// src/content/document-comments.mjs
+var LIMITS = Object.freeze({
+  documentBytes: 4 * 1024 * 1024,
+  recordBytes: 256 * 1024,
+  messageBytes: 64 * 1024,
+  selectorBytes: 16 * 1024,
+  records: 512,
+  messages: 256,
+  contextCodePoints: 64
+});
+var byteLength = (value) => new TextEncoder().encode(value).length;
+var MARKER = "<!-- openglance-comment:";
+var UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+var HASH = /^sha256:[0-9a-f]{64}$/;
+var VOID_TAGS = new Set("area base br col embed hr img input link meta param source track wbr".split(" "));
+var RAW_TAGS = /* @__PURE__ */ new Set(["script", "style", "textarea", "pre"]);
+var markdown2 = new lib_default("commonmark", { html: true });
+markdown2.block.ruler.at("fence", (state, startLine, endLine, silent) => {
+  const accepted = fence(state, startLine, endLine, silent);
+  if (accepted && !silent) {
+    const token = state.tokens.at(-1);
+    const lastLine = token.map[1] - 1;
+    const last = state.src.slice(state.bMarks[lastLine] + state.tShift[lastLine], state.eMarks[lastLine]);
+    const close = new RegExp(`^${token.markup[0]}{${token.markup.length},}[ \\t]*$`);
+    token.meta = { closed: lastLine > startLine && close.test(last) };
+  }
+  return accepted;
+});
+var CommentError = class extends Error {
+  constructor(code3, message) {
+    super(message);
+    this.code = code3;
+    this.statusCode = ["stale_source", "worktree_busy", "invalid_target", "duplicate_thread"].includes(code3) ? 409 : 400;
+  }
+};
+function requireValue(condition, code3, message) {
+  if (!condition) throw new CommentError(code3, message);
+}
+function object(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+function boundedText(value, max, { empty: empty2 = false } = {}) {
+  return typeof value === "string" && value.isWellFormed() && (empty2 || value.length > 0) && byteLength(value) <= max;
+}
+function utcTime(value) {
+  return typeof value === "string" && /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d{1,3})?Z$/.test(value) && Number.isFinite(Date.parse(value)) && new Date(value).toISOString().slice(0, 19) === value.slice(0, 19);
+}
+function author(value) {
+  return object(value) && boundedText(value.name, 256) && ["human", "agent"].includes(value.kind);
+}
+function selector(value) {
+  return object(value) && boundedText(value.exact, LIMITS.selectorBytes) && [value.prefix, value.suffix].every((text2) => boundedText(text2, LIMITS.selectorBytes, { empty: true }) && Array.from(text2).length <= LIMITS.contextCodePoints);
+}
+function validateMessage(message) {
+  requireValue(
+    object(message) && UUID.test(message.id) && author(message.author) && utcTime(message.created_at) && boundedText(message.body, LIMITS.messageBytes),
+    "invalid_message",
+    "A message needs a UUID, author, UTC timestamp, and bounded Markdown body."
+  );
+  if (message.revision_target !== void 0) {
+    requireValue(
+      message.author.kind === "agent" && object(message.revision_target) && HASH.test(message.revision_target.body_hash) && selector(message.revision_target.anchor),
+      "invalid_revision_target",
+      "An agent revision target needs a body hash and source selector."
+    );
+  }
+}
+function validateThread(thread) {
+  requireValue(
+    object(thread) && UUID.test(thread.id) && ["open", "resolved"].includes(thread.status) && selector(thread.anchor) && Array.isArray(thread.messages) && thread.messages.length > 0 && thread.messages.length <= LIMITS.messages,
+    "invalid_thread",
+    "A thread needs a UUID, status, selector, and bounded nonempty messages."
+  );
+  const ids = /* @__PURE__ */ new Set();
+  for (const message of thread.messages) {
+    validateMessage(message);
+    requireValue(!ids.has(message.id), "duplicate_message", "Message IDs must be unique within a thread.");
+    ids.add(message.id);
+  }
+  if (thread.anchor_history !== void 0) {
+    requireValue(
+      Array.isArray(thread.anchor_history) && thread.anchor_history.length <= LIMITS.messages,
+      "invalid_history",
+      "Anchor history must be a bounded array."
+    );
+    for (const item of thread.anchor_history) {
+      requireValue(
+        object(item) && selector(item.anchor) && author(item.author) && utcTime(item.created_at) && (item.reply_id === void 0 || thread.messages.some((message) => message.id === item.reply_id)),
+        "invalid_history",
+        "An anchor history entry needs the previous selector and change attribution."
+      );
+    }
+  }
+}
+function physicalLines(source) {
+  const lines = [];
+  let offset = 0;
+  for (const match2 of source.matchAll(/([^\r\n]*)(\r\n|\r|\n|$)/g)) {
+    if (match2[0] === "") break;
+    lines.push({ text: match2[1], eol: match2[2], from: offset, to: offset + match2[0].length });
+    offset += match2[0].length;
+  }
+  return lines;
+}
+function trackHtml(content2, stack) {
+  const tags3 = new RegExp(HTML_TAG_RE.source.slice(1), "g");
+  for (const match2 of content2.matchAll(tags3)) {
+    const tag = /^<(\/)?([a-z][\w-]*)\b/i.exec(match2[0]);
+    if (!tag) continue;
+    const name2 = tag[2].toLowerCase();
+    if (RAW_TAGS.has(stack.at(-1))) {
+      if (tag[1] && name2 === stack.at(-1)) stack.pop();
+    } else if (tag[1]) {
+      if (name2 === stack.at(-1)) stack.pop();
+    } else if (!VOID_TAGS.has(name2) && !/\/>$/.test(match2[0])) {
+      stack.push(name2);
+    }
+  }
+}
+function parsePayload(payload) {
+  let data2;
+  try {
+    data2 = JSON.parse(payload);
+  } catch {
+    throw new CommentError("invalid_json", "Record payload is not JSON.");
+  }
+  const stack = [];
+  for (const match2 of payload.matchAll(/"(?:\\.|[^"\\])*"|[{}\[\],:]/g)) {
+    const token = match2[0];
+    if (token === "{") stack.push({ keys: /* @__PURE__ */ new Set(), nextKey: true });
+    else if (token === "[") stack.push({});
+    else if (token === "}" || token === "]") stack.pop();
+    else if (token === "," && stack.at(-1)?.keys) stack.at(-1).nextKey = true;
+    else if (token.startsWith('"') && stack.at(-1)?.nextKey) {
+      const frame = stack.at(-1);
+      const key = JSON.parse(token);
+      requireValue(!frame.keys.has(key), "duplicate_key", "Duplicate JSON object keys require repair.");
+      frame.keys.add(key);
+      frame.nextKey = false;
+    }
+  }
+  return data2;
+}
+function parseComments(source) {
+  requireValue(
+    boundedText(source, LIMITS.documentBytes, { empty: true }),
+    "document_limit",
+    "Expected well-formed UTF-8 text within the prototype document limit."
+  );
+  const lines = physicalLines(source);
+  const diagnostics = [];
+  const records = [];
+  const htmlStack = [];
+  let unsafe = false;
+  let frontmatterEnd = 0;
+  if (lines[0]?.text.replace(/^\uFEFF/, "") === "---") {
+    const closing2 = lines.findIndex((line, index) => index > 0 && /^(?:---|\.\.\.)\s*$/.test(line.text));
+    frontmatterEnd = closing2 < 0 ? lines.length : closing2 + 1;
+    if (closing2 < 0) unsafe = true;
+  }
+  const parseSource = lines.map((line, index) => `${index < frontmatterEnd ? "" : line.text}
+`).join("");
+  const tokens = markdown2.parse(parseSource, {});
+  for (const token of tokens) {
+    if (token.type === "fence" && token.map[1] === lines.length && !token.meta.closed) unsafe = true;
+    if (token.type === "inline" && token.level === 1) {
+      for (const child of token.children ?? []) {
+        if (child.type === "html_inline") trackHtml(child.content, htmlStack);
+      }
+    }
+    if (token.type !== "html_block" || token.level !== 0) continue;
+    const [startLine, endLine] = token.map;
+    const first = lines[startLine]?.text ?? "";
+    if (htmlStack.length === 0 && first.startsWith(MARKER)) {
+      const from = lines[startLine].from;
+      const to = lines[endLine - 1].to;
+      const last = lines[endLine - 1].text;
+      const complete = endLine - startLine >= 2 && last === "-->";
+      if (!complete) {
+        diagnostics.push({ code: "invalid_envelope", line: startLine + 1 });
+        if (!/-->|--!>/.test(token.content)) unsafe = true;
+        continue;
+      }
+      const record = { from, to, line: startLine + 1, raw: source.slice(from, to), version: first.slice(MARKER.length) };
+      records.push(record);
+      try {
+        requireValue(byteLength(record.raw) <= LIMITS.recordBytes, "record_limit", "Record exceeds size limit.");
+        const payload = source.slice(lines[startLine].to, lines[endLine - 1].from);
+        requireValue(!/[<>]/.test(payload), "unsafe_payload", "Literal angle brackets must be JSON Unicode escapes.");
+        record.data = parsePayload(payload);
+        requireValue(record.version === "v1", "unknown_version", "Unsupported record version.");
+        validateThread(record.data);
+        record.valid = true;
+      } catch (error2) {
+        record.valid = false;
+        diagnostics.push({ code: error2.code ?? "invalid_thread", line: record.line });
+      }
+      continue;
+    }
+    if (/^\s*<!--/.test(token.content) && !/-->|--!>/.test(token.content)) unsafe = true;
+    if (/^\s*<\?/.test(token.content) && !token.content.includes("?>")) unsafe = true;
+    if (/^\s*<!\[CDATA\[/.test(token.content) && !token.content.includes("]]>")) unsafe = true;
+    trackHtml(token.content, htmlStack);
+  }
+  requireValue(records.length <= LIMITS.records, "record_count", "Too many records in this document.");
+  const threadIds = /* @__PURE__ */ new Map();
+  for (const record of records) {
+    if (!UUID.test(record.data?.id)) continue;
+    const same = threadIds.get(record.data.id) ?? [];
+    same.push(record);
+    threadIds.set(record.data.id, same);
+  }
+  for (const same of threadIds.values()) {
+    if (same.length < 2) continue;
+    for (const record of same) {
+      record.valid = false;
+      diagnostics.push({ code: "duplicate_thread", line: record.line });
+    }
+  }
+  const sourceStarts = [];
+  const sourceEnds = [];
+  let body = "";
+  let recordIndex = 0;
+  for (let offset = 0; offset < source.length; ) {
+    if (records[recordIndex]?.from === offset) {
+      offset = records[recordIndex++].to;
+      continue;
+    }
+    const start = offset;
+    let character = source[offset++];
+    if (character === "\r") {
+      if (source[offset] === "\n") offset += 1;
+      character = "\n";
+    }
+    body += character;
+    sourceStarts.push(start);
+    sourceEnds.push(offset);
+  }
+  return {
+    source,
+    records,
+    diagnostics,
+    body,
+    sourceStarts,
+    sourceEnds,
+    safeAppend: !unsafe && htmlStack.length === 0
+  };
+}
+function maskCommentRecords(source) {
+  if (!source.includes(MARKER)) return source;
+  try {
+    const { records } = parseComments(source);
+    let output = "";
+    let offset = 0;
+    for (const record of records) {
+      output += source.slice(offset, record.from) + record.raw.replace(/[^\r\n]/g, " ");
+      offset = record.to;
+    }
+    return output + source.slice(offset);
+  } catch {
+    return source;
+  }
+}
+function hasOnlyCommentChanges(baseline, current) {
+  if (!baseline.includes(MARKER) && !current.includes(MARKER)) return false;
+  try {
+    const before = parseComments(baseline);
+    const after = parseComments(current);
+    return before.records.length + after.records.length > 0 && before.body.replace(/\n+$/, "") === after.body.replace(/\n+$/, "");
+  } catch {
+    return false;
+  }
+}
+
+// src/client/source-history.mjs
+function minimalDocumentChange(currentValue, nextValue) {
+  const current = String(currentValue ?? "");
+  const next = String(nextValue ?? "");
+  let from = 0;
+  const sharedLength = Math.min(current.length, next.length);
+  while (from < sharedLength && current.charCodeAt(from) === next.charCodeAt(from)) {
+    from += 1;
+  }
+  let currentTo = current.length;
+  let nextTo = next.length;
+  while (currentTo > from && nextTo > from && current.charCodeAt(currentTo - 1) === next.charCodeAt(nextTo - 1)) {
+    currentTo -= 1;
+    nextTo -= 1;
+  }
+  return {
+    from,
+    to: currentTo,
+    insert: next.slice(from, nextTo)
+  };
+}
+function sourceSynchronizationSpec(state, nextSource, { protectedRanges = [], preserveSelection = true, effects = [] } = {}) {
+  const next = nextSource.replace(/\r\n?/g, "\n");
+  const changes = preserveSelection ? minimalDocumentChange(state.doc.toString(), next) : { from: 0, to: state.doc.length, insert: next };
+  const { from, to } = changes;
+  if (protectedRanges.some((range) => from < range.to && to > range.from || from === to && from > range.from && from < range.to)) {
+    throw new CommentError("history_conflict", "Incoming changes overlap pending source edits; retain both versions before synchronization.");
+  }
+  return { changes, effects, annotations: Transaction.addToHistory.of(false) };
+}
+
 // public/i18n.js
 var DEFAULT_LOCALE = "en";
 var SUPPORTED_LOCALES = Object.freeze(["en", "zh-CN"]);
@@ -36193,8 +36498,9 @@ var MARKDOWN_MESSAGES = Object.freeze({
     "mermaid.error": "Mermaid \u56FE\u65E0\u6CD5\u6E32\u67D3\uFF0C\u8BF7\u6253\u5F00\u6E90\u7801\u68C0\u67E5\u3002"
   })
 });
-function renderMarkdown(markdown2, options = {}) {
-  const { source, lineOffset } = stripFrontmatter(markdown2);
+function renderMarkdown(markdown3, options = {}) {
+  if (!String(options.currentFile ?? "").toLowerCase().endsWith(".mdx")) markdown3 = maskCommentRecords(markdown3);
+  const { source, lineOffset } = stripFrontmatter(markdown3);
   const translate = createTranslator(MARKDOWN_MESSAGES, options.locale);
   const renderer = createRenderer({
     ...options,
@@ -36448,13 +36754,13 @@ function renderMermaidShell(source, translate) {
     "</figure>"
   ].join("");
 }
-function stripFrontmatter(markdown2) {
-  const match2 = markdown2.match(FRONT_MATTER_RE);
+function stripFrontmatter(markdown3) {
+  const match2 = markdown3.match(FRONT_MATTER_RE);
   if (!match2) {
-    return { source: markdown2, lineOffset: 0 };
+    return { source: markdown3, lineOffset: 0 };
   }
   return {
-    source: markdown2.slice(match2[0].length),
+    source: markdown3.slice(match2[0].length),
     lineOffset: match2[0].match(/\n/g)?.length ?? 0
   };
 }
@@ -37727,6 +38033,7 @@ function normalizeSource(value) {
 // public/workbench-locales.js
 var WORKBENCH_MESSAGES = Object.freeze({
   en: Object.freeze({
+    "action.refreshNow": "Refresh now",
     "loading.title": "Opening repository",
     "loading.detail": "Preparing documents and workspace.",
     "aria.windowToolbar": "Window toolbar",
@@ -38210,6 +38517,7 @@ var WORKBENCH_MESSAGES = Object.freeze({
     "shortcut.unassigned": "Unassigned"
   }),
   "zh-CN": Object.freeze({
+    "action.refreshNow": "\u7ACB\u5373\u5237\u65B0",
     "loading.title": "\u6B63\u5728\u6253\u5F00\u4ED3\u5E93",
     "loading.detail": "\u6B63\u5728\u51C6\u5907\u6587\u6863\u4E0E\u5DE5\u4F5C\u533A\u3002",
     "aria.windowToolbar": "\u7A97\u53E3\u5DE5\u5177\u680F",
@@ -39630,6 +39938,18 @@ var liveCompositionState = StateField.define({
     return isComposing;
   }
 });
+var commentRangesEffect = StateEffect.define();
+var commentRanges = StateField.define({
+  create: () => Decoration.none,
+  update(value, transaction) {
+    value = value.map(transaction.changes);
+    for (const effect of transaction.effects) if (effect.is(commentRangesEffect)) {
+      value = Decoration.set(effect.value.filter((range) => range.from >= 0 && range.to > range.from && range.to <= transaction.state.doc.length).map((range) => Decoration.mark({ class: "cm-comment-anchor" }).range(range.from, range.to)), true);
+    }
+    return value;
+  },
+  provide: (field) => EditorView.decorations.from(field)
+});
 var liveMarkdownDecorations = StateField.define({
   create(state) {
     return buildLiveMarkdownDecorations(state);
@@ -39832,7 +40152,7 @@ var DeletedLinesWidget = class _DeletedLinesWidget extends WidgetType {
   }
 };
 function buildDocumentChangesState(state, config3) {
-  const model = config3.available ? createDocumentChangeModel({
+  const model = config3.available && !(config3.ignoreCommentChanges && hasOnlyCommentChanges(config3.baselineSource, state.doc.toString())) ? createDocumentChangeModel({
     baselineSource: config3.baselineSource,
     currentSource: state.doc.toString()
   }) : emptyDocumentChangeModel();
@@ -40345,6 +40665,7 @@ function createSourceEditor({
   language: language2,
   onChange,
   onFocusChange,
+  onSelectionChange,
   onScroll,
   onLineSelect,
   onBlankClick,
@@ -40446,6 +40767,7 @@ function createSourceEditor({
       selectedLineGutterClasses,
       documentSearchDecorations,
       remoteMergeHighlightDecorations,
+      commentRanges,
       documentChangesState,
       deletedLinesLineNumberMarker,
       themeCompartment.of(editorThemeExtensions(currentTheme)),
@@ -40471,6 +40793,7 @@ function createSourceEditor({
         if (update.focusChanged) {
           onFocusChange?.(update.view.hasFocus);
         }
+        if (update.selectionSet || update.docChanged || update.focusChanged) onSelectionChange?.();
         if (!update.docChanged || suppressChange) {
           return;
         }
@@ -40731,6 +41054,7 @@ function createSourceEditor({
         effects: documentChangesEffect.of({
           available: available === true,
           baselineSource: String(source ?? ""),
+          ignoreCommentChanges: /\.md$/i.test(getDocumentPath()),
           showDeletions: showDeletions === true,
           locale: locale ?? language2 ?? "en"
         })
@@ -40744,7 +41068,7 @@ function createSourceEditor({
       });
     },
     setValue(value, { preserveSelection = false, highlightChanges = false } = {}) {
-      const nextValue = String(value ?? "");
+      const nextValue = String(value ?? "").replace(/\r\n?/g, "\n");
       const currentValue = view.state.doc.toString();
       if (currentValue === nextValue) {
         return;
@@ -40759,15 +41083,19 @@ function createSourceEditor({
       };
       suppressChange = true;
       try {
-        view.dispatch(preserveEditorContext({
-          changes,
-          effects: remoteMergeHighlightEffect.of(
-            highlightChanges ? {
-              from: changes.from,
-              to: changes.from + String(changes.insert ?? "").length
-            } : null
-          )
-        }, preserveSelection));
+        view.dispatch(preserveEditorContext(sourceSynchronizationSpec(
+          view.state,
+          nextValue,
+          {
+            preserveSelection,
+            effects: remoteMergeHighlightEffect.of(
+              highlightChanges ? {
+                from: changes.from,
+                to: changes.from + String(changes.insert ?? "").length
+              } : null
+            )
+          }
+        ), preserveSelection));
       } finally {
         suppressChange = false;
       }
@@ -40789,6 +41117,17 @@ function createSourceEditor({
     },
     hasFocus() {
       return view.hasFocus;
+    },
+    selectionRect() {
+      const range = view.state.selection.main;
+      return range.empty ? null : view.coordsAtPos(range.to) ?? view.coordsAtPos(range.from);
+    },
+    selectedRange() {
+      const { from, to } = view.state.selection.main;
+      return { from, to };
+    },
+    setCommentRanges(ranges) {
+      view.dispatch({ effects: commentRangesEffect.of(ranges) });
     },
     selectedText() {
       const range = view.state.selection.main;
@@ -41525,7 +41864,7 @@ function createLiveMdxToolbarSeparator(documentRoot) {
   return separator;
 }
 function isLiveMdxNativeControl(target) {
-  return ["button", "a", "input", "select", "textarea", '[role="button"]'].some((selector) => Boolean(closestElement(target, selector)));
+  return ["button", "a", "input", "select", "textarea", '[role="button"]'].some((selector2) => Boolean(closestElement(target, selector2)));
 }
 function liveMdxTargetIsEmbeddedViewControl(target) {
   return [
@@ -41533,7 +41872,7 @@ function liveMdxTargetIsEmbeddedViewControl(target) {
     "[data-table-search]",
     "[data-table-freeze]",
     "[data-table-copy]"
-  ].some((selector) => Boolean(closestElement(target, selector)));
+  ].some((selector2) => Boolean(closestElement(target, selector2)));
 }
 function createLiveTextSelectionInteraction({
   getView,
@@ -43487,26 +43826,6 @@ function liveTextSelectionAnchorRect(view) {
     height: Math.max(1, bottom - top2)
   };
 }
-function minimalDocumentChange(currentValue, nextValue) {
-  const current = String(currentValue ?? "");
-  const next = String(nextValue ?? "");
-  let from = 0;
-  const sharedLength = Math.min(current.length, next.length);
-  while (from < sharedLength && current.charCodeAt(from) === next.charCodeAt(from)) {
-    from += 1;
-  }
-  let currentTo = current.length;
-  let nextTo = next.length;
-  while (currentTo > from && nextTo > from && current.charCodeAt(currentTo - 1) === next.charCodeAt(nextTo - 1)) {
-    currentTo -= 1;
-    nextTo -= 1;
-  }
-  return {
-    from,
-    to: currentTo,
-    insert: next.slice(from, nextTo)
-  };
-}
 function buildRemoteMergeHighlightDecorations(state, range) {
   if (!range) {
     return Decoration.none;
@@ -43643,16 +43962,16 @@ function imageLineAttributes(lineText) {
     }
     return attributes.src ? attributes : null;
   }
-  const markdown2 = /^!\[((?:\\.|[^\]\\])*)\]\(\s*(<[^>\n]+>|[^\s)]+)(?:\s+(?:"[^"\n]*"|'[^'\n]*'|\([^\)\n]*\)))?\s*\)\s*$/.exec(line);
-  if (!markdown2) {
+  const markdown3 = /^!\[((?:\\.|[^\]\\])*)\]\(\s*(<[^>\n]+>|[^\s)]+)(?:\s+(?:"[^"\n]*"|'[^'\n]*'|\([^\)\n]*\)))?\s*\)\s*$/.exec(line);
+  if (!markdown3) {
     return null;
   }
-  const rawSource = markdown2[2];
+  const rawSource = markdown3[2];
   return {
     src: unescapeMarkdownImageValue(
       rawSource.startsWith("<") && rawSource.endsWith(">") ? rawSource.slice(1, -1) : rawSource
     ),
-    alt: unescapeMarkdownImageValue(markdown2[1])
+    alt: unescapeMarkdownImageValue(markdown3[1])
   };
 }
 function imageLineForAction(lineText, action, options = {}) {
@@ -44197,12 +44516,27 @@ function buildLiveMarkdownDecorations(state, {
     activeComposition
   );
   const source = state.doc.toString();
-  const previewBlocks = livePreviewBlocksForSource(source, {
+  let records = [];
+  if (!/\.mdx$/i.test(renderOptions.currentFile || "") && source.includes("<!-- openglance-comment:")) {
+    try {
+      records = parseComments(source).records;
+    } catch {
+    }
+  }
+  const previewBlocks = livePreviewBlocksForSource(records.length ? maskCommentRecords(source) : source, {
     activeLineNumber
   });
   const listIndentation = liveListIndentationForLines(source.split("\n"));
   let previewBlockIndex = 0;
   for (let lineNumber = 1; lineNumber <= state.doc.lines; lineNumber += 1) {
+    const record = records.find((item) => item.from === state.doc.line(lineNumber).from);
+    if (record) {
+      const end = state.doc.lineAt(Math.max(record.from, record.to - 1));
+      builder.add(record.from, end.to, Decoration.replace({ block: true }));
+      lineNumber = end.number;
+      while (previewBlocks[previewBlockIndex]?.startLine <= lineNumber) previewBlockIndex++;
+      continue;
+    }
     const previewBlock = previewBlocks[previewBlockIndex];
     if (previewBlock?.startLine === lineNumber) {
       const startLine = state.doc.line(previewBlock.startLine);
@@ -44324,9 +44658,9 @@ function liveRangeAttributes(range, lineNumber) {
   }
   return attributes;
 }
-function closestElement(target, selector) {
+function closestElement(target, selector2) {
   const element = target?.closest ? target : target?.parentElement;
-  return element?.closest?.(selector) ?? null;
+  return element?.closest?.(selector2) ?? null;
 }
 function liveMarkdownLinkFromMouseEvent(event, view) {
   const element = closestElement(event.target, '.cm-live-link-text[data-live-link="true"]');
@@ -45117,6 +45451,7 @@ export {
   createSourceEditor,
   dispatchEditorTransactions,
   editorTransactionsPreserveContext,
+  hasOnlyCommentChanges,
   imageLineAttributes,
   imageLineForAction,
   isLiveBlankClick,

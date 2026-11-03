@@ -187,3 +187,14 @@ test("OpenGlance continues to open Git Leaf 1.x deep links", () => {
     },
   );
 });
+
+test("open and share URLs omit redundant titles without changing document or revision targets", () => {
+  for (const generate of [openGlanceHttpsOpenUrl, openGlanceShareUrl]) {
+    const url = new URL(generate({
+      repository: "owner/repo", file: "docs/weekly-report.md", title: "Weekly Report", rev: "e".repeat(40),
+    }));
+    assert.equal(url.searchParams.has("title"), false);
+    assert.equal(url.searchParams.get("path"), "docs/weekly-report.md");
+    if (generate === openGlanceShareUrl) assert.equal(url.searchParams.get("rev"), "e".repeat(40));
+  }
+});

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -129,3 +129,64 @@ async function createRepositoryFixture(t) {
 async function runGit(cwd, args) {
   await execFileAsync("git", ["-C", cwd, ...args], { encoding: "utf8" });
 }
+
+test("both link generators expose only the bounded title and support omitting it", async (t) => {
+  const fixture = await createRepositoryFixture(t);
+  for (const source of [
+    '---\ntitle: "团队 & 计划"\nai_snippet: PRIVATE_SUMMARY\n---\n# Old heading\nPRIVATE_BODY',
+    '# **Release** [guide](https://example.com)\nPRIVATE_BODY',
+    `---\ntitle: ${"长".repeat(140)}\n---\nPRIVATE_BODY`,
+    '---\ntitle: >\n  PRIVATE_SUMMARY\n---\n# Fallback heading\nPRIVATE_BODY',
+  ]) {
+    await writeFile(path.join(fixture.primaryRoot, "docs/report.md"), source);
+    const links = await Promise.all([createOpenGlanceOpenLink, createCanonicalOpenLink].map(
+      (generate) => generate({ repoRoot: fixture.primaryRoot, file: "docs/report.md" }),
+    ));
+    assert.equal(links[0], links[1]);
+    const url = new URL(links[0]);
+    assert.ok(url.searchParams.get("title").length <= 100);
+    assert.doesNotMatch(decodeURIComponent(links[0]), /PRIVATE_BODY|PRIVATE_SUMMARY/);
+    for (const generate of [createOpenGlanceOpenLink, createCanonicalOpenLink]) {
+      const omitted = new URL(await generate({ repoRoot: fixture.primaryRoot, file: "docs/report.md", previewTitle: false }));
+      assert.equal(omitted.searchParams.has("title"), false);
+      assert.equal(omitted.searchParams.get("path"), "docs/report.md");
+    }
+  }
+  const result = await execFileAsync(process.execPath, [scriptPath, "--repo-root", fixture.primaryRoot, "--file", "docs/report.md", "--no-preview-title"]);
+  assert.equal(new URL(result.stdout.trim()).searchParams.has("title"), false);
+});
+
+test("link previews never read titles outside the repository or require a present document", async (t) => {
+  const fixture = await createRepositoryFixture(t);
+  const outside = path.join(path.dirname(fixture.primaryRoot), "outside.md");
+  await writeFile(outside, "# PRIVATE_OUTSIDE_TITLE\n");
+  await symlink(outside, path.join(fixture.primaryRoot, "docs/escape.md"));
+  for (const generate of [createOpenGlanceOpenLink, createCanonicalOpenLink]) {
+    for (const file of ["docs/escape.md", "docs/missing.md"]) {
+      assert.equal(new URL(await generate({ repoRoot: fixture.primaryRoot, file })).searchParams.has("title"), false);
+    }
+    await assert.rejects(generate({ repoRoot: fixture.primaryRoot, file: "../outside.md" }));
+  }
+});
+
+test("both generators omit filename-equivalent titles and retain distinct document identities", async (t) => {
+  const fixture = await createRepositoryFixture(t);
+  for (const [file, title, expected] of [
+    ["docs/weekly-report.md", "Weekly Report", null],
+    ["docs/团队周报.mdx", "团队周报", null],
+    ["docs/cafe\u0301.md", "café", null],
+    ["docs/weekly_report.md", "Weekly Report.md", null],
+    ["docs/README.md", "Project Handbook", "Project Handbook"],
+    ["docs/index.mdx", "团队工作指南", "团队工作指南"],
+    ["docs/c.md", "C++", "C++"],
+    [`docs/${"x".repeat(110)}.md`, "x".repeat(110), null],
+  ]) {
+    await writeFile(path.join(fixture.primaryRoot, file), `# ${title}\n`);
+    const links = await Promise.all([createOpenGlanceOpenLink, createCanonicalOpenLink].map(
+      (generate) => generate({ repoRoot: fixture.primaryRoot, file }),
+    ));
+    assert.equal(links[0], links[1]);
+    assert.equal(new URL(links[0]).searchParams.get("title"), expected, file);
+    assert.equal(new URL(links[0]).searchParams.get("path"), file);
+  }
+});

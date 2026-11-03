@@ -1,5 +1,5 @@
 ---
-last_updated: 2026-09-16
+last_updated: 2026-10-28
 ---
 
 # OpenGlance
@@ -44,6 +44,11 @@ than Obsidian.
 
 ## Core features
 
+While reading, sidebar and fallback document checks run about once a minute. Current-file events
+still update ordinary edits promptly. Use **Refresh now** in the top bar for an immediate local check;
+refocusing the window also refreshes it. Source and Live keep frequent external-change checks and
+automatically save edits.
+
 - **Preview first, edit when needed.** Markdown and MDX documents open in a fully rendered Preview with
   source-backed line numbers and text selection; Live and Source remain available for focused edits to
   the original files.
@@ -52,6 +57,7 @@ than Obsidian.
   an off-by-default control for struck-through deletions while the existing current-document line numbers
   stay unchanged. A new untracked document remains an ordinary readable document while Sync identifies it
   as unpublished. This is a lightweight editing trace, not a developer-oriented Git diff.
+- **Discussion in the document.** On `.md` files, select text or source lines and use the right Comments panel to create, reply, resolve, and reopen threads. Resolving restores the passage to normal; discussions stay in local Markdown until you publish manually. Agents read and write the same records.
 - **Precise context for agents.** Users can select source-backed lines from one file or combine content
   from multiple files, then copy portable Markdown context for an agent.
 - **Quiet updates, controlled publishing.** OpenGlance applies remote updates automatically when safe;
@@ -291,6 +297,9 @@ normative contract is the [usage analytics specification](docs/app-usage-analyti
 - The public `/open` and `/share` pages are Mango Future-hosted handoff services. They receive repository
   identifiers and document metadata, but never Git credentials or document content. See
   [Hosted link metadata and privacy](docs/hosted-links.md).
+- HTTPS document links supply titles, repository paths, and a small icon to preview-capable clients
+  such as Codex. Generators include a title only when it adds information beyond the filename;
+  `--no-preview-title` omits it. Previews do not transmit document bodies or AI summaries.
 
 ## Development
 

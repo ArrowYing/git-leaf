@@ -42,6 +42,10 @@ import {
 } from "@codemirror/view";
 import { EditorView, minimalSetup } from "codemirror";
 
+import { minimalDocumentChange, sourceSynchronizationSpec } from "./source-history.mjs";
+export { minimalDocumentChange } from "./source-history.mjs";
+export { hasOnlyCommentChanges } from "../content/document-comments.mjs";
+import { parseComments, maskCommentRecords, hasOnlyCommentChanges } from "../content/document-comments.mjs";
 import { renderMarkdown } from "../content/markdown.mjs";
 import {
   MARKDOWN_TABLE_HIGHLIGHT_COLORS,
@@ -560,6 +564,20 @@ const liveCompositionState = StateField.define({
   },
 });
 
+const commentRangesEffect = StateEffect.define();
+const commentRanges = StateField.define({
+  create: () => Decoration.none,
+  update(value, transaction) {
+    value = value.map(transaction.changes);
+    for (const effect of transaction.effects) if (effect.is(commentRangesEffect)) {
+      value = Decoration.set(effect.value.filter((range) => range.from >= 0 && range.to > range.from && range.to <= transaction.state.doc.length)
+        .map((range) => Decoration.mark({ class: "cm-comment-anchor" }).range(range.from, range.to)), true);
+    }
+    return value;
+  },
+  provide: (field) => EditorView.decorations.from(field),
+});
+
 const liveMarkdownDecorations = StateField.define({
   create(state) {
     return buildLiveMarkdownDecorations(state);
@@ -798,7 +816,7 @@ class DeletedLinesWidget extends WidgetType {
 }
 
 function buildDocumentChangesState(state, config) {
-  const model = config.available
+  const model = config.available && !(config.ignoreCommentChanges && hasOnlyCommentChanges(config.baselineSource, state.doc.toString()))
     ? createDocumentChangeModel({
         baselineSource: config.baselineSource,
         currentSource: state.doc.toString(),
@@ -1347,6 +1365,7 @@ export function createSourceEditor({
   language,
   onChange,
   onFocusChange,
+  onSelectionChange,
   onScroll,
   onLineSelect,
   onBlankClick,
@@ -1451,6 +1470,7 @@ export function createSourceEditor({
       selectedLineGutterClasses,
       documentSearchDecorations,
       remoteMergeHighlightDecorations,
+      commentRanges,
       documentChangesState,
       deletedLinesLineNumberMarker,
       themeCompartment.of(editorThemeExtensions(currentTheme)),
@@ -1476,6 +1496,7 @@ export function createSourceEditor({
         if (update.focusChanged) {
           onFocusChange?.(update.view.hasFocus);
         }
+        if (update.selectionSet || update.docChanged || update.focusChanged) onSelectionChange?.();
         if (!update.docChanged || suppressChange) {
           return;
         }
@@ -1764,6 +1785,7 @@ export function createSourceEditor({
         effects: documentChangesEffect.of({
           available: available === true,
           baselineSource: String(source ?? ""),
+          ignoreCommentChanges: /\.md$/i.test(getDocumentPath()),
           showDeletions: showDeletions === true,
           locale: locale ?? language ?? "en",
         }),
@@ -1777,7 +1799,7 @@ export function createSourceEditor({
       });
     },
     setValue(value, { preserveSelection = false, highlightChanges = false } = {}) {
-      const nextValue = String(value ?? "");
+      const nextValue = String(value ?? "").replace(/\r\n?/g, "\n");
       const currentValue = view.state.doc.toString();
       if (currentValue === nextValue) {
         return;
@@ -1794,17 +1816,21 @@ export function createSourceEditor({
           };
       suppressChange = true;
       try {
-        view.dispatch(preserveEditorContext({
-          changes,
-          effects: remoteMergeHighlightEffect.of(
-            highlightChanges
-              ? {
-                  from: changes.from,
-                  to: changes.from + String(changes.insert ?? "").length,
-                }
-              : null,
-          ),
-        }, preserveSelection));
+        view.dispatch(preserveEditorContext(sourceSynchronizationSpec(
+          view.state,
+          nextValue,
+          {
+            preserveSelection,
+            effects: remoteMergeHighlightEffect.of(
+              highlightChanges
+                ? {
+                    from: changes.from,
+                    to: changes.from + String(changes.insert ?? "").length,
+                  }
+                : null,
+            ),
+          },
+        ), preserveSelection));
       } finally {
         suppressChange = false;
       }
@@ -1826,6 +1852,17 @@ export function createSourceEditor({
     },
     hasFocus() {
       return view.hasFocus;
+    },
+    selectionRect() {
+      const range = view.state.selection.main;
+      return range.empty ? null : view.coordsAtPos(range.to) ?? view.coordsAtPos(range.from);
+    },
+    selectedRange() {
+      const { from, to } = view.state.selection.main;
+      return { from, to };
+    },
+    setCommentRanges(ranges) {
+      view.dispatch({ effects: commentRangesEffect.of(ranges) });
     },
     selectedText() {
       const range = view.state.selection.main;
@@ -4980,33 +5017,6 @@ function liveTextSelectionAnchorRect(view) {
   };
 }
 
-export function minimalDocumentChange(currentValue, nextValue) {
-  const current = String(currentValue ?? "");
-  const next = String(nextValue ?? "");
-  let from = 0;
-  const sharedLength = Math.min(current.length, next.length);
-  while (from < sharedLength && current.charCodeAt(from) === next.charCodeAt(from)) {
-    from += 1;
-  }
-
-  let currentTo = current.length;
-  let nextTo = next.length;
-  while (
-    currentTo > from
-    && nextTo > from
-    && current.charCodeAt(currentTo - 1) === next.charCodeAt(nextTo - 1)
-  ) {
-    currentTo -= 1;
-    nextTo -= 1;
-  }
-
-  return {
-    from,
-    to: currentTo,
-    insert: next.slice(from, nextTo),
-  };
-}
-
 function buildRemoteMergeHighlightDecorations(state, range) {
   if (!range) {
     return Decoration.none;
@@ -5868,13 +5878,25 @@ function buildLiveMarkdownDecorations(
     activeComposition,
   );
   const source = state.doc.toString();
-  const previewBlocks = livePreviewBlocksForSource(source, {
+  let records = [];
+  if (!/\.mdx$/i.test(renderOptions.currentFile || "") && source.includes("<!-- openglance-comment:")) {
+    try { records = parseComments(source).records; } catch {}
+  }
+  const previewBlocks = livePreviewBlocksForSource(records.length ? maskCommentRecords(source) : source, {
     activeLineNumber,
   });
   const listIndentation = liveListIndentationForLines(source.split("\n"));
   let previewBlockIndex = 0;
 
   for (let lineNumber = 1; lineNumber <= state.doc.lines; lineNumber += 1) {
+    const record = records.find((item) => item.from === state.doc.line(lineNumber).from);
+    if (record) {
+      const end = state.doc.lineAt(Math.max(record.from, record.to - 1));
+      builder.add(record.from, end.to, Decoration.replace({ block: true }));
+      lineNumber = end.number;
+      while (previewBlocks[previewBlockIndex]?.startLine <= lineNumber) previewBlockIndex++;
+      continue;
+    }
     const previewBlock = previewBlocks[previewBlockIndex];
     if (previewBlock?.startLine === lineNumber) {
       const startLine = state.doc.line(previewBlock.startLine);

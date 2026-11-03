@@ -297,6 +297,43 @@ All, Favorites, Sync, and file-tree preferences must never alter Git discovery, 
 or sync scope. Displayed document titles never replace the repository-relative path used for sorting,
 opening, favorites, sessions, file operations, Git status, or synchronization.
 
+Each local service keeps one file-tree snapshot for its worktree and shares an in-flight rebuild
+between requests. Native recursive filesystem events invalidate it on visible file changes, including
+repeated edits to an already modified document. Unknown paths and Git index/ignore changes first pass
+through Git discovery, so ignored build output does not trigger file-stat or document-title scans.
+Changed HEADs and explicit refreshes bypass the snapshot. A five-minute reconciliation bounds missed
+events; when recursive watching fails, requests fall back to five-second expiry and retry watching.
+Rebuild revisions also invalidate the browser's frontmatter search/facet metadata when filenames and
+titles stay the same. The cache does not authorize reads or writes and never replaces request-time
+repository, branch, or path validation.
+
+Visible workbenches check the tree, worktrees and local Git status once per minute. Preview also
+checks current-document status once per minute; Source and Live retain two-second external-change
+checks and the existing 500ms save debounce. A current-file event stream provides faster ordinary
+content updates and watches the containing directory so atomic replacements do not detach it from
+later edits. Git baseline changes and MDX data dependencies remain covered by status checks.
+
+The Refresh now button, a newly focused window and a return from hidden state immediately initiate
+local tree/document/Git checks. Focus and visibility events from one resume burst share a refresh;
+explicit refreshes queued behind older reads recheck afterward. Mode entry keeps the editor inert
+until required current-document checks succeed. Switching modes flushes pending writes, and obsolete
+mode-entry responses cannot activate an editor after another mode or document was selected. A failed
+required body read leaves Preview active. Ordinary successful autosaves update the current file's
+visible title and active search metadata without forcing whole-repository scans; file operations and
+synchronization retain their explicit refreshes.
+
+Hidden workbenches pause local intervals and close the document stream. The existing configured
+remote-check schedule is independent. These intervals are scheduling policies, not hard-real-time
+completion guarantees. None of the display state authorizes a write or replaces execution-time Git,
+path, branch-protection or merge validation.
+
+Transient JSON responses use no-store. An unchanged tree returns fresh repository metadata and a
+small version response instead of resending its contents. That version includes a unique server
+instance scope; because each service owns one worktree and validates the requested repository, it
+cannot reuse a revision from another repository, worktree or restarted server. Polling reads omit
+unused link-origin discovery while continuing to read current HEAD and branch. No HEAD display cache
+is shared with write, sync or merge execution.
+
 | File class | Capability |
 | --- | --- |
 | Markdown and MDX | Preview, Source, and Live; editable |
@@ -404,7 +441,8 @@ Preview and CodeMirror, including while a changed or active line is highlighted 
 Except for explicitly allowlisted MDX-lite components, OpenGlance must prefer source syntax that remains
 readable and editable in Obsidian and other CommonMark or GitHub-Flavored Markdown tools. A visual Live
 control is an interface over portable source, not permission to introduce an OpenGlance-only table schema,
-hidden metadata, or a second document representation. Exact rendering and editor affordances may still
+hidden table metadata, or a second document representation. Document comment records are the bounded
+exception described below. Exact rendering and editor affordances may still
 differ between applications.
 
 In particular, table rows and alignment remain native pipe-table syntax. Bold, italic, and
@@ -489,6 +527,54 @@ the quoted content.
 The component allowlist, attributes, input data formats, and rendering contracts live only in
 [MDX-lite reference](mdx-lite-guide.md).
 
+## Markdown document comments
+
+The shared grammar in `src/content/document-comments.mjs` recognizes independent top-level
+`<!-- openglance-comment:v1` JSON records in `.md` documents. New threads append at a structurally
+safe EOF; replies and status updates replace only the owning record. Unknown fields survive supported
+edits; malformed, duplicated, future-version, and unrelated records remain opaque and byte-preserved.
+The finite schema and portable body-hash vectors are covered by the document-comments tests.
+MDX comments require a separate syntax decision and are not enabled.
+
+A thread contains a UUID, open/resolved status, an exact quote with bounded surrounding context, and
+attributed UTC-stamped messages. Locations are derived from the normalized body projection and mapped
+back to complete-source coordinates. Multiple matching passages are not guessed. HTTP selections use
+LF-normalized full-source UTF-16 offsets, including the actual occurrence selected by the user. Preview
+uses exact mapping only where rendered text matches its source; otherwise the composer explicitly
+labels a source-backed paragraph/line range. Source and Live use CodeMirror selection offsets. Native
+selection events and CodeMirror selection/focus transactions update a contextual comment action without
+writing source. Its pointer action preserves the selection, and its cached target is scoped to the
+current document and source version. Sidebar inputs and unsupported document kinds do not expose it.
+
+Only recognized record envelopes are masked from Preview and Live presentation. The mask preserves
+physical newlines and source provenance. Code examples, lists, frontmatter, and HTML containers are
+not metadata. Complete source, including comments, remains the sole editing model. The right Comments
+panel is independent of left-sidebar Agent Context. Initial messages render as inert text: no HTML,
+remote images, active links, MDX, or automatic Agent actions. A local author name is attribution, not
+identity authentication.
+
+Only open, located threads decorate the body. Resolve removes the thread's highlights and pins
+completely; its messages and original quote remain under Resolved. Merely inspecting resolved history
+does not decorate the body. Reopen restores markers only when the anchor is located. Create, reply,
+resolve, and reopen write only local file bytes; publication remains the existing explicit Git action.
+
+`POST /api/document-comments` applies a bounded operation, and `POST /api/document` saves complete
+Source/Live text. Both require the last observed full-source SHA-256, trusted local write access, and
+an exact regular document path inside the worktree. Server writes share `transactDocument`, which checks
+Git operations, creates a protective branch before detached writes, preserves permissions, writes and
+flushes a same-directory temporary file, and rechecks identity and source before atomic replacement.
+Supported comment edits preserve body bytes and line endings. Source/Live saves represent the editor's
+complete text and normalize its line endings as CodeMirror does.
+
+Cooperating App and Agent transactions share a per-worktree exclusive filesystem guard. Git remote-merge
+preparation and apply/rollback, plus the local freeze/commit/rebase phase of publishing, use that guard.
+Network fetch/push run outside it. The checked preparation fingerprint rejects comments arriving after
+preparation. Source/Live saves are serialized and external refreshes defer while local input is dirty.
+Non-history editor transactions map received file changes through local undo history, so undoing a body
+edit does not remove received comments. A stale save keeps the buffer/draft and returns a conflict;
+it does not silently rebase local text. Ordinary external tools do not acquire this guard, so the final
+identity/hash recheck detects observed drift without claiming filesystem compare-and-swap semantics.
+
 ## Editing and write boundaries
 
 Document status tracks the current file's committed Git blob independently of its working-file content
@@ -498,8 +584,9 @@ Preview, Source, Live, and outline cues while retaining the current document sur
 and pending local input.
 
 Source and Live write the current file after a short debounce. Watcher events caused by OpenGlance's own
-write are ignored by content state to avoid reload loops. External changes reload from disk. A narrow
-race may lose not-yet-flushed keystrokes rather than creating an independent hidden draft model.
+write are ignored by content state to avoid reload loops. External changes reload from disk only when
+there is no pending local input. Saves carry a full-source version precondition, and a concurrent
+change leaves the local buffer intact with a save error instead of overwriting either version.
 
 Document creation is limited to Markdown and MDX. The service adds a safe extension when needed,
 rejects paths outside the repository, refuses overwrite, and opens the new document in a foreground tab.
@@ -704,7 +791,16 @@ missing, and never silently falls back to another worktree.
 The HTTPS `/open` and `/share` endpoints are Mango Future hosted handoff services. They convert safe URL
 metadata into a local protocol launch and maintain a random, in-memory handoff state for up to ten
 minutes. They do not fetch a Git repository or document body. The exact transmitted metadata and normal
-HTTP exposure are documented in [Hosted link handoff](hosted-links.md).
+HTTP exposure are documented in [Hosted link handoff](hosted-links.md). Ordinary link generators add
+an optional bounded document title (frontmatter title, then H1), with `--no-preview-title` for omission.
+Ordinary generators read at most 64 KiB inside the selected repository and never transmit content summaries.
+Both open and share URLs omit titles equivalent to the filename or its stem after NFC, case,
+whitespace, hyphen, and underscore normalization; comparison happens before title truncation.
+Hosted responses provide HTML/Open Graph text metadata and a small icon; external clients own card
+rendering and caching. Metadata is complete in the initial HTML head and does not depend on target-page
+JavaScript or access to the recipient’s localhost or filesystem. Descriptions identify the repository,
+location, and relevant worktree or published revision, omitting a filename already identified by the title.
+Display metadata never enters the desktop protocol's navigation parameters.
 
 During the installed-client migration, the hosted service emits the equivalent `git-leaf://` handoff
 because that compatibility scheme is registered by both Git Leaf 1.x and OpenGlance.

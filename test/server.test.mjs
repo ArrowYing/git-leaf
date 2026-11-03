@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, realpath, rename, rm, writeFile } from "node:fs/promises";
 import http from "node:http";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -954,6 +954,7 @@ test("document write API syncs source content to disk", async () => {
   const repoRoot = await mkdtemp(path.join(tmpdir(), "git-leaf-"));
   const filePath = path.join(repoRoot, "sample.md");
   await writeFile(filePath, "# Sample\n");
+  await execFileAsync("git", ["init", "-b", "main"], { cwd: repoRoot });
   const initialFile = await resolvePreviewPath(repoRoot, "sample.md");
   const server = createPreviewServer({ repoRoot, initialFile });
   const baseUrl = await listen(server);
@@ -962,7 +963,7 @@ test("document write API syncs source content to disk", async () => {
     const response = await fetch(`${baseUrl}/api/document?file=sample.md`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ source: "# Changed\n\nBody\n" }),
+      body: JSON.stringify({ source: "# Changed\n\nBody\n", expectedSourceHash: (await getJson(`${baseUrl}/api/document?file=sample.md`)).sourceHash }),
     });
     const payload = await response.json();
 
@@ -1778,6 +1779,7 @@ test("prepared merge API stays read-only until apply and then preserves dirty lo
 test("git sync API returns an Agent prompt when the fixed Git flow fails", async () => {
   const repoRoot = await mkdtemp(path.join(tmpdir(), "git-leaf-"));
   await writeFile(path.join(repoRoot, "sample.md"), "# Sample\n");
+  await execFileAsync("git", ["init", "-b", "main"], { cwd: repoRoot });
   const initialFile = await resolvePreviewPath(repoRoot, "sample.md");
   const server = createPreviewServer({
     repoRoot,
@@ -1986,6 +1988,7 @@ test("index page exposes edit capability for the current browser", async () => {
 test("repository payloads contain no sharing tokens", async () => {
   const repoRoot = await mkdtemp(path.join(tmpdir(), "git-leaf-"));
   await writeFile(path.join(repoRoot, "sample.md"), "# Sample\n");
+  await execFileAsync("git", ["init", "-b", "main"], { cwd: repoRoot });
   const initialFile = await resolvePreviewPath(repoRoot, "sample.md");
   const repository = {
     id: "docs-repo",
@@ -2022,7 +2025,7 @@ test("repository payloads contain no sharing tokens", async () => {
     const writeResponse = await fetch(`${baseUrl}/api/document?repo=docs-repo&file=sample.md`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ source: "# Changed\n" }),
+      body: JSON.stringify({ source: "# Changed\n", expectedSourceHash: (await getJson(`${baseUrl}/api/document?file=sample.md`)).sourceHash }),
     });
     assert.equal(writeResponse.ok, true);
     assert.equal(await readFile(path.join(repoRoot, "sample.md"), "utf8"), "# Changed\n");
@@ -2071,6 +2074,7 @@ test("non-main repositories remain locally editable", async () => {
   await mkdir(repoRoot, { recursive: true });
   await writeFile(path.join(repoRoot, "branch.md"), "# Branch Preview\n");
 
+  await execFileAsync("git", ["init", "-b", "feature/non-main-editing"], { cwd: repoRoot });
   const initialFile = await resolvePreviewPath(repoRoot, "branch.md");
   const repository = {
     id: "branch-repo",
@@ -2105,7 +2109,7 @@ test("non-main repositories remain locally editable", async () => {
     const writeResponse = await fetch(`${baseUrl}/api/document?repo=branch-repo&file=branch.md`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ source: "# Changed\n" }),
+      body: JSON.stringify({ source: "# Changed\n", expectedSourceHash: (await getJson(`${baseUrl}/api/document?file=branch.md`)).sourceHash }),
     });
     assert.equal(writeResponse.ok, true);
     assert.equal(await readFile(path.join(repoRoot, "branch.md"), "utf8"), "# Changed\n");
@@ -2189,7 +2193,7 @@ test("worktree API lists linked worktrees and detached writes create a protectio
     const response = await fetch(`${baseUrl}/api/document?repo=docs-repo&file=README.md`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ source: "# Protected edit\n" }),
+      body: JSON.stringify({ source: "# Protected edit\n", expectedSourceHash: (await getJson(`${baseUrl}/api/document?file=README.md`)).sourceHash }),
     });
     const payload = await response.json();
     const { stdout: branchOutput } = await execFileAsync("git", ["branch", "--show-current"], {
@@ -2259,6 +2263,7 @@ test("public module assets are served for the browser", async () => {
       "image-preview.js",
       "line-selection.js",
       "agent-context.js",
+      "document-comments.js",
       "layout.js",
       "ui-tooltip.js",
       "tree-item-tooltip.js",
@@ -2270,6 +2275,7 @@ test("public module assets are served for the browser", async () => {
       "pointer-resize.js",
       "outline.js",
       "tree-refresh.js",
+      "refresh-policy.js",
       "document-refresh.js",
       "document-changes.js",
       "chart-tooltip.js",
@@ -2374,3 +2380,69 @@ function fakeToolVersionMonitor({ startupFingerprint }) {
 function normalizeCheckoutLineEndings(value) {
   return value.replaceAll("\r\n", "\n");
 }
+
+test("unchanged trees return a small response scoped to a server instance and still expose fresh branch state", async () => {
+  const repoRoot = await mkdtemp(path.join(tmpdir(), "openglance-tree-version-"));
+  await execFileAsync("git", ["init", "-q"], { cwd: repoRoot });
+  await writeFile(path.join(repoRoot, "sample.md"), "# Sample\n");
+  await execFileAsync("git", ["add", "."], { cwd: repoRoot });
+  await execFileAsync("git", ["-c", "user.name=Test", "-c", "user.email=test@example.invalid", "commit", "-qm", "Fixture"], { cwd: repoRoot });
+  const first = createPreviewServer({ repoRoot });
+  const second = createPreviewServer({ repoRoot });
+  const a = await listen(first), b = await listen(second);
+  try {
+    const initial = await getJson(`${a}/api/tree`);
+    const small = await fetch(`${a}/api/tree?version=${encodeURIComponent(initial.version)}`);
+    const payload = await small.json();
+    assert.equal(small.headers.get("cache-control"), "no-store");
+    assert.equal(payload.unchanged, true);
+    assert.equal(payload.tree, undefined);
+    assert.equal(typeof payload.branch, "string");
+    await execFileAsync("git", ["checkout", "-qb", "fresh-branch"], { cwd: repoRoot });
+    const renamed = await getJson(`${a}/api/tree?version=${encodeURIComponent(initial.version)}`);
+    assert.equal(renamed.unchanged, true);
+    assert.equal(renamed.branch, "fresh-branch");
+    assert.ok(Array.isArray((await getJson(`${b}/api/tree?version=${encodeURIComponent(initial.version)}`)).tree));
+    assert.ok(Array.isArray((await getJson(`${a}/api/tree?version=${encodeURIComponent(initial.version)}&refresh=1`)).tree));
+  } finally { await close(first);await close(second);await rm(repoRoot,{ recursive:true,force:true }); }
+});
+
+
+test("document events continue after repeated atomic file replacements without a polling request", async () => {
+  const repoRoot = await mkdtemp(path.join(tmpdir(), "openglance-atomic-watch-"));
+  const file = path.join(repoRoot, "sample.md");
+  await writeFile(file, "# Initial\n");
+  const server = createPreviewServer({ repoRoot });
+  const baseUrl = await listen(server);
+  const abort = new AbortController();
+  try {
+    const response = await fetch(`${baseUrl}/api/watch?file=sample.md`, { signal: abort.signal });
+    let previous = "";
+    for (const title of ["First", "Second", "Third"]) {
+      const next = readNextServerSentEvent(response);
+      await writeFile(path.join(repoRoot, "temporary.md"), `# ${title}\n`);
+      await rename(path.join(repoRoot, "temporary.md"), file);
+      const event = await next;
+      assert.equal(event.event, "change");
+      assert.notEqual(event.data.sourceHash, previous);
+      previous = event.data.sourceHash;
+    }
+  } finally { abort.abort();await close(server);await rm(repoRoot,{recursive:true,force:true}); }
+});
+
+test("a stale named-branch display cannot authorize a detached write without a fresh protection branch", async () => {
+  const repoRoot = await mkdtemp(path.join(tmpdir(), "openglance-stale-display-write-"));
+  const git = args => execFileAsync("git", args, { cwd: repoRoot });
+  await git(["init", "-q"]);await writeFile(path.join(repoRoot,"sample.md"),"# Initial\n");await git(["add","."]);
+  await git(["-c","user.name=Test","-c","user.email=test@example.invalid","commit","-qm","Fixture"]);
+  const repository = await createRepositoryInfo({repoRoot});
+  const server = createPreviewServer({repoRoot,repository});const url=await listen(server);
+  try {
+    assert.equal((await getJson(`${url}/api/tree`)).detached,false);
+    await git(["checkout","--detach","-q","HEAD"]);
+    const response=await fetch(`${url}/api/document?file=sample.md`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({source:"# Protected write\n",expectedSourceHash:(await getJson(`${url}/api/document?file=sample.md`)).sourceHash})});
+    const payload=await response.json();assert.equal(response.status,200,payload.error);
+    assert.equal(payload.branchCreated,true);assert.match((await git(["branch","--show-current"])).stdout,/^openglance\/detached-/);
+    assert.equal(await readFile(path.join(repoRoot,"sample.md"),"utf8"),"# Protected write\n");
+  } finally {await close(server);await rm(repoRoot,{recursive:true,force:true});}
+});
